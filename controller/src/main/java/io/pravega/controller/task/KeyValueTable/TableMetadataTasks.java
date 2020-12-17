@@ -18,6 +18,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -132,9 +133,12 @@ public class TableMetadataTasks implements AutoCloseable {
                                     .thenCompose(state -> {
                                        if (state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
                                            //3. get a new UUID for the KVTable we will be creating.
-                                           byte[] newUUID = kvtMetadataStore.newScope(scope).newId();
+                                           UUID id = kvtMetadataStore.newScope(scope).newId();
+                                           byte[] newUUID = new byte[2 * Long.BYTES];
+                                           BitConverter.writeUUID(new ByteArraySegment(newUUID), id);
+
                                            CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(),
-                                                        createTimestamp, requestId, BitConverter.readUUID(newUUID, 0));
+                                                        createTimestamp, requestId, id);
                                            //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
                                            return eventHelper.addIndexAndSubmitTask(event,
                                                    () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, newUUID, executor))

@@ -12,7 +12,6 @@ package io.pravega.controller.store;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.StoreException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -29,6 +28,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.pravega.controller.store.PravegaTablesStoreHelper.*;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SEPARATOR;
@@ -69,12 +69,12 @@ public class PravegaTablesScope implements Scope {
         // This unique id is used to create scope specific table with unique id.
         // If scope entry exists in Scopes table, create the streamsInScope table before throwing DataExists exception
         return Futures.handleCompose(Futures.exceptionallyComposeExpecting(storeHelper.addNewEntry(
-                SCOPES_TABLE, scopeName, newId()),
+                SCOPES_TABLE, scopeName, UUID_TO_BYTES_FUNCTION, newId()),
                 DATA_NOT_FOUND_PREDICATE,
                 () -> storeHelper.createTable(SCOPES_TABLE)
                                  .thenCompose(v -> {
                                      log.debug("table for scopes created {}", SCOPES_TABLE);
-                                     return storeHelper.addNewEntryIfAbsent(SCOPES_TABLE, scopeName, newId());
+                                     return storeHelper.addNewEntryIfAbsent(SCOPES_TABLE, scopeName, UUID_TO_BYTES_FUNCTION, newId());
                                  })), (r, e) -> {
             if (e == null || Exceptions.unwrap(e) instanceof StoreException.DataExistsException) {
                 return CompletableFuture.allOf(getStreamsInScopeTableName()
@@ -112,7 +112,7 @@ public class PravegaTablesScope implements Scope {
     CompletableFuture<UUID> getId() {
         UUID id = idRef.get();
         if (Objects.isNull(id)) {
-            return storeHelper.getEntry(SCOPES_TABLE, scopeName, x -> BitConverter.readUUID(x, 0))
+            return storeHelper.getEntry(SCOPES_TABLE, scopeName, BYTES_TO_UUID_FUNCTION)
                               .thenCompose(entry -> {
                                   UUID uuid = entry.getObject();
                                   idRef.compareAndSet(null, uuid);
@@ -165,7 +165,7 @@ public class PravegaTablesScope implements Scope {
 
     public CompletableFuture<Void> addStreamToScope(String stream) {
         return getStreamsInScopeTableName()
-                .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, stream, newId())));
+                .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, stream, UUID_TO_BYTES_FUNCTION, newId())));
     }
 
     public CompletableFuture<Void> removeStreamFromScope(String stream) {
@@ -187,7 +187,7 @@ public class PravegaTablesScope implements Scope {
 
     public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
         return getKVTablesInScopeTableName()
-                .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, kvt, id)));
+                .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, kvt, x -> x, id)));
     }
 
     public CompletableFuture<Void> removeKVTableFromScope(String kvt) {

@@ -16,7 +16,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
-import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.PravegaTablesScope;
@@ -33,6 +32,8 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 
+import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
+import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BYTES_FUNCTION;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
 import java.time.Duration;
@@ -245,7 +246,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
         return Futures.completeOn(storeHelper.getEntry(DELETED_STREAMS_TABLE, getScopedStreamName(scopeName, streamName),
-                x -> BitConverter.readInt(x, 0))
+                BYTES_TO_INTEGER_FUNCTION)
                           .handle((data, ex) -> {
                               if (ex == null) {
                                   return data.getObject() + 1;
@@ -263,12 +264,10 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, final int lastActiveSegment,
                                                     OperationContext context, final Executor executor) {
         final String key = getScopedStreamName(scope, stream);
-        byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
-        BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
         return Futures.completeOn(storeHelper.createTable(DELETED_STREAMS_TABLE)
                           .thenCompose(created -> {
                               return storeHelper.expectingDataNotFound(storeHelper.getEntry(
-                                      DELETED_STREAMS_TABLE, key, x -> BitConverter.readInt(x, 0)),
+                                      DELETED_STREAMS_TABLE, key, BYTES_TO_INTEGER_FUNCTION),
                                       null)
                                             .thenCompose(existing -> {
                                                 log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
@@ -278,10 +277,10 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                             "Old last active segment ({}) for {}/{} is higher than current one {}.",
                                                             oldLastActiveSegment, scope, stream, lastActiveSegment);
                                                     return Futures.toVoid(storeHelper.updateEntry(DELETED_STREAMS_TABLE,
-                                                            key, maxSegmentNumberBytes, existing.getVersion()));
+                                                            key, INTEGER_TO_BYTES_FUNCTION, lastActiveSegment, existing.getVersion()));
                                                 } else {
                                                     return Futures.toVoid(storeHelper.addNewEntryIfAbsent(DELETED_STREAMS_TABLE,
-                                                            key, maxSegmentNumberBytes));
+                                                            key, INTEGER_TO_BYTES_FUNCTION, lastActiveSegment));
                                                 }
                                             });
                           }), executor);

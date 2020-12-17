@@ -10,6 +10,8 @@
 package io.pravega.controller.store.kvtable;
 
 
+import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -20,6 +22,8 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
+
+import java.util.UUID;
 
 
 /**
@@ -60,7 +64,10 @@ public class ZookeeperKVTMetadataStoreTest extends KVTableMetadataStoreTest {
     public void testInvalidOperation() throws Exception {
         // Test operation when stream is not in active state
         streamStore.createScope(scope).get();
-        byte[] newUUID = store.newScope(scope).newId();
+        UUID id = store.newScope(scope).newId();
+        byte[] newUUID = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(newUUID), id);
+
         store.createEntryForKVTable(scope, kvtable1, newUUID, executor);
         store.createKeyValueTable(scope, kvtable1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, kvtable1, KVTableState.CREATING, null, executor).get();

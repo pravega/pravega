@@ -80,7 +80,7 @@ public class PravegaTablesStoreHelperTest {
         String key = "key";
         String value = "value";
         byte[] valueBytes = value.getBytes();
-        storeHelper.addNewEntry(table, key, valueBytes).join();
+        storeHelper.addNewEntry(table, key, String::getBytes, value).join();
 
         // get entry
         VersionedMetadata<String> entry = storeHelper.getEntry(table, key, String::new).join();
@@ -105,9 +105,9 @@ public class PravegaTablesStoreHelperTest {
         value = "value2";
         valueBytes = value.getBytes();
         Version version = entry.getVersion();
-        storeHelper.updateEntry(table, key, valueBytes, version).join();
+        storeHelper.updateEntry(table, key, x -> x.getBytes(), value, version).join();
         // bad version update
-        AssertExtensions.assertFutureThrows("bad version", storeHelper.updateEntry(table, key, valueBytes, version),
+        AssertExtensions.assertFutureThrows("bad version", storeHelper.updateEntry(table, key, x -> x.getBytes(), value, version),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
         // get and verify
         entry = storeHelper.getEntry(table, key, String::new).join();
@@ -124,17 +124,17 @@ public class PravegaTablesStoreHelperTest {
         // idempotent remove
         storeHelper.removeEntry(table, key).join();
         
-        storeHelper.addNewEntryIfAbsent(table, key, valueBytes).join();
+        storeHelper.addNewEntryIfAbsent(table, key, x -> x.getBytes(), value).join();
         entry = storeHelper.getEntry(table, key, String::new).join();
         assertEquals(entry.getObject(), value);
         version = entry.getVersion();
         
         // idempotent
-        storeHelper.addNewEntryIfAbsent(table, key, valueBytes).join();
+        storeHelper.addNewEntryIfAbsent(table, key, x -> x.getBytes(), value).join();
         entry = storeHelper.getEntry(table, key, String::new).join();
         assertEquals(entry.getVersion(), version);
         
-        AssertExtensions.assertFutureThrows("Exists", storeHelper.addNewEntry(table, key, valueBytes), 
+        AssertExtensions.assertFutureThrows("Exists", storeHelper.addNewEntry(table, key, x -> x.getBytes(), value), 
             e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException);
 
         Map<String, byte[]> entriesToAdd = new HashMap<>();
@@ -221,11 +221,13 @@ public class PravegaTablesStoreHelperTest {
                 new WireCommandFailedException(WireCommandType.UPDATE_TABLE_ENTRIES, WireCommandFailedException.Reason.ConnectionDropped));
         doAnswer(x -> connectionDropped).when(segmentHelper).updateTableEntries(anyString(), any(), anyString(), anyLong());
         
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", new byte[0]),
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", 
+                x -> x, new byte[0]),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         verify(segmentHelper, times(1)).updateTableEntries(anyString(), any(), anyString(), anyLong());
 
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", new byte[0],
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", 
+                x -> x, new byte[0],
                 new Version.LongVersion(0L)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         verify(segmentHelper, times(2)).updateTableEntries(anyString(), any(), anyString(), anyLong());
@@ -237,11 +239,13 @@ public class PravegaTablesStoreHelperTest {
                 new WireCommandFailedException(WireCommandType.UPDATE_TABLE_ENTRIES, WireCommandFailedException.Reason.ConnectionFailed));
         doAnswer(x -> connectionFailed).when(segmentHelper).updateTableEntries(anyString(), any(), anyString(), anyLong());
 
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", new byte[0]),
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", 
+                x -> x, new byte[0]),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         verify(segmentHelper, times(3)).updateTableEntries(anyString(), any(), anyString(), anyLong());
         
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", new byte[0],
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", 
+                x -> x, new byte[0],
                 new Version.LongVersion(0L)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         verify(segmentHelper, times(4)).updateTableEntries(anyString(), any(), anyString(), anyLong());
@@ -252,12 +256,14 @@ public class PravegaTablesStoreHelperTest {
                 new WireCommandFailedException(WireCommandType.UPDATE_TABLE_ENTRIES, WireCommandFailedException.Reason.UnknownHost));
         doAnswer(x -> unknownHost).when(segmentHelper).updateTableEntries(anyString(), any(), anyString(), anyLong());
         
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", new byte[0]),
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", 
+                x -> x, new byte[0]),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         // this should be retried. we have configured 2 retries, so 2 retries should happen hence jump from 4 to 6. 
         verify(segmentHelper, times(6)).updateTableEntries(anyString(), any(), anyString(), anyLong());
 
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", new byte[0],
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", 
+                x -> x, new byte[0],
                 new Version.LongVersion(0L)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         verify(segmentHelper, times(8)).updateTableEntries(anyString(), any(), anyString(), anyLong());

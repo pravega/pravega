@@ -20,6 +20,9 @@ import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.store.stream.StoreException;
+
+import static io.pravega.controller.store.PravegaTablesStoreHelper.INTEGER_TO_BYTES_FUNCTION;
+import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_INTEGER_FUNCTION;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 import io.pravega.shared.NameUtils;
 import lombok.AccessLevel;
@@ -72,12 +75,10 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     CompletableFuture<Void> recordLastKVTableSegment(final String scope, final String kvtable, int lastActiveSegment,
                                                      KVTOperationContext context, final Executor executor) {
         final String key = getScopedKVTName(scope, kvtable);
-        byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
-        BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
         return Futures.completeOn(storeHelper.createTable(DELETED_KVTABLES_TABLE)
                 .thenCompose(created -> {
-                    return storeHelper.expectingDataNotFound(storeHelper.getEntry(
-                            DELETED_KVTABLES_TABLE, key, x -> BitConverter.readInt(x, 0)),
+                    return storeHelper.expectingDataNotFound(storeHelper.getCachedOrLoad(
+                            DELETED_KVTABLES_TABLE, key, BYTES_TO_INTEGER_FUNCTION, System.currentTimeMillis()),
                             null)
                             .thenCompose(existing -> {
                                 log.debug("Recording last segment {} for KeyValueTable {}/{} on deletion.", lastActiveSegment, scope, kvtable);
@@ -87,10 +88,10 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
                                             "Old last active segment ({}) for {}/{} is higher than current one {}.",
                                             oldLastActiveSegment, scope, kvtable, lastActiveSegment);
                                     return Futures.toVoid(storeHelper.updateEntry(DELETED_KVTABLES_TABLE,
-                                            key, maxSegmentNumberBytes, existing.getVersion()));
+                                            key, INTEGER_TO_BYTES_FUNCTION, lastActiveSegment, existing.getVersion()));
                                 } else {
                                     return Futures.toVoid(storeHelper.addNewEntryIfAbsent(DELETED_KVTABLES_TABLE,
-                                            key, maxSegmentNumberBytes));
+                                            key, INTEGER_TO_BYTES_FUNCTION, lastActiveSegment));
                                 }
                             });
                 }), executor);

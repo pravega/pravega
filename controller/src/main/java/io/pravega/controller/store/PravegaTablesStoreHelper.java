@@ -22,6 +22,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.SegmentHelper;
@@ -33,10 +35,12 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.util.RetryHelper;
 
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -44,8 +48,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import lombok.EqualsAndHashCode;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.shaded.com.google.common.base.Charsets;
 
@@ -58,6 +60,24 @@ import static io.pravega.controller.server.WireCommandFailedException.Reason.Con
  */
 @Slf4j
 public class PravegaTablesStoreHelper {
+    public static final Function<Integer, byte[]> INTEGER_TO_BYTES_FUNCTION = x -> {
+        byte[] bytes = new byte[Integer.BYTES];
+        BitConverter.writeInt(bytes, 0, x);
+        return bytes;
+    };
+    public static final Function<Long, byte[]> LONG_TO_BYTES_FUNCTION = x -> {
+        byte[] bytes = new byte[Long.BYTES];
+        BitConverter.writeLong(bytes, 0, x);
+        return bytes;
+    };
+    public static final Function<UUID, byte[]> UUID_TO_BYTES_FUNCTION = x -> {
+        byte[] b = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(b), x);
+        return b;
+    };
+    public static final Function<byte[], Long> BYTES_TO_LONG_FUNCTION = data -> BitConverter.readLong(data, 0);
+    public static final Function<byte[], Integer> BYTES_TO_INTEGER_FUNCTION = x -> BitConverter.readInt(x, 0);
+    public static final Function<byte[], UUID> BYTES_TO_UUID_FUNCTION = x -> BitConverter.readUUID(x, 0);
     private static final int NUM_OF_RETRIES = 15; // approximately 1 minute worth of retries
     private final SegmentHelper segmentHelper;
     private final ScheduledExecutorService executor;
@@ -65,14 +85,11 @@ public class PravegaTablesStoreHelper {
     private final AtomicReference<String> authToken;
     private final GrpcAuthHelper authHelper;
     private final int numOfRetries;
-    
+
     @lombok.Data
-    @EqualsAndHashCode(exclude = {"fromBytesFunc"})
-    private class TableCacheKey<T> implements Cache.CacheKey {
+    private static class TableCacheKey<T> implements Cache.CacheKey {
         private final String table;
         private final String key;
-
-        private final Function<byte[], T> fromBytesFunc;
     }
 
     public PravegaTablesStoreHelper(SegmentHelper segmentHelper, GrpcAuthHelper authHelper, ScheduledExecutorService executor) {
@@ -91,33 +108,30 @@ public class PravegaTablesStoreHelper {
     }
 
     /**
+     * Api to load a new value into the cache for the specified key from the requested table.
+     * @param table name of table
+     * @param key key to cache
+     * @param <T> Type of object to deserialize the response into.
+     */
+    private <T> void putInCache(String table, String key, VersionedMetadata<T> value) {
+        TableCacheKey<T> cacheKey = new TableCacheKey<>(table, key);
+        cache.put(cacheKey, value);
+    }
+
+    /**
      * Api to read cached value for the specified key from the requested table.
      * @param table name of table
      * @param key key to query
-     * @param fromBytes deserialization function.
      * @param <T> Type of object to deserialize the response into.
      * @return Returns a completableFuture which when completed will have the deserialized value with its store key version.
      */
-    public <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String table, String key, Function<byte[], T> fromBytes) {
-        TableCacheKey<T> cacheKey = new TableCacheKey<>(table, key, fromBytes);
-        VersionedMetadata<?> cached = cache.getCachedData(cacheKey);
-        if (cached != null) {
-            return CompletableFuture.completedFuture(getVersionedMetadata(cached));
-        } else {
-            return getEntry(table, key, fromBytes)
-                    .thenApply(v -> {
-                        VersionedMetadata<T> record = new VersionedMetadata<>(v.getObject(), v.getVersion());
-                        cache.put(cacheKey, record);
-                        return record;
-                    });
+    private <T> VersionedMetadata<T> getCachedData(String table, String key, long time) {
+        TableCacheKey<T> cacheKey = new TableCacheKey<>(table, key);
+        VersionedMetadata<?> cachedData = cache.getCachedData(cacheKey, time);
+        if (cachedData == null) {
+            return null;
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> VersionedMetadata<T> getVersionedMetadata(VersionedMetadata v) {
-        // Since cache is untyped and holds all types of deserialized objects, we typecast it to the requested object type
-        // based on the type in caller's supplied Deserialization function.
-        return new VersionedMetadata<>((T) v.getObject(), v.getVersion());
+        return getVersionedMetadata(cachedData);
     }
 
     /**
@@ -126,7 +140,14 @@ public class PravegaTablesStoreHelper {
      * @param key key to invalidate
      */
     public void invalidateCache(String table, String key) {
-        cache.invalidateCache(new TableCacheKey<>(table, key, x -> null));
+        cache.invalidateCache(new TableCacheKey<>(table, key));
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> VersionedMetadata<T> getVersionedMetadata(VersionedMetadata<?> v) {
+        // Since cache is untyped and holds all types of deserialized objects, we typecast it to the requested object type
+        // based on the type in caller's supplied Deserialization function.
+        return new VersionedMetadata<>((T) v.getObject(), v.getVersion());
     }
 
     /**
@@ -169,13 +190,15 @@ public class PravegaTablesStoreHelper {
      * Method to add new entry to a table.
      * @param tableName table name
      * @param key key to add
-     * @param value value to add
+     * @param toBytes function to convert value to bytes
+     * @param val value to add
+     * @param <T> Type of value to be added
      * @return CompletableFuture which when completed will have the version of the key returned by segment store.
      * If the key already exists, it will throw StoreException.DataExistsException.
      */
-    public CompletableFuture<Version> addNewEntry(String tableName, String key, @NonNull byte[] value) {
+    public <T> CompletableFuture<Version> addNewEntry(String tableName, String key, Function<T, byte[]> toBytes, T val) {
         log.trace("addNewEntry called for : {} key : {}", tableName, key);
-
+        byte[] value = toBytes.apply(val);
         List<TableSegmentEntry> entries = Collections.singletonList(
                 TableSegmentEntry.notExists(key.getBytes(Charsets.UTF_8), value));
         Supplier<String> errorMessage = () -> String.format("addNewEntry: key: %s table: %s", key, tableName);
@@ -193,7 +216,9 @@ public class PravegaTablesStoreHelper {
                 .thenApplyAsync(x -> {
                     TableSegmentKeyVersion first = x.get(0);
                     log.trace("entry for key {} added to table {} with version {}", key, tableName, first.getSegmentVersion());
-                    return (Version) new Version.LongVersion(first.getSegmentVersion());
+                    Version version = new Version.LongVersion(first.getSegmentVersion());
+                    putInCache(tableName, key, new VersionedMetadata<>(val, version));
+                    return version;
                 }, executor)
                 .whenComplete((r, ex) -> releaseEntries(entries));
     }
@@ -202,12 +227,14 @@ public class PravegaTablesStoreHelper {
      * Method to add new entry to table if it does not exist.
      * @param tableName tableName
      * @param key Key to add
-     * @param value value to add
+     * @param toBytes function to convert value to bytes.
+     * @param val value to add
+     * @param <T> Type of value to be added
      * @return CompletableFuture which when completed will have added entry to the table if it did not exist.
      */
-    public CompletableFuture<Version> addNewEntryIfAbsent(String tableName, String key, @NonNull byte[] value) {
+    public <T> CompletableFuture<Version> addNewEntryIfAbsent(String tableName, String key, Function<T, byte[]> toBytes, T val) {
         // if entry exists, we will get write conflict in attempting to create it again.
-        return expectingDataExists(addNewEntry(tableName, key, value), null);
+        return expectingDataExists(addNewEntry(tableName, key, toBytes, val), null);
     }
 
     /**
@@ -251,14 +278,16 @@ public class PravegaTablesStoreHelper {
      * Method to update a single entry.
      * @param tableName tablename
      * @param key key
-     * @param value value
+     * @param toBytes to bytes function
+     * @param val value
      * @param ver previous key version
+     * @param <T> Type of value to be added
      * @return CompletableFuture which when completed will indicate that the value is updated in the table.
      */
-    public CompletableFuture<Version> updateEntry(String tableName, String key, byte[] value, Version ver) {
+    public <T> CompletableFuture<Version> updateEntry(String tableName, String key, Function<T, byte[]> toBytes, T val, Version ver) {
         long version = ver.asLongVersion().getLongValue();
         log.trace("updateEntry entry called for : {} key : {} version {}", tableName, key, version);
-
+        byte[] value = toBytes.apply(val);
         List<TableSegmentEntry> entries = Collections.singletonList(
                 TableSegmentEntry.versioned(key.getBytes(Charsets.UTF_8), value, version));
         return withRetries(() -> segmentHelper.updateTableEntries(tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
@@ -266,7 +295,9 @@ public class PravegaTablesStoreHelper {
                 .thenApplyAsync(x -> {
                     TableSegmentKeyVersion first = x.get(0);
                     log.trace("entry for key {} updated to table {} with new version {}", key, tableName, first.getSegmentVersion());
-                    return (Version) new Version.LongVersion(first.getSegmentVersion());
+                    Version newVersion = new Version.LongVersion(first.getSegmentVersion());
+                    putInCache(tableName, key, new VersionedMetadata<>(val, newVersion));
+                    return newVersion;
                 }, executor)
                 .whenComplete((r, ex) -> releaseEntries(entries));
     }
@@ -316,6 +347,34 @@ public class PravegaTablesStoreHelper {
     }
 
     /**
+     * Method to retrieve the value for a given key from a table and it fetches from cache if the aftertime is less than
+     * the time of the cached value. After it retrieves the value, it loads it into the cache. 
+     * loads it into the cache. This method takes a deserialization function and deserializes
+     * the received byte[] using the supplied function.  
+     * @param tableName tableName
+     * @param key key
+     * @param fromBytes deserialization function
+     * @param <T> Type of deserialized object
+     * @param afterTime time after which the cache entry should be treated as valid. if the value was loaded before this time, 
+     *                  then ignore cached and fetch from store. 
+     * @return CompletableFuture which when completed will have the versionedMetadata retrieved from the store.
+     */
+    public <T> CompletableFuture<VersionedMetadata<T>> getCachedOrLoad(String tableName, String key, Function<byte[], T> fromBytes,
+                                                                       long afterTime) {
+        log.trace("get entry called for : {} key : {}", tableName, key);
+        VersionedMetadata<Object> cached = getCachedData(tableName, key, afterTime);
+        if (cached != null) {
+            return CompletableFuture.completedFuture(getVersionedMetadata(cached));
+        } else {
+            return getEntry(tableName, key, fromBytes)
+                    .thenApply(r -> {
+                        putInCache(tableName, key, r);
+                        return r;
+                    });
+        }
+    }
+
+    /**
      * Method to retrieve the value for a given key from a table. This method takes a deserialization function and deserializes
      * the received byte[] using the supplied function.
      * @param tableName tableName
@@ -337,14 +396,19 @@ public class PravegaTablesStoreHelper {
                 () -> String.format(message, keys, tableName))
                 .thenApplyAsync(entries -> {
                     try {
-                        return entries.stream().map(entry -> {
+                        List<VersionedMetadata<T>> list = new ArrayList<>(keys.size());
+                        for (int i = 0; i < keys.size(); i++) {
+                            TableSegmentEntry entry = entries.get(i);
                             if (entry.getKey().getVersion().equals(TableSegmentKeyVersion.NOT_EXISTS)) {
-                                return nonExistent;
+                                list.add(nonExistent);
                             } else {
-                                return new VersionedMetadata<>(fromBytes.apply(getArray(entry.getValue())),
+                                VersionedMetadata<T> tVersionedMetadata = new VersionedMetadata<>(fromBytes.apply(getArray(entry.getValue())),
                                         new Version.LongVersion(entry.getKey().getVersion().getSegmentVersion()));
+                                putInCache(tableName, keys.get(i), tVersionedMetadata);
+                                list.add(tVersionedMetadata);
                             }
-                        }).collect(Collectors.toList());
+                        }
+                        return list;
                     } finally {
                         releaseEntries(entries);
                     }
@@ -389,7 +453,10 @@ public class PravegaTablesStoreHelper {
         return expectingDataNotFound(withRetries(() -> segmentHelper.removeTableKeys(
                 tableName, Collections.singletonList(tableKey), authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("remove entry: key: %s table: %s", key, tableName)), null)
-                .thenAcceptAsync(v -> log.trace("entry for key {} removed from table {}", key, tableName), executor)
+                .thenAcceptAsync(v -> {
+                    invalidateCache(tableName, key);
+                    log.trace("entry for key {} removed from table {}", key, tableName);
+                }, executor)
                 .whenComplete((r, ex) -> releaseKeys(Collections.singleton(tableKey)));
     }
 
@@ -411,7 +478,10 @@ public class PravegaTablesStoreHelper {
         return expectingDataNotFound(withRetries(() -> segmentHelper.removeTableKeys(
                 tableName, listOfKeys, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("remove entries: keys: %s table: %s", keys.toString(), tableName)), null)
-                .thenAcceptAsync(v -> log.trace("entry for keys {} removed from table {}", keys, tableName), executor)
+                .thenAcceptAsync(v -> {
+                    keys.forEach(key -> invalidateCache(tableName, key));
+                    log.trace("entry for keys {} removed from table {}", keys, tableName);
+                }, executor)
                 .whenComplete((r, ex) -> releaseKeys(listOfKeys));
     }
 
@@ -466,6 +536,7 @@ public class PravegaTablesStoreHelper {
                             String key = new String(getArray(x.getKey().getKey()), Charsets.UTF_8);
                             T deserialized = fromBytes.apply(getArray(x.getValue()));
                             VersionedMetadata<T> value = new VersionedMetadata<>(deserialized, new Version.LongVersion(x.getKey().getVersion().getSegmentVersion()));
+                            putInCache(tableName, key, value);
                             return new AbstractMap.SimpleEntry<>(key, value);
                         }).collect(Collectors.toList());
                         log.trace("get keys paginated on table {} returned number of items {}", tableName, items.size());

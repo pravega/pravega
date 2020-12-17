@@ -433,7 +433,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         BitConverter.writeUUID(new ByteArraySegment(idBytes), id);
 
         // add entry for a scope in scopes table 
-        storeHelper.addNewEntry(PravegaTablesStreamMetadataStore.SCOPES_TABLE, scopeName, idBytes).join();
+        storeHelper.addNewEntry(PravegaTablesStreamMetadataStore.SCOPES_TABLE, scopeName, x -> x, idBytes).join();
         
         // verify that streams in scope table does not exist
         PravegaTablesScope scope = (PravegaTablesScope) store.getScope(scopeName);
@@ -458,7 +458,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         PravegaTablesStoreHelper spy = spy(storeHelper);
         PravegaTablesScope scopeObj = new PravegaTablesScope("thirdScope", spy);
         StoreException unknown = StoreException.create(StoreException.Type.UNKNOWN, "unknown");
-        doReturn(Futures.failedFuture(unknown)).when(spy).addNewEntry(anyString(), anyString(), any());
+        doReturn(Futures.failedFuture(unknown)).when(spy).addNewEntry(anyString(), anyString(), any(), any());
         AssertExtensions.assertFutureThrows("Create scope should have thrown exception",
                 scopeObj.createScope(), 
                 e -> Exceptions.unwrap(e).equals(unknown));

@@ -12,6 +12,8 @@ package io.pravega.controller.store.kvtable;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -23,6 +25,7 @@ import org.junit.Test;
 import org.junit.After;
 import org.junit.rules.Timeout;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ScheduledExecutorService;
@@ -68,13 +71,17 @@ public abstract class KVTableMetadataStoreTest {
         assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS)
                 || scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS));
 
-        byte[] newUUID1 = store.newScope(scope).newId();
+        UUID id = store.newScope(scope).newId();
+        byte[] newUUID1 = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(newUUID1), id);
         store.createEntryForKVTable(scope, kvtable1, newUUID1, executor).get();
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scope, kvtable1, configuration1, start, null, executor).get();
         store.setState(scope, kvtable1, KVTableState.ACTIVE, null, executor).get();
 
-        byte[] newUUID2 = store.newScope(scope).newId();
+        id = store.newScope(scope).newId();
+        byte[] newUUID2 = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(newUUID2), id);
         store.createEntryForKVTable(scope, kvtable2, newUUID2, executor).get();
         store.createKeyValueTable(scope, kvtable2, configuration2, start, null, executor).get();
         store.setState(scope, kvtable2, KVTableState.ACTIVE, null, executor).get();
@@ -98,13 +105,17 @@ public abstract class KVTableMetadataStoreTest {
         assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS)
                 || scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS));
 
-        byte[] newUUID1 = store.newScope(scope).newId();
+        UUID id = store.newScope(scope).newId();
+        byte[] newUUID1 = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(newUUID1), id);
         store.createEntryForKVTable(scope, kvtable1, newUUID1, executor).get();
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scope, kvtable1, configuration1, start, null, executor).get();
         store.setState(scope, kvtable1, KVTableState.ACTIVE, null, executor).get();
 
-        byte[] newUUID2 = store.newScope(scope).newId();
+        id = store.newScope(scope).newId();
+        byte[] newUUID2 = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(newUUID2), id);
         store.createEntryForKVTable(scope, kvtable2, newUUID2, executor).get();
         store.createKeyValueTable(scope, kvtable2, configuration2, start, null, executor).get();
         store.setState(scope, kvtable2, KVTableState.ACTIVE, null, executor).get();
@@ -140,7 +151,9 @@ public abstract class KVTableMetadataStoreTest {
         Controller.CreateScopeStatus scopeCreateStatus = createScope(scopeName);
         assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS));
 
-        byte[] newUUID1 = store.newScope(scopeName).newId();
+        UUID id = store.newScope(scope).newId();
+        byte[] newUUID1 = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(newUUID1), id);
         store.createEntryForKVTable(scopeName, kvtName, newUUID1, executor).get();
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scopeName, kvtName, config, start, null, executor).get();
