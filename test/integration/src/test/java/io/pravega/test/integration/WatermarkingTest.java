@@ -133,7 +133,6 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
                 .build();
         cluster.start();
 
-        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
         ClientConfig writerClientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
                 .credentials(new DefaultCredentials(userPassword, writerUserName))

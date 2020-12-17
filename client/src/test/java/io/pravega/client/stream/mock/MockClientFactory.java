@@ -96,7 +96,7 @@ public class MockClientFactory extends AbstractClientFactoryImpl implements Even
 
     @Override
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Controller controllerObj, Serializer<T> serializer, SynchronizerConfig config, AccessOperation accessOperation) {
-        return impl.createRevisionedStreamClient(streamName, serializer, config);
+        return impl.createRevisionedStreamClient(streamName, controllerObj, serializer, config, accessOperation);
     }
 
     @Override
