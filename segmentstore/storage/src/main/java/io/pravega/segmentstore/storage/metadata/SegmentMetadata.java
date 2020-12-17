@@ -47,31 +47,6 @@ import static com.google.common.base.Strings.nullToEmpty;
 @ThreadSafe
 public class SegmentMetadata extends StorageMetadata {
     /**
-     * Flag to indicate whether the segment is active or not.
-     */
-    private static final int ACTIVE = 0x0001;
-
-    /**
-     * Flag to indicate whether the segment is sealed or not.
-     */
-    private static final int SEALED = 0x0002;
-
-    /**
-     * Flag to indicate whether the segment is deleted or not.
-     */
-    private static final int DELETED = 0x0004;
-
-    /**
-     * Flag to indicate whether followup actions (like adding new chunks) after ownership changes are needed or not.
-     */
-    private static final int OWNERSHIP_CHANGED = 0x0008;
-
-    /**
-     * Flag to indicate whether the segment is storage system segment.
-     */
-    private static final int SYSTEM_SEGMENT = 0x0010;
-
-    /**
      * Name of the segment.
      */
     private final String name;
@@ -160,7 +135,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return This instance so that these calls can be chained.
      */
     public SegmentMetadata setActive(boolean value) {
-        return setFlag(ACTIVE, value);
+        return setFlag(StatusFlags.ACTIVE, value);
     }
 
     /**
@@ -169,7 +144,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return This instance so that these calls can be chained.
      */
     public SegmentMetadata setSealed(boolean value) {
-        return setFlag(SEALED, value);
+        return setFlag(StatusFlags.SEALED, value);
     }
 
     /**
@@ -178,7 +153,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return This instance so that these calls can be chained.
      */
     public SegmentMetadata setStorageSystemSegment(boolean value) {
-        return setFlag(SYSTEM_SEGMENT, value);
+        return setFlag(StatusFlags.SYSTEM_SEGMENT, value);
     }
 
     /**
@@ -188,7 +163,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return This instance so that these calls can be chained.
      */
     public SegmentMetadata setOwnershipChanged(boolean value) {
-        return setFlag(OWNERSHIP_CHANGED, value);
+        return setFlag(StatusFlags.OWNERSHIP_CHANGED, value);
     }
 
     /**
@@ -196,7 +171,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return True if active, false otherwise.
      */
     public boolean isActive() {
-        return getFlag(ACTIVE);
+        return getFlag(StatusFlags.ACTIVE);
     }
 
     /**
@@ -204,7 +179,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return True if sealed, false otherwise.
      */
     public boolean isSealed() {
-        return getFlag(SEALED);
+        return getFlag(StatusFlags.SEALED);
     }
 
     /**
@@ -212,7 +187,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return True if changed, false otherwise.
      */
     public boolean isOwnershipChanged() {
-        return getFlag(OWNERSHIP_CHANGED);
+        return getFlag(StatusFlags.OWNERSHIP_CHANGED);
     }
 
     /**
@@ -220,7 +195,7 @@ public class SegmentMetadata extends StorageMetadata {
      * @return True if segment is system segment, false otherwise.
      */
     public boolean isStorageSystemSegment() {
-        return getFlag(SYSTEM_SEGMENT);
+        return getFlag(StatusFlags.SYSTEM_SEGMENT);
     }
 
     /**

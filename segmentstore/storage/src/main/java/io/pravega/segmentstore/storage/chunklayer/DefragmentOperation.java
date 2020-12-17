@@ -201,7 +201,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
             f = concatUsingAppend(concatArgs);
         }
 
-        return f.thenAcceptAsync(v -> {
+        return f.thenComposeAsync(v -> {
             // Delete chunks.
             for (int i = 1; i < chunksToConcat.size(); i++) {
                 chunksToDelete.add(chunksToConcat.get(i).getName());
@@ -217,13 +217,22 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                 segmentMetadata.setLastChunkStartOffset(segmentMetadata.getLength() - target.getLength());
             }
 
+            ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
             // Update metadata for affected chunks.
             for (int i = 1; i < concatArgs.length; i++) {
-                txn.delete(concatArgs[i].getName());
+                final int n = i;
+                futures.add(txn.get(concatArgs[n].getName())
+                                .thenAcceptAsync(metadata -> {
+                                    ((ChunkMetadata) metadata).setActive(false);
+                                    txn.update(metadata);
+                                }, chunkedSegmentStorage.getExecutor()));
                 segmentMetadata.decrementChunkCount();
             }
-            txn.update(target);
-            txn.update(segmentMetadata);
+            return Futures.allOf(futures).thenRunAsync(() -> {
+                txn.update(target);
+                txn.update(segmentMetadata);
+            }, chunkedSegmentStorage.getExecutor());
+
         }, chunkedSegmentStorage.getExecutor());
 
     }

@@ -1009,10 +1009,12 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 .name("name")
                 .nextChunk("nextChunk")
                 .length(1)
+                .status(2)
                 .build());
         list.add(ChunkMetadata.builder()
                 .name("name")
                 .length(1)
+                .status(2)
                 .build());
 
         testSegmentSnapshotRecordSerialization(
@@ -1069,10 +1071,12 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 .name("name1")
                 .nextChunk("nextChunk1")
                 .length(1)
+                .status(2)
                 .build());
         list1.add(ChunkMetadata.builder()
                 .name("name12")
                 .length(1)
+                .status(2)
                 .build());
 
         ArrayList<ChunkMetadata> list2 = new ArrayList<>();
@@ -1080,10 +1084,12 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 .name("name2")
                 .nextChunk("nextChunk2")
                 .length(1)
+                .status(3)
                 .build());
         list2.add(ChunkMetadata.builder()
                 .name("name22")
                 .length(1)
+                .status(3)
                 .build());
 
         ArrayList<SystemJournal.SegmentSnapshotRecord> segmentlist = new ArrayList<>();
