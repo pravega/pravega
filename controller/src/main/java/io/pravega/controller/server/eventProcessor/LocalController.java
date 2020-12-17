@@ -13,17 +13,16 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Transaction;
 import io.pravega.client.control.impl.CancellableRequest;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ModelHelper;
-import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
@@ -35,6 +34,7 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
@@ -186,35 +186,56 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
-        return this.controller.addSubscriber(scope, streamName, subscriber, generation).thenApply(x -> {
+    public CompletableFuture<Boolean> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+        final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
+        return this.controller.createReaderGroup(scopeName, rgName, config, System.currentTimeMillis()).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException("Failed to add subscriber: " + subscriber + " to Stream: " +
-                                                                              scope + "/" + streamName);
-                case STREAM_NOT_FOUND:
-                    throw new IllegalArgumentException("Failed to add subscriber: " + subscriber + "Stream does not exist: " + streamName);
+                    throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
+                case INVALID_RG_NAME:
+                    throw new IllegalArgumentException("Illegal ReaderGroup name: " + rgName);
+                case SCOPE_NOT_FOUND:
+                    throw new IllegalArgumentException("Scope does not exist: " + scopeName);
                 case SUCCESS:
                     return true;
                 default:
-                    throw new ControllerFailureException("Unknown return status adding subscriber " + subscriber + "on stream " + scope + "/" + streamName
+                    throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
                             + " " + x.getStatus());
             }
         });
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
-        return this.controller.deleteSubscriber(scope, streamName, subscriber, generation).thenApply(x -> {
+    public CompletableFuture<Boolean> getReaderGroupConfig(String scopeName, String rgName) {
+        return this.controller.getReaderGroupConfig(scopeName, rgName).thenApply(x -> {
+            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException("Failed to update stream: " + scope + "/" + streamName);
-                case STREAM_NOT_FOUND:
-                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                    throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
+                case RG_NOT_FOUND:
+                    throw new IllegalArgumentException("Scope does not exist: " + scopeName);
                 case SUCCESS:
                     return true;
                 default:
-                    throw new ControllerFailureException("Unknown return status deleting subscriber " + subscriber + "on stream " + scope + "/" + streamName
+                    throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteReaderGroup(String scopeName, String rgName) {
+        return this.controller.getReaderGroupConfig(scopeName, rgName).thenApply(x -> {
+            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
+                case RG_NOT_FOUND:
+                    throw new IllegalArgumentException("Scope does not exist: " + scopeName);
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
                             + " " + x.getStatus());
             }
         });
@@ -238,9 +259,8 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber,
-                                                                final StreamCut streamCut) {
-
-        return this.controller.updateSubscriberStreamCut(scope, streamName, subscriber, getStreamCutAsImmutableMap(streamCut)).thenApply(x -> {
+                                                                final long generation, final StreamCut streamCut) {
+        return this.controller.updateSubscriberStreamCut(scope, streamName, subscriber, generation, getStreamCutAsImmutableMap(streamCut)).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to update streamcut: " + scope + "/" + streamName);
@@ -606,26 +626,6 @@ public class LocalController implements Controller {
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
         return controller.getCurrentSegmentsKeyValueTable(scope, kvtName)
                 .thenApply(this::getKeyValueTableSegments);
-    }
-
-    @Override
-    public CompletableFuture<Boolean> createReaderGroup(String groupName, ReaderGroupConfig config) {
-        return null;
-    }
-
-    @Override
-    public CompletableFuture<Boolean> deleteReaderGroup(String groupName) {
-        return null;
-    }
-
-    @Override
-    public CompletableFuture<Boolean> updateReaderGroup(String groupName, ReaderGroupConfig config) {
-        return null;
-    }
-
-    @Override
-    public CompletableFuture<ReaderGroupState> getReaderGroup(String groupName) {
-        return null;
     }
 
     private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {

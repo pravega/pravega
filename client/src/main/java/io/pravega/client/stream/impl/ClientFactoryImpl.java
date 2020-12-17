@@ -246,7 +246,7 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
                                                                         SynchronizerConfig config) {
         String streamName = NameUtils.getStreamForReaderGroup(readerGroup);
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(streamName, updateSerializer, initialSerializer, config);
-        return new ReaderGroupStateSynchronizer(readerGroup, sync, controller);
+        return new ReaderGroupStateSynchronizer(scope, readerGroup, sync, controller);
     }
 
     private Segment getSegmentForRevisionedClient(String scope, String streamName) {

@@ -53,7 +53,7 @@ public class ReaderGroupStateTest {
         Map<SegmentWithRange, Long> offsetMap = new HashMap<>();
         offsetMap.put(new SegmentWithRange(new Segment(SCOPE, "S1", 0), 0, 1), 1L);
         offsetMap.put(new SegmentWithRange(new Segment(SCOPE, "S2", 0), 0, 1), 1L);
-        readerState = new ReaderGroupState("stream", revision, readerConf, offsetMap, Collections.emptyMap(), 0);
+        readerState = new ReaderGroupState("stream", revision, readerConf, offsetMap, Collections.emptyMap(), false);
     }
     
 

@@ -47,6 +47,8 @@ import lombok.SneakyThrows;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
+import static io.pravega.client.stream.impl.ReaderGroupImpl.getSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 /**
@@ -86,6 +88,7 @@ public class ReaderGroupStateManager {
     private final TimeoutTimer fetchStateTimer;
     private final TimeoutTimer checkpointTimer;
     private final TimeoutTimer lagUpdateTimer;
+    private final TimeoutTimer updateConfigTimer;
 
     ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
         Preconditions.checkNotNull(readerId);
@@ -103,6 +106,7 @@ public class ReaderGroupStateManager {
         fetchStateTimer = new TimeoutTimer(Duration.ZERO, nanoClock);
         checkpointTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         lagUpdateTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
+        updateConfigTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
 
     /**
@@ -330,6 +334,18 @@ public class ReaderGroupStateManager {
             compactIfNeeded();
         }
     }
+
+    private void updateConfigIfNeeded() {
+        sync.fetchUpdates();
+        if (!updateConfigTimer.hasRemaining() && sync.getState().isUpdatingConfig()) {
+            log.debug("Update the group config");
+            ReaderGroupConfig controllerConfig = controller.getReaderGroupConfig();
+            if (sync.getState().getConfig().getGeneration() < controllerConfig.getGeneration()) {
+                Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, controllerConfig);
+                sync.updateStateUnconditionally(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
+            }
+        }
+    }
     
     private void compactIfNeeded() {
         //Make sure it has been a while, and compaction are staggered.
@@ -481,8 +497,9 @@ public class ReaderGroupStateManager {
             Optional<Map<Stream, Map<Segment, Long>>> cuts = state.getPositionsForLastCompletedCheckpoint();
             cuts.orElseThrow(() -> new CheckpointFailedException("Could not get positions for last checkpoint."))
                  .entrySet().forEach(entry ->
+                        //TODO: replace 0L with rgconfig.generation
                         controller.updateSubscriberStreamCut(entry.getKey().getScope(), entry.getKey().getStreamName(),
-                                readerId, new StreamCutImpl(entry.getKey(), entry.getValue())));
+                                readerId, 0L, new StreamCutImpl(entry.getKey(), entry.getValue())));
                 sync.updateStateUnconditionally(new UpdateCheckpointPublished(true));
         }
     }

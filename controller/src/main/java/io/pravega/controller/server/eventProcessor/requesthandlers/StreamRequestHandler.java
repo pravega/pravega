@@ -11,13 +11,8 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.shared.controller.event.AutoScaleEvent;
-import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.DeleteStreamEvent;
-import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.shared.controller.event.SealStreamEvent;
-import io.pravega.shared.controller.event.TruncateStreamEvent;
-import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.*;
+
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -31,6 +26,9 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
     private final SealStreamTask sealStreamTask;
     private final DeleteStreamTask deleteStreamTask;
     private final TruncateStreamTask truncateStreamTask;
+    private final CreateReaderGroupTask createRGTask;
+    private final DeleteReaderGroupTask deleteRGTask;
+    private final UpdateReaderGroupTask updateRGTask;
 
     public StreamRequestHandler(AutoScaleTask autoScaleTask,
                                 ScaleOperationTask scaleOperationTask,
@@ -38,6 +36,9 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
                                 SealStreamTask sealStreamTask,
                                 DeleteStreamTask deleteStreamTask,
                                 TruncateStreamTask truncateStreamTask,
+                                CreateReaderGroupTask createRGTask,
+                                DeleteReaderGroupTask deleteRGTask,
+                                UpdateReaderGroupTask updateRGTask,
                                 StreamMetadataStore streamMetadataStore,
                                 ScheduledExecutorService executor) {
         super(streamMetadataStore, executor);
@@ -47,6 +48,9 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         this.sealStreamTask = sealStreamTask;
         this.deleteStreamTask = deleteStreamTask;
         this.truncateStreamTask = truncateStreamTask;
+        this.createRGTask = createRGTask;
+        this.deleteRGTask = deleteRGTask;
+        this.updateRGTask = updateRGTask;
     }
     
     @Override
@@ -102,5 +106,26 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
                 .thenAccept(v -> {
                     log.info("Processing delete request {} for stream {}/{} complete", deleteStreamEvent.getRequestId(), deleteStreamEvent.getScope(), deleteStreamEvent.getStream());
                 });
+    }
+
+    @Override
+    public CompletableFuture<Void> processCreateReaderGroup(CreateReaderGroupEvent createRGEvent) {
+        log.info("Processing create request {} for ReaderGroup {}/{}",
+                createRGEvent.getRequestId(), createRGEvent.getScopeName(), createRGEvent.getRgName());
+        return createRGTask.execute(createRGEvent);
+    }
+
+    @Override
+    public CompletableFuture<Void> processDeleteReaderGroup(DeleteReaderGroupEvent deleteRGEvent) {
+        log.info("Processing delete request {} for ReaderGroup {}/{}",
+                deleteRGEvent.getRequestId(), deleteRGEvent.getScope(), deleteRGEvent.getRgName());
+        return deleteRGTask.execute(deleteRGEvent);
+    }
+
+    @Override
+    public CompletableFuture<Void> processUpdateReaderGroup(UpdateReaderGroupEvent updateRGEvent) {
+        log.info("Processing delete request {} for ReaderGroup {}/{}",
+                updateRGEvent.getRequestId(), updateRGEvent.getScope(), updateRGEvent.getRgName());
+        return updateRGTask.execute(updateRGEvent);
     }
 }

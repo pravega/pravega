@@ -38,6 +38,8 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
+import io.pravega.client.stream.impl.ReaderGroupState.UpdatingConfig;
+import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import io.pravega.client.stream.notifications.EndOfDataNotification;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
@@ -96,7 +98,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         this.groupName = Preconditions.checkNotNull(groupName);
         this.controller = Preconditions.checkNotNull(controller);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
-        this.synchronizer = new ReaderGroupStateSynchronizer(groupName, initSerializer, updateSerializer, synchronizerConfig,
+        this.synchronizer = new ReaderGroupStateSynchronizer(scope, groupName, initSerializer, updateSerializer, synchronizerConfig,
                                                                   clientFactory, controller);
         this.notifierFactory = new NotifierFactory(new NotificationSystem(), synchronizer);
     }
@@ -106,7 +108,9 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         if (synchronizer.getState().getConfig().getRetentionType()
                 .equals(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)) {
             streamCuts.forEach((stream, cut) ->
-                    getThrowingException(controller.updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, cut)));
+                    // TODO: replace 0L with getConfig().generation
+                    getThrowingException(controller
+                            .updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName, 0L, cut)));
 
             return;
         }
@@ -200,11 +204,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
-        synchronizer.fetchUpdates();
-        val result = getThrowingException(controller.updateReaderGroup(groupName, config));
-        if (result) {
-            synchronizer.fetchUpdates();
-        }
+        synchronizer.updateState((state, updates) -> {
+            updates.add(new UpdatingConfig(true));
+        });
+        getThrowingException(controller.updateReaderGroup(scope, groupName, config));
+        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
+        synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
     }
 
     @Override

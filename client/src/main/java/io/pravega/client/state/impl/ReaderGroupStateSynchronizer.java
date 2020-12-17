@@ -34,6 +34,7 @@ import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
  * updates to the controller.
  */
 public class ReaderGroupStateSynchronizer implements StateSynchronizer<ReaderGroupState> {
+    private final String scope;
     private final String readerGroup;
     private final StateSynchronizer<ReaderGroupState> synchronizer;
     private final Controller controller;
@@ -45,7 +46,8 @@ public class ReaderGroupStateSynchronizer implements StateSynchronizer<ReaderGro
      * @param synchronizer The {@link StateSynchronizer} instance with {@link ReaderGroupState}.
      * @param controller The {@link Controller} instance.
      */
-    public ReaderGroupStateSynchronizer(String readerGroup, StateSynchronizer<ReaderGroupState> synchronizer, Controller controller) {
+    public ReaderGroupStateSynchronizer(String scope, String readerGroup, StateSynchronizer<ReaderGroupState> synchronizer, Controller controller) {
+        this.scope = scope;
         this.readerGroup = readerGroup;
         this.synchronizer = synchronizer;
         this.controller = controller;
@@ -61,12 +63,14 @@ public class ReaderGroupStateSynchronizer implements StateSynchronizer<ReaderGro
      * @param clientFactory The ClientFactory instance.
      * @param controller The {@link Controller} instance.
      */
-    public ReaderGroupStateSynchronizer(String readerGroup,
+    public ReaderGroupStateSynchronizer(String scope,
+                                        String readerGroup,
                                         Serializer<InitialUpdate<ReaderGroupState>> initSerializer,
                                         Serializer<Update<ReaderGroupState>> updateSerializer,
                                         SynchronizerConfig config,
                                         SynchronizerClientFactory clientFactory,
                                         Controller controller) {
+        this.scope = scope;
         this.readerGroup = readerGroup;
         String streamName = getStreamForReaderGroup(readerGroup);
         this.synchronizer = clientFactory.createStateSynchronizer(streamName, updateSerializer, initSerializer, config);
@@ -85,13 +89,14 @@ public class ReaderGroupStateSynchronizer implements StateSynchronizer<ReaderGro
     @Override
     public void fetchUpdates() {
         synchronizer.fetchUpdates();
-        val clientState = getState();
-        val controllerState = getThrowingException(controller.getReaderGroup(readerGroup));
-        val controllerConfig = controllerState.getConfig();
-        val gen = controllerState.getGeneration();
-        if (clientState.getGeneration() < gen) {
-            Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, controllerConfig);
-            synchronizer.updateStateUnconditionally(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), gen));
+        val state = getState();
+        if (state.isUpdatingConfig()) {
+            val controllerRGConfig = getThrowingException(controller.getReaderGroup(scope, readerGroup));
+            if (state.getConfig().getGeneration() < controllerRGConfig.getGeneration()) {
+                Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, controllerRGConfig);
+                synchronizer.updateStateUnconditionally(new ReaderGroupState.ReaderGroupStateInit(controllerRGConfig,
+                        segments, getEndSegmentsForStreams(controllerRGConfig), false));
+            }
         }
     }
 

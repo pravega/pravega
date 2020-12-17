@@ -96,32 +96,16 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         Serializer<Update<ReaderGroupState>> updateSerializer = new ReaderGroupStateUpdatesSerializer();
         Serializer<InitialUpdate<ReaderGroupState>> initialSerializer = new ReaderGroupStateInitSerializer();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = new ReaderGroupStateSynchronizer(groupName, initialSerializer, updateSerializer,
+        StateSynchronizer<ReaderGroupState> synchronizer = new ReaderGroupStateSynchronizer(scope, groupName, initialSerializer, updateSerializer,
                 SynchronizerConfig.builder().build(), clientFactory, controller);
-        controller.createReaderGroup(groupName, config);
+        controller.createReaderGroup(scope, groupName, config);
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), 0));
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
     }
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        val result = getThrowingException(controller.deleteReaderGroup(groupName));
-        if (result) {
-            getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
-                                         .thenCompose(b -> controller.deleteStream(scope,
-                                                                                   getStreamForReaderGroup(groupName)))
-                                         .exceptionally(e -> {
-                                             if (e instanceof InvalidStreamException) {
-                                                 return null;
-                                             } else {
-                                                 log.warn("Failed to delete stream", e);
-                                             }
-                                             throw Exceptions.sneakyThrow(e);
-                                         }),
-                               RuntimeException::new);
-        } else {
-            throw new RuntimeException();
-        }
+        getThrowingException(controller.deleteReaderGroup(scope, groupName));
     }
 
     @Override

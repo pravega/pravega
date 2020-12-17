@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -107,6 +108,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     Version parseVersionData(byte[] data) {
         return Version.IntVersion.fromBytes(data);
+    }
+
+    @Override
+    ReaderGroup newReaderGroup(String scope, String name) {
+        return null;
     }
 
     @Override
@@ -190,7 +196,17 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
-    
+
+    @Override
+    public CompletableFuture<Boolean> checkReaderGroupExists(String scopeName, String readerGroupName) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<UUID> getReaderGroupId(String scopeName, String rgName, RGOperationContext context, Executor executor) {
+        return null;
+    }
+
     @Override
     @Synchronized
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {

@@ -172,11 +172,11 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         Serializer<Update<ReaderGroupState>> updateSerializer = new ReaderGroupStateUpdatesSerializer();
         Serializer<InitialUpdate<ReaderGroupState>> initialSerializer = new ReaderGroupStateInitSerializer();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = new ReaderGroupStateSynchronizer(groupName, initialSerializer, updateSerializer,
+        StateSynchronizer<ReaderGroupState> synchronizer = new ReaderGroupStateSynchronizer(scope, groupName, initialSerializer, updateSerializer,
                 SynchronizerConfig.builder().build(), clientFactory, controller);
-        controller.createReaderGroup(groupName, config);
+        controller.createReaderGroup(scope, groupName, config);
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), 0));
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
     }
 
     public Position getInitialPosition(String stream) {

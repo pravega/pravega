@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -158,6 +159,11 @@ public class InMemoryScope implements Scope {
         List<String> nextBatchOfTables = sortedKVTablesList.subList(start, end);
 
         return CompletableFuture.completedFuture(new ImmutablePair<>(nextBatchOfTables, String.valueOf(end)));
+    }
+
+    @Override
+    public CompletableFuture<UUID> getReaderGroupId(String rgName) {
+        return null;
     }
 
     @Synchronized
