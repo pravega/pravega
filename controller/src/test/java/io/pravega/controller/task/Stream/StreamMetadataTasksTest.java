@@ -404,7 +404,7 @@ public abstract class StreamMetadataTasksTest {
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
         CompletableFuture<Controller.UpdateReaderGroupStatus.Status> updateFuture =
-        streamMetadataTasks.updateReaderGroup(SCOPE, "rg2", newConfig,null);
+        streamMetadataTasks.updateReaderGroup(SCOPE, "rg2", newConfig, null);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(Controller.UpdateReaderGroupStatus.Status.SUCCESS, updateFuture.join());
 
