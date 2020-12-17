@@ -313,6 +313,7 @@ public class WatermarkWorkflowTest {
 
     @Test(timeout = 30000L)
     public void testWatermarkingWorkflow() {
+        @Cleanup
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
 
         ConcurrentHashMap<String, MockRevisionedStreamClient> revisionedStreamClientMap = new ConcurrentHashMap<>();
