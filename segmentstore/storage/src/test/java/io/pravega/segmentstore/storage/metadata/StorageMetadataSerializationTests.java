@@ -64,11 +64,13 @@ public class StorageMetadataSerializationTests {
                 .name("name")
                 .nextChunk("nextChunk")
                 .length(1)
+                .status(2)
                 .build());
         // With nullable values
         testStorageMetadataSerialization(ChunkMetadata.builder()
                 .name("name")
                 .length(1)
+                .status(2)
                 .build());
     }
 

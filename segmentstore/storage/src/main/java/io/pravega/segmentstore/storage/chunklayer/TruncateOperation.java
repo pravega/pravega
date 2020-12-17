@@ -77,28 +77,28 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                             }
 
                             return updateFirstChunk(txn)
-                                    .thenComposeAsync(v -> {
-                                        deleteChunks(txn);
+                                    .thenComposeAsync(v -> deleteChunks(txn)
+                                            .thenComposeAsync( vvv -> {
 
-                                        txn.update(segmentMetadata);
+                                                txn.update(segmentMetadata);
 
-                                        // Check invariants.
-                                        Preconditions.checkState(segmentMetadata.getLength() == oldLength, "truncate should not change segment length");
-                                        segmentMetadata.checkInvariants();
+                                                // Check invariants.
+                                                Preconditions.checkState(segmentMetadata.getLength() == oldLength, "truncate should not change segment length");
+                                                segmentMetadata.checkInvariants();
 
-                                        // Finally commit.
-                                        return commit(txn)
-                                                .handleAsync(this::handleException, chunkedSegmentStorage.getExecutor())
-                                                .thenComposeAsync(vv ->
-                                                                chunkedSegmentStorage.collectGarbage(chunksToDelete)
-                                                                        .thenRunAsync(this::postCommit, chunkedSegmentStorage.getExecutor()),
-                                                        chunkedSegmentStorage.getExecutor());
-                                    }, chunkedSegmentStorage.getExecutor());
+                                                // Finally commit.
+                                                return commit(txn)
+                                                        .handleAsync(this::handleException, chunkedSegmentStorage.getExecutor())
+                                                        .thenRunAsync(this::postCommit, chunkedSegmentStorage.getExecutor());
+                                            }, chunkedSegmentStorage.getExecutor()),
+                                    chunkedSegmentStorage.getExecutor());
                         }, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor());
     }
 
     private void postCommit() {
+        // Collect garbage.
+        chunkedSegmentStorage.getGarbageCollector().addToGarbage(chunksToDelete);
         // Update the read index by removing all entries below truncate offset.
         chunkedSegmentStorage.getReadIndexCache().truncateReadIndex(handle.getSegmentName(), segmentMetadata.getStartOffset());
 
@@ -183,15 +183,21 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         }, chunkedSegmentStorage.getExecutor());
     }
 
-    private void deleteChunks(MetadataTransaction txn) {
+    private CompletableFuture<Void> deleteChunks(MetadataTransaction txn) {
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (String toDelete : chunksToDelete) {
-            txn.delete(toDelete);
+            futures.add(txn.get(toDelete)
+                    .thenAcceptAsync(metadata -> {
+                        ((ChunkMetadata) metadata).setActive(false);
+                        txn.update(metadata);
+                    }, chunkedSegmentStorage.getExecutor()));
             // Adjust last chunk if required.
             if (toDelete.equals(segmentMetadata.getLastChunk())) {
                 segmentMetadata.setLastChunkStartOffset(segmentMetadata.getLength());
                 segmentMetadata.setLastChunk(null);
             }
         }
+        return Futures.allOf(futures);
     }
 
     private void checkPreconditions(String streamSegmentName, SegmentMetadata segmentMetadata) {
