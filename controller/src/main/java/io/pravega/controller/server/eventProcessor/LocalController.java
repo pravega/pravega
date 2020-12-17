@@ -206,7 +206,27 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> getReaderGroupConfig(String scopeName, String rgName) {
+    public CompletableFuture<Boolean> updateReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+        return this.controller.updateReaderGroup(scopeName, rgName, config).thenApply(x -> {
+            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
+                case INVALID_CONFIG:
+                    throw new IllegalArgumentException("Illegal ReaderGroup name: " + rgName);
+                case RG_NOT_FOUND:
+                    throw new IllegalArgumentException("Scope does not exist: " + scopeName);
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(String scopeName, String rgName) {
         return this.controller.getReaderGroupConfig(scopeName, rgName).thenApply(x -> {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
@@ -215,7 +235,7 @@ public class LocalController implements Controller {
                 case RG_NOT_FOUND:
                     throw new IllegalArgumentException("Scope does not exist: " + scopeName);
                 case SUCCESS:
-                    return true;
+                    return ModelHelper.encode(x.getConfig());
                 default:
                     throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
                             + " " + x.getStatus());

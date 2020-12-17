@@ -1604,7 +1604,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> getReaderGroupConfig(final String scope, final String rgName) {
+    public CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(final String scope, final String rgName) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(rgName, "rgName");
@@ -1628,7 +1628,7 @@ public class ControllerImpl implements Controller {
                     throw new InvalidStreamException("ReaderGroup does not exist: " + scopedRGName);
                 case SUCCESS:
                     log.info(requestId, "Successfully got config for Reader Group: {}", scopedRGName);
-                    return true;
+                    return ModelHelper.encode(x.getConfig());
                 case UNRECOGNIZED:
                 default:
                     throw new ControllerFailureException("Unknown return status getting config for ReaderGroup " + scopedRGName + " " + x.getStatus());
