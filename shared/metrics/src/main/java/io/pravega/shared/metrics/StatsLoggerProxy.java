@@ -75,6 +75,16 @@ public class StatsLoggerProxy implements StatsLogger {
     /**
      * Atomically gets an existing MetricProxy from the given cache or creates a new one and adds it.
      *
+     * In this case a read-modify-write cycle needs to happen atomically. A number of threads may gain a reference
+     * to any given {@link MetricProxy}, which makes available the underlying {@link Meter} instance that is bound to
+     * a {@link io.micrometer.core.instrument.composite.CompositeMeterRegistry}. We must be considerate when closing the
+     * {@link Meter} from the proxy as that operation has side effects.
+     *
+     * If one thread has a reference to a {@link MetricProxy} we have to ensure that when another thread gains a reference
+     * to that proxy, the {@link Meter} is still in a valid state (not removed from the CompositeMeterRegistry). Furthermore
+     * the {@link MetricProxy} removes itself from the {@link StatsLoggerProxy} cache using a callback, so calling {@link MetricProxy#close()}
+     * on one thread, may invalidate it in another.
+     *
      * @param cache        The Cache to get or insert into.
      * @param name         Metric/Proxy name.
      * @param createMetric A Function that creates a new Metric given its name.
@@ -86,22 +96,11 @@ public class StatsLoggerProxy implements StatsLogger {
     private <T extends Metric, V extends MetricProxy<T>> V getOrSet(ConcurrentHashMap<String, V> cache, String name,
                                                                     Function<String, T> createMetric,
                                                                     ProxyCreator<T, V> createProxy, String... tags) {
-        // We could simply use Map.computeIfAbsent to do everything atomically, however in ConcurrentHashMap, the function
-        // is evaluated while holding the lock. As per the method's guidelines, the computation should be quick and not
-        // do any IO or acquire other locks, however we have no control over new Metric creation. As such, we use optimistic
-        // concurrency, where we assume that the MetricProxy does not exist, create it, and then if it does exist, close
-        // the newly created one.
         MetricsNames.MetricKey keys = metricKey(name, tags);
-        T newMetric = createMetric.apply(keys.getRegistryKey());
-        V newProxy = createProxy.apply(newMetric, keys.getCacheKey(), cache::remove);
-        V existingProxy = cache.putIfAbsent(newProxy.getProxyName(), newProxy);
-        if (existingProxy != null) {
-            newProxy.close();
-            newMetric.close();
-            return existingProxy;
-        } else {
-            return newProxy;
-        }
+        return cache.computeIfAbsent(keys.getCacheKey(), key -> {
+            T metric = createMetric.apply(keys.getRegistryKey());
+            return createProxy.apply(metric, keys.getCacheKey(), cache::remove);
+        });
     }
 
     private interface ProxyCreator<T1, R> {
