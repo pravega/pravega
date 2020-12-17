@@ -37,6 +37,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
+import io.pravega.client.stream.impl.ReaderGroupState.UpdatingConfig;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import io.pravega.client.stream.notifications.EndOfDataNotification;
 import io.pravega.client.stream.notifications.NotificationSystem;
@@ -200,8 +201,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
+        synchronizer.updateState((state, updates) -> {
+            updates.add(new UpdatingConfig(true));
+        });
+        getThrowingException(controller.updateReaderGroup(scope, groupName, config));
         Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
-        synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+        synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
     }
 
     @Override

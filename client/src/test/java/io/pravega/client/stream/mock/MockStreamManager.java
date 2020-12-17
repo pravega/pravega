@@ -168,9 +168,10 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+        controller.createReaderGroup(scope, groupName, config);
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
 
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
     }
 
     public Position getInitialPosition(String stream) {
@@ -200,7 +201,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        Futures.getAndHandleExceptions(controller.deleteStream(scope, NameUtils.getStreamForReaderGroup(groupName)),
+        Futures.getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName),
                                        RuntimeException::new);
     }
 }

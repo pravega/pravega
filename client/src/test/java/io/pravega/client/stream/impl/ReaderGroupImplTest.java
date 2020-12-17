@@ -114,11 +114,15 @@ public class ReaderGroupImplTest {
     @Test
     @SuppressWarnings("unchecked")
     public void resetReadersToStreamCut() {
-        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
                 StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                                                      .build());
+                .build();
+        when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
+        readerGroup.resetReaderGroup(config);
+        verify(synchronizer, times(1)).updateState(any(StateSynchronizer.UpdateGenerator.class));
+        verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
         verify(synchronizer, times(1)).updateStateUnconditionally(any(Update.class));
     }
 
@@ -128,7 +132,11 @@ public class ReaderGroupImplTest {
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(2).forEach(segNum -> positions.put(new Segment(SCOPE, "s1", segNum), 10L));
         Checkpoint checkpoint = new CheckpointImpl("testChkPoint", positions);
-        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkpoint).build());
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromCheckpoint(checkpoint).build();
+        when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
+        readerGroup.resetReaderGroup(config);
+        verify(synchronizer, times(1)).updateState(any(StateSynchronizer.UpdateGenerator.class));
+        verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
         verify(synchronizer, times(1)).updateStateUnconditionally(any(Update.class));
     }
 

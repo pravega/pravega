@@ -21,7 +21,6 @@ import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
-import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -34,7 +33,6 @@ import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.Exceptions;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
 import java.io.IOException;
@@ -47,6 +45,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getThrowingException;
 import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 
 /**
@@ -93,24 +92,15 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+        getThrowingException(controller.createReaderGroup(scope, groupName, config));
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
     }
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        getAndHandleExceptions(controller.sealStream(scope, getStreamForReaderGroup(groupName))
-                                         .thenCompose(b -> controller.deleteStream(scope,
-                                                                                   getStreamForReaderGroup(groupName)))
-                                         .exceptionally(e -> {
-                                             if (e instanceof InvalidStreamException) {
-                                                 return null;
-                                             } else {
-                                                 log.warn("Failed to delete stream", e);
-                                             }
-                                             throw Exceptions.sneakyThrow(e);
-                                         }),
-                               RuntimeException::new);
+        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName),
+                RuntimeException::new);
         
     }
 
