@@ -61,6 +61,16 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         return currentState;
     }
 
+    @Override
+    public String getSynchronizerScopeName() {
+        return segment.getScope();
+    }
+
+    @Override
+    public String getSynchronizerStreamName() {
+        return segment.getStreamName();
+    }
+
     private Revision getRevisionToReadFrom(boolean useState) {
         StateT state = getState();
         Revision revision;

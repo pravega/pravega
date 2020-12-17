@@ -1604,41 +1604,8 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> getReaderGroupConfig(final String scope, final String rgName) {
-        Exceptions.checkNotClosed(closed.get(), this);
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(rgName, "rgName");
-        final long requestId = requestIdGenerator.get();
-        long traceId = LoggerHelpers.traceEnter(log, "getReaderGroupConfig", scope, rgName, requestId);
-        final String scopedRGName = NameUtils.getScopedReaderGroupName(scope, rgName);
-
-        final CompletableFuture<ReaderGroupConfigResponse> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<ReaderGroupConfigResponse> callback = new RPCAsyncCallback<>(requestId, "getReaderGroupConfig", scope, rgName);
-            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getReaderGroupConfig", scope, rgName)
-                    .getReaderGroupConfig(ModelHelper.createReaderGroupInfo(scope, rgName), callback);
-            return callback.getFuture();
-        }, this.executor);
-        return result.thenApply(x -> {
-            switch (x.getStatus()) {
-                case FAILURE:
-                    log.warn(requestId, "Failed to get config for reader group: {}", scopedRGName);
-                    throw new ControllerFailureException("Failed to get config for reader group: " + scopedRGName);
-                case RG_NOT_FOUND:
-                    log.warn(requestId, "ReaderGroup not found: {}", scopedRGName);
-                    throw new InvalidStreamException("ReaderGroup does not exist: " + scopedRGName);
-                case SUCCESS:
-                    log.info(requestId, "Successfully got config for Reader Group: {}", scopedRGName);
-                    return true;
-                case UNRECOGNIZED:
-                default:
-                    throw new ControllerFailureException("Unknown return status getting config for ReaderGroup " + scopedRGName + " " + x.getStatus());
-            }
-        }).whenComplete((x, e) -> {
-            if (e != null) {
-                log.warn(requestId, "getReaderGroupConfig failed for Reader Group: ", scopedRGName, e);
-            }
-            LoggerHelpers.traceLeave(log, "getReaderGroupConfig", traceId, scope, rgName, requestId);
-        });
+    public CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(final String scope, final String rgName) {
+        return null;
     }
 
     @Override

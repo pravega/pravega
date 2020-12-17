@@ -248,7 +248,12 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> getReaderGroupConfig(String scope, String rgName) {
+    public CompletableFuture<Boolean> updateReaderGroup(String scope, String rgName, ReaderGroupConfig rgConfig) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(String scope, String rgName) {
         throw new UnsupportedOperationException();
     }
 

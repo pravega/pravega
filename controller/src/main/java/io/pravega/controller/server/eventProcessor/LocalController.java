@@ -206,21 +206,13 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> getReaderGroupConfig(String scopeName, String rgName) {
-        return this.controller.getReaderGroupConfig(scopeName, rgName).thenApply(x -> {
-            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
-            switch (x.getStatus()) {
-                case FAILURE:
-                    throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
-                case RG_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + scopeName);
-                case SUCCESS:
-                    return true;
-                default:
-                    throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
-                            + " " + x.getStatus());
-            }
-        });
+    public CompletableFuture<Boolean> updateReaderGroup(String scope, String rgName, ReaderGroupConfig rgConfig) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(String scopeName, String rgName) {
+        return null;
     }
 
     @Override

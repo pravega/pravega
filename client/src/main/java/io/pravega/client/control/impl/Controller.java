@@ -16,11 +16,9 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
-import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
@@ -134,6 +132,8 @@ public interface Controller extends AutoCloseable {
      */
     CompletableFuture<Boolean> createReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
 
+    CompletableFuture<Boolean> updateReaderGroup(String scope, String rgName, final ReaderGroupConfig rgConfig);
+
     /**
      * API to get Reader Group Configuration.
      * @param scope Scope name for Reader Group.
@@ -141,7 +141,7 @@ public interface Controller extends AutoCloseable {
      * @throws IllegalArgumentException if ReaderGroup does not exist.
      * @return A future which will throw if the operation fails, otherwise returns configuration of the Reader Group.
      */
-    CompletableFuture<Boolean> getReaderGroupConfig(final String scope, final String rgName);
+    CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(final String scope, final String rgName);
 
     /**
      * API to delete a Reader Group.

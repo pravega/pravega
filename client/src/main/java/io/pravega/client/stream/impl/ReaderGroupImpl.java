@@ -25,7 +25,6 @@ import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
-import io.pravega.client.state.impl.ReaderGroupStateSynchronizer;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.Position;
@@ -46,6 +45,7 @@ import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AccessOperation;
 import lombok.Cleanup;
 import lombok.Data;
@@ -98,8 +98,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         this.groupName = Preconditions.checkNotNull(groupName);
         this.controller = Preconditions.checkNotNull(controller);
         this.metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionPool);
-        this.synchronizer = new ReaderGroupStateSynchronizer(scope, groupName, initSerializer, updateSerializer, synchronizerConfig,
-                                                                  clientFactory, controller);
+        this.synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                updateSerializer, initSerializer, synchronizerConfig);
         this.notifierFactory = new NotifierFactory(new NotificationSystem(), synchronizer);
     }
 

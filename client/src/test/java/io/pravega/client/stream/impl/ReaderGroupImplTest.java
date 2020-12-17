@@ -93,7 +93,6 @@ public class ReaderGroupImplTest {
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                                                    any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
-        when(controller.getReaderGroup(GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(state));
         readerGroup = new ReaderGroupImpl(SCOPE, GROUP_NAME, synchronizerConfig, initSerializer,
                 updateSerializer, clientFactory, controller, connectionPool);
     }
@@ -120,11 +119,10 @@ public class ReaderGroupImplTest {
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
                 .build();
-        when(state.getConfig()).thenReturn(config);
-        when(controller.updateReaderGroup(GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
-        when(state.getGeneration()).thenReturn(0L, 0L, 1L, 0L);
+        when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
         readerGroup.resetReaderGroup(config);
-        verify(synchronizer, times(2)).fetchUpdates();
+        verify(synchronizer, times(1)).updateState(any(StateSynchronizer.UpdateGenerator.class));
+        verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
         verify(synchronizer, times(1)).updateStateUnconditionally(any(Update.class));
     }
 
@@ -135,11 +133,10 @@ public class ReaderGroupImplTest {
         IntStream.of(2).forEach(segNum -> positions.put(new Segment(SCOPE, "s1", segNum), 10L));
         Checkpoint checkpoint = new CheckpointImpl("testChkPoint", positions);
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromCheckpoint(checkpoint).build();
-        when(state.getConfig()).thenReturn(config);
-        when(controller.updateReaderGroup(GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
-        when(state.getGeneration()).thenReturn(0L, 0L, 1L, 0L);
+        when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
         readerGroup.resetReaderGroup(config);
-        verify(synchronizer, times(2)).fetchUpdates();
+        verify(synchronizer, times(1)).updateState(any(StateSynchronizer.UpdateGenerator.class));
+        verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
         verify(synchronizer, times(1)).updateStateUnconditionally(any(Update.class));
     }
 

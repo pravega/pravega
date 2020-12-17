@@ -19,16 +19,12 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdat
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
-import io.pravega.client.state.Update;
-import io.pravega.client.state.impl.ReaderGroupStateSynchronizer;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -169,11 +165,9 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
                 StreamConfiguration.builder()
                                    .scalingPolicy(ScalingPolicy.fixed(1)).build());
-        Serializer<Update<ReaderGroupState>> updateSerializer = new ReaderGroupStateUpdatesSerializer();
-        Serializer<InitialUpdate<ReaderGroupState>> initialSerializer = new ReaderGroupStateInitSerializer();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = new ReaderGroupStateSynchronizer(scope, groupName, initialSerializer, updateSerializer,
-                SynchronizerConfig.builder().build(), clientFactory, controller);
+        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
         controller.createReaderGroup(scope, groupName, config);
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
@@ -206,7 +200,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        Futures.getAndHandleExceptions(controller.deleteStream(scope, NameUtils.getStreamForReaderGroup(groupName)),
+        Futures.getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName),
                                        RuntimeException::new);
     }
 }

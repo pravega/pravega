@@ -50,6 +50,8 @@ import lombok.extern.slf4j.Slf4j;
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getThrowingException;
+import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 
 /**
  * Manages the state of the reader group on behalf of a reader.
@@ -326,6 +328,11 @@ public class ReaderGroupStateManager {
         lagUpdateTimer.reset(TIME_UNIT.multipliedBy(sync.getState().getOnlineReaders().size() + 1));
     }
 
+    private void resetUpdateConfigTimer() {
+        long configRefreshTimeMillis = sync.getState().getConfig().getGroupRefreshTimeMillis();
+        updateConfigTimer.reset(Duration.ofMillis(configRefreshTimeMillis));
+    }
+
     private void fetchUpdatesIfNeeded() {
         if (!fetchStateTimer.hasRemaining()) {
             log.debug("Update group state for reader {}", readerId);
@@ -335,15 +342,18 @@ public class ReaderGroupStateManager {
         }
     }
 
-    private void updateConfigIfNeeded() {
+    void updateConfigIfNeeded() {
         sync.fetchUpdates();
-        if (!updateConfigTimer.hasRemaining() && sync.getState().isUpdatingConfig()) {
+        ReaderGroupState state = sync.getState();
+        if (!updateConfigTimer.hasRemaining() && state.isUpdatingConfig()) {
             log.debug("Update the group config");
-            ReaderGroupConfig controllerConfig = controller.getReaderGroupConfig();
-            if (sync.getState().getConfig().getGeneration() < controllerConfig.getGeneration()) {
+            ReaderGroupConfig controllerConfig = getThrowingException(controller.getReaderGroupConfig(sync.getSynchronizerScopeName(),
+                    sync.getSynchronizerStreamName().replace(READER_GROUP_STREAM_PREFIX, "")));
+            if (state.getConfig().getGeneration() < controllerConfig.getGeneration()) {
                 Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, controllerConfig);
                 sync.updateStateUnconditionally(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
             }
+            resetUpdateConfigTimer();
         }
     }
     

@@ -21,8 +21,6 @@ import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
-import io.pravega.client.state.impl.ReaderGroupStateSynchronizer;
-import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -35,7 +33,6 @@ import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.Exceptions;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
 import java.io.IOException;
@@ -45,11 +42,9 @@ import java.util.Map;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
-import static io.pravega.common.concurrent.Futures.getThrowingException;
 import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 
 /**
@@ -93,11 +88,9 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         createStreamHelper(getStreamForReaderGroup(groupName), StreamConfiguration.builder()
                                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                                   .build());
-        Serializer<Update<ReaderGroupState>> updateSerializer = new ReaderGroupStateUpdatesSerializer();
-        Serializer<InitialUpdate<ReaderGroupState>> initialSerializer = new ReaderGroupStateInitSerializer();
         @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = new ReaderGroupStateSynchronizer(scope, groupName, initialSerializer, updateSerializer,
-                SynchronizerConfig.builder().build(), clientFactory, controller);
+        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
         controller.createReaderGroup(scope, groupName, config);
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
@@ -105,7 +98,8 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        getThrowingException(controller.deleteReaderGroup(scope, groupName));
+        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName),
+                RuntimeException::new);
     }
 
     @Override
