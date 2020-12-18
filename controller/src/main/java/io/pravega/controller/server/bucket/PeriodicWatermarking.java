@@ -133,16 +133,16 @@ public class PeriodicWatermarking implements AutoCloseable {
         OperationContext context = streamMetadataStore.createContext(scope, streamName);
 
         if (scope.equals(NameUtils.INTERNAL_SCOPE_NAME)) {
-            return CompletableFuture.completedFuture(null); 
+            return CompletableFuture.completedFuture(null);
         }
-        
+
         log.debug("Periodic background processing for watermarking called for stream {}/{}",
                 scope, streamName);
 
         CompletableFuture<Map<String, WriterMark>> allWriterMarks = Futures.exceptionallyExpecting(
                 streamMetadataStore.getAllWriterMarks(scope, streamName, context, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyMap());
-        
+
         return allWriterMarks.thenCompose(writers -> {
             WatermarkClient watermarkClient = watermarkClientCache.getUnchecked(stream);
 
@@ -184,17 +184,17 @@ public class PeriodicWatermarking implements AutoCloseable {
         });
 
         // Stop all inactive writers that have been shutdown.
-        CompletableFuture<List<Void>> removeInactiveWriters = 
+        CompletableFuture<List<Void>> removeInactiveWriters =
                 Futures.allOfWithResults(inactiveWriters.stream().map(x ->
                         Futures.exceptionallyExpecting(
                                 streamMetadataStore.removeWriter(scope, streamName, x.getKey(),
-                                x.getValue(), context, executor).thenAccept(v -> watermarkClient.untrackWriterInactivity(x.getKey())), 
+                                x.getValue(), context, executor).thenAccept(v -> watermarkClient.untrackWriterInactivity(x.getKey())),
                                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, null))
                                                         .collect(Collectors.toList()));
 
         if (activeWriters.isEmpty()) {
-            // this will prevent the periodic cycles being spent in running watermarking workflow for a silent stream. 
-            // as soon as any writer reports its mark, stream will be added to bucket and background 
+            // this will prevent the periodic cycles being spent in running watermarking workflow for a silent stream.
+            // as soon as any writer reports its mark, stream will be added to bucket and background
             // periodic processing will resume.
             return removeInactiveWriters
                     .thenCompose(v -> bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.WatermarkingService,
@@ -203,14 +203,14 @@ public class PeriodicWatermarking implements AutoCloseable {
 
         CompletableFuture<Watermark> watermarkFuture;
         if (!allActiveAreParticipating.get()) {
-            // there are active writers that have not reported their marks. We should wait 
-            // until they either report or become inactive. So we will complete this iteration without 
+            // there are active writers that have not reported their marks. We should wait
+            // until they either report or become inactive. So we will complete this iteration without
             // emitting any watermark (null) and in subsequent iterations if these writers have made progress
-            // we will emit watermark or evict writers from watermark computation. 
+            // we will emit watermark or evict writers from watermark computation.
             watermarkFuture = CompletableFuture.completedFuture(null);
         } else {
             // compute new mark
-            watermarkFuture = computeWatermark(scope, streamName, context, activeWriters, 
+            watermarkFuture = computeWatermark(scope, streamName, context, activeWriters,
                     watermarkClient.getPreviousWatermark());
         }
 
@@ -219,35 +219,35 @@ public class PeriodicWatermarking implements AutoCloseable {
     }
 
     /**
-     * This method takes marks (time + position) of active writers and finds greatest lower bound on time and 
-     * least upper bound on positions and returns the watermark object composed of the two. 
-     * The least upper bound computed from positions may not result in a consistent and complete stream cut. 
-     * So, a positional upper bound is then converted into a stream cut by including segments from higher epoch. 
-     * Also, it is possible that in an effort to fill missing range, we may end up creating an upper bound that 
-     * is composed of segments from highest epoch. In next iteration, from new writer positions, we may be able to 
+     * This method takes marks (time + position) of active writers and finds greatest lower bound on time and
+     * least upper bound on positions and returns the watermark object composed of the two.
+     * The least upper bound computed from positions may not result in a consistent and complete stream cut.
+     * So, a positional upper bound is then converted into a stream cut by including segments from higher epoch.
+     * Also, it is possible that in an effort to fill missing range, we may end up creating an upper bound that
+     * is composed of segments from highest epoch. In next iteration, from new writer positions, we may be able to
      * compute a tighter upper bound. But since watermark has to advance position and time, we will take the upper bound
-     * of previous stream cut and new stream cut. 
-     * 
+     * of previous stream cut and new stream cut.
+     *
      * @param scope scope
      * @param streamName stream name
      * @param context operation context
-     * @param activeWriters marks for all active writers. 
-     * @param previousWatermark previous watermark that was emitted. 
-     * @return CompletableFuture which when completed will contain watermark to be emitted. 
+     * @param activeWriters marks for all active writers.
+     * @param previousWatermark previous watermark that was emitted.
+     * @return CompletableFuture which when completed will contain watermark to be emitted.
      */
     private CompletableFuture<Watermark> computeWatermark(String scope, String streamName, OperationContext context,
                                                           List<Map.Entry<String, WriterMark>> activeWriters, Watermark previousWatermark) {
         Watermark.WatermarkBuilder builder = Watermark.builder();
         ConcurrentHashMap<SegmentWithRange, Long> upperBound = new ConcurrentHashMap<>();
-        
-        // We are deliberately making two passes over writers - first to find lowest time. Second loop will convert writer 
-        // positions to StreamSegmentRecord objects by retrieving ranges from store. And then perform computation on those 
-        // objects. 
+
+        // We are deliberately making two passes over writers - first to find lowest time. Second loop will convert writer
+        // positions to StreamSegmentRecord objects by retrieving ranges from store. And then perform computation on those
+        // objects.
 
         LongSummaryStatistics summarized = activeWriters.stream().collect(Collectors.summarizingLong(x -> x.getValue().getTimestamp()));
         long lowerBoundOnTime = summarized.getMin();
         long upperBoundOnTime = summarized.getMax();
-                    
+
         if (lowerBoundOnTime > previousWatermark.getLowerTimeBound()) {
             CompletableFuture<List<Map<SegmentWithRange, Long>>> positionsFuture = Futures.allOfWithResults(
                     activeWriters.stream().map(x -> {
@@ -258,13 +258,13 @@ public class PeriodicWatermarking implements AutoCloseable {
                     }).collect(Collectors.toList()));
             log.debug("Emitting watermark for stream {}/{} with time {}", scope, streamName, lowerBoundOnTime);
             return positionsFuture.thenAccept(listOfPositions -> listOfPositions.forEach(position -> {
-                // add writer positions to upperBound map. 
+                // add writer positions to upperBound map.
                 addToUpperBound(position, upperBound);
             })).thenCompose(v -> computeStreamCut(scope, streamName, context, upperBound, previousWatermark)
                     .thenApply(streamCut -> builder.lowerTimeBound(lowerBoundOnTime).upperTimeBound(upperBoundOnTime)
                                .streamCut(ImmutableMap.copyOf(streamCut)).build()));
         } else {
-            // new time is not advanced. No watermark to be emitted. 
+            // new time is not advanced. No watermark to be emitted.
             return CompletableFuture.completedFuture(null);
         }
     }
@@ -276,11 +276,11 @@ public class PeriodicWatermarking implements AutoCloseable {
 
     /**
      * Method that updates the supplied upperBound by comparing it with supplied position such that resultant upperbound
-     * is an upper bound on current position and all previously considered positions. 
-     * This method should be called with each writer's position iteratively and it will update the upperBound accordingly. 
-     * Note: This method is not thread safe, even though upperBound is a concurrent hash map. 
-     * This method looks at the state in the map and then either adds or removes entries from the map. 
-     * If this was called concurrently, then the behaviour is unpredictable. 
+     * is an upper bound on current position and all previously considered positions.
+     * This method should be called with each writer's position iteratively and it will update the upperBound accordingly.
+     * Note: This method is not thread safe, even though upperBound is a concurrent hash map.
+     * This method looks at the state in the map and then either adds or removes entries from the map.
+     * If this was called concurrently, then the behaviour is unpredictable.
      * @param position position be included while computing new upper bound
      * @param upperBound existing upper bound
      */
@@ -288,18 +288,18 @@ public class PeriodicWatermarking implements AutoCloseable {
         for (Map.Entry<SegmentWithRange, Long> writerPos : position.entrySet()) {
             SegmentWithRange segment = writerPos.getKey();
             long offset = writerPos.getValue();
-            if (upperBound.containsKey(segment)) { // update offset if the segment is already present. 
+            if (upperBound.containsKey(segment)) { // update offset if the segment is already present.
                 long newOffset = Math.max(offset, upperBound.get(segment));
                 upperBound.put(segment, newOffset);
-            } else if (!hasSuccessors(segment, upperBound.keySet())) { // only include segment if it doesnt have a successor already included in the set. 
+            } else if (!hasSuccessors(segment, upperBound.keySet())) { // only include segment if it doesnt have a successor already included in the set.
                 Set<SegmentWithRange> included = upperBound.keySet();
                 included.forEach(x -> {
-                    // remove all predecessors of `segment` from upper bound. 
+                    // remove all predecessors of `segment` from upper bound.
                     if (segment.overlaps(x) && segment.getSegmentId() > x.getSegmentId()) {
-                        upperBound.remove(x);     
+                        upperBound.remove(x);
                     }
                 });
-                // add segment to upperBound. 
+                // add segment to upperBound.
                 upperBound.put(segment, offset);
             }
         }
@@ -310,20 +310,20 @@ public class PeriodicWatermarking implements AutoCloseable {
     }
 
     /**
-     * This method fills in missing ranges in the upper bound such that it composes a consistent and complete streamcut. 
+     * This method fills in missing ranges in the upper bound such that it composes a consistent and complete streamcut.
      * The segments from highest epoch are included to fill in missing ranges. This could result in exclusion of segments
-     * from upper bound if incoming segment also covers range from an existing segment. This could result in new missing 
-     * ranges being created. So this method loops until all missing ranges are filled up. 
+     * from upper bound if incoming segment also covers range from an existing segment. This could result in new missing
+     * ranges being created. So this method loops until all missing ranges are filled up.
      * In worst case, all segments from highest epoch will end up being included in the final stream cut which is a correct
-     * but not the tightest upper bound. 
-     * 
+     * but not the tightest upper bound.
+     *
      * @param scope scope
      * @param stream stream name
      * @param context operation context
-     * @param upperBound upper bound of writer positions. 
+     * @param upperBound upper bound of writer positions.
      * @param previousWatermark previous watermark
      * @return CompletableFuture which when completed will contain a stream cut which completes missing ranges from upper bound
-     * if any.  
+     * if any.
      */
     private CompletableFuture<Map<SegmentWithRange, Long>> computeStreamCut(String scope, String stream, OperationContext context,
                                                                             Map<SegmentWithRange, Long> upperBound, Watermark previousWatermark) {
@@ -332,7 +332,7 @@ public class PeriodicWatermarking implements AutoCloseable {
 
         if (previousWatermark != null && !previousWatermark.equals(Watermark.EMPTY)) {
             // super impose previous watermark on the computed upper bound so that we take greatest upper bound which
-            // is greater than or equal to previous watermark. 
+            // is greater than or equal to previous watermark.
 
             addToUpperBound(previousWatermark.getStreamCut(), streamCut);
         }
@@ -341,7 +341,7 @@ public class PeriodicWatermarking implements AutoCloseable {
             int highestEpoch = streamCut.keySet().stream().mapToInt(x -> NameUtils.getEpoch(x.getSegmentId()))
                                         .max().orElse(-1);
             assert highestEpoch >= 0;
-            
+
             return streamMetadataStore.getEpoch(scope, stream, highestEpoch, context, executor)
                                        .thenApply(epochRecord -> {
                                            missingRanges.get().entrySet().forEach(missingRange -> {
@@ -356,11 +356,11 @@ public class PeriodicWatermarking implements AutoCloseable {
         }, map -> !map.isEmpty(), executor)
                 .thenApply(v -> streamCut);
     }
-    
+
     private SegmentWithRange transform(StreamSegmentRecord segment) {
         return SegmentWithRange.builder().segmentId(segment.segmentId()).rangeLow(segment.getKeyStart()).rangeHigh(segment.getKeyEnd()).build();
     }
-    
+
     private List<SegmentWithRange> findSegmentsForMissingRange(EpochRecord epochRecord, Map.Entry<Double, Double> missingRange) {
         return epochRecord.getSegments().stream().filter(x -> x.overlaps(missingRange.getKey(), missingRange.getValue()))
                           .map(this::transform).collect(Collectors.toList());
@@ -371,11 +371,11 @@ public class PeriodicWatermarking implements AutoCloseable {
         List<Map.Entry<SegmentWithRange, Long>> sorted = streamCut
                 .entrySet().stream().sorted(Comparator.comparingDouble(x -> x.getKey().getRangeLow())).collect(Collectors.toList());
         Map.Entry<SegmentWithRange, Long> previous = sorted.get(0);
-        
+
         if (previous.getKey().getRangeLow() > 0.0) {
             missingRanges.put(0.0, previous.getKey().getRangeLow());
         }
-        
+
         for (int i = 1; i < sorted.size(); i++) {
             Map.Entry<SegmentWithRange, Long> next = sorted.get(i);
             if (previous.getKey().getRangeHigh() != next.getKey().getRangeLow()) {
@@ -405,10 +405,10 @@ public class PeriodicWatermarking implements AutoCloseable {
     void evictFromCache(String scope) {
         syncFactoryCache.invalidate(scope);
     }
-        
+
     static class WatermarkClient implements Closeable {
         private final RevisionedStreamClient<Watermark> client;
-        
+
         private final AtomicReference<Map.Entry<Revision, Watermark>> previousWatermark = new AtomicReference<>();
         private final AtomicReference<Revision> markRevision = new AtomicReference<>();
 

@@ -294,7 +294,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
                     grpcServerConfig.getTokenSigningKey()));
 
-            CompletableFuture<Void> eventProcessorFuture = CompletableFuture.completedFuture(null); 
+            CompletableFuture<Void> eventProcessorFuture = CompletableFuture.completedFuture(null);
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
