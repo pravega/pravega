@@ -401,6 +401,7 @@ public abstract class StreamMetadataTasksTest {
                 .maxOutstandingCheckpointRequest(5)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .generation(0L)
+                .readerGroupId(rgConfig.getReaderGroupId())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
         CompletableFuture<Controller.UpdateReaderGroupStatus.Status> updateFuture =
@@ -418,7 +419,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(newConfig.getStartingStreamCuts().size(), response.getConfig().getStartingStreamCutsCount());
         assertEquals(newConfig.getEndingStreamCuts().size(), response.getConfig().getEndingStreamCutsCount());
 
-        CompletableFuture<DeleteReaderGroupStatus.Status> deleteStatus = streamMetadataTasks.deleteReaderGroup(SCOPE, "rg2", null);
+        CompletableFuture<DeleteReaderGroupStatus.Status> deleteStatus = streamMetadataTasks.deleteReaderGroup(SCOPE, "rg2", response.getConfig().getReaderGroupId(), null);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(DeleteReaderGroupStatus.Status.SUCCESS, deleteStatus.join());
 

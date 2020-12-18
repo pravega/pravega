@@ -269,6 +269,7 @@ public final class ModelHelper {
                 .maxOutstandingCheckpointRequest(rgConfig.getMaxOutstandingCheckpointRequest())
                 .retentionType(ReaderGroupConfig.StreamDataRetention.values()[rgConfig.getRetentionType()])
                 .generation(rgConfig.getGeneration())
+                .readerGroupId(UUID.fromString(rgConfig.getReaderGroupId()))
                 .startingStreamCuts(rgConfig.getStartingStreamCutsList().stream()
                         .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(),
                                 streamCut.getStreamInfo().getStream()),
@@ -477,6 +478,7 @@ public final class ModelHelper {
                 .setMaxOutstandingCheckpointRequest(config.getMaxOutstandingCheckpointRequest())
                 .setRetentionType(config.getRetentionType().ordinal())
                 .setGeneration(config.getGeneration())
+                .setReaderGroupId(config.getReaderGroupId().toString())
                 .addAllStartingStreamCuts(startStreamCuts)
                 .addAllEndingStreamCuts(endStreamCuts);
         return builder.build();
@@ -509,10 +511,12 @@ public final class ModelHelper {
         return createStreamInfo(scope, stream, null);
     }
 
-    public static final ReaderGroupInfo createReaderGroupInfo(final String scope, final String readerGroup) {
+    public static final ReaderGroupInfo createReaderGroupInfo(final String scope, final String readerGroup, String readerGroupId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(readerGroup, "readerGroup");
-        ReaderGroupInfo.Builder builder = ReaderGroupInfo.newBuilder().setScope(scope).setReaderGroup(readerGroup);
+        Preconditions.checkNotNull(readerGroupId, "readerGroupId");
+        ReaderGroupInfo.Builder builder = ReaderGroupInfo.newBuilder().setScope(scope)
+                .setReaderGroup(readerGroup).setReaderGroupId(readerGroupId);
         return builder.build();
     }
 

@@ -34,6 +34,11 @@ public class InMemoryReaderGroup extends AbstractReaderGroup {
     private VersionedMetadata<ReaderGroupStateRecord> state;
     private final UUID readerGroupId;
 
+    public InMemoryReaderGroup(final String scopeName, final String rgName, final UUID rgId) {
+        super(scopeName, rgName);
+        this.readerGroupId = rgId;
+    }
+
     public InMemoryReaderGroup(final String scopeName, final String rgName) {
         super(scopeName, rgName);
         this.readerGroupId = UUID.randomUUID();

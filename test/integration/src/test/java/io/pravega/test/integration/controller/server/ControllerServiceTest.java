@@ -37,6 +37,7 @@ import io.pravega.test.integration.demo.ControllerWrapper;
 
 import java.util.Map;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -334,6 +335,7 @@ public class ControllerServiceTest {
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .generation(0L)
                 .startingStreamCuts(startSC)
+                .readerGroupId(UUID.randomUUID())
                 .endingStreamCuts(endSC).build();
 
         CompletableFuture<Boolean> createRG = controller.createReaderGroup(scope, "rg1", rgConfig);
@@ -348,7 +350,7 @@ public class ControllerServiceTest {
         List<String> subscribers = controller.listSubscribers(scope, stream1).get();
         assertTrue(subscribers.size() == 2);
 
-        assertTrue(controller.deleteReaderGroup(scope, "rg2").get());
+        assertTrue(controller.deleteReaderGroup(scope, "rg2", rgConfig.getReaderGroupId()).get());
         assertThrows(IllegalArgumentException.class, () -> controller.getReaderGroupConfig(scope, "rg2").get());
 
         ReaderGroupConfig config = controller.getReaderGroupConfig(scope, "rg1").get();

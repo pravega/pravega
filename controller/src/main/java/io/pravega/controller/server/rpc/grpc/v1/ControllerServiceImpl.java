@@ -171,12 +171,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void deleteReaderGroup(ReaderGroupInfo request, StreamObserver<DeleteReaderGroupStatus> responseObserver) {
         String scope = request.getScope();
         String rgName = request.getReaderGroup();
+        String rgId = request.getReaderGroupId();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getReaderGroupConfig",
                 scope, rgName);
         log.info(requestTag.getRequestId(), "getReaderGroupConfig called for Reader Group {}/{}.", scope, rgName);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofReaderGroupsInScope(scope), AuthHandler.Permissions.READ),
-                delegationToken -> controllerService.deleteReaderGroup(scope, rgName),
+                delegationToken -> controllerService.deleteReaderGroup(scope, rgName, rgId),
                 responseObserver, requestTag);
     }
 

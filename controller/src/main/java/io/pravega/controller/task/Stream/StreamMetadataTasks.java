@@ -35,7 +35,6 @@ import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.store.Version;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
@@ -279,15 +278,17 @@ public class StreamMetadataTasks extends TaskBase {
                                     .setStatus(ReaderGroupConfigResponse.Status.RG_NOT_FOUND).build());
                }
                final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
-               return streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, context, executor)
-                      .thenCompose(configRecord -> CompletableFuture.completedFuture(ReaderGroupConfigResponse.newBuilder()
-                                .setConfig(getRGConfigurationFromRecord(scope, rgName, configRecord.getObject()))
+               return streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
+                    .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, context, executor)
+                            .thenApply(configRecord -> ReaderGroupConfigResponse.newBuilder()
+                                .setConfig(getRGConfigurationFromRecord(scope, rgName, configRecord.getObject(), rgId.toString()))
                                 .setStatus(ReaderGroupConfigResponse.Status.SUCCESS).build()));
-               });
-       }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+       });
+      }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
-    private ReaderGroupConfiguration getRGConfigurationFromRecord(final String scope, final String rgName, final ReaderGroupConfigRecord record) {
+    private ReaderGroupConfiguration getRGConfigurationFromRecord(final String scope, final String rgName,
+                                                                  final ReaderGroupConfigRecord record, final String readerGroupId) {
         List<StreamCut> startStreamCuts = record.getStartingStreamCuts().entrySet().stream()
                 .map(e -> StreamCut.newBuilder()
                         .setStreamInfo(StreamInfo.newBuilder().setStream(Stream.of(e.getKey()).getStreamName())
@@ -306,6 +307,7 @@ public class StreamMetadataTasks extends TaskBase {
           .setGeneration(record.getGeneration())
           .addAllStartingStreamCuts(startStreamCuts)
           .addAllEndingStreamCuts(endStreamCuts)
+          .setReaderGroupId(readerGroupId)
           .build();
     }
 
@@ -376,7 +378,7 @@ public class StreamMetadataTasks extends TaskBase {
                if (!exists) {
                   return CompletableFuture.completedFuture(UpdateReaderGroupStatus.Status.RG_NOT_FOUND);
                }
-               //2. check for generation match with existing config
+               //2. check for generation && ID match with existing config
                return streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, context, executor)
                       .thenCompose(rgConfigRecord -> {
                         if (rgConfigRecord.getObject().getGeneration() != config.getGeneration()) {
@@ -384,16 +386,19 @@ public class StreamMetadataTasks extends TaskBase {
                         }
                         if (!rgConfigRecord.getObject().isUpdating()) {
                           return streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
-                                  .thenCompose(rgId -> {
-                                      ImmutableSet<String> removeStreams = getStreamsToBeUnsubscribed(rgConfigRecord.getObject().getStartingStreamCuts().keySet(),
-                                      config.getStartingStreamCuts().keySet().stream().map(s -> s.getScopedName()).collect(Collectors.toSet()));
-                                      UpdateReaderGroupEvent event = new UpdateReaderGroupEvent(scope, rgName, requestId, rgId, removeStreams);
-                                      //3. Create Reader Group Metadata and submit event
-                                      return eventHelper.addIndexAndSubmitTask(event,
-                                              () -> streamMetadataStore.startRGConfigUpdate(scope, rgName, config, null, executor))
-                                              .thenCompose(x -> eventHelper.checkDone(() -> isRGUpdated(scope, rgName, executor))
-                                                      .thenApply(done -> UpdateReaderGroupStatus.Status.SUCCESS));
-                                  });
+                             .thenCompose(rgId -> {
+                             if (!config.getReaderGroupId().equals(rgId)) {
+                                 return CompletableFuture.completedFuture(UpdateReaderGroupStatus.Status.INVALID_CONFIG);
+                             }
+                             ImmutableSet<String> removeStreams = getStreamsToBeUnsubscribed(rgConfigRecord.getObject().getStartingStreamCuts().keySet(),
+                             config.getStartingStreamCuts().keySet().stream().map(s -> s.getScopedName()).collect(Collectors.toSet()));
+                             UpdateReaderGroupEvent event = new UpdateReaderGroupEvent(scope, rgName, requestId, rgId, removeStreams);
+                             //3. Create Reader Group Metadata and submit event
+                             return eventHelper.addIndexAndSubmitTask(event,
+                                    () -> streamMetadataStore.startRGConfigUpdate(scope, rgName, config, null, executor))
+                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGUpdated(scope, rgName, executor))
+                                              .thenApply(done -> UpdateReaderGroupStatus.Status.SUCCESS));
+                             });
                         } else {
                           log.warn("Reader group update failed as another update is in progress.");
                           return CompletableFuture.completedFuture(UpdateReaderGroupStatus.Status.FAILURE);
@@ -421,26 +426,26 @@ public class StreamMetadataTasks extends TaskBase {
      *
      * @param scope           Reader Group scope.
      * @param rgName          Reader Group name.
+     * @param readerGroupId   Reader Group unique identifier.
      * @param contextOpt      Reader Group context.
      * @return deletion status.
      */
     public CompletableFuture<DeleteReaderGroupStatus.Status> deleteReaderGroup(final String scope, final String rgName,
+                                                                               final String readerGroupId,
                                                                                RGOperationContext contextOpt) {
         final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("deleteReaderGroup", scope, rgName);
-        return RetryHelper.withRetriesAsync(() -> Futures.exceptionallyExpecting(streamMetadataStore.getVersionedReaderGroupState(scope, rgName, true, null, executor),
-        e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException,
-                new VersionedMetadata<>(ReaderGroupState.UNKNOWN, new Version.IntVersion(0)))
-            .thenCompose(state -> {
-                if (ReaderGroupState.UNKNOWN.equals(state.getObject())) {
-                    return CompletableFuture.completedFuture(DeleteReaderGroupStatus.Status.RG_NOT_FOUND);
-                }
-                return streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
-                        .thenCompose(id -> eventHelper.addIndexAndSubmitTask(new DeleteReaderGroupEvent(scope, rgName, requestId, id),
-                                    () -> startReaderGroupDelete(scope, rgName, state, context))
-                        .thenCompose(x -> eventHelper.checkDone(() -> isRGDeleted(scope, rgName))
-                        .thenApply(done -> DeleteReaderGroupStatus.Status.SUCCESS)));
-        }), e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
+                .thenCompose(rgId -> {
+                    if (!rgId.equals(UUID.fromString(readerGroupId))) {
+                        return CompletableFuture.completedFuture(DeleteReaderGroupStatus.Status.RG_NOT_FOUND);
+                    }
+                   return streamMetadataStore.getVersionedReaderGroupState(scope, rgName, true, context, executor)
+                            .thenCompose(versionedState -> eventHelper.addIndexAndSubmitTask(new DeleteReaderGroupEvent(scope, rgName, requestId, rgId),
+                                      () -> startReaderGroupDelete(scope, rgName, versionedState, context))
+                                      .thenCompose(x -> eventHelper.checkDone(() -> isRGDeleted(scope, rgName))
+                                      .thenApply(done -> DeleteReaderGroupStatus.Status.SUCCESS)));
+                }), e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
     private CompletableFuture<Boolean> isRGDeleted(String scope, String rgName) {

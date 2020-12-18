@@ -313,13 +313,14 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                                  final ReaderGroupConfig configuration,
                                                                  final long createTimestamp,
                                                                  final RGOperationContext context,
-
                                                                  final Executor executor) {
-        return Futures.completeOn(
-                ((PravegaTablesScope) getScope(scope))
-                   .addReaderGroupToScope(name)
-                   .thenCompose(v -> super.createReaderGroup(scope, name, configuration, createTimestamp, context, executor)),
-                executor);
+        return Futures.completeOn(((PravegaTablesScope) getScope(scope)).addReaderGroupToScope(name, configuration.getReaderGroupId())
+                .thenCompose(rgAdded -> {
+                   if (rgAdded) {
+                       return super.createReaderGroup(scope, name, configuration, createTimestamp, context, executor);
+                   }
+                   return CompletableFuture.completedFuture(null);
+                }), executor);
     }
 
     @Override

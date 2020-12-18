@@ -25,6 +25,7 @@ import io.pravega.controller.store.Version;
 import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -36,6 +37,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -116,11 +118,14 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    @Synchronized
+    @SneakyThrows
     ReaderGroup newReaderGroup(String scope, String name) {
-        if (readerGroups.containsKey(scopedStreamName(scope, name))) {
-            return readerGroups.get(scopedStreamName(scope, name));
+        final String scopedRGName = scopedStreamName(scope, name);
+        if (readerGroups.containsKey(scopedRGName)) {
+            return readerGroups.get(scopedRGName);
         } else {
-            return new InMemoryReaderGroup(scope, name);
+           return new InMemoryReaderGroup(scope, name);
         }
     }
 
@@ -216,15 +221,16 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                                                      final Executor executor) {
         if (scopes.containsKey(scope)) {
             log.debug("Inside InMemoryStreamMetadataStore::createReaderGroup() is context null {}", context == null);
-            InMemoryReaderGroup readerGroup = (InMemoryReaderGroup) getReaderGroup(scope, name, context);
-            log.debug("Inside InMemoryStreamMetadataStore created RG object 1");
-            return readerGroup.create(configuration, createTimestamp)
-                      .thenCompose(status -> {
-                          log.debug("Inside InMemoryStreamMetadataStore created RG object 2");
-                                readerGroups.put(scopedStreamName(scope, name), readerGroup);
-                          log.debug("Inside InMemoryStreamMetadataStore created RG object 3");
-                                return scopes.get(scope).addReaderGroupToScope(name).thenApply(v -> status);
-                      });
+            return scopes.get(scope).addReaderGroupToScope(name, configuration.getReaderGroupId())
+            .thenCompose(addedToScope -> {
+                if (addedToScope) {
+                    InMemoryReaderGroup readerGroup = (InMemoryReaderGroup) getReaderGroup(scope, name, context);
+                    log.debug("Inside InMemoryStreamMetadataStore created RG object 1");
+                    readerGroups.put(scopedStreamName(scope, name), readerGroup);
+                    return readerGroup.create(configuration, createTimestamp);
+                }
+                return CompletableFuture.completedFuture(null);
+            });
         } else {
             return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scope));

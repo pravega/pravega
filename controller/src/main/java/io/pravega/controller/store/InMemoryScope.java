@@ -187,9 +187,12 @@ public class InMemoryScope implements Scope {
     }
 
     @Synchronized
-    public CompletableFuture<Void> addReaderGroupToScope(String readerGroup) {
-        this.readerGroupsMap.putIfAbsent(readerGroup, new InMemoryReaderGroup(this.scopeName, readerGroup));
-        return CompletableFuture.completedFuture(null);
+    public CompletableFuture<Boolean> addReaderGroupToScope(String readerGroup, UUID readerGroupId) {
+        if (this.readerGroupsMap.containsKey(readerGroup)) {
+            return CompletableFuture.completedFuture(Boolean.FALSE);
+        }
+        this.readerGroupsMap.put(readerGroup, new InMemoryReaderGroup(this.scopeName, readerGroup, readerGroupId));
+        return CompletableFuture.completedFuture(Boolean.TRUE);
     }
 
     @Synchronized

@@ -81,8 +81,9 @@ message ReaderGroupConfiguration {
     int32 maxOutstandingCheckpointRequest = 5;
     int32 retentionType = 6;
     int64 generation = 7;
-    repeated StreamCut startingStreamCuts = 8;
-    repeated StreamCut endingStreamCuts = 9;
+    string readerGroupId = 8;
+    repeated StreamCut startingStreamCuts = 9;
+    repeated StreamCut endingStreamCuts = 10;
 }
 
 message ReaderGroupConfigResponse {
@@ -98,6 +99,7 @@ message ReaderGroupConfigResponse {
 message ReaderGroupInfo {
     string scope = 1;
     string readerGroup = 2;
+    string readerGroupId = 3;
 }
 
 message CreateReaderGroupStatus {

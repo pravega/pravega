@@ -158,7 +158,7 @@ public interface Controller extends AutoCloseable {
      * @param rgName Reader Group name.
      * @return A future which will throw if the operation fails, otherwise returns configuration of the Reader Group.
      */
-    CompletableFuture<Boolean> deleteReaderGroup(final String scope, final String rgName);
+    CompletableFuture<Boolean> deleteReaderGroup(final String scope, final String rgName, final UUID readerGroupId);
 
     /**
      * Get list of Subscribers for the Stream.

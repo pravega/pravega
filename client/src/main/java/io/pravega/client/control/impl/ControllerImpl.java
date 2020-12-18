@@ -1607,7 +1607,7 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(final String scope, final String rgName) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(rgName, "rgName");
+        final String emptyUUID = "";
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "getReaderGroupConfig", scope, rgName, requestId);
         final String scopedRGName = NameUtils.getScopedReaderGroupName(scope, rgName);
@@ -1615,7 +1615,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<ReaderGroupConfigResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<ReaderGroupConfigResponse> callback = new RPCAsyncCallback<>(requestId, "getReaderGroupConfig", scope, rgName);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getReaderGroupConfig", scope, rgName)
-                    .getReaderGroupConfig(ModelHelper.createReaderGroupInfo(scope, rgName), callback);
+                    .getReaderGroupConfig(ModelHelper.createReaderGroupInfo(scope, rgName, emptyUUID), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -1642,10 +1642,11 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteReaderGroup(final String scope, final String rgName) {
+    public CompletableFuture<Boolean> deleteReaderGroup(final String scope, final String rgName, final UUID readerGroupId) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(rgName, "rgName");
+        Preconditions.checkNotNull(readerGroupId, "rgId");
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "deleteReaderGroup", scope, rgName, requestId);
         final String scopedRGName = NameUtils.getScopedReaderGroupName(scope, rgName);
@@ -1653,7 +1654,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<DeleteReaderGroupStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DeleteReaderGroupStatus> callback = new RPCAsyncCallback<>(requestId, "deleteReaderGroup", scope, rgName);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "deleteReaderGroup", scope, rgName)
-                    .deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope, rgName), callback);
+                    .deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope, rgName, readerGroupId.toString()), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {

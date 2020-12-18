@@ -85,4 +85,10 @@ public interface Scope {
         BitConverter.writeUUID(new ByteArraySegment(b), UUID.randomUUID());
         return b;
     }
+
+    default byte[] getIdInBytes(UUID id) {
+        byte[] b = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(b), id);
+        return b;
+    }
 }
