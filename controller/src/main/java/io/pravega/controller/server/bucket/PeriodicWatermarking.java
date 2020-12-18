@@ -133,6 +133,7 @@ public class PeriodicWatermarking implements AutoCloseable {
         OperationContext context = streamMetadataStore.createContext(scope, streamName);
 
         if (scope.equals(NameUtils.INTERNAL_SCOPE_NAME)) {
+            //
             return CompletableFuture.completedFuture(null);
         }
 

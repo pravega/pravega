@@ -912,8 +912,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getDelegationToken(StreamInfo request, StreamObserver<DelegationToken> responseObserver)  {
-        log.debug("getDelegationToken called for stream {}/{} and access operation {}", request.getScope(),
-                request.getStream(), request.getAccessOperation());
+        log.info("getDelegationToken called for stream {}/{}.", request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(this.delegationTokenSupplier(request),
                 delegationToken -> {
                     logIfEmpty(delegationToken, "getDelegationToken", request.getScope(), request.getStream());
