@@ -1539,7 +1539,7 @@ public class ControllerImpl implements Controller {
             switch (x.getStatus()) {
                 case FAILURE:
                     log.warn(requestId, "Failed to create reader group: {}", rgName);
-                    throw new ControllerFailureException("Failed to create readergroup: " + rgName);
+                    throw new ControllerFailureException("Failed to create reader group: " + rgName);
                 case INVALID_RG_NAME:
                     log.warn(requestId, "Illegal Reader Group Name: {}", rgName);
                     throw new IllegalArgumentException("Illegal readergroup name: " + rgName);
@@ -1625,7 +1625,7 @@ public class ControllerImpl implements Controller {
                     throw new ControllerFailureException("Failed to get config for reader group: " + scopedRGName);
                 case RG_NOT_FOUND:
                     log.warn(requestId, "ReaderGroup not found: {}", scopedRGName);
-                    throw new InvalidStreamException("ReaderGroup does not exist: " + scopedRGName);
+                    throw new IllegalArgumentException("ReaderGroup does not exist: " + scopedRGName);
                 case SUCCESS:
                     log.info(requestId, "Successfully got config for Reader Group: {}", scopedRGName);
                     return ModelHelper.encode(x.getConfig());

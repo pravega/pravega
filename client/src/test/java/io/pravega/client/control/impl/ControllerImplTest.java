@@ -10,6 +10,7 @@
 package io.pravega.client.control.impl;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.Status;
@@ -20,15 +21,7 @@ import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.InvalidStreamException;
-import io.pravega.client.stream.NoSuchScopeException;
-import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.TxnFailedException;
+import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
@@ -79,6 +72,12 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -107,6 +106,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
 import lombok.Cleanup;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -332,6 +333,121 @@ public class ControllerImplTest {
                     // dont send any response
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
+            public void createReaderGroup(ReaderGroupConfiguration request,
+                                          StreamObserver<CreateReaderGroupStatus> responseObserver) {
+                if (request.getReaderGroupName().equals("rg1")) {
+                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
+                            .setStatus(CreateReaderGroupStatus.Status.SUCCESS)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getReaderGroupName().equals("rg2")) {
+                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
+                            .setStatus(CreateReaderGroupStatus.Status.FAILURE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getReaderGroupName().equals("rg3")) {
+                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
+                            .setStatus(CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getReaderGroupName().equals("rg4")) {
+                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
+                            .setStatus(CreateReaderGroupStatus.Status.INVALID_RG_NAME)
+                            .build());
+                    responseObserver.onCompleted();
+                }
+            }
+
+            @Override
+            public void updateReaderGroup(ReaderGroupConfiguration request,
+                                          StreamObserver<UpdateReaderGroupStatus> responseObserver) {
+                if (request.getReaderGroupName().equals("rg1")) {
+                    responseObserver.onNext(UpdateReaderGroupStatus.newBuilder()
+                            .setStatus(UpdateReaderGroupStatus.Status.SUCCESS)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getReaderGroupName().equals("rg2")) {
+                    responseObserver.onNext(UpdateReaderGroupStatus.newBuilder()
+                            .setStatus(UpdateReaderGroupStatus.Status.FAILURE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getReaderGroupName().equals("rg3")) {
+                    responseObserver.onNext(UpdateReaderGroupStatus.newBuilder()
+                            .setStatus(UpdateReaderGroupStatus.Status.RG_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getReaderGroupName().equals("rg4")) {
+                    responseObserver.onNext(UpdateReaderGroupStatus.newBuilder()
+                            .setStatus(UpdateReaderGroupStatus.Status.INVALID_CONFIG)
+                            .build());
+                    responseObserver.onCompleted();
+                }
+            }
+
+            @Override
+            public void deleteReaderGroup(ReaderGroupInfo request,
+                                          StreamObserver<DeleteReaderGroupStatus> responseObserver) {
+                if (request.getReaderGroup().equals("rg1")) {
+                    responseObserver.onNext(DeleteReaderGroupStatus.newBuilder()
+                            .setStatus(DeleteReaderGroupStatus.Status.SUCCESS)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getReaderGroup().equals("rg2")) {
+                    responseObserver.onNext(DeleteReaderGroupStatus.newBuilder()
+                            .setStatus(DeleteReaderGroupStatus.Status.FAILURE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getReaderGroup().equals("rg3")) {
+                    responseObserver.onNext(DeleteReaderGroupStatus.newBuilder()
+                            .setStatus(DeleteReaderGroupStatus.Status.RG_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                }
+            }
+
+            @Override
+            public void getReaderGroupConfig(ReaderGroupInfo request,
+                                          StreamObserver<ReaderGroupConfigResponse> responseObserver) {
+                final Segment seg0 = new Segment("scope1", "stream1", 0L);
+                final Segment seg1 = new Segment("scope1", "stream1", 1L);
+                ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+                Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of("scope1", "stream1"),
+                        new StreamCutImpl(Stream.of("scope1", "stream1"), startStreamCut));
+                ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+                Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of("scope1", "stream1"),
+                        new StreamCutImpl(Stream.of("scope1", "stream1"), endStreamCut));
+                ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                        .automaticCheckpointIntervalMillis(30000L)
+                        .groupRefreshTimeMillis(20000L)
+                        .maxOutstandingCheckpointRequest(2)
+                        .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                        .generation(0L)
+                        .readerGroupId(UUID.randomUUID())
+                        .startingStreamCuts(startSC)
+                        .endingStreamCuts(endSC).build();
+
+                if (request.getReaderGroup().equals("rg1")) {
+                    responseObserver.onNext(ReaderGroupConfigResponse.newBuilder()
+                            .setStatus(ReaderGroupConfigResponse.Status.SUCCESS)
+                            .setConfig(ModelHelper.decode("scope1","rg1", rgConfig))
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getReaderGroup().equals("rg2")) {
+                    responseObserver.onNext(ReaderGroupConfigResponse.newBuilder()
+                            .setStatus(ReaderGroupConfigResponse.Status.FAILURE)
+                            .setConfig(ReaderGroupConfiguration.getDefaultInstance())
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getReaderGroup().equals("rg3")) {
+                    responseObserver.onNext(ReaderGroupConfigResponse.newBuilder()
+                            .setStatus(ReaderGroupConfigResponse.Status.RG_NOT_FOUND)
+                            .setConfig(ReaderGroupConfiguration.getDefaultInstance())
+                            .build());
+                    responseObserver.onCompleted();
                 }
             }
 
@@ -1389,6 +1505,109 @@ public class ControllerImplTest {
         AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
                 getSubscribersList, throwable -> throwable instanceof IllegalArgumentException);
     }
+
+    @Test
+    public void testCreateReaderGroup() throws Exception {
+        CompletableFuture<Boolean> createRGStatus;
+        final Segment seg0 = new Segment("scope1", "stream1", 0L);
+        final Segment seg1 = new Segment("scope1", "stream1", 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of("scope1", "stream1"),
+                new StreamCutImpl(Stream.of("scope1", "stream1"), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of("scope1", "stream1"),
+                new StreamCutImpl(Stream.of("scope1", "stream1"), endStreamCut));
+        ReaderGroupConfig config = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(UUID.randomUUID())
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        createRGStatus = controllerClient.createReaderGroup("scope1", "rg1", config);
+        assertTrue(createRGStatus.get());
+
+        createRGStatus = controllerClient.createReaderGroup("scope1", "rg2", config);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createRGStatus, Throwable -> true);
+
+        createRGStatus = controllerClient.createReaderGroup("scope1", "rg3", config);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+
+        createRGStatus = controllerClient.createReaderGroup("scope1", "rg4", config);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testUpdateReaderGroup() throws Exception {
+        CompletableFuture<Boolean> updateRGStatus;
+        final Segment seg0 = new Segment("scope1", "stream1", 0L);
+        final Segment seg1 = new Segment("scope1", "stream1", 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of("scope1", "stream1"),
+                new StreamCutImpl(Stream.of("scope1", "stream1"), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of("scope1", "stream1"),
+                new StreamCutImpl(Stream.of("scope1", "stream1"), endStreamCut));
+        ReaderGroupConfig config = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(UUID.randomUUID())
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg1", config);
+        assertTrue(updateRGStatus.get());
+
+        updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg2", config);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                updateRGStatus, Throwable -> true);
+
+        updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg3", config);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                updateRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+
+        updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg4", config);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                updateRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testDeleteReaderGroup() throws Exception {
+        CompletableFuture<Boolean> deleteRGStatus;
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg1", UUID.randomUUID());
+        assertTrue(deleteRGStatus.get());
+
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg2", UUID.randomUUID());
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                deleteRGStatus, Throwable -> true);
+
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg3", UUID.randomUUID());
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                deleteRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testGetReaderGroupConfig() throws Exception {
+        CompletableFuture<ReaderGroupConfig> getRGConfigStatus;
+        getRGConfigStatus = controllerClient.getReaderGroupConfig("scope1", "rg1");
+        assertEquals(30000L, getRGConfigStatus.get().getAutomaticCheckpointIntervalMillis());
+
+        getRGConfigStatus = controllerClient.getReaderGroupConfig("scope1", "rg2");
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                getRGConfigStatus, Throwable -> true);
+
+        getRGConfigStatus = controllerClient.getReaderGroupConfig("scope1", "rg3");
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                getRGConfigStatus, throwable -> throwable instanceof IllegalArgumentException);
+    }
+
 
     @Test
     public void testUpdateTruncationStreamcut() throws Exception {

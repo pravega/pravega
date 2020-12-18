@@ -156,6 +156,7 @@ public interface Controller extends AutoCloseable {
      * API to delete a Reader Group.
      * @param scope Scope name for Reader Group.
      * @param rgName Reader Group name.
+     * @param readerGroupId Unique Id for this readerGroup.
      * @return A future which will throw if the operation fails, otherwise returns configuration of the Reader Group.
      */
     CompletableFuture<Boolean> deleteReaderGroup(final String scope, final String rgName, final UUID readerGroupId);

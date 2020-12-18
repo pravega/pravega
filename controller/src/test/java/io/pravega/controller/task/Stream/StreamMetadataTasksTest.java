@@ -234,6 +234,7 @@ public abstract class StreamMetadataTasksTest {
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .generation(0L)
+                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
     }
