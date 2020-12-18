@@ -334,6 +334,7 @@ public class ControllerServiceTest {
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .generation(0L)
+                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .readerGroupId(UUID.randomUUID())
                 .endingStreamCuts(endSC).build();
@@ -358,6 +359,7 @@ public class ControllerServiceTest {
         assertEquals(rgConfig.getGeneration(), config.getGeneration());
         assertEquals(rgConfig.getMaxOutstandingCheckpointRequest(), config.getMaxOutstandingCheckpointRequest());
         assertEquals(rgConfig.getRetentionType(), config.getRetentionType());
+        assertEquals(rgConfig.getReaderGroupId(), config.getReaderGroupId());
         assertEquals(rgConfig.getStartingStreamCuts().keySet().size(), config.getStartingStreamCuts().keySet().size());
         assertEquals(rgConfig.getEndingStreamCuts().keySet().size(), config.getEndingStreamCuts().keySet().size());
         assertTrue(config.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream1)));
@@ -375,6 +377,7 @@ public class ControllerServiceTest {
                 .maxOutstandingCheckpointRequest(7)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .generation(0L)
+                .readerGroupId(rgConfig.getReaderGroupId())
                 .startingStreamCuts(startSCNew)
                 .endingStreamCuts(endSCNew).build();
         assertTrue(controller.updateReaderGroup(scope, "rg1", newRGConfig).get());
@@ -383,6 +386,7 @@ public class ControllerServiceTest {
         assertEquals(newRGConfig.getGeneration() + 1, updatedConfig.getGeneration());
         assertEquals(newRGConfig.getMaxOutstandingCheckpointRequest(), updatedConfig.getMaxOutstandingCheckpointRequest());
         assertEquals(newRGConfig.getRetentionType(), updatedConfig.getRetentionType());
+        assertEquals(newRGConfig.getReaderGroupId(), updatedConfig.getReaderGroupId());
         assertEquals(newRGConfig.getStartingStreamCuts().keySet().size(), updatedConfig.getStartingStreamCuts().keySet().size());
         assertEquals(newRGConfig.getEndingStreamCuts().keySet().size(), updatedConfig.getEndingStreamCuts().keySet().size());
         assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream3)));
@@ -403,6 +407,7 @@ public class ControllerServiceTest {
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .generation(0L)
+                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
 

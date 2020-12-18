@@ -47,10 +47,7 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -175,6 +172,7 @@ public class StreamMetricsTest {
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .generation(0L)
+                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
 
@@ -203,7 +201,7 @@ public class StreamMetricsTest {
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
         controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, subscriberScopedName, 0L, streamCut1).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER).count());
-        controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber).get();
+        controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber, rgConfig.getReaderGroupId().toString()).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP).count());
 
         // Seal the Stream.

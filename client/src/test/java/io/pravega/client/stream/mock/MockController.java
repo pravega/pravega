@@ -253,7 +253,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName) {
+    public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName, final UUID readerGroupId) {
         throw new UnsupportedOperationException();
     }
 
