@@ -350,8 +350,8 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * and reports the latency.
      *
      * @param scope         Scope.
-     * @param rgName    Name of the ReaderGroup.
-     * @param latency       Latency of the addSubscriber operation.
+     * @param rgName        Name of the ReaderGroup.
+     * @param latency       Latency of the updateReaderGroup operation.
      */
     public void updateReaderGroup(String scope, String rgName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(UPDATE_READER_GROUP), 1);

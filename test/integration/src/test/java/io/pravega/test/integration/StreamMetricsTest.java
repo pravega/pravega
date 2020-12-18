@@ -47,7 +47,11 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.time.Duration;
-import java.util.*;
+import java.util.UUID;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -201,6 +205,10 @@ public class StreamMetricsTest {
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
         controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, subscriberScopedName, 0L, streamCut1).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER).count());
+
+        controllerWrapper.getControllerService().updateReaderGroup(scopeName, subscriber, rgConfig);
+        //assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP).count());
+
         controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber, rgConfig.getReaderGroupId().toString()).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP).count());
 
@@ -222,9 +230,10 @@ public class StreamMetricsTest {
         StreamMetrics.getInstance().updateStreamFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().truncateStreamFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().sealStreamFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().createReaderGroupFailed("failedScope", "failedStream");
-        //StreamMetrics.getInstance().deleteSubscriberFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().updateTruncationSCFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().createReaderGroupFailed("failedRG", "failedRG");
+        StreamMetrics.getInstance().deleteReaderGroupFailed("failedRG", "failedRG");
+        StreamMetrics.getInstance().updateReaderGroupFailed("failedRG", "failedRG");
+        StreamMetrics.getInstance().updateTruncationSCFailed("failedRG", "failedRG");
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM_FAILED).count());
@@ -233,6 +242,9 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.TRUNCATE_STREAM_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_READER_GROUP_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER_FAILED).count());
     }
 
     @Test(timeout = 30000)

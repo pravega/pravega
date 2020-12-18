@@ -204,12 +204,7 @@ public class ControllerService {
     public CompletableFuture<ReaderGroupConfigResponse> getReaderGroupConfig(String scope, String rgName) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
-        Timer timer = new Timer();
-        return streamMetadataTasks.getReaderGroupConfig(scope, rgName, null)
-                .thenApplyAsync(response -> {
-                    reportGetReaderGroupConfigMetrics(scope, rgName, response.getStatus(), timer.getElapsed());
-                    return response;
-                }, executor);
+        return streamMetadataTasks.getReaderGroupConfig(scope, rgName, null);
     }
 
     public CompletableFuture<DeleteReaderGroupStatus> deleteReaderGroup(String scope, String rgName, String readerGroupId) {
@@ -709,9 +704,9 @@ public class ControllerService {
 
     private void reportUpdateReaderGroupMetrics(String scope, String streamName, UpdateReaderGroupStatus.Status status, Duration latency) {
         if (status.equals(UpdateReaderGroupStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().createReaderGroup(scope, streamName, latency);
+            StreamMetrics.getInstance().updateReaderGroup(scope, streamName, latency);
         } else if (status.equals(UpdateReaderGroupStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().createReaderGroupFailed(scope, streamName);
+            StreamMetrics.getInstance().updateReaderGroupFailed(scope, streamName);
         }
     }
 
@@ -720,14 +715,6 @@ public class ControllerService {
             StreamMetrics.getInstance().deleteReaderGroup(scope, streamName, latency);
         } else if (status.equals(DeleteReaderGroupStatus.Status.FAILURE)) {
             StreamMetrics.getInstance().deleteReaderGroupFailed(scope, streamName);
-        }
-    }
-
-    private void reportGetReaderGroupConfigMetrics(String scope, String streamName, ReaderGroupConfigResponse.Status status, Duration latency) {
-        if (status.equals(ReaderGroupConfigResponse.Status.SUCCESS)) {
-            StreamMetrics.getInstance().createReaderGroup(scope, streamName, latency);
-        } else if (status.equals(ReaderGroupConfigResponse.Status.FAILURE)) {
-            StreamMetrics.getInstance().createReaderGroupFailed(scope, streamName);
         }
     }
 
