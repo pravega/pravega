@@ -37,6 +37,15 @@ public class HealthEndpointImpl implements HealthEndpoint {
     }
 
     /**
+     * Provides the name of the root {@link HealthContributor}.
+     * @return The name (its id).
+     */
+    @Override
+    public String getDefaultContributorName() {
+        return registry.getRootContributor().getName();
+    }
+
+    /**
      * Validates that the {@link HealthContributor} exists and requests it's {@link Health}.
      *
      * @param id  The id/name of the {@link HealthComponent} to check the {@link Health} of.

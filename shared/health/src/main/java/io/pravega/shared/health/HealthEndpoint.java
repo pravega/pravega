@@ -25,9 +25,7 @@ public interface HealthEndpoint {
      *
      * @return The name/id of the default {@link HealthContributor}.
      */
-    default String getDefaultContributorName() {
-        return ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME;
-    }
+    String getDefaultContributorName();
 
     /**
      * Provides the {@link Status} of the {@link HealthContributor} with name {@link #getDefaultContributorName()}.

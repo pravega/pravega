@@ -23,11 +23,13 @@ import java.util.Collection;
 
 public class HealthComponentTests {
 
+    private static final String ROOT_NAME = "root";
+
     private ContributorRegistry registry;
 
     @Before
     public void before() {
-        registry = new ContributorRegistryImpl();
+        registry = new ContributorRegistryImpl(ROOT_NAME);
     }
 
     @After

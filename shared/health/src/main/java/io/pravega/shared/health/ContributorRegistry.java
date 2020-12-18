@@ -19,11 +19,10 @@ import java.util.Collection;
  */
 public interface ContributorRegistry extends Registry<HealthContributor> {
 
-    static final String DEFAULT_CONTRIBUTOR_NAME = "health-service";
-
     /**
      * Supplies the top most {@link HealthContributor} (root). For all other {@link HealthContributor} instances registered,
      * there exists a path between the root and it.
+     *
      * @return The root {@link HealthContributor}.
      */
     HealthContributor getRootContributor();

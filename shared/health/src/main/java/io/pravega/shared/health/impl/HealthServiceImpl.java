@@ -14,6 +14,7 @@ import io.pravega.shared.health.HealthConfig;
 import io.pravega.shared.health.HealthServiceUpdater;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collection;
@@ -41,9 +42,13 @@ public class HealthServiceImpl implements HealthService {
 
     private final HealthEndpoint endpoint;
 
-    public HealthServiceImpl(HealthConfig config) {
+    @Getter
+    private final String name;
+
+    public HealthServiceImpl(String name, HealthConfig config) {
+        this.name = name;
         this.config = config;
-        this.registry = new ContributorRegistryImpl();
+        this.registry = new ContributorRegistryImpl(name);
         this.endpoint = new HealthEndpointImpl(this.registry);
         // Initializes the ContributorRegistry into the expected starting state.
         this.config.reconcile(this.registry);

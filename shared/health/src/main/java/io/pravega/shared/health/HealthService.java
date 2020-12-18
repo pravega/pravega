@@ -47,6 +47,14 @@ public interface HealthService extends AutoCloseable {
     HealthServiceUpdater getHealthServiceUpdater();
 
     /**
+     * Provides the name assigned to this {@link HealthService}. This name will also act as the name for the root
+     * {@link HealthContributor} of it's {@link ContributorRegistry}.
+     *
+     * @return The name of the service.
+     */
+    String getName();
+
+    /**
      * Removes all state (contents of the {@link ContributorRegistry}) from this object.
      */
     void clear();

@@ -35,11 +35,13 @@ public class ContributorRegistryTests {
 
     private static final int BOUND = 100;
 
+    private static final String ROOT_NAME = "root";
+
     ContributorRegistry registry;
 
     @Before
     public void before() {
-        registry = new ContributorRegistryImpl();
+        registry = new ContributorRegistryImpl(ROOT_NAME);
     }
 
 
@@ -90,7 +92,7 @@ public class ContributorRegistryTests {
         int beforeComponents = registry.components().size();
         Assert.assertEquals("Number of HealthComponents and HealthContributors should be equal.", beforeComponents, beforeContributors);
         // Attempt HealthComponent removal.
-        registry.unregister(ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME);
+        registry.unregister(ROOT_NAME);
         Assert.assertEquals("Expected the de-registration to fail, HealthComponents should not be allowed to be removed.",
                 beforeContributors,
                 registry.contributors().size());
@@ -159,10 +161,10 @@ public class ContributorRegistryTests {
         // The component should be the 'root'.
         Assert.assertEquals("The HealthComponent should be the root.",
                 registry.components().stream().findFirst().get(),
-                ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME);
+                ROOT_NAME);
         // The contributors should be the 'root' and 'three'.
         Assert.assertArrayEquals("The HealthContributors should be the 'root' and 'THREE'.",
-                new String[]{ ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME, contributors.get(2).getName(), contributors.get(3).getName() },
+                new String[]{ ROOT_NAME, contributors.get(2).getName(), contributors.get(3).getName() },
                 registry.contributors().toArray());
     }
 
@@ -316,6 +318,10 @@ public class ContributorRegistryTests {
     }
 
     static class TestContributorRegistry extends ContributorRegistryImpl {
+        TestContributorRegistry() {
+            super(ROOT_NAME);
+        }
+
         // Validates that all entries in each of the internal containers point to valid references.
         // The 'components' field is not used to determine the validity of the tree-structure.
         public void validate() {

@@ -58,26 +58,29 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     private final HealthComponent root;
 
+    private final String rootName;
+
     @NonNull
-    public ContributorRegistryImpl(StatusAggregator aggregator) {
-        root = new HealthComponent(DEFAULT_CONTRIBUTOR_NAME, aggregator, this);
+    public ContributorRegistryImpl(String rootName, StatusAggregator aggregator) {
+        this.rootName = rootName;
+        this.root = new HealthComponent(rootName, aggregator, this);
         initialize(root);
     }
 
     @NonNull
-    public ContributorRegistryImpl() {
-        this(StatusAggregatorImpl.DEFAULT);
+    public ContributorRegistryImpl(String rootName) {
+        this(rootName, StatusAggregatorImpl.DEFAULT);
     }
 
     private void initialize(HealthComponent root) {
         // Initialize children set of the root.
-        children.put(DEFAULT_CONTRIBUTOR_NAME, new HashSet<>());
+        children.put(rootName, new HashSet<>());
         // Not needed, but useful for validation.
-        parents.put(DEFAULT_CONTRIBUTOR_NAME, new HashSet<>());
+        parents.put(rootName, new HashSet<>());
         // Make it visible to clients.
-        contributors.put(DEFAULT_CONTRIBUTOR_NAME, root);
+        contributors.put(rootName, root);
         // Separates 'contributors' from 'components' -- useful for an internal vs leaf node distinction.
-        components.add(DEFAULT_CONTRIBUTOR_NAME);
+        components.add(rootName);
     }
 
     /**
@@ -250,7 +253,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     @Override
     synchronized public HealthContributor getRootContributor() {
-        return contributors.get(DEFAULT_CONTRIBUTOR_NAME);
+        return contributors.get(rootName);
     }
 
     /**
@@ -274,7 +277,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     @Override
     synchronized public Collection<HealthContributor> dependencies() {
-        return dependencies(DEFAULT_CONTRIBUTOR_NAME);
+        return dependencies(rootName);
     }
 
     /**
