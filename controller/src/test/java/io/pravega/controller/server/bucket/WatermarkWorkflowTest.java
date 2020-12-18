@@ -574,7 +574,6 @@ public class WatermarkWorkflowTest {
             });
         }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
 
-        @Cleanup
         StreamMetadataStore streamMetadataStoreSpied = spy(this.streamMetadataStore);
         BucketStore bucketStoreSpied = spy(this.bucketStore);
         @Cleanup
