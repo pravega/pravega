@@ -57,6 +57,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
@@ -113,6 +114,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
        throw new UnsupportedOperationException("Operation not allowed when ReaderGroup retentionConfig is set to " +
                synchronizer.getState().getConfig().getRetentionType().toString());
+    }
+
+    @Override
+    public UUID getGroupId() {
+        synchronizer.fetchUpdates();
+        return synchronizer.getState().getConfig().getReaderGroupId();
     }
 
     @Override
@@ -205,9 +212,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             updates.add(new UpdatingConfig(true));
         });
         getThrowingException(controller.updateReaderGroup(scope, groupName, config));
+        ReaderGroupConfig controllerConfig = getThrowingException(controller.getReaderGroupConfig(scope, groupName));
         Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
         synchronizer.updateState((state, updates) -> {
-            new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false);
+            if (state.getConfig().getGeneration() < controllerConfig.getGeneration()) {
+                new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false);
+            }
         });
     }
 

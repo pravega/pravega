@@ -120,8 +120,10 @@ public class ReaderGroupImplTest {
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
                 .build();
         when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
+        when(controller.getReaderGroupConfig(SCOPE, GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(config));
         readerGroup.resetReaderGroup(config);
         verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
+        verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
         verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }
 
@@ -133,8 +135,10 @@ public class ReaderGroupImplTest {
         Checkpoint checkpoint = new CheckpointImpl("testChkPoint", positions);
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromCheckpoint(checkpoint).build();
         when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
+        when(controller.getReaderGroupConfig(SCOPE, GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(config));
         readerGroup.resetReaderGroup(config);
         verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
+        verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
         verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }
 

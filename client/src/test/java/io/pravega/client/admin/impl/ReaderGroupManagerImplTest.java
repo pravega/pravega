@@ -54,6 +54,8 @@ public class ReaderGroupManagerImplTest {
     private Controller controller;
     @Mock
     private StateSynchronizer<ReaderGroupState> synchronizer;
+    @Mock
+    private ReaderGroupState state;
 
     @Before
     public void setUp() throws Exception {
@@ -94,10 +96,17 @@ public class ReaderGroupManagerImplTest {
     @Test
     @SuppressWarnings("unchecked")
     public void testDeleteReaderGroup() {
-        when(controller.deleteReaderGroup(SCOPE, GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(true));
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2))
+                .put(createStream("s2"), createStreamCut("s2", 3)).build())
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .build();
+        when(synchronizer.getState()).thenReturn(state);
+        when(state.getConfig()).thenReturn(config);
+        when(controller.deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId())).thenReturn(CompletableFuture.completedFuture(true));
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
-        verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME);
+        verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId());
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {

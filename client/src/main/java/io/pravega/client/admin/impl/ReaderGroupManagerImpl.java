@@ -99,7 +99,9 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName),
+        @Cleanup
+        ReaderGroup group = getReaderGroup(groupName);
+        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, group.getGroupId()),
                 RuntimeException::new);
         
     }
