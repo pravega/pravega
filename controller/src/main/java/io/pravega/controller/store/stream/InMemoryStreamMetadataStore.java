@@ -215,10 +215,14 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                                                      final RGOperationContext context,
                                                      final Executor executor) {
         if (scopes.containsKey(scope)) {
+            log.debug("Inside InMemoryStreamMetadataStore::createReaderGroup() is context null {}", context == null);
             InMemoryReaderGroup readerGroup = (InMemoryReaderGroup) getReaderGroup(scope, name, context);
+            log.debug("Inside InMemoryStreamMetadataStore created RG object 1");
             return readerGroup.create(configuration, createTimestamp)
                       .thenCompose(status -> {
+                          log.debug("Inside InMemoryStreamMetadataStore created RG object 2");
                                 readerGroups.put(scopedStreamName(scope, name), readerGroup);
+                          log.debug("Inside InMemoryStreamMetadataStore created RG object 3");
                                 return scopes.get(scope).addReaderGroupToScope(name).thenApply(v -> status);
                       });
         } else {

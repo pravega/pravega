@@ -45,12 +45,14 @@ public class InMemoryReaderGroup extends AbstractReaderGroup {
 
     @Override
     CompletableFuture<Void> createMetadataTables() {
+        log.debug("InMemoryReaderGroup::createMetadataTables");
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     CompletableFuture<Void> storeCreationTimeIfAbsent(long timestamp) {
        creationTime.compareAndSet(Long.MIN_VALUE, timestamp);
+        log.debug("InMemoryReaderGroup::storeCreationTimeIfAbsent");
        return CompletableFuture.completedFuture(null);
     }
 
@@ -61,6 +63,7 @@ public class InMemoryReaderGroup extends AbstractReaderGroup {
             if (configuration == null) {
                 ReaderGroupConfigRecord configRecord = ReaderGroupConfigRecord.update(config, 0L, false);
                 configuration = new VersionedMetadata<>(configRecord, new Version.IntVersion(0));
+                log.debug("InMemoryReaderGroup::createConfigurationIfAbsent");
             }
         }
         return CompletableFuture.completedFuture(null);
@@ -68,11 +71,11 @@ public class InMemoryReaderGroup extends AbstractReaderGroup {
 
     @Override
     CompletableFuture<Void> createStateIfAbsent() {
-        Preconditions.checkNotNull(state);
         synchronized (lock) {
             if (this.state == null) {
                 ReaderGroupStateRecord stateRecord = ReaderGroupStateRecord.builder().state(ReaderGroupState.CREATING).build();
                 this.state = new VersionedMetadata<>(stateRecord, new Version.IntVersion(0));
+                log.debug("InMemoryReaderGroup::createStateIfAbsent");
             }
         }
         return CompletableFuture.completedFuture(null);
@@ -95,8 +98,10 @@ public class InMemoryReaderGroup extends AbstractReaderGroup {
 
     @Override
     CompletableFuture<VersionedMetadata<ReaderGroupStateRecord>> getStateData(boolean ignoreCached) {
+        log.debug("Inside getStateData - InMemoryStore");
         synchronized (lock) {
             if (this.state == null) {
+                log.debug("stateData not found");
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
             }
             log.debug("returning stateData");
