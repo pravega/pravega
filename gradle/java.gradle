@@ -96,6 +96,10 @@ plugins.withId('java') {
         def jvmArgsCopy = jvmArgs
         jvmArgsCopy.add("-XX:MaxDirectMemorySize=4g")
         jvmArgs = jvmArgsCopy
+
+        beforeTest { descriptor ->
+            logger.lifecycle("\nRunning test: " + descriptor.getClassName() + " > " + descriptor.getDisplayName());
+        }
     }
 
     dependencies {
