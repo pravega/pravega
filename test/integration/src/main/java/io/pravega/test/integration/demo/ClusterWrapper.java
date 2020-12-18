@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration.demo;
 
+import io.pravega.client.control.impl.Controller;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -214,6 +215,11 @@ public class ClusterWrapper implements AutoCloseable {
             this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor());
 
         segmentStoreServer.startListening();
+    }
+
+    @SneakyThrows
+    public Controller getController() {
+        return this.controllerServerWrapper.getController();
     }
 
     private ServiceBuilder createServiceBuilder() {

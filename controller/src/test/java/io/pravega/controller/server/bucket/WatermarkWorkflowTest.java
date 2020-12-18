@@ -123,6 +123,8 @@ public class WatermarkWorkflowTest {
     @Test(timeout = 10000L)
     public void testWatermarkClient() {
         Stream stream = new StreamImpl("scope", "stream");
+
+        @Cleanup
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
         
         MockRevisionedStreamClient revisionedClient = new MockRevisionedStreamClient();
@@ -267,6 +269,7 @@ public class WatermarkWorkflowTest {
         String scope = "scope1";
         String streamName = "stream1";
         StreamImpl stream = new StreamImpl(scope, streamName);
+        @Cleanup
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
         String markStreamName = NameUtils.getMarkStreamForStream(streamName);
 
@@ -289,7 +292,7 @@ public class WatermarkWorkflowTest {
                 () -> new PeriodicWatermarking.WatermarkClient(stream, clientFactory), e -> e instanceof RuntimeException && s.equals(e.getMessage()));
         
         @Cleanup
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor, null);
         streamMetadataStore.createScope(scope).join();
         streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).timestampAggregationTimeout(10000L).build(),
                 System.currentTimeMillis(), null, executor).join();
@@ -313,6 +316,7 @@ public class WatermarkWorkflowTest {
 
     @Test(timeout = 30000L)
     public void testWatermarkingWorkflow() {
+        @Cleanup
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
 
         ConcurrentHashMap<String, MockRevisionedStreamClient> revisionedStreamClientMap = new ConcurrentHashMap<>();
@@ -329,7 +333,7 @@ public class WatermarkWorkflowTest {
         }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
 
         @Cleanup
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor, null);
 
         String streamName = "stream";
         String scope = "scope";
@@ -483,6 +487,7 @@ public class WatermarkWorkflowTest {
         String streamName = "stream";
         StreamImpl stream = new StreamImpl(scope, streamName);
         String markStreamName = NameUtils.getMarkStreamForStream(streamName);
+        @Cleanup
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
 
         ConcurrentHashMap<String, MockRevisionedStreamClient> revisionedStreamClientMap = new ConcurrentHashMap<>();
@@ -494,7 +499,7 @@ public class WatermarkWorkflowTest {
         }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
 
         @Cleanup
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor, null);
 
         streamMetadataStore.createScope(scope).join();
         streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).timestampAggregationTimeout(10000L).build(), 
@@ -553,6 +558,7 @@ public class WatermarkWorkflowTest {
 
     @Test(timeout = 30000L)
     public void testWriterTimeout() {
+        @Cleanup
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
 
         ConcurrentHashMap<String, MockRevisionedStreamClient> revisionedStreamClientMap = new ConcurrentHashMap<>();
@@ -571,7 +577,7 @@ public class WatermarkWorkflowTest {
         StreamMetadataStore streamMetadataStoreSpied = spy(this.streamMetadataStore);
         BucketStore bucketStoreSpied = spy(this.bucketStore);
         @Cleanup
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStoreSpied, bucketStoreSpied, sp -> clientFactory, executor);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStoreSpied, bucketStoreSpied, sp -> clientFactory, executor, null);
 
         String streamName = "stream";
         String scope = "scope";

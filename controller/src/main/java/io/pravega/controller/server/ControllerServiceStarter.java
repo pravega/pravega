@@ -257,16 +257,6 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             retentionService.startAsync();
             retentionService.awaitRunning();
 
-            Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
-            watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
-                    clientConfig, watermarkingExecutor);
-            watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
-                    watermarkingWork::watermark, watermarkingExecutor);
-
-            log.info("starting background periodic service for watermarking");
-            watermarkingService.startAsync();
-            watermarkingService.awaitRunning();
-
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
             // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
@@ -294,7 +284,18 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
                     grpcServerConfig.getTokenSigningKey()));
 
-            CompletableFuture<Void> eventProcessorFuture = CompletableFuture.completedFuture(null); 
+            Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
+
+            watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
+                    clientConfig, watermarkingExecutor, this.localController);
+            watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking,
+                    watermarkingWork::watermark, watermarkingExecutor);
+
+            log.info("starting background periodic service for watermarking");
+            watermarkingService.startAsync();
+            watermarkingService.awaitRunning();
+
+            CompletableFuture<Void> eventProcessorFuture = CompletableFuture.completedFuture(null);
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
