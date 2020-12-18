@@ -76,7 +76,7 @@ public class ReaderGroupStateManager {
     
     static final Duration TIME_UNIT = Duration.ofMillis(1000);
     static final Duration UPDATE_WINDOW = Duration.ofMillis(30000);
-    static final Duration UPDATE_CONFIG_WINDOW = Duration.ofMillis(100000);
+    static final Duration UPDATE_CONFIG_WINDOW = Duration.ofMillis(10000);
     private static final double COMPACTION_PROBABILITY = 0.05;
     private static final int MIN_BYTES_BETWEEN_COMPACTIONS = 512 * 1024;
     private final Object decisionLock = new Object();
@@ -344,9 +344,9 @@ public class ReaderGroupStateManager {
     }
 
     void updateConfigIfNeeded() {
-        fetchUpdatesIfNeeded();
-        ReaderGroupState state = sync.getState();
         if (!updateConfigTimer.hasRemaining()) {
+            fetchUpdatesIfNeeded();
+            ReaderGroupState state = sync.getState();
             if (state.isUpdatingConfig()) {
                 ReaderGroupConfig controllerConfig = getThrowingException(controller.getReaderGroupConfig(scope, groupName));
                 if (state.getConfig().getGeneration() < controllerConfig.getGeneration()) {

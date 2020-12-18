@@ -10,6 +10,7 @@
 package io.pravega.client.admin.impl;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
@@ -50,6 +51,8 @@ public class ReaderGroupManagerImplTest {
     private ReaderGroupManagerImpl readerGroupManager;
     @Mock
     private ClientFactoryImpl clientFactory;
+    @Mock
+    private ConnectionPool connectionPool;
     @Mock
     private Controller controller;
     @Mock
@@ -101,6 +104,9 @@ public class ReaderGroupManagerImplTest {
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
+        when(clientFactory.getConnectionPool()).thenReturn(connectionPool);
         when(synchronizer.getState()).thenReturn(state);
         when(state.getConfig()).thenReturn(config);
         when(controller.deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId())).thenReturn(CompletableFuture.completedFuture(true));

@@ -201,7 +201,9 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        Futures.getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName),
+        @Cleanup
+        ReaderGroup group = getReaderGroup(groupName);
+        Futures.getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, group.getGroupId()),
                                        RuntimeException::new);
     }
 }
