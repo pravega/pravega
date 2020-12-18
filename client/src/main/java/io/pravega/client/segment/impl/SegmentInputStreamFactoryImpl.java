@@ -34,23 +34,28 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     }
 
     @Override
+    public EventSegmentReader createEventReaderForSegment(Segment segment, long startOffset, long endOffset) {
+        return getEventSegmentReader(segment, null, startOffset,  endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    }
+
+    @Override
     public EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize) {
-        return getEventSegmentReader(segment, null, Long.MAX_VALUE, bufferSize);
+        return getEventSegmentReader(segment, null, 0, Long.MAX_VALUE, bufferSize);
     }
     
     @Override
     public EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize, Semaphore hasData, long endOffset) {
-        return getEventSegmentReader(segment, hasData, endOffset, bufferSize);
+        return getEventSegmentReader(segment, hasData, 0, endOffset, bufferSize);
     }
 
-    private EventSegmentReader getEventSegmentReader(Segment segment, Semaphore hasData, long endOffset, int bufferSize) {
+    private EventSegmentReader getEventSegmentReader(Segment segment, Semaphore hasData, long startOffset, long endOffset, int bufferSize) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
                 segment.getStream().getStreamName(), AccessOperation.READ), RuntimeException::new);
         AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cp, segment,
                 DelegationTokenProviderFactory.create(delegationToken, controller, segment, AccessOperation.READ), hasData);
         async.getConnection();                      //Sanity enforcement
         bufferSize = MathHelpers.minMax(bufferSize, SegmentInputStreamImpl.MIN_BUFFER_SIZE, SegmentInputStreamImpl.MAX_BUFFER_SIZE);
-        return getEventSegmentReader(async, 0, endOffset, bufferSize);
+        return getEventSegmentReader(async, startOffset, endOffset, bufferSize);
     }
 
     @VisibleForTesting
