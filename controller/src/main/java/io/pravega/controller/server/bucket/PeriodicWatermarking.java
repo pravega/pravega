@@ -18,7 +18,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.SynchronizerClientFactory;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -37,7 +36,6 @@ import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
-import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.watermarks.SegmentWithRange;
 import io.pravega.shared.watermarks.Watermark;
 
@@ -75,15 +73,14 @@ public class PeriodicWatermarking implements AutoCloseable {
     private final LoadingCache<String, SynchronizerClientFactory> syncFactoryCache;
 
     public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
-                                ClientConfig clientConfig, ScheduledExecutorService executor, Controller controllerClient) {
-        this(streamMetadataStore, bucketStore, s -> SynchronizerClientFactory.withScope(s, controllerClient, clientConfig),
-                executor, controllerClient);
+                                ClientConfig clientConfig, ScheduledExecutorService executor) {
+        this(streamMetadataStore, bucketStore, s -> SynchronizerClientFactory.withScope(s, clientConfig), executor);
     }
 
     @VisibleForTesting
     PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
                                  Function<String, SynchronizerClientFactory> synchronizerClientFactoryFactory,
-                                 ScheduledExecutorService executor, Controller controllerClient) {
+                                 ScheduledExecutorService executor) {
         this.streamMetadataStore = streamMetadataStore;
         this.bucketStore = bucketStore;
         this.executor = executor;
@@ -110,14 +107,7 @@ public class PeriodicWatermarking implements AutoCloseable {
                                                     @ParametersAreNonnullByDefault
                                                     @Override
                                                     public WatermarkClient load(final Stream stream) {
-                                                        if (controllerClient == null) {
-                                                            return new WatermarkClient(stream,
-                                                                    syncFactoryCache.getUnchecked(stream.getScope()));
-                                                        } else {
-                                                            return new WatermarkClient(stream,
-                                                                    syncFactoryCache.getUnchecked(stream.getScope()),
-                                                                    controllerClient);
-                                                        }
+                                                        return new WatermarkClient(stream, syncFactoryCache.getUnchecked(stream.getScope()));
                                                     }
                                                 });
     }
@@ -435,14 +425,6 @@ public class PeriodicWatermarking implements AutoCloseable {
             this.client = clientFactory.createRevisionedStreamClient(
                     NameUtils.getMarkStreamForStream(stream.getStreamName()),
                     new WatermarkSerializer(), SynchronizerConfig.builder().build());
-            this.inactiveWriters = new ConcurrentHashMap<>();
-        }
-        
-        @VisibleForTesting
-        WatermarkClient(Stream stream, SynchronizerClientFactory clientFactory, Controller controller) {
-            this.client = clientFactory.createRevisionedStreamClient(
-                    NameUtils.getMarkStreamForStream(stream.getStreamName()), controller,
-                    new WatermarkSerializer(), SynchronizerConfig.builder().build(), AccessOperation.READ_WRITE);
             this.inactiveWriters = new ConcurrentHashMap<>();
         }
 

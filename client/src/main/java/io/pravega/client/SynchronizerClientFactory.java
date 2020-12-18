@@ -10,7 +10,6 @@
 package io.pravega.client;
 
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -21,7 +20,6 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.shared.security.auth.AccessOperation;
 import lombok.val;
 
 /**
@@ -29,18 +27,6 @@ import lombok.val;
  * reading and writing data from a pre-configured stream with strong consistency guarantees.
  */
 public interface SynchronizerClientFactory extends AutoCloseable {
-
-    /**
-     * Creates a new instance of Client Factory.
-     *
-     * @param scope The scope string.
-     * @param controller The {@link Controller} to use.
-     * @param clientConfig The client configuration to use.
-     * @return Instance of ClientFactory implementation.
-     */
-    static SynchronizerClientFactory withScope(String scope, Controller controller, ClientConfig clientConfig) {
-        return new ClientFactoryImpl(scope, controller, clientConfig);
-    }
 
     /**
      * Creates a new instance of Client Factory.
@@ -66,20 +52,6 @@ public interface SynchronizerClientFactory extends AutoCloseable {
      */
     <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config);
-
-    /**
-     * Creates a new RevisionedStreamClient that will work with the specified stream.
-     *
-     * @param streamName The name of the stream for the synchronizer.
-     * @param controller The {@link Controller} to use.
-     * @param serializer The serializer for updates.
-     * @param config The client configuration.
-     * @param accessOperation The {@link AccessOperation} that the client is expected to be used for.
-     * @param <T> The type of events.
-     * @return Revisioned stream client.
-     */
-    <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Controller controller,
-            Serializer<T> serializer, SynchronizerConfig config, AccessOperation accessOperation);
     
     /**
      * Creates a new StateSynchronizer that will work on the specified stream.
