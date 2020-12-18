@@ -159,7 +159,6 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     @Test
     public void testCreateSubscriberReaderGroup() throws InterruptedException, ExecutionException {
         StreamConfiguration config = getStreamConfig();
-        @Cleanup
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
@@ -169,18 +168,19 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
                 .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         // Create a ReaderGroup
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream("test/test").retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT).build());
+
         List<String> subs = controller.listSubscribers("test", "test").get();
         assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
     }
     @Test
     public void testResetSubscriberToNonSubscriberReaderGroup() throws InterruptedException, ExecutionException {
         StreamConfiguration config = getStreamConfig();
-        @Cleanup
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();
@@ -205,7 +205,6 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     @Test
     public void testResetNonSubscriberToSubscriberReaderGroup() throws InterruptedException, ExecutionException {
         StreamConfiguration config = getStreamConfig();
-        @Cleanup
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream("test", "test", config).get();

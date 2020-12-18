@@ -206,7 +206,9 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         });
         getThrowingException(controller.updateReaderGroup(scope, groupName, config));
         Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
-        synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
+        synchronizer.updateState((state, updates) -> {
+            new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false);
+        });
     }
 
     @Override

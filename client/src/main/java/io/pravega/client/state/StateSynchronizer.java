@@ -45,10 +45,6 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
      */
     StateT getState();
 
-    String getSynchronizerScopeName();
-
-    String getSynchronizerStreamName();
-
     /**
      * Fetch and apply all updates needed to the state object held locally up to date.
      */

@@ -51,7 +51,6 @@ import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStr
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 import static io.pravega.common.concurrent.Futures.getThrowingException;
-import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 
 /**
  * Manages the state of the reader group on behalf of a reader.
@@ -84,6 +83,10 @@ public class ReaderGroupStateManager {
     private final HashHelper hashHelper;
     @Getter
     private final String readerId;
+    @Getter
+    private final String scope;
+    @Getter
+    private final String groupName;
     private final StateSynchronizer<ReaderGroupState> sync;
     private final Controller controller;
     private final TimeoutTimer releaseTimer;
@@ -93,11 +96,13 @@ public class ReaderGroupStateManager {
     private final TimeoutTimer lagUpdateTimer;
     private final TimeoutTimer updateConfigTimer;
 
-    ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
+    ReaderGroupStateManager(String scope, String groupName, String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
         Preconditions.checkNotNull(readerId);
         Preconditions.checkNotNull(sync);
         Preconditions.checkNotNull(controller);
         this.readerId = readerId;
+        this.scope = scope;
+        this.groupName = groupName;
         this.hashHelper = HashHelper.seededWith(readerId);
         this.sync = sync;
         this.controller = controller;
@@ -339,15 +344,16 @@ public class ReaderGroupStateManager {
     }
 
     void updateConfigIfNeeded() {
-        sync.fetchUpdates();
+        fetchUpdatesIfNeeded();
         ReaderGroupState state = sync.getState();
-        if (!updateConfigTimer.hasRemaining() && state.isUpdatingConfig()) {
-            log.debug("Update the group config");
-            ReaderGroupConfig controllerConfig = getThrowingException(controller.getReaderGroupConfig(sync.getSynchronizerScopeName(),
-                    sync.getSynchronizerStreamName().replace(READER_GROUP_STREAM_PREFIX, "")));
-            if (state.getConfig().getGeneration() < controllerConfig.getGeneration()) {
-                Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, controllerConfig);
-                sync.updateStateUnconditionally(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
+        if (!updateConfigTimer.hasRemaining()) {
+            if (state.isUpdatingConfig()) {
+                ReaderGroupConfig controllerConfig = getThrowingException(controller.getReaderGroupConfig(scope, groupName));
+                if (state.getConfig().getGeneration() < controllerConfig.getGeneration()) {
+                    log.debug("Updating the readergroup {} with the new config {} obtained from the controller", groupName, controllerConfig);
+                    Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, controllerConfig);
+                    sync.updateStateUnconditionally(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
+                }
             }
             updateConfigTimer.reset(UPDATE_CONFIG_WINDOW);
         }

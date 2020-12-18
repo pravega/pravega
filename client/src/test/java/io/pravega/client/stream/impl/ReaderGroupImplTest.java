@@ -121,9 +121,8 @@ public class ReaderGroupImplTest {
                 .build();
         when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
         readerGroup.resetReaderGroup(config);
-        verify(synchronizer, times(1)).updateState(any(StateSynchronizer.UpdateGenerator.class));
         verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
-        verify(synchronizer, times(1)).updateStateUnconditionally(any(Update.class));
+        verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }
 
     @Test
@@ -135,9 +134,8 @@ public class ReaderGroupImplTest {
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromCheckpoint(checkpoint).build();
         when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
         readerGroup.resetReaderGroup(config);
-        verify(synchronizer, times(1)).updateState(any(StateSynchronizer.UpdateGenerator.class));
         verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
-        verify(synchronizer, times(1)).updateStateUnconditionally(any(Update.class));
+        verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }
 
     @Test
