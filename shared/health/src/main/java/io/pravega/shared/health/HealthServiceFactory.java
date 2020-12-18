@@ -41,13 +41,14 @@ public class HealthServiceFactory implements AutoCloseable {
 
     /**
      * Provides an instance of the {@link HealthService} and may optionally start its {@link HealthServiceUpdater}.
+     * @param name The name of the {@link HealthService}.
      * @param start Defines whether or not to start its {@link  HealthServiceUpdater}.
      *
      * @return The created {@link HealthService} instance.
      */
-    public HealthService createHealthService(boolean start) {
+    public HealthService createHealthService(String name, boolean start) {
         Preconditions.checkState(!this.closed.get(), "HealthServiceFactory has already been closed.");
-        HealthService service = new HealthServiceImpl(config);
+        HealthService service = new HealthServiceImpl(name, config);
         if (start) {
             service.getHealthServiceUpdater().startAsync();
         }

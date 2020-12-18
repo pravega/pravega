@@ -33,6 +33,9 @@ import io.pravega.shared.health.TestHealthIndicators.SampleHealthyIndicator;
 @Slf4j
 public class HealthServiceTests {
 
+
+    private static final String ROOT_NAME = "root";
+
     @Rule
     public final Timeout timeout = new Timeout(60, TimeUnit.SECONDS);
 
@@ -42,7 +45,7 @@ public class HealthServiceTests {
 
     private void start() {
         factory = new HealthServiceFactory();
-        service = factory.createHealthService(true);
+        service = factory.createHealthService(ROOT_NAME, true);
     }
 
     private void stop() {
@@ -125,7 +128,7 @@ public class HealthServiceTests {
         Assert.assertEquals("No non-root components have been defined.", service.components().size(), 1);
         // Assert that it is indeed the 'ROOT'
         Assert.assertEquals("Expected the name of the returned component to match the ROOT's given name.",
-                ContributorRegistry.DEFAULT_CONTRIBUTOR_NAME,
+                ROOT_NAME,
                 components.stream().findFirst().get());
     }
 
