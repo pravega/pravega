@@ -33,6 +33,7 @@ public class UpdateReaderGroupEvent implements ControllerEvent {
     private final String rgName;
     private final long requestId;
     private UUID readerGroupId;
+    private long generation;
     private ImmutableSet<String> removeStreams;
 
     @Override
@@ -70,6 +71,7 @@ public class UpdateReaderGroupEvent implements ControllerEvent {
             target.writeUTF(e.rgName);
             target.writeLong(e.requestId);
             target.writeUUID(e.readerGroupId);
+            target.writeLong(e.generation);
             target.writeCollection(e.removeStreams, DataOutput::writeUTF);
         }
 
@@ -78,6 +80,7 @@ public class UpdateReaderGroupEvent implements ControllerEvent {
             eb.rgName(source.readUTF());
             eb.requestId(source.readLong());
             eb.readerGroupId(source.readUUID());
+            eb.generation(source.readLong());
             ImmutableSet.Builder<String> builder = ImmutableSet.builder();
             source.readCollection(DataInput::readUTF, builder);
             eb.removeStreams(builder.build());

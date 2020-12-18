@@ -55,6 +55,7 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
         String scope = request.getScope();
         String readerGroup = request.getRgName();
         long requestId = request.getRequestId();
+        long generation = request.getGeneration();
         UUID readerGroupId = request.getReaderGroupId();
         ImmutableSet<String> streamsToBeUnsubscribed = request.getRemoveStreams();
         final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
@@ -62,11 +63,15 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
                 .thenCompose(id -> {
                 if (!id.equals(readerGroupId)) {
-                        log.warn("Skipping processing of Reader Group update request {} as UUIDs did not match.", requestId);
+                        log.warn("Skipping processing of Reader Group update request {} as UUID did not match.", requestId);
                         return CompletableFuture.completedFuture(null);
                 }
                 return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
                        .thenCompose(rgConfigRecord -> {
+                       if (rgConfigRecord.getObject().getGeneration() != generation) {
+                           log.warn("Skipping processing of Reader Group update request {} as generation did not match.", requestId);
+                           return CompletableFuture.completedFuture(null);
+                       }
                        if (rgConfigRecord.getObject().isUpdating() &&
                           (!ReaderGroupConfig.StreamDataRetention.values()[rgConfigRecord.getObject().getRetentionTypeOrdinal()]
                             .equals(ReaderGroupConfig.StreamDataRetention.NONE))) {

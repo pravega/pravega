@@ -392,7 +392,8 @@ public class StreamMetadataTasks extends TaskBase {
                              }
                              ImmutableSet<String> removeStreams = getStreamsToBeUnsubscribed(rgConfigRecord.getObject().getStartingStreamCuts().keySet(),
                              config.getStartingStreamCuts().keySet().stream().map(s -> s.getScopedName()).collect(Collectors.toSet()));
-                             UpdateReaderGroupEvent event = new UpdateReaderGroupEvent(scope, rgName, requestId, rgId, removeStreams);
+                             UpdateReaderGroupEvent event = new UpdateReaderGroupEvent(scope, rgName, requestId, rgId,
+                                                                 rgConfigRecord.getObject().getGeneration() + 1, removeStreams);
                              //3. Create Reader Group Metadata and submit event
                              return eventHelper.addIndexAndSubmitTask(event,
                                     () -> streamMetadataStore.startRGConfigUpdate(scope, rgName, config, null, executor))
