@@ -21,7 +21,16 @@ import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.InvalidStreamException;
+import io.pravega.client.stream.NoSuchScopeException;
+import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
@@ -106,7 +115,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import lombok.Cleanup;
 import lombok.val;
@@ -433,7 +441,7 @@ public class ControllerImplTest {
                 if (request.getReaderGroup().equals("rg1")) {
                     responseObserver.onNext(ReaderGroupConfigResponse.newBuilder()
                             .setStatus(ReaderGroupConfigResponse.Status.SUCCESS)
-                            .setConfig(ModelHelper.decode("scope1","rg1", rgConfig))
+                            .setConfig(ModelHelper.decode("scope1", "rg1", rgConfig))
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroup().equals("rg2")) {
