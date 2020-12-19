@@ -457,14 +457,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                            RGOperationContext context) {
         final String rgStreamName = NameUtils.getStreamForReaderGroup(rgName);
         return Futures.toVoid(streamMetadataStore.updateReaderGroupVersionedState(scope, rgName,
-           ReaderGroupState.DELETING, currentState, context, executor))
-           .thenCompose(v -> sealStream(scope, rgStreamName, null))
-                .thenAccept(sealStatus -> {
-                    if (!UpdateStreamStatus.Status.SUCCESS.equals(sealStatus)) {
-                        final String msg = String.format("Failed to seal ReaderGroup Stream %s, cause %s", NameUtils.getScopedStreamName(scope, rgStreamName), sealStatus.toString());
-                        throw new CompletionException(new IllegalStateException(msg));
-                    }
-                });
+           ReaderGroupState.DELETING, currentState, context, executor));
     }
 
     /**

@@ -75,7 +75,8 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
                               }
                               return CompletableFuture.completedFuture(null);
                           })
-                          .thenCompose(v -> streamMetadataTasks.deleteStream(scope,
+                          .thenCompose(v -> streamMetadataTasks.sealStream(scope, NameUtils.getStreamForReaderGroup(readerGroup), null))
+                                  .thenCompose(v -> streamMetadataTasks.deleteStream(scope,
                                   NameUtils.getStreamForReaderGroup(readerGroup), null)
                                   .thenCompose(v1 -> streamMetadataStore.deleteReaderGroup(scope, readerGroup, context, executor)));
               });
