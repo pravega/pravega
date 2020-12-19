@@ -175,6 +175,7 @@ public interface Controller extends AutoCloseable {
      * @param scope Scope name
      * @param streamName Stream name
      * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
+     * @param readerGroupId Reader Group Id.
      * @param generation subscriber generation number.
      * @param streamCut StreamCut at which Stream can be Truncated for a Consumption based retention policy
      * @throws IllegalArgumentException if Stream/Subscriber does not exist, or StreamCut is not valid.

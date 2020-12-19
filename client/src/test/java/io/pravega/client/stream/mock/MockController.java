@@ -268,7 +268,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> updateSubscriberStreamCut(String scope, String streamName, String subscriber, long generation, StreamCut streamCut) {
+    public CompletableFuture<Boolean> updateSubscriberStreamCut(String scope, String streamName, String subscriber,
+                                                                UUID readerGroupId, long generation, StreamCut streamCut) {
         return CompletableFuture.completedFuture(true);
     }
 

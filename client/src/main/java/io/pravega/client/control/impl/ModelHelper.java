@@ -391,6 +391,7 @@ public final class ModelHelper {
      * @param scope the stream's scope
      * @param streamName The Stream Name
      * @param subscriber subscriber for this stream.
+     * @param readerGroupId Reader Group Id.
      * @param generation subscriber generation.
      * @param streamCut truncationStreamCut for this subscriber for this stream.
      * @return SubscriberStreamCut instance.
