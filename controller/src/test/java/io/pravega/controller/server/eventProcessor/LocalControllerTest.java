@@ -339,8 +339,8 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                         .setConfig(rgConfig)
                         .build()));
         Assert.assertEquals(this.testController.getReaderGroupConfig("scope", "subscriber").join()
-                        .getAutomaticCheckpointIntervalMillis()
-                , config.getAutomaticCheckpointIntervalMillis());
+                        .getAutomaticCheckpointIntervalMillis(),
+                        config.getAutomaticCheckpointIntervalMillis());
 
         when(this.mockControllerService.getReaderGroupConfig(anyString(), anyString())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ReaderGroupConfigResponse.newBuilder()
@@ -476,7 +476,8 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
                         .setStatus(Controller.UpdateSubscriberStatus.Status.STREAM_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", someId, 0L,streamCut).join(),
+                () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber",
+                        someId, 0L, streamCut).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
         when(this.mockControllerService.updateSubscriberStreamCut(anyString(), anyString(), anyString(), any(), anyLong(), any())).thenReturn(
