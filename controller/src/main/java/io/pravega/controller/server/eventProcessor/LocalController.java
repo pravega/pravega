@@ -232,7 +232,7 @@ public class LocalController implements Controller {
            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
            switch (x.getStatus()) {
                 case FAILURE:
-                    throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
+                    throw new ControllerFailureException("Failed to get Config for ReaderGroup: " + scopedRGName);
                 case RG_NOT_FOUND:
                     throw new IllegalArgumentException("Could not find Reader Group: " + scopedRGName);
                 case SUCCESS:
@@ -289,6 +289,8 @@ public class LocalController implements Controller {
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
                 case SUBSCRIBER_NOT_FOUND:
                     throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
+                case GENERATION_MISMATCH:
+                    throw new IllegalArgumentException("Subscriber generation does not match: " + subscriber);
                 case SUCCESS:
                     return true;
                 default:
