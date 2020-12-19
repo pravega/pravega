@@ -452,32 +452,37 @@ public abstract class StreamMetadataTasksTest {
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 50L, 1L, 20L);
-        UpdateSubscriberStatus.Status updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L,
+        UpdateSubscriberStatus.Status updateStatus = streamMetadataTasks.
+                updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, rgConfig.getReaderGroupId().toString(), 0L,
                                                                                             streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
 
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, streamCut1, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, rgConfig.getReaderGroupId().toString(), 0L, streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
 
         ImmutableMap<Long, Long> streamCut2 = ImmutableMap.of(0L, 70L, 1L, 30L);
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, streamCut2, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, rgConfig.getReaderGroupId().toString(), 0L, streamCut2, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
 
         ImmutableMap<Long, Long> streamCut3 = ImmutableMap.of(0L, 20L, 1L, 1L);
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, streamCut3, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, rgConfig.getReaderGroupId().toString(), 0L, streamCut3, null).get();
         assertEquals(UpdateSubscriberStatus.Status.STREAM_CUT_NOT_VALID, updateStatus);
 
         ImmutableMap<Long, Long> streamCut4 = ImmutableMap.of(0L, 25L);
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, streamCut4, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, rgConfig.getReaderGroupId().toString(), 0L, streamCut4, null).get();
         assertEquals(UpdateSubscriberStatus.Status.STREAM_CUT_NOT_VALID, updateStatus);
 
         // update non-existing stream
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, "nostream", subscriber2Name, 0L, streamCut1, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, "nostream", subscriber2Name, rgConfig.getReaderGroupId().toString(), 0L, streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND, updateStatus);
 
         // update non-existing subscriber
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, "nosubscriber", 0L, streamCut1, null).get();
+        AssertExtensions.assertFutureThrows("", streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, "nosubscriber",
+                rgConfig.getReaderGroupId().toString(), 0L, streamCut1, null),
+                e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name,
+                UUID.randomUUID().toString(), 0L, streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, updateStatus);
     }
 
@@ -1089,9 +1094,9 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L, ImmutableMap.of(0L, 2L, 1L, 1L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 2L, 1L, 1L), null).join();
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, ImmutableMap.of(0L, 1L, 1L, 2L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 1L, 1L, 2L), null).join();
 
         Map<Long, Long> map1 = new HashMap<>();
         map1.put(0L, 2L);
@@ -1121,8 +1126,8 @@ public abstract class StreamMetadataTasksTest {
                 .when(streamMetadataTasks).generateStreamCut(anyString(), anyString(), any(), any(), any());
 
         // update both readers to make sure they have read till the latest position. we have set the min limit to 2.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L, ImmutableMap.of(0L, 2L, 1L, 2L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, ImmutableMap.of(0L, 2L, 1L, 2L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 2L, 1L, 2L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 2L, 1L, 2L), null).join();
 
         // no new truncation should happen. 
         // verify that truncation record has not changed. 
@@ -1144,8 +1149,8 @@ public abstract class StreamMetadataTasksTest {
                 .when(streamMetadataTasks).generateStreamCut(anyString(), anyString(), any(), any(), any());
 
         // update both readers to make sure they have read till the latest position - 1. we have set the min limit to 2.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L, ImmutableMap.of(0L, 10L, 1L, 9L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, ImmutableMap.of(0L, 10L, 1L, 9L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 10L, 1L, 9L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 10L, 1L, 9L), null).join();
 
         streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 30L, null, "").join();
         // now retention set has three stream cut 0/2, 1/2...0/2, 1/2... 0/10, 1/10
@@ -1185,8 +1190,8 @@ public abstract class StreamMetadataTasksTest {
                 .when(streamMetadataTasks).generateStreamCut(anyString(), anyString(), any(), any(), any());
 
         // update both readers to make sure they have read till the latest position - 1. we have set the min limit to 2.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L, ImmutableMap.of(0L, 21L, 1L, 19L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, ImmutableMap.of(0L, 21L, 1L, 19L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 21L, 1L, 19L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 21L, 1L, 19L), null).join();
 
         streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, 50L, null, "").join();
         // now retention set has three stream cut 0/2, 1/2...0/2, 1/2... 0/10, 1/10.. 0/20, 1/20.. 0/30, 1/30
@@ -1248,8 +1253,8 @@ public abstract class StreamMetadataTasksTest {
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L, ImmutableMap.of(0L, 2L, 1L, 1L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, ImmutableMap.of(0L, 1L, 1L, 2L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 2L, 1L, 1L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 1L, 1L, 2L), null).join();
 
         Map<Long, Long> map1 = new HashMap<>();
         map1.put(0L, 2L);
@@ -1281,8 +1286,8 @@ public abstract class StreamMetadataTasksTest {
 
         // retentionset: 0L: 0L/2L, 1L/2L... 2L: 0L/2L, 1L/2L... 10L: 0/10, 1/10....11L: 0/10, 1/10. 
         // update both readers to 0/3, 1/3.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L, ImmutableMap.of(0L, 3L, 1L, 3L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, ImmutableMap.of(0L, 3L, 1L, 3L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 3L, 1L, 3L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 3L, 1L, 3L), null).join();
 
         // new truncation should happen at subscriber lowerbound.
         streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), null, "").join();
@@ -1300,8 +1305,8 @@ public abstract class StreamMetadataTasksTest {
                 new StreamCutRecord(time.get(), 22L, ImmutableMap.of(0L, 11L, 1L, 11L)), null, executor).join();
 
         // update both readers to make sure they have read till the latest position - 1. we have set the min limit to 2.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L, ImmutableMap.of(0L, 11L, 1L, 11L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, ImmutableMap.of(0L, 11L, 1L, 11L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 11L, 1L, 11L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 11L, 1L, 11L), null).join();
 
         streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), null, "").join();
         // retentionset: 0L: 0L/2L, 1L/2L... 2L: 0L/2L, 1L/2L... 10L: 0/10, 1/10....11L: 0/10, 1/10... 20: 0/11, 1/11
@@ -1322,8 +1327,8 @@ public abstract class StreamMetadataTasksTest {
                 new StreamCutRecord(time.get(), 42L, ImmutableMap.of(0L, 21L, 1L, 21L)), null, executor).join();
 
         // update both readers to make sure they have read till the latest position - 1. we have set the min limit to 2.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L, ImmutableMap.of(0L, 11L, 1L, 11L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, ImmutableMap.of(0L, 11L, 1L, 11L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 11L, 1L, 11L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 11L, 1L, 11L), null).join();
 
         streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), null, "").join();
         // now retention set has five stream cuts 1: 0/2, 1/2...10: 0/10, 1/10... 20: 0/11, 1/11.. 30: 0/20, 1/20.. 40L: 0/21, 1/21
@@ -1347,8 +1352,8 @@ public abstract class StreamMetadataTasksTest {
                 new StreamCutRecord(time.get(), 60L, ImmutableMap.of(0L, 30L, 1L, 30L)), null, executor).join();
 
         // update both readers to make sure they have read till the latest position - 1. we have set the min limit to 2.  
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L, ImmutableMap.of(0L, 22L, 1L, 21L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, ImmutableMap.of(0L, 22L, 1L, 21L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 22L, 1L, 21L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 22L, 1L, 21L), null).join();
 
         streamMetadataTasks.retention(SCOPE, stream1, retentionPolicy, time.get(), null, "").join();
         // now retention set has five stream cuts 1: 0/2, 1/2...10: 0/10, 1/10... 20: 0/11, 1/11.. 30: 0/20, 1/20.. 40L: 0/21, 1/21
@@ -1513,8 +1518,8 @@ public abstract class StreamMetadataTasksTest {
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
         streamMetadataTasks.setRetentionFrequencyMillis(1L);
         
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L,  ImmutableMap.of(0L, 1L, five, -1L), null).join();
-        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L, ImmutableMap.of(0L, 1L, 2L, 1L, five, -1L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L,  ImmutableMap.of(0L, 1L, five, -1L), null).join();
+        streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 1L, 2L, 1L, five, -1L), null).join();
 
         Map<Long, Long> map1 = new HashMap<>();
         map1.put(six, 2L);
@@ -1622,12 +1627,12 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.setRetentionFrequencyMillis(1L);
 
         // invalid streamcut should be rejected
-        UpdateSubscriberStatus.Status status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L, ImmutableMap.of(0L, 1L, three, 1L), null).join();
+        UpdateSubscriberStatus.Status status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 1L, three, 1L), null).join();
         assertEquals(status, UpdateSubscriberStatus.Status.STREAM_CUT_NOT_VALID);
         
-        status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L,
+        status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L,
                 ImmutableMap.of(0L, 1L, two, -1L, eight, -1L, nine, 1L), null).join();
-        status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L,
+        status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, consumpRGConfig.getReaderGroupId().toString(), 0L,
                 ImmutableMap.of(1L, 1L, two, -1L), null).join();
 
         Map<Long, Long> map1 = new HashMap<>();
@@ -1735,12 +1740,13 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.setRetentionFrequencyMillis(1L);
 
         // invalid streamcut should be rejected
-        UpdateSubscriberStatus.Status status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L, ImmutableMap.of(0L, 1L, three, 1L), null).join();
+        UpdateSubscriberStatus.Status status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(),
+                0L, ImmutableMap.of(0L, 1L, three, 1L), null).join();
         assertEquals(status, UpdateSubscriberStatus.Status.STREAM_CUT_NOT_VALID);
         
-        status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, 0L,
+        status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L,
                 ImmutableMap.of(0L, 1L, two, -1L, eight, -1L, nine, 1L), null).join();
-        status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, 0L,
+        status = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, consumpRGConfig.getReaderGroupId().toString(), 0L,
                 ImmutableMap.of(1L, 1L, two, -1L), null).join();
 
         Map<Long, Long> map1 = new HashMap<>();

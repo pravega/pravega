@@ -280,8 +280,8 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber,
-                                                                final long generation, final StreamCut streamCut) {
-        return this.controller.updateSubscriberStreamCut(scope, streamName, subscriber, generation, getStreamCutAsImmutableMap(streamCut)).thenApply(x -> {
+                                                                final UUID readerGroupId, final long generation, final StreamCut streamCut) {
+        return this.controller.updateSubscriberStreamCut(scope, streamName, subscriber, readerGroupId.toString(), generation, getStreamCutAsImmutableMap(streamCut)).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to update streamcut: " + scope + "/" + streamName);

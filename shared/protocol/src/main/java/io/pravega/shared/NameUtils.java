@@ -387,7 +387,7 @@ public final class NameUtils {
     }
 
     /**
-     * Compose and return scoped stream name.
+     * Compose and return scoped ReaderGroup name.
      *
      * @param scope scope to be used in ScopedReaderGroup name.
      * @param rgName ReaderGroup name to be used in ScopedReaderGroup name.

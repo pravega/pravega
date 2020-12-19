@@ -108,6 +108,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             streamCuts.forEach((stream, cut) ->
                     getThrowingException(controller
                             .updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName,
+                                    synchronizer.getState().getConfig().getReaderGroupId(),
                                     synchronizer.getState().getConfig().getGeneration(), cut)));
 
             return;

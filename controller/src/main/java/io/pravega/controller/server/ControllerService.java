@@ -228,14 +228,16 @@ public class ControllerService {
 
     public CompletableFuture<UpdateSubscriberStatus> updateSubscriberStreamCut(String scope, String stream,
                                                                                final String subscriber,
+                                                                               final String readerGroupId,
                                                                                final long generation,
                                                                                final ImmutableMap<Long, Long> truncationStreamCut) {
         Preconditions.checkNotNull(scope, "scopeName is null");
         Preconditions.checkNotNull(stream, "streamName is null");
         Preconditions.checkNotNull(subscriber, "subscriber is null");
+        Preconditions.checkNotNull(readerGroupId, "readerGroupId is null");
         Preconditions.checkNotNull(truncationStreamCut, "Truncation StreamCut is null");
         Timer timer = new Timer();
-        return streamMetadataTasks.updateSubscriberStreamCut(scope, stream, subscriber, generation, truncationStreamCut, null)
+        return streamMetadataTasks.updateSubscriberStreamCut(scope, stream, subscriber, readerGroupId, generation, truncationStreamCut, null)
                             .thenApplyAsync(status -> {
                                 reportUpdateTruncationSCMetrics(scope, stream, status, timer.getElapsed());
                                 return UpdateSubscriberStatus.newBuilder().setStatus(status).build();

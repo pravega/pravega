@@ -222,7 +222,8 @@ message StreamSubscriberInfo {
 message SubscriberStreamCut {
     string subscriber = 1;
     int64 generation = 2;
-    StreamCut streamCut = 3;
+    string readerGroupId = 3;
+    StreamCut streamCut = 4;
 }
 
 message SubscribersResponse {

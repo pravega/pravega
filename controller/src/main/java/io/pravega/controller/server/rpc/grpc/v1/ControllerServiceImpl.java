@@ -308,6 +308,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String scope = request.getStreamCut().getStreamInfo().getScope();
         String stream = request.getStreamCut().getStreamInfo().getStream();
         String subscriber = request.getSubscriber();
+        String readerGroupId = request.getReaderGroupId();
         long generation = request.getGeneration();
         StreamCut streamCut = request.getStreamCut();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "updateSubscriberStreamCut",
@@ -315,7 +316,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info(requestTag.getRequestId(), "updateSubscriberStreamCut called for stream {}/{}.", scope, stream);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.updateSubscriberStreamCut(scope, stream, subscriber, generation,
+                delegationToken -> controllerService.updateSubscriberStreamCut(scope, stream, subscriber, readerGroupId, generation,
                         ImmutableMap.copyOf(ModelHelper.encode(streamCut))),
                 responseObserver, requestTag);
     }

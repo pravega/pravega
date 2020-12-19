@@ -396,13 +396,16 @@ public final class ModelHelper {
      * @return SubscriberStreamCut instance.
      */
     public static final SubscriberStreamCut decode(String scope, String streamName, final String subscriber,
-                                                   final long generation, final Map<Long, Long> streamCut) {
+                                                   final UUID readerGroupId, final long generation, final Map<Long, Long> streamCut) {
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "streamName");
         Preconditions.checkNotNull(subscriber, "subscriber");
         Preconditions.checkNotNull(streamCut, "streamCut");
+        Preconditions.checkNotNull(readerGroupId, "readerGroupId");
         final SubscriberStreamCut.Builder builder = SubscriberStreamCut.newBuilder()
-                .setSubscriber(subscriber).setGeneration(generation).setStreamCut(decode(scope, streamName, streamCut));
+                .setSubscriber(subscriber).setGeneration(generation)
+                .setReaderGroupId(readerGroupId.toString())
+                .setStreamCut(decode(scope, streamName, streamCut));
         return builder.build();
     }
 

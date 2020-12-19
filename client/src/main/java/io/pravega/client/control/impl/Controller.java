@@ -181,7 +181,8 @@ public interface Controller extends AutoCloseable {
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscribers position was updated in Stream Metadata.
      */
-    CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber, final long generation, final StreamCut streamCut);
+    CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber,
+                                                         final UUID readerGroupId, final long generation, final StreamCut streamCut);
 
     /**
      * API to Truncate stream. This api takes a stream cut point which corresponds to a cut in

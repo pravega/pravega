@@ -578,18 +578,19 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> updateSubscriberStreamCut(String scope, String streamName, String subscriber,
-                                                                long generation, StreamCut streamCut) {
+                                                                final UUID readerGroupId, long generation, StreamCut streamCut) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "stream");
         Preconditions.checkNotNull(subscriber, "subscriber");
+        Preconditions.checkNotNull(readerGroupId, "readerGroupId");
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "updateTruncationStreamCut", subscriber, requestId);
 
         final CompletableFuture<UpdateSubscriberStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "updateTruncationStreamCut", scope, streamName, subscriber, streamCut);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "updateTruncationStreamCut", scope, streamName)
-                .updateSubscriberStreamCut(ModelHelper.decode(scope, streamName, subscriber, generation, getStreamCutMap(streamCut)), callback);
+                .updateSubscriberStreamCut(ModelHelper.decode(scope, streamName, subscriber, readerGroupId, generation, getStreamCutMap(streamCut)), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {

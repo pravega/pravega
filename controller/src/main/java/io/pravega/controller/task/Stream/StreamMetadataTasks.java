@@ -590,50 +590,59 @@ public class StreamMetadataTasks extends TaskBase {
      * @param scope      scope.
      * @param stream     stream name.
      * @param subscriber  Stream Subscriber publishing the StreamCut.
+     * @param readerGroupId  Unique Id (UUID) of Reader Group.
      * @param generation  Generation of Subscriber publishing the StreamCut.
      * @param truncationStreamCut  Truncation StreamCut.
      * @param contextOpt optional context
      * @return update status.
      */
     public CompletableFuture<UpdateSubscriberStatus.Status> updateSubscriberStreamCut(String scope, String stream,
-                                                                             String subscriber, long generation, ImmutableMap<Long, Long> truncationStreamCut,
+                                                                             String subscriber, String readerGroupId, long generation, ImmutableMap<Long, Long> truncationStreamCut,
                                                                              OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("updateSubscriberStreamCut", scope, stream);
 
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
                 .thenCompose(exists -> {
-                // 1. check Stream exists
+                // 1. Check Stream exists
                 if (!exists) {
                         return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND);
                 }
-                // 2. updateStreamCut
-                return Futures.exceptionallyExpecting(streamMetadataStore.getSubscriber(scope, stream, subscriber, contextOpt, executor),
-                       e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                       .thenCompose(subscriberRecord -> {
-                         if (subscriberRecord == null) {
-                             return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND);
-                         } else {
-                             if (subscriberRecord.getObject().getGeneration() != generation) {
-                                 return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.GENERATION_MISMATCH);
-                             }
-                             return streamMetadataStore.updateSubscriberStreamCut(scope, stream, subscriber, generation, truncationStreamCut, subscriberRecord, context, executor)
-                                    .thenApply(x -> UpdateSubscriberStatus.Status.SUCCESS)
-                                    .exceptionally(ex -> {
-                                        log.warn(requestId, "Exception when trying to update StreamCut for subscriber {}", ex.getMessage());
-                                        Throwable cause = Exceptions.unwrap(ex);
-                                        if (cause instanceof StoreException.OperationNotAllowedException) {
-                                           log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
-                                           return UpdateSubscriberStatus.Status.STREAM_CUT_NOT_VALID;
-                                        } else if (cause instanceof TimeoutException) {
-                                           throw new CompletionException(cause);
-                                        } else {
-                                           log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
-                                           return UpdateSubscriberStatus.Status.FAILURE;
+                final List<String> subscriberScopedName = NameUtils.extractScopedNameTokens(subscriber);
+                return streamMetadataStore.getReaderGroupId(subscriberScopedName.get(0), subscriberScopedName.get(1), null, executor)
+                        .thenCompose(rgId -> {
+                        // 2. Check if subscriber exists and the Id matches
+                        if (!rgId.equals(UUID.fromString(readerGroupId))) {
+                            return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND);
+                        }
+                        return Futures.exceptionallyExpecting(streamMetadataStore.getSubscriber(scope, stream, subscriber, contextOpt, executor),
+                               e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
+                               .thenCompose(subscriberRecord -> {
+                                   if (subscriberRecord == null) {
+                                            return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND);
+                                   } else {
+                                            if (subscriberRecord.getObject().getGeneration() != generation) {
+                                                return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.GENERATION_MISMATCH);
+                                   }
+                                   // 3. Update streamcut
+                                   return streamMetadataStore.updateSubscriberStreamCut(scope, stream, subscriber, generation, truncationStreamCut, subscriberRecord, context, executor)
+                                             .thenApply(x -> UpdateSubscriberStatus.Status.SUCCESS)
+                                             .exceptionally(ex -> {
+                                                 log.warn(requestId, "Exception when trying to update StreamCut for subscriber {}", ex.getMessage());
+                                                 Throwable cause = Exceptions.unwrap(ex);
+                                                 if (cause instanceof StoreException.OperationNotAllowedException) {
+                                                            log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
+                                                            return UpdateSubscriberStatus.Status.STREAM_CUT_NOT_VALID;
+                                                 } else if (cause instanceof TimeoutException) {
+                                                            throw new CompletionException(cause);
+                                                 } else {
+                                                            log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
+                                                            return UpdateSubscriberStatus.Status.FAILURE;
+                                                 }
+                                             });
                                         }
                                     });
-                             }
-                       });
+                        });
         }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
     }
 
