@@ -203,7 +203,8 @@ public class StreamMetricsTest {
 
         final String subscriberScopedName = NameUtils.getScopedReaderGroupName(scopeName, subscriber);
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
-        controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, subscriberScopedName, 0L, streamCut1).get();
+        controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, subscriberScopedName,
+                rgConfig.getReaderGroupId().toString(), 0L, streamCut1).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER).count());
 
         controllerWrapper.getControllerService().updateReaderGroup(scopeName, subscriber, rgConfig);
