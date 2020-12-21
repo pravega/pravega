@@ -351,7 +351,7 @@ public class ControllerServiceTest {
         List<String> subscribers = controller.listSubscribers(scope, stream1).get();
         assertTrue(subscribers.size() == 2);
 
-        assertTrue(controller.deleteReaderGroup(scope, "rg2", rgConfig.getReaderGroupId()).get());
+        assertTrue(controller.deleteReaderGroup(scope, "rg2", rgConfig.getReaderGroupId(), rgConfig.getGeneration()).get());
         assertThrows(IllegalArgumentException.class, () -> controller.getReaderGroupConfig(scope, "rg2").get());
 
         ReaderGroupConfig config = controller.getReaderGroupConfig(scope, "rg1").get();

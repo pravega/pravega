@@ -210,7 +210,7 @@ public class StreamMetricsTest {
         controllerWrapper.getControllerService().updateReaderGroup(scopeName, subscriber, rgConfig);
         //assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP).count());
 
-        controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber, rgConfig.getReaderGroupId().toString()).get();
+        controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber, rgConfig.getReaderGroupId().toString(), rgConfig.getGeneration()).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP).count());
 
         // Seal the Stream.

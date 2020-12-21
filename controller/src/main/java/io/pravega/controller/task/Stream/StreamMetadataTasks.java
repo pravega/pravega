@@ -410,8 +410,10 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private ImmutableSet<String> getStreamsToBeUnsubscribed(final Set<String> currentConfigStreams, final Set<String> newConfigStreams) {
-        return ImmutableSet.copyOf(currentConfigStreams.stream()
-                .filter(s -> !newConfigStreams.contains(s)).collect(Collectors.toSet()));
+        ImmutableSet.Builder<String> setBuilder = ImmutableSet.builder();
+        currentConfigStreams.stream()
+                .filter(s -> !newConfigStreams.contains(s)).forEach(s -> setBuilder.add(s));
+        return setBuilder.build();
     }
 
     private CompletableFuture<Boolean> isRGUpdated(String scope, String rgName, Executor executor) {
@@ -428,11 +430,13 @@ public class StreamMetadataTasks extends TaskBase {
      * @param scope           Reader Group scope.
      * @param rgName          Reader Group name.
      * @param readerGroupId   Reader Group unique identifier.
+     * @param generation      Reader Group generation.
      * @param contextOpt      Reader Group context.
      * @return deletion status.
      */
     public CompletableFuture<DeleteReaderGroupStatus.Status> deleteReaderGroup(final String scope, final String rgName,
                                                                                final String readerGroupId,
+                                                                               final long generation,
                                                                                RGOperationContext contextOpt) {
         final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("deleteReaderGroup", scope, rgName);
@@ -441,11 +445,17 @@ public class StreamMetadataTasks extends TaskBase {
                     if (!rgId.equals(UUID.fromString(readerGroupId))) {
                         return CompletableFuture.completedFuture(DeleteReaderGroupStatus.Status.RG_NOT_FOUND);
                     }
-                   return streamMetadataStore.getVersionedReaderGroupState(scope, rgName, true, context, executor)
-                            .thenCompose(versionedState -> eventHelper.addIndexAndSubmitTask(new DeleteReaderGroupEvent(scope, rgName, requestId, rgId),
-                                      () -> startReaderGroupDelete(scope, rgName, versionedState, context))
-                                      .thenCompose(x -> eventHelper.checkDone(() -> isRGDeleted(scope, rgName))
-                                      .thenApply(done -> DeleteReaderGroupStatus.Status.SUCCESS)));
+                   return streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, context, executor)
+                           .thenCompose(configRecord -> {
+                               if (configRecord.getObject().getGeneration() != generation) {
+                                   return CompletableFuture.completedFuture(DeleteReaderGroupStatus.Status.FAILURE);
+                               }
+                               return streamMetadataStore.getVersionedReaderGroupState(scope, rgName, true, context, executor)
+                                       .thenCompose(versionedState -> eventHelper.addIndexAndSubmitTask(new DeleteReaderGroupEvent(scope, rgName, requestId, rgId, generation),
+                                               () -> startReaderGroupDelete(scope, rgName, versionedState, context))
+                                               .thenCompose(x -> eventHelper.checkDone(() -> isRGDeleted(scope, rgName))
+                                               .thenApply(done -> DeleteReaderGroupStatus.Status.SUCCESS)));
+                           });
                 }), e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
@@ -455,7 +465,6 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<Void> startReaderGroupDelete(final String scope, final String rgName, VersionedMetadata<ReaderGroupState> currentState,
                                                            RGOperationContext context) {
-        final String rgStreamName = NameUtils.getStreamForReaderGroup(rgName);
         return Futures.toVoid(streamMetadataStore.updateReaderGroupVersionedState(scope, rgName,
            ReaderGroupState.DELETING, currentState, context, executor));
     }

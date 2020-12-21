@@ -515,12 +515,13 @@ public final class ModelHelper {
         return createStreamInfo(scope, stream, null);
     }
 
-    public static final ReaderGroupInfo createReaderGroupInfo(final String scope, final String readerGroup, String readerGroupId) {
+    public static final ReaderGroupInfo createReaderGroupInfo(final String scope, final String readerGroup,
+                                                              String readerGroupId, long generation) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(readerGroup, "readerGroup");
         Preconditions.checkNotNull(readerGroupId, "readerGroupId");
         ReaderGroupInfo.Builder builder = ReaderGroupInfo.newBuilder().setScope(scope)
-                .setReaderGroup(readerGroup).setReaderGroupId(readerGroupId);
+                .setReaderGroup(readerGroup).setReaderGroupId(readerGroupId).setGeneration(generation);
         return builder.build();
     }
 

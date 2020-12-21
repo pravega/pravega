@@ -1589,14 +1589,14 @@ public class ControllerImplTest {
     @Test
     public void testDeleteReaderGroup() throws Exception {
         CompletableFuture<Boolean> deleteRGStatus;
-        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg1", UUID.randomUUID());
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg1", UUID.randomUUID(), 0L);
         assertTrue(deleteRGStatus.get());
 
-        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg2", UUID.randomUUID());
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg2", UUID.randomUUID(), 0L);
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 deleteRGStatus, Throwable -> true);
 
-        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg3", UUID.randomUUID());
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg3", UUID.randomUUID(), 0L);
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 deleteRGStatus, throwable -> throwable instanceof IllegalArgumentException);
     }

@@ -371,35 +371,35 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     @Test
     public void testDeleteReaderGroup() throws ExecutionException, InterruptedException {
         final  UUID someUUID = UUID.randomUUID();
-        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any())).thenReturn(
+        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.DeleteReaderGroupStatus.newBuilder()
                         .setStatus(Controller.DeleteReaderGroupStatus.Status.SUCCESS).build()));
-        Assert.assertTrue(this.testController.deleteReaderGroup("scope", "subscriber", someUUID).join());
+        Assert.assertTrue(this.testController.deleteReaderGroup("scope", "subscriber", someUUID, 0L).join());
 
-        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any())).thenReturn(
+        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.DeleteReaderGroupStatus.newBuilder()
                         .setStatus(Controller.DeleteReaderGroupStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.deleteReaderGroup("scope", "subscriber", someUUID).join(),
+                () -> this.testController.deleteReaderGroup("scope", "subscriber", someUUID, 0L).join(),
                 ex -> ex instanceof ControllerFailureException);
 
-        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any())).thenReturn(
+        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.DeleteReaderGroupStatus.newBuilder()
                         .setStatus(Controller.DeleteReaderGroupStatus.Status.RG_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.deleteReaderGroup("scope", "stream", someUUID).join(),
+                () -> this.testController.deleteReaderGroup("scope", "stream", someUUID, 0L).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any())).thenReturn(
+        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.DeleteReaderGroupStatus.newBuilder()
                         .setStatus(Controller.DeleteReaderGroupStatus.Status.SUCCESS).build()));
-        Assert.assertTrue(this.testController.deleteReaderGroup("scope", "subscriber", someUUID).join());
+        Assert.assertTrue(this.testController.deleteReaderGroup("scope", "subscriber", someUUID, 0L).join());
         
-        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any())).thenReturn(
+        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.DeleteReaderGroupStatus.newBuilder()
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.deleteReaderGroup("scope", "subscriber", someUUID).join(),
+                () -> this.testController.deleteReaderGroup("scope", "subscriber", someUUID, 0L).join(),
                 ex -> ex instanceof ControllerFailureException);
     }
 

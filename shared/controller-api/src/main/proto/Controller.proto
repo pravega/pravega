@@ -100,6 +100,7 @@ message ReaderGroupInfo {
     string scope = 1;
     string readerGroup = 2;
     string readerGroupId = 3;
+    int64 generation = 4;
 }
 
 message CreateReaderGroupStatus {

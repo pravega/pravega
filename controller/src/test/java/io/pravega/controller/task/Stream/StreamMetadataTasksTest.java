@@ -420,7 +420,8 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(newConfig.getStartingStreamCuts().size(), response.getConfig().getStartingStreamCutsCount());
         assertEquals(newConfig.getEndingStreamCuts().size(), response.getConfig().getEndingStreamCutsCount());
 
-        CompletableFuture<DeleteReaderGroupStatus.Status> deleteStatus = streamMetadataTasks.deleteReaderGroup(SCOPE, "rg2", response.getConfig().getReaderGroupId(), null);
+        CompletableFuture<DeleteReaderGroupStatus.Status> deleteStatus = streamMetadataTasks.deleteReaderGroup(SCOPE, "rg2",
+                response.getConfig().getReaderGroupId(), response.getConfig().getGeneration(), null);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(DeleteReaderGroupStatus.Status.SUCCESS, deleteStatus.join());
 
