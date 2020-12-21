@@ -116,10 +116,14 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                synchronizer.getState().getConfig().getRetentionType().toString());
     }
 
-    @Override
     public UUID getGroupId() {
         synchronizer.fetchUpdates();
         return synchronizer.getState().getConfig().getReaderGroupId();
+    }
+
+    public long getGeneration() {
+        synchronizer.fetchUpdates();
+        return synchronizer.getState().getConfig().getGeneration();
     }
 
     @Override
@@ -208,17 +212,40 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
-        synchronizer.updateState((state, updates) -> {
-            updates.add(new UpdatingConfig(true));
-        });
-        getThrowingException(controller.updateReaderGroup(scope, groupName, config));
-        ReaderGroupConfig controllerConfig = getThrowingException(controller.getReaderGroupConfig(scope, groupName));
-        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
-        synchronizer.updateState((state, updates) -> {
-            if (state.getConfig().getGeneration() < controllerConfig.getGeneration()) {
-                new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false);
+        while (true) {
+            synchronizer.fetchUpdates();
+            val state = synchronizer.getState();
+            // We only move into the block if the state transition has happened successfully.
+            if (stateTransition(state, new UpdatingConfig(true))) {
+                // Use the latest generation and reader group Id.
+                config.setGeneration(state.getConfig().getGeneration());
+                config.setReaderGroupId(state.getConfig().getReaderGroupId());
+                boolean success = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, config));
+                if (success) {
+                    synchronizer.updateState((s, updates) -> {
+                        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
+                        updates.add(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
+                    });
+                    return;
+                }
+            }
+        }
+    }
+
+    @VisibleForTesting
+    protected boolean stateTransition(ReaderGroupState state, ReaderGroupState.ReaderGroupStateUpdate update) {
+        // This boolean will help know if the update actually succeeds or not.
+        AtomicBoolean successfullyUpdated = new AtomicBoolean(false);
+        synchronizer.updateState((s, updates) -> {
+            // If successfullyUpdated is false then that means the current state where this update should
+            // take place (i.e. state with updatingConfig as false) is not the state we are in so we do not
+            // make the update.
+            successfullyUpdated.set(s.getConfig().equals(state.getConfig()));
+            if (successfullyUpdated.get()) {
+                updates.add(update);
             }
         });
+        return successfullyUpdated.get();
     }
 
     @Override

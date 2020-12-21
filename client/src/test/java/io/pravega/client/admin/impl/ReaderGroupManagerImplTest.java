@@ -109,10 +109,10 @@ public class ReaderGroupManagerImplTest {
         when(clientFactory.getConnectionPool()).thenReturn(connectionPool);
         when(synchronizer.getState()).thenReturn(state);
         when(state.getConfig()).thenReturn(config);
-        when(controller.deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId())).thenReturn(CompletableFuture.completedFuture(true));
+        when(controller.deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId(), config.getGeneration())).thenReturn(CompletableFuture.completedFuture(true));
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
-        verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId());
+        verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId(), config.getGeneration());
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {

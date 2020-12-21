@@ -38,6 +38,7 @@ import io.pravega.client.stream.impl.ReaderGroupState.RemoveReader;
 import io.pravega.client.stream.impl.ReaderGroupState.SegmentCompleted;
 import io.pravega.client.stream.impl.ReaderGroupState.UpdateDistanceToTail;
 import io.pravega.client.stream.impl.ReaderGroupState.UpdateDistanceToTail.UpdateDistanceToTailSerializer;
+import io.pravega.client.stream.impl.ReaderGroupState.UpdatingConfig;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -295,6 +296,7 @@ public class SerializationTest {
         verify(serializer, new CheckpointReader(createString(), createString(), createSegmentToLongMap()));
         verify(serializer, new CreateCheckpoint(createString()));
         verify(serializer, new ClearCheckpointsBefore(createString()));
+        verify(serializer, new UpdatingConfig(r.nextBoolean()));
     }
     
     @Test

@@ -348,15 +348,17 @@ public class ReaderGroupStateManager {
             fetchUpdatesIfNeeded();
             ReaderGroupState state = sync.getState();
             if (state.isUpdatingConfig()) {
-                ReaderGroupConfig controllerConfig = getThrowingException(controller.getReaderGroupConfig(scope, groupName));
-                if (state.getConfig().getGeneration() < controllerConfig.getGeneration()) {
+                sync.updateState((s, updates) -> {
+                    ReaderGroupConfig controllerConfig = getThrowingException(controller.getReaderGroupConfig(scope, groupName));
                     log.debug("Updating the readergroup {} with the new config {} obtained from the controller", groupName, controllerConfig);
-                    Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, controllerConfig);
-                    sync.updateStateUnconditionally(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
-                }
+                    if (s.getConfig().getGeneration() < controllerConfig.getGeneration()) {
+                        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, controllerConfig);
+                        updates.add(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
+                    }
+                });
             }
-            updateConfigTimer.reset(UPDATE_CONFIG_WINDOW);
         }
+        updateConfigTimer.reset(UPDATE_CONFIG_WINDOW);
     }
     
     private void compactIfNeeded() {
