@@ -492,7 +492,7 @@ public class ControllerImplTest {
                             .setStatus(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
-                }else if (request.getStreamCut().getStreamInfo().getStream().equals("stream7")) {
+                } else if (request.getStreamCut().getStreamInfo().getStream().equals("stream7")) {
                     responseObserver.onNext(UpdateSubscriberStatus.newBuilder()
                             .setStatus(UpdateSubscriberStatus.Status.GENERATION_MISMATCH)
                             .build());
