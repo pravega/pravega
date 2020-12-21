@@ -187,9 +187,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String rgName = request.getReaderGroup();
         String rgId = request.getReaderGroupId();
         long generation = request.getGeneration();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getReaderGroupConfig",
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteReaderGroup",
                 scope, rgName);
-        log.info(requestTag.getRequestId(), "getReaderGroupConfig called for Reader Group {}/{}.", scope, rgName);
+        log.info(requestTag.getRequestId(), "deleteReaderGroup called for Reader Group {}/{}.", scope, rgName);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofReaderGroupsInScope(scope), AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.deleteReaderGroup(scope, rgName, rgId, generation),
