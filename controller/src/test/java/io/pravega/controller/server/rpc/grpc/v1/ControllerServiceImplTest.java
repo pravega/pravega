@@ -631,13 +631,6 @@ public abstract class ControllerServiceImplTest {
         String rgName = "rg1";
         UUID rgId = UUID.randomUUID();
         createReaderGroup(SCOPE1, STREAM1, rgName, rgId);
-        /*
-        ResultObserver<DeleteReaderGroupStatus> result = new ResultObserver<>();
-        this.controllerService.deleteReaderGroup(
-                ModelHelper.createReaderGroupInfo(SCOPE1, rgName, rgId.toString(), 0L), result);
-        DeleteReaderGroupStatus status = result.get();
-        assertEquals("Delete Reader Group", DeleteReaderGroupStatus.Status.SUCCESS, status.getStatus());
-         */
 
         ResultObserver<DeleteReaderGroupStatus> result1 = new ResultObserver<>();
         this.controllerService.deleteReaderGroup(

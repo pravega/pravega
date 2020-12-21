@@ -9,12 +9,14 @@
  */
 package io.pravega.controller.server;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.ModelHelper;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.*;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
@@ -51,12 +53,7 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -327,6 +324,55 @@ public abstract class ControllerServiceWithStreamTest {
 
         // send valid `from` and `to`
         testValidRanges(streamCut01, streamCut023, streamCut423, streamCut56, streamCut41, streamCut06, segments);
+    }
+
+    @Test(timeout = 5000)
+    public void createReaderGroupTest() throws Exception {
+        String stream = "stream1";
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder()
+                .scalingPolicy(policy1).build();
+        //Start time  when stream is created.
+        long start = System.currentTimeMillis();
+
+        // Create scope
+        Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
+
+        // create stream
+        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, stream, configuration1, start).get();
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
+
+        final Segment seg0 = new Segment(SCOPE, "stream1", 0L);
+        final Segment seg1 = new Segment(SCOPE, "stream1", 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(SCOPE, "stream1"),
+                new StreamCutImpl(Stream.of(SCOPE, "stream1"), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(SCOPE, "stream1"),
+                new StreamCutImpl(Stream.of(SCOPE, "stream1"), endStreamCut));
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(UUID.randomUUID())
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        Controller.CreateReaderGroupStatus rgStatus =  consumer.createReaderGroup(SCOPE, "rg1",
+                                                        rgConfig, System.currentTimeMillis()).get();
+        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, rgStatus.getStatus());
+
+        // there should be 1 invocation
+        verify(streamStore, times(1)).createReaderGroup(anyString(), anyString(), any(), anyLong(), any(), any());
+
+        rgStatus = consumer.createReaderGroup(SCOPE, "rg1", rgConfig, System.currentTimeMillis()).get();
+        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, rgStatus.getStatus());
+
+        // verify that create readergroup is not called again
+        verify(streamStore, times(1)).createReaderGroup(anyString(), anyString(), any(), anyLong(), any(), any());
+
     }
 
     private void testValidRanges(Map<Long, Long> streamCut01, Map<Long, Long> streamCut023, Map<Long, Long> streamCut423,
