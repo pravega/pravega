@@ -492,6 +492,11 @@ public class ControllerImplTest {
                             .setStatus(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
+                }else if (request.getStreamCut().getStreamInfo().getStream().equals("stream7")) {
+                    responseObserver.onNext(UpdateSubscriberStatus.newBuilder()
+                            .setStatus(UpdateSubscriberStatus.Status.GENERATION_MISMATCH)
+                            .build());
+                    responseObserver.onCompleted();
                 } else if (request.getStreamCut().getStreamInfo().getStream().equals("deadline")) {
                     // dont send any response
                 } else {
@@ -1617,7 +1622,7 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testUpdateTruncationStreamcut() throws Exception {
+    public void testUpdateSubscriberStreamCut() throws Exception {
         CompletableFuture<Boolean> updateSubscriberStatus;
         UUID readerGroupId = UUID.randomUUID();
         StreamCut streamCut = new StreamCutImpl(new StreamImpl("scope1", "stream1"), Collections.emptyMap());
@@ -1638,6 +1643,10 @@ public class ControllerImplTest {
 
         updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream5", "subscriber1", readerGroupId, 0L, streamCut);
         AssertExtensions.assertFutureThrows("Server should throw exception",
+                updateSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
+
+        updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream6", "subscriber1", readerGroupId, 0L, streamCut);
+        AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException exception",
                 updateSubscriberStatus, throwable -> throwable instanceof IllegalArgumentException);
 
         updateSubscriberStatus = controllerClient.updateSubscriberStreamCut("scope1", "stream6", "subscriber1", readerGroupId, 0L, streamCut);

@@ -30,13 +30,6 @@ interface ReaderGroup {
     String getName();
 
     /**
-     * Gets the scoped name of this ReaderGroup.
-     *
-     * @return String a fully scoped ReaderGroup name
-     */
-    String getScopedName();
-
-    /**
      * Create the stream, by creating/modifying underlying data structures.
      *
      * @param configuration reader group configuration.
@@ -51,13 +44,6 @@ interface ReaderGroup {
      * @return void.
      */
     CompletableFuture<Void> delete();
-
-    /**
-     * Api to get creation time of the stream.
-     * 
-     * @return CompletableFuture which, upon completion, has the creation time of the stream. 
-     */
-    CompletableFuture<Long> getCreationTime();
     
     /**
      * Starts updating the configuration of an existing stream.
@@ -74,13 +60,6 @@ interface ReaderGroup {
     CompletableFuture<Void> completeUpdateConfiguration(VersionedMetadata<ReaderGroupConfigRecord> existing);
 
     /**
-     * Fetches the current stream configuration.
-     *
-     * @return current stream configuration.
-     */
-    CompletableFuture<ReaderGroupConfig> getConfiguration();
-
-    /**
      * Fetches the current ReaderGroup configuration.
      *
      * @return current ReaderGroup configuration.
@@ -93,13 +72,6 @@ interface ReaderGroup {
      * @return Future which when completed has the versioned state.
      */
     CompletableFuture<VersionedMetadata<ReaderGroupState>> getVersionedState();
-
-    /**
-     * Update the state of the stream.
-     *
-     * @return boolean indicating whether the state of stream is updated.
-     */
-    CompletableFuture<Void> updateState(final ReaderGroupState state);
 
     /**
      * Api to update versioned state as a CAS operation.

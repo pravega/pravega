@@ -138,7 +138,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
 
     @Override
     ReaderGroup newReaderGroup(String scope, String name) {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -172,7 +172,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
 
     @Override
     public CompletableFuture<Boolean> checkReaderGroupExists(String scope, String rgName) {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override

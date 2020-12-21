@@ -16,7 +16,6 @@ import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.stream.records.ReaderGroupStateRecord;
-import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.CompletableFuture;
 
@@ -42,21 +41,11 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
     }
 
     @Override
-    public String getScopedName() {
-        return NameUtils.getScopedReaderGroupName(this.scope, this.name);
-    }
-
-    @Override
     public CompletableFuture<Void> create(ReaderGroupConfig configuration, long createTimestamp) {
         return createMetadataTables()
                   .thenCompose((Void v) -> storeCreationTimeIfAbsent(createTimestamp))
                   .thenCompose((Void v) -> createConfigurationIfAbsent(configuration))
                   .thenCompose((Void v) -> createStateIfAbsent());
-    }
-
-    @Override
-    public CompletableFuture<Long> getCreationTime() {
-        return null;
     }
 
     @Override
@@ -83,11 +72,6 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
     }
 
     @Override
-    public CompletableFuture<ReaderGroupConfig> getConfiguration() {
-        return null;
-    }
-
-    @Override
     public CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getVersionedConfigurationRecord() {
         return getConfigurationData(true);
     }
@@ -96,11 +80,6 @@ public abstract class AbstractReaderGroup implements ReaderGroup {
     public CompletableFuture<VersionedMetadata<ReaderGroupState>> getVersionedState() {
         return getStateData(true)
                 .thenApply(x -> new VersionedMetadata<>(x.getObject().getState(), x.getVersion()));
-    }
-
-    @Override
-    public CompletableFuture<Void> updateState(ReaderGroupState state) {
-        return null;
     }
 
     @Override
