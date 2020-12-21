@@ -382,7 +382,6 @@ public abstract class ControllerServiceWithStreamTest {
 
         // verify that create readergroup is not called again
         verify(streamStore, times(1)).createReaderGroup(anyString(), anyString(), any(), anyLong(), any(), any());
-
     }
 
     private void testValidRanges(Map<Long, Long> streamCut01, Map<Long, Long> streamCut023, Map<Long, Long> streamCut423,
