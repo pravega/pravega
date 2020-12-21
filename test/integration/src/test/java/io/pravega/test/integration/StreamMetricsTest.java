@@ -207,10 +207,11 @@ public class StreamMetricsTest {
                 rgConfig.getReaderGroupId().toString(), 0L, streamCut1).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER).count());
 
-        controllerWrapper.getControllerService().updateReaderGroup(scopeName, subscriber, rgConfig);
-        //assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP).count());
+        controllerWrapper.getControllerService().updateReaderGroup(scopeName, subscriber, rgConfig).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP).count());
 
-        controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber, rgConfig.getReaderGroupId().toString(), rgConfig.getGeneration()).get();
+        controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber,
+                rgConfig.getReaderGroupId().toString(), 1L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP).count());
 
         // Seal the Stream.
