@@ -15,7 +15,11 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -56,7 +60,11 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigurat
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -545,10 +553,110 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
+    public void createReaderGroupTests() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+        final Segment seg0 = new Segment(SCOPE1, STREAM1, 0L);
+        final Segment seg1 = new Segment(SCOPE1, STREAM1, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(SCOPE1, STREAM1),
+                new StreamCutImpl(Stream.of(SCOPE1, STREAM1), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(SCOPE1, STREAM1),
+                new StreamCutImpl(Stream.of(SCOPE1, STREAM1), endStreamCut));
+        ReaderGroupConfig config = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(UUID.randomUUID())
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        ResultObserver<CreateReaderGroupStatus> result = new ResultObserver<>();
+        String rgName = "rg_1";
+        this.controllerService.createReaderGroup(ModelHelper.decode(SCOPE1, rgName, config), result);
+        CreateReaderGroupStatus createRGStatus = result.get();
+        assertEquals("Create Reader Group Invalid RG Name", CreateReaderGroupStatus.Status.INVALID_RG_NAME, createRGStatus.getStatus());
+
+        ResultObserver<CreateReaderGroupStatus> result1 = new ResultObserver<>();
+        rgName = "rg1";
+        this.controllerService.createReaderGroup(ModelHelper.decode("somescope", rgName, config), result1);
+        createRGStatus = result1.get();
+        assertEquals("Create Reader Group Scope not found", CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND, createRGStatus.getStatus());
+    }
+
+    @Test
+    public void updateReaderGroupTests() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+        String rgName = "rg1";
+        UUID rgId = UUID.randomUUID();
+        createReaderGroup(SCOPE1, STREAM1, rgName, rgId);
+
+        final Segment seg0 = new Segment(SCOPE1, STREAM1, 0L);
+        final Segment seg1 = new Segment(SCOPE1, STREAM1, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 100L, seg1, 1000L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(SCOPE1, STREAM1),
+                new StreamCutImpl(Stream.of(SCOPE1, STREAM1), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 2000L, seg1, 3000L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(SCOPE1, STREAM1),
+                new StreamCutImpl(Stream.of(SCOPE1, STREAM1), endStreamCut));
+        ReaderGroupConfig newConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(80000L)
+                .groupRefreshTimeMillis(40000L)
+                .maxOutstandingCheckpointRequest(5)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(rgId)
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        ResultObserver<UpdateReaderGroupStatus> result = new ResultObserver<>();
+        this.controllerService.updateReaderGroup(ModelHelper.decode(SCOPE1, rgName, newConfig), result);
+        UpdateReaderGroupStatus rgStatus = result.get();
+        assertEquals("Update Reader Group", UpdateReaderGroupStatus.Status.SUCCESS, rgStatus.getStatus());
+
+        ResultObserver<UpdateReaderGroupStatus> result1 = new ResultObserver<>();
+        this.controllerService.updateReaderGroup(ModelHelper.decode(SCOPE1, rgName, newConfig), result1);
+        rgStatus = result1.get();
+        assertEquals("Update Reader Group", UpdateReaderGroupStatus.Status.INVALID_CONFIG, rgStatus.getStatus());
+
+        ResultObserver<UpdateReaderGroupStatus> result2 = new ResultObserver<>();
+        this.controllerService.updateReaderGroup(ModelHelper.decode(SCOPE1, "somerg", newConfig), result2);
+        rgStatus = result2.get();
+        assertEquals("Update Reader Group", UpdateReaderGroupStatus.Status.RG_NOT_FOUND, rgStatus.getStatus());
+    }
+
+    @Test
+    public void deleteReaderGroupTests() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+        String rgName = "rg1";
+        UUID rgId = UUID.randomUUID();
+        createReaderGroup(SCOPE1, STREAM1, rgName, rgId);
+        /*
+        ResultObserver<DeleteReaderGroupStatus> result = new ResultObserver<>();
+        this.controllerService.deleteReaderGroup(
+                ModelHelper.createReaderGroupInfo(SCOPE1, rgName, rgId.toString(), 0L), result);
+        DeleteReaderGroupStatus status = result.get();
+        assertEquals("Delete Reader Group", DeleteReaderGroupStatus.Status.SUCCESS, status.getStatus());
+         */
+
+        ResultObserver<DeleteReaderGroupStatus> result1 = new ResultObserver<>();
+        this.controllerService.deleteReaderGroup(
+                ModelHelper.createReaderGroupInfo(SCOPE1, "somerg", rgId.toString(), 0L), result1);
+        DeleteReaderGroupStatus deleteStatus = result1.get();
+        assertEquals("Delete Reader Group not found", DeleteReaderGroupStatus.Status.RG_NOT_FOUND, deleteStatus.getStatus());
+
+        ResultObserver<DeleteReaderGroupStatus> result2 = new ResultObserver<>();
+        this.controllerService.deleteReaderGroup(
+                ModelHelper.createReaderGroupInfo(SCOPE1, rgName, UUID.randomUUID().toString(), 0L), result2);
+        deleteStatus = result2.get();
+        assertEquals("Delete Reader Group not found", DeleteReaderGroupStatus.Status.RG_NOT_FOUND, deleteStatus.getStatus());
+    }
+
+    @Test
     public void updateSubscriberStreamCutTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
         String rgName = "rg1";
-        createReaderGroup(SCOPE1, STREAM1, rgName);
+        createReaderGroup(SCOPE1, STREAM1, rgName, UUID.randomUUID());
         ResultObserver<ReaderGroupConfigResponse> configResponse = new ResultObserver<>();
         this.controllerService.getReaderGroupConfig(
                 ModelHelper.createReaderGroupInfo(SCOPE1, rgName, "", 0L), configResponse);
@@ -1072,7 +1180,7 @@ public abstract class ControllerServiceImplTest {
         assertEquals("Create stream", CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
     }
 
-    protected void createReaderGroup(String scope, String stream, String rgName) {
+    protected void createReaderGroup(String scope, String stream, String rgName, UUID rgId) {
         final Segment seg0 = new Segment(scope, stream, 0L);
         final Segment seg1 = new Segment(scope, stream, 1L);
         ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
@@ -1087,7 +1195,7 @@ public abstract class ControllerServiceImplTest {
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .generation(0L)
-                .readerGroupId(UUID.randomUUID())
+                .readerGroupId(rgId)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
         ResultObserver<CreateReaderGroupStatus> result = new ResultObserver<>();
