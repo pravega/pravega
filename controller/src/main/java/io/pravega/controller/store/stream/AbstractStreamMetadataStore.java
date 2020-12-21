@@ -974,7 +974,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                              final boolean ignoreCached,
                                              final RGOperationContext context,
                                              final Executor executor) {
-        log.debug("Abstract:: getReaderGroupState");
         return Futures.completeOn(getReaderGroup(scope, name, context).getState(ignoreCached), executor);
     }
 

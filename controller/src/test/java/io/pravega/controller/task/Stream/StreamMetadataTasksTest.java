@@ -438,7 +438,8 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
         String subscriber1 = "subscriber1";
-        CompletableFuture<Controller.CreateReaderGroupStatus.Status> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, rgConfig, System.currentTimeMillis());
+        CompletableFuture<Controller.CreateReaderGroupStatus.Status> createStatus
+        = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, rgConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
 
@@ -479,10 +480,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND, updateStatus);
 
         // update non-existing subscriber
-        AssertExtensions.assertFutureThrows("", streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, "nosubscriber",
-                rgConfig.getReaderGroupId().toString(), 0L, streamCut1, null),
-                e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name,
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, "nosubscriber",
                 UUID.randomUUID().toString(), 0L, streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, updateStatus);
     }
