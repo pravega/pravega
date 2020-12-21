@@ -232,10 +232,9 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
     }
 
-    @VisibleForTesting
-    protected boolean stateTransition(ReaderGroupState state, ReaderGroupState.ReaderGroupStateUpdate update) {
+    private boolean stateTransition(ReaderGroupState state, ReaderGroupState.ReaderGroupStateUpdate update) {
         // This boolean will help know if the update actually succeeds or not.
-        AtomicBoolean successfullyUpdated = new AtomicBoolean(false);
+        AtomicBoolean successfullyUpdated = new AtomicBoolean(true);
         synchronizer.updateState((s, updates) -> {
             // If successfullyUpdated is false then that means the current state where this update should
             // take place (i.e. state with updatingConfig as false) is not the state we are in so we do not

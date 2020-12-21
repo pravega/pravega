@@ -94,15 +94,7 @@ public class ReaderGroupImplTest {
                                                    any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
         readerGroup = new ReaderGroupImpl(SCOPE, GROUP_NAME, synchronizerConfig, initSerializer,
-                updateSerializer, clientFactory, controller, connectionPool) {
-            @Override
-            protected boolean stateTransition(ReaderGroupState state, ReaderGroupState.ReaderGroupStateUpdate update) {
-                synchronizer.updateState((s, updates) -> {
-                    updates.add(update);
-                });
-                return true;
-            }
-        };
+                updateSerializer, clientFactory, controller, connectionPool);
     }
 
     @Test(expected = IllegalArgumentException.class)
