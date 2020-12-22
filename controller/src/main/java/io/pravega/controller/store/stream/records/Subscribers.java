@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.store.stream.records;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -32,13 +32,14 @@ import java.io.IOException;
 @Slf4j
 @Data
 public class Subscribers {
+    public static final Subscribers EMPTY_SET = new Subscribers(ImmutableSet.of());
     public static final SubscriberSetSerializer SERIALIZER = new SubscriberSetSerializer();
 
     @Getter
-    private final ImmutableMap<String, Long> subscribers;
+    private final ImmutableSet<String> subscribers;
 
     @Builder
-    public Subscribers(@NonNull ImmutableMap<String, Long> subscribers) {
+    public Subscribers(@NonNull ImmutableSet<String> subscribers) {
         this.subscribers = subscribers;
     }
 
@@ -46,32 +47,12 @@ public class Subscribers {
      * This method adds a new subscriber to the subscriberSet.
      * @param subscriberSet Subscriber Set.
      * @param subscriber subscriber to be added.
-     * @param generation subscriber generation.
      * @return updated Subscriber Set.
      */
-    public static Subscribers add(@NonNull Subscribers subscriberSet, @NonNull String subscriber, long generation) {
-            ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
-            builder.putAll(subscriberSet.subscribers);
-            builder.put(subscriber, generation);
-            return new Subscribers(builder.build());
-    }
-
-    /**
-     * This method updates the generation of a subscriber in the subscriberSet.
-     * @param subscriberSet Subscriber Set.
-     * @param subscriber subscriber to be added.
-     * @param generation subscriber generation.
-     * @return updated Subscriber Set.
-     */
-    public static Subscribers update(@NonNull Subscribers subscriberSet, @NonNull String subscriber, long generation) {
-        ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
-        subscriberSet.getSubscribers().entrySet().forEach(s -> {
-            if (!s.getKey().equals(subscriber)) {
-                builder.put(s);
-            } else {
-                builder.put(subscriber, generation);
-            }
-        });
+    public static Subscribers add(@NonNull Subscribers subscriberSet, @NonNull String subscriber) {
+        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+        builder.addAll(subscriberSet.subscribers);
+        builder.add(subscriber);
         return new Subscribers(builder.build());
     }
 
@@ -82,13 +63,13 @@ public class Subscribers {
      * @return updated Subscriber Set.
      */
     public static Subscribers remove(@NonNull Subscribers subscriberSet, @NonNull String subscriber) {
-       ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
-       subscriberSet.getSubscribers().entrySet().forEach(s -> {
-            if (!s.getKey().equals(subscriber)) {
-                builder.put(s);
+        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+        subscriberSet.getSubscribers().forEach(s -> {
+            if (!s.equals(subscriber)) {
+                builder.add(s);
             }
         });
-       return new Subscribers(builder.build());
+        return new Subscribers(builder.build());
     }
 
     private static class SubscribersBuilder implements ObjectBuilder<Subscribers> {
@@ -118,13 +99,13 @@ public class Subscribers {
 
         private void read00(RevisionDataInput revisionDataInput, Subscribers.SubscribersBuilder recordBuilder)
                 throws IOException {
-            ImmutableMap.Builder<String, Long> builder = ImmutableMap.builder();
-            revisionDataInput.readMap(DataInput::readUTF, DataInput::readLong, builder);
+            ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+            revisionDataInput.readCollection(DataInput::readUTF, builder);
             recordBuilder.subscribers(builder.build());
         }
 
         private void write00(Subscribers subscribersRecord, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeMap(subscribersRecord.getSubscribers(), DataOutput::writeUTF, DataOutput::writeLong);
+            revisionDataOutput.writeCollection(subscribersRecord.getSubscribers(), DataOutput::writeUTF);
         }
 
         @Override

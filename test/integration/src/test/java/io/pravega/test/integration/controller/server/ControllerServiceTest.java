@@ -14,9 +14,10 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -28,6 +29,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
@@ -35,9 +37,11 @@ import io.pravega.test.integration.demo.ControllerWrapper;
 
 import java.util.Map;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -45,8 +49,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 public class ControllerServiceTest {
@@ -142,6 +146,7 @@ public class ControllerServiceTest {
 
         final String streamName1 = "stream1";
         final String streamName2 = "stream2";
+        final String streamName3 = "stream3";
         final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
         final StreamConfiguration config1 = StreamConfiguration.builder()
                 .scalingPolicy(scalingPolicy)
@@ -158,6 +163,7 @@ public class ControllerServiceTest {
         createAStream(scope2, streamName1, controller, config2);
         //Different name in same scope
         createAStream(scope1, streamName2, controller, config3);
+        createAStream(scope1, streamName3, controller, config3);
 
         final String kvtName1 = "kvtable1";
         final String kvtName2 = "kvtable2";
@@ -216,8 +222,9 @@ public class ControllerServiceTest {
 
         getSegmentsAfterCreation(controller, scope1, streamName1);
 
-        addRemoveSubscribersTest(controller, scope1, streamName2);
-        updateSubscriberStreamCutTest(controller, scope1, streamName1);
+        readerGroupsTest(controller, scope1, streamName1, streamName2, streamName3);
+
+        updateSubscriberStreamCutTest(controller, scope2, streamName1);
     }
 
     private static void getSegmentsAfterCreation(Controller controller, final String scope,
@@ -309,58 +316,121 @@ public class ControllerServiceTest {
                                                                              .build())));
     }
 
-    private static void addRemoveSubscribersTest(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {
-        // add the first subscriber
-        final String subscriber1 = "subscriber1";
-        assertTrue(controller.addSubscriber(scope, stream, subscriber1, 0L).get());
+    private static void readerGroupsTest(Controller controller, final String scope, final String stream1,
+                                         final String stream2, final String stream3) throws InterruptedException, ExecutionException {
+        final Segment seg0 = new Segment(scope, stream1, 0L);
+        final Segment seg1 = new Segment(scope, stream1, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(
+                    Stream.of(scope, stream1), new StreamCutImpl(Stream.of(scope, stream1), startStreamCut),
+                    Stream.of(scope, stream2), new StreamCutImpl(Stream.of(scope, stream2), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(
+                Stream.of(scope, stream1), new StreamCutImpl(Stream.of(scope, stream1), endStreamCut),
+                Stream.of(scope, stream2), new StreamCutImpl(Stream.of(scope, stream2), endStreamCut));
+        final ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(UUID.randomUUID())
+                .startingStreamCuts(startSC)
+                .readerGroupId(UUID.randomUUID())
+                .endingStreamCuts(endSC).build();
 
-        // add one more new subscriber
-        final String subscriber2 = "subscriber2";
-        assertTrue(controller.addSubscriber(scope, stream, subscriber2, 0L).get());
+        CompletableFuture<Boolean> createRG = controller.createReaderGroup(scope, "rg1", rgConfig);
+        assertTrue(createRG.get());
 
-        List<String> subscribers = controller.listSubscribers(scope, stream).get();
+        createRG = controller.createReaderGroup(scope, "rg2", rgConfig);
+        assertTrue(createRG.get());
+
+        assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup(scope, "bad_rg_name", rgConfig).get());
+        assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup("badscope", "rg3", rgConfig).get());
+
+        List<String> subscribers = controller.listSubscribers(scope, stream1).get();
         assertTrue(subscribers.size() == 2);
-        assertTrue(subscribers.contains(subscriber1));
-        assertTrue(subscribers.contains(subscriber2));
 
-        assertTrue(controller.deleteSubscriber(scope, stream, subscriber2, 1L).get());
-        List<String> subscribersNow = controller.listSubscribers(scope, stream).get();
-        assertTrue(subscribersNow.size() == 1);
-        assertTrue(subscribersNow.contains(subscriber1));
-        assertFalse(subscribersNow.contains(subscriber2));
+        assertTrue(controller.deleteReaderGroup(scope, "rg2", rgConfig.getReaderGroupId(), rgConfig.getGeneration()).get());
+        assertThrows(IllegalArgumentException.class, () -> controller.getReaderGroupConfig(scope, "rg2").get());
 
-        // and now add again...
-        assertTrue(controller.addSubscriber(scope, stream, subscriber2, 3L).get());
-        List<String> subscribersAgain = controller.listSubscribers(scope, stream).get();
-        assertTrue(subscribersAgain.size() == 2);
-        assertTrue(subscribersAgain.contains(subscriber1));
-        assertTrue(subscribersAgain.contains(subscriber2));
+        ReaderGroupConfig config = controller.getReaderGroupConfig(scope, "rg1").get();
+        assertEquals(rgConfig.getGroupRefreshTimeMillis(), config.getGroupRefreshTimeMillis());
+        assertEquals(rgConfig.getGeneration(), config.getGeneration());
+        assertEquals(rgConfig.getMaxOutstandingCheckpointRequest(), config.getMaxOutstandingCheckpointRequest());
+        assertEquals(rgConfig.getRetentionType(), config.getRetentionType());
+        assertEquals(rgConfig.getReaderGroupId(), config.getReaderGroupId());
+        assertEquals(rgConfig.getStartingStreamCuts().keySet().size(), config.getStartingStreamCuts().keySet().size());
+        assertEquals(rgConfig.getEndingStreamCuts().keySet().size(), config.getEndingStreamCuts().keySet().size());
+        assertTrue(config.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream1)));
+        assertTrue(config.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream2)));
 
-        // add more new subscribers
-        final String subscriber3 = "subscriber3";
-        assertTrue(controller.addSubscriber(scope, stream, subscriber3, 0L).get());
-        List<String> subscribersMore = controller.listSubscribers(scope, stream).get();
-        assertTrue(subscribersMore.size() == 3);
-        assertTrue(subscribersMore.contains(subscriber1));
-        assertTrue(subscribersMore.contains(subscriber2));
-        assertTrue(subscribersMore.contains(subscriber3));
+        Map<Stream, StreamCut> startSCNew = ImmutableMap.of(
+                Stream.of(scope, stream2), new StreamCutImpl(Stream.of(scope, stream2), startStreamCut),
+                Stream.of(scope, stream3), new StreamCutImpl(Stream.of(scope, stream3), startStreamCut));
+        Map<Stream, StreamCut> endSCNew = ImmutableMap.of(
+                Stream.of(scope, stream2), new StreamCutImpl(Stream.of(scope, stream2), endStreamCut),
+                Stream.of(scope, stream3), new StreamCutImpl(Stream.of(scope, stream3), endStreamCut));
+        final ReaderGroupConfig newRGConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(1000L)
+                .groupRefreshTimeMillis(5000L)
+                .maxOutstandingCheckpointRequest(7)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(rgConfig.getReaderGroupId())
+                .startingStreamCuts(startSCNew)
+                .endingStreamCuts(endSCNew).build();
+        assertTrue(controller.updateReaderGroup(scope, "rg1", newRGConfig).get());
+        ReaderGroupConfig updatedConfig = controller.getReaderGroupConfig(scope, "rg1").get();
+        assertEquals(newRGConfig.getGroupRefreshTimeMillis(), updatedConfig.getGroupRefreshTimeMillis());
+        assertEquals(newRGConfig.getGeneration() + 1, updatedConfig.getGeneration());
+        assertEquals(newRGConfig.getMaxOutstandingCheckpointRequest(), updatedConfig.getMaxOutstandingCheckpointRequest());
+        assertEquals(newRGConfig.getRetentionType(), updatedConfig.getRetentionType());
+        assertEquals(newRGConfig.getReaderGroupId(), updatedConfig.getReaderGroupId());
+        assertEquals(newRGConfig.getStartingStreamCuts().keySet().size(), updatedConfig.getStartingStreamCuts().keySet().size());
+        assertEquals(newRGConfig.getEndingStreamCuts().keySet().size(), updatedConfig.getEndingStreamCuts().keySet().size());
+        assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream3)));
+        assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream2)));
     }
 
     private static void updateSubscriberStreamCutTest(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {
         // add the first subscriber
-        final String subscriber = "up_subscriber";
-        assertTrue(controller.addSubscriber(scope, stream, subscriber, 0L).get());
+        Segment seg0 = new Segment(scope, stream, 0L);
+        Segment seg1 = new Segment(scope, stream, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(scope, stream), new StreamCutImpl(Stream.of(scope, stream), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(scope, stream), new StreamCutImpl(Stream.of(scope, stream), endStreamCut));
+        final ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(UUID.randomUUID())
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+
+        final String rg1 = "rg1";
+        CompletableFuture<Boolean> createRG = controller.createReaderGroup(scope, rg1, rgConfig);
+        assertTrue(createRG.get());
+
+        List<String> subs = controller.listSubscribers(scope, stream).get();
+        assertEquals(1, subs.size());
+        String subscriber1 = NameUtils.getScopedReaderGroupName(scope, rg1);
+        assertEquals(subscriber1, subs.get(0));
 
         Stream streamToBeUpdated = Stream.of(scope, stream);
-        Segment seg1 = new Segment(scope, stream, 0L);
-        Segment seg2 = new Segment(scope, stream, 1L);
-        ImmutableMap<Segment, Long> streamCutPositions = ImmutableMap.of(seg1, 1L, seg2, 11L);
+        seg0 = new Segment(scope, stream, 0L);
+        seg1 = new Segment(scope, stream, 1L);
+        ImmutableMap<Segment, Long> streamCutPositions = ImmutableMap.of(seg0, 1L, seg1, 11L);
         StreamCut streamCut = new StreamCutImpl(streamToBeUpdated, streamCutPositions);
-        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber, streamCut).get());
 
-        ImmutableMap<Segment, Long> streamCutPositionsNew = ImmutableMap.of(seg1, 2L, seg2, 22L);
+        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber1, rgConfig.getReaderGroupId(), 0L, streamCut).get());
+
+        ImmutableMap<Segment, Long> streamCutPositionsNew = ImmutableMap.of(seg0, 2L, seg1, 22L);
         StreamCut streamCutNew = new StreamCutImpl(streamToBeUpdated, streamCutPositionsNew);
-        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber, streamCutNew).get());
+        assertTrue(controller.updateSubscriberStreamCut(scope, stream, subscriber1, rgConfig.getReaderGroupId(), 0L, streamCutNew).get());
     }
 
     private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,

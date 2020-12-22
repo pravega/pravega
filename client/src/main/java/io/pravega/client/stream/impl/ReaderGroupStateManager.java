@@ -482,7 +482,7 @@ public class ReaderGroupStateManager {
             cuts.orElseThrow(() -> new CheckpointFailedException("Could not get positions for last checkpoint."))
                  .entrySet().forEach(entry ->
                         controller.updateSubscriberStreamCut(entry.getKey().getScope(), entry.getKey().getStreamName(),
-                                readerId, new StreamCutImpl(entry.getKey(), entry.getValue())));
+                                readerId, state.getConfig().getReaderGroupId(), state.getConfig().getGeneration(), new StreamCutImpl(entry.getKey(), entry.getValue())));
                 sync.updateStateUnconditionally(new UpdateCheckpointPublished(true));
         }
     }

@@ -35,7 +35,10 @@ public class ControllerEventSerializer extends VersionedSerializer.MultiType<Con
                .serializer(TruncateStreamEvent.class, 7, new TruncateStreamEvent.Serializer())
                .serializer(UpdateStreamEvent.class, 8, new UpdateStreamEvent.Serializer())
                .serializer(CreateTableEvent.class, 9, new CreateTableEvent.Serializer())
-               .serializer(DeleteTableEvent.class, 10, new DeleteTableEvent.Serializer());
+               .serializer(DeleteTableEvent.class, 10, new DeleteTableEvent.Serializer())
+               .serializer(CreateReaderGroupEvent.class, 11, new CreateReaderGroupEvent.Serializer())
+               .serializer(DeleteReaderGroupEvent.class, 12, new DeleteReaderGroupEvent.Serializer())
+               .serializer(UpdateReaderGroupEvent.class, 13, new UpdateReaderGroupEvent.Serializer());
     }
 
     /**
