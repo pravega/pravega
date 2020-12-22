@@ -357,8 +357,8 @@ public class ReaderGroupStateManager {
                     }
                 });
             }
+            updateConfigTimer.reset(UPDATE_CONFIG_WINDOW);
         }
-        updateConfigTimer.reset(UPDATE_CONFIG_WINDOW);
     }
     
     private void compactIfNeeded() {
