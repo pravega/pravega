@@ -41,7 +41,7 @@ public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
     }
 
     @Test
-    public void getSubscribersForStreamTest() throws InterruptedException, ExecutionException {
+    public void readerGroupsTest() throws InterruptedException, ExecutionException {
         // skip ZK tests
         assertTrue(true);
     }
