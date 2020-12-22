@@ -10,10 +10,12 @@
 package io.pravega.shared.security.auth;
 
 import io.pravega.auth.AuthConstants;
+import lombok.EqualsAndHashCode;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
+@EqualsAndHashCode
 public class DefaultCredentials implements Credentials {
 
     private static final long serialVersionUID = 1L;
