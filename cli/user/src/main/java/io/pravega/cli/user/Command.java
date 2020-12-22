@@ -19,7 +19,7 @@ import io.pravega.cli.user.stream.StreamCommand;
 import io.pravega.cli.user.utils.Formatter;
 import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.shared.NameUtils;
 import lombok.Builder;
 import lombok.Data;
