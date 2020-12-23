@@ -22,11 +22,14 @@ import lombok.EqualsAndHashCode;
         justification = "Interface with same name retained for compatibility with older implementations")
 @EqualsAndHashCode
 public class DefaultCredentials implements Credentials {
-
+    @EqualsAndHashCode.Exclude
     private final io.pravega.shared.security.auth.DefaultCredentials delegate;
+
+    private final String token;
 
     public DefaultCredentials(String password, String userName) {
         delegate = new io.pravega.shared.security.auth.DefaultCredentials(password, userName);
+        token = delegate.getAuthenticationToken();
     }
 
     @Override
@@ -36,6 +39,6 @@ public class DefaultCredentials implements Credentials {
 
     @Override
     public String getAuthenticationToken() {
-        return delegate.getAuthenticationToken();
+        return token;
     }
 }

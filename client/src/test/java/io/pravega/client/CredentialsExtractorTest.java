@@ -236,12 +236,6 @@ public class CredentialsExtractorTest {
                 LegacyCredentials2.AUTHENTICATION_METHOD, credentials.getAuthenticationType());
     }
 
-    @Test
-    public void defaultCredentialsIsAssignableToEitherCredsInterface() {
-        Credentials credentials1 = new io.pravega.client.stream.impl.DefaultCredentials("pwd", "username");
-        io.pravega.client.stream.impl.Credentials credentials2 = new io.pravega.client.stream.impl.DefaultCredentials("pwd", "username");
-    }
-
     /**
      * A class representing Credentials. It is dynamically loaded using a {@link java.util.ServiceLoader} by
      * the code under test, in the enclosing test class. For ServiceLoader to find it, it is configured in
