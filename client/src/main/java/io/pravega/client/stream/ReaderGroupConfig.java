@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.Builder;
@@ -52,6 +53,10 @@ public class ReaderGroupConfig implements Serializable {
 
     private final StreamDataRetention retentionType;
 
+    private final long generation;
+
+    private final UUID readerGroupId;
+
     /**
      * If a Reader Group wants unconsumed data to be retained in a Stream,
      * the retentionType in {@link ReaderGroupConfig} should be set to
@@ -78,6 +83,8 @@ public class ReaderGroupConfig implements Serializable {
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
        private StreamDataRetention retentionType = StreamDataRetention.NONE; //default value
+       private long generation = 0;
+       private UUID readerGroupId = UUID.randomUUID();
 
        /**
         * Disables automatic checkpointing. Checkpoints need to be
@@ -238,7 +245,7 @@ public class ReaderGroupConfig implements Serializable {
                    "Outstanding checkpoint request should be greater than zero");
 
            return new ReaderGroupConfig(groupRefreshTimeMillis, automaticCheckpointIntervalMillis,
-                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionType );
+                   startingStreamCuts, endingStreamCuts, maxOutstandingCheckpointRequest, retentionType, generation, readerGroupId);
        }
 
        private void validateStartAndEndStreamCuts(Map<Stream, StreamCut> startStreamCuts,
@@ -348,10 +355,14 @@ public class ReaderGroupConfig implements Serializable {
         private void read02(RevisionDataInput revisionDataInput, ReaderGroupConfigBuilder builder) throws IOException {
             int ordinal = revisionDataInput.readCompactInt();
             builder.retentionType(StreamDataRetention.values()[ordinal]);
+            builder.generation(revisionDataInput.readLong());
+            builder.readerGroupId(revisionDataInput.readUUID());
         }
 
         private void write02(ReaderGroupConfig object, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeCompactInt(object.retentionType.ordinal());
+            revisionDataOutput.writeLong(object.getGeneration());
+            revisionDataOutput.writeUUID(object.getReaderGroupId());
         }
     }
 

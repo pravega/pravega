@@ -426,6 +426,15 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () -> store.listScopes("", 1, executor),
                 e -> Exceptions.unwrap(e) instanceof UnsupportedOperationException);
     }
+
+    @Test
+    @Override
+    public void testReaderGroups() {
+        AssertExtensions.assertThrows(UnsupportedOperationException.class,
+                () -> store.getReaderGroupId("scope", "readergroup", null, executor).get());
+        AssertExtensions.assertThrows(UnsupportedOperationException.class,
+                () -> store.checkReaderGroupExists("scope", "readergroup").get());
+    }
     
     private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
         return store.createTransaction(scope, stream, txnId, 100, 100, null, executor)
