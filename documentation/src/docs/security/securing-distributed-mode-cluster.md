@@ -33,10 +33,12 @@ include:
     * A Docker Compose application deployment
     * A Docker Swarm based distributed deployment
 
-Regardless of the deployment option used, setting up Transport Layer Security (SSL/TLS) and client auth (short for
-authentication and authorization) are important steps towards a secure Pravega deployment.
+Regardless of the deployment option used, setting up Transport Layer Security (SSL/TLS) and Auth (short for
+authentication and authorization) are important steps towards a secure Pravega deployment. 
 
-TLS encrypts client-server and internal communication. It also enables clients to authenticate the services running on the server nodes. Client auth enables the services to authenticate and authorize the clients. Pravega strongly recommends enabling both TLS and auth, for production clusters.
+TLS is the modern counterpart of the SSL. This document uses the terms TLS and SSL/TLS interchangeably, henceforth. TLS encrypts client-server and internal communications among server components. It also enables clients to authenticate the services running on the server nodes. 
+
+"Auth" enables the services to authenticate and authorize the clients. Pravega strongly recommends enabling both TLS and Auth for production clusters.
 
 Setting up security - especially TLS - in a large cluster can be daunting at first. To make it easier, this document
 provides step-by-step instructions on how to enable and configure security manually.
