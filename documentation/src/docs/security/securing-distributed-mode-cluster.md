@@ -100,13 +100,13 @@ Later, we'll use the CA certificate/key bundle to sign server certificates used 
 
    ```bash
    # All inputs provided using command line arguments
-   $ openssl req -new -x509 -keyout ca-key -out ca-cert -days <validity> \
+   $ openssl req -new -x509 -keyout ca-key.key -out ca-cert.crt -days <validity> \
             -subj "<distinguished_name>" \
             -passout pass:<strong_password>
 
    # Sample command
    $ openssl req -new -x509 -keyout ca-key -out ca-cert -days 365 \
-            -subj "/C=US/ST=Washington/L=Seattle/O=Pravega/OU=CA/CN=Pravega-CA" \
+            -subj "/C=US/ST=Washington/L=Seattle/O=Pravega/OU=CA/CN=Pravega-Stack-CA" \
             -passout pass:changeit
    ```
 
@@ -116,7 +116,7 @@ Later, we'll use the CA certificate/key bundle to sign server certificates used 
    to a Pravega cluster. Services running on server nodes play the role of internal clients when accessing other services.
 
    ```bash
-   $ keytool -keystore client.truststore.jks -noprompt -alias CARoot -import -file ca-cert \
+   $ keytool -keystore client.truststore.jks -noprompt -alias CARoot -import -file ca-cert.crt \
         -storepass changeit
 
    # Optionally, list the truststore's contents to verify everything is in order. The output should show
@@ -126,11 +126,11 @@ Later, we'll use the CA certificate/key bundle to sign server certificates used 
 
 At this point, the following CA and client truststore artifacts shall be  available:
 
-| File | Description |
+| File | Description | Command for Inspecting the file's Contents |
 |:-----:|:--------|
-| `ca-cert` | PEM-encoded X.509 certificate of the CA |
-| `ca-key` | PEM-encoded file containing the CA's encrypted private key  |
-| `client.truststore.jks` | A password-protected truststore file containing the CA's certificate |
+| `ca-cert.crt` | PEM-encoded X.509 certificate of the CA | `$ openssl x509 -in ca-cert.crt -text -noout` |
+| `ca-key.key` | PEM-encoded file containing the CA's encrypted private key  | `$ openssl pkcs8 -inform PEM -in ca-key.key -topk8` |
+| `client.truststore.jks` | A password-protected truststore file containing the CA's certificate | `$ keytool -list -v -keystore client.truststore.jks -storepass 1111_aaaa` |
 
 ### Stage 2: Obtaining Server Certificates and keys
 
