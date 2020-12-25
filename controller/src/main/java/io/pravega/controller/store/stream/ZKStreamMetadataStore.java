@@ -31,6 +31,7 @@ import org.apache.curator.utils.ZKPaths;
 import java.time.Duration;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -120,7 +121,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     }
 
     @Override
-    CompletableFuture<Boolean> checkScopeExists(String scope) {
+    public CompletableFuture<Boolean> checkScopeExists(String scope) {
         String scopePath = ZKPaths.makePath(SCOPE_ROOT_PATH, scope);
         return storeHelper.checkExists(scopePath);
     }
@@ -133,6 +134,11 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     @Override
     Version parseVersionData(byte[] data) {
         return Version.IntVersion.fromBytes(data);
+    }
+
+    @Override
+    ReaderGroup newReaderGroup(String scope, String name) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -161,6 +167,16 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     @Override
     public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken, int limit, Executor executor) {
         // Pagination not supported for zk based store. 
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkReaderGroupExists(String scope, String rgName) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<UUID> getReaderGroupId(String scopeName, String rgName, RGOperationContext context, Executor executor) {
         throw new UnsupportedOperationException();
     }
 
