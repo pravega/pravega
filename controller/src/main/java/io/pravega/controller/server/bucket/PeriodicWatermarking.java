@@ -76,7 +76,9 @@ public class PeriodicWatermarking implements AutoCloseable {
 
     public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
                                 ClientConfig clientConfig, ScheduledExecutorService executor, Controller controllerClient) {
-        this(streamMetadataStore, bucketStore, s -> SynchronizerClientFactory.withScope(s, controllerClient, clientConfig),
+        this(streamMetadataStore, bucketStore, s -> controllerClient == null ?
+                        SynchronizerClientFactory.withScope(s, clientConfig) :
+                        SynchronizerClientFactory.withScope(s, controllerClient, clientConfig),
                 executor, controllerClient);
     }
 
@@ -110,14 +112,9 @@ public class PeriodicWatermarking implements AutoCloseable {
                                                     @ParametersAreNonnullByDefault
                                                     @Override
                                                     public WatermarkClient load(final Stream stream) {
-                                                        if (controllerClient == null) {
-                                                            return new WatermarkClient(stream,
-                                                                    syncFactoryCache.getUnchecked(stream.getScope()));
-                                                        } else {
-                                                            return new WatermarkClient(stream,
+                                                        return new WatermarkClient(stream,
                                                                     syncFactoryCache.getUnchecked(stream.getScope()),
                                                                     controllerClient);
-                                                        }
                                                     }
                                                 });
     }
@@ -439,9 +436,9 @@ public class PeriodicWatermarking implements AutoCloseable {
         }
 
         @VisibleForTesting
-        WatermarkClient(Stream stream, SynchronizerClientFactory clientFactory, Controller controller) {
+        WatermarkClient(Stream stream, SynchronizerClientFactory clientFactory, Controller controllerClient) {
             this.client = clientFactory.createRevisionedStreamClient(
-                    NameUtils.getMarkStreamForStream(stream.getStreamName()), controller,
+                    NameUtils.getMarkStreamForStream(stream.getStreamName()), controllerClient,
                     new WatermarkSerializer(), SynchronizerConfig.builder().build(), AccessOperation.READ_WRITE);
             this.inactiveWriters = new ConcurrentHashMap<>();
         }

@@ -261,8 +261,10 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
 
     private Segment getSegmentForRevisionedClient(String scope, String streamName, Controller controllerObj) {
         log.info("Fetching segments for scope {} and stream {} using specified controller {}", scope, streamName, controllerObj);
+
         // This validates if the stream exists and returns zero segments if the stream is sealed.
-        StreamSegments currentSegments = Futures.getAndHandleExceptions(controllerObj.getCurrentSegments(scope, streamName), InvalidStreamException::new);
+        Controller controllerClient = controllerObj == null ? this.controller : controllerObj;
+        StreamSegments currentSegments = Futures.getAndHandleExceptions(controllerClient.getCurrentSegments(scope, streamName), InvalidStreamException::new);
         if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
             throw new InvalidStreamException("Stream does not exist: " + streamName);
         }
