@@ -62,8 +62,8 @@ sensitive command arguments via prompts instead, just exclude the corresponding 
   # Passwords and other arguments are entered interactively on the prompt in this case.
   $ keytool -keystore server01.keystore.jks -alias server01 -genkey
   ```
-* A weak password `changeit` is used everywhere, for easier reading. Be sure to replace it with a strong and separate
-password for each file.
+* A weak password `changeit` is used everywhere in this document for easier reading. Be sure to replace it with 
+a strong and separate password for each file.
 
 ## Setting up a Certificate Authority (CA)
 

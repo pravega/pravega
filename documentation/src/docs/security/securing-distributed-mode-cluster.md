@@ -36,206 +36,23 @@ include:
 Regardless of the deployment option used, setting up Transport Layer Security (SSL/TLS) and Auth (short for
 authentication and authorization) are important steps towards a secure Pravega deployment. 
 
-TLS is the modern counterpart of the SSL. This document uses the terms TLS and SSL/TLS interchangeably, henceforth. TLS encrypts client-server and internal communications among server components. It also enables clients to authenticate the services running on the server nodes. 
+TLS is the modern counterpart of the SSL. This document uses the terms TLS and SSL/TLS interchangeably, henceforth. 
+TLS encrypts client-server and internal communications among server components. It also enables clients to authenticate 
+the services running on the server nodes. "Auth" enables Pravega services to authenticate and authorize the clients
+and each other. Pravega strongly recommends enabling both TLS and Auth for production clusters.
 
-"Auth" enables the services to authenticate and authorize the clients. Pravega strongly recommends enabling both TLS and Auth for production clusters.
-
-Setting up security - especially TLS - in a large cluster can be daunting at first. To make it easier, this document
-provides step-by-step instructions on how to enable and configure security manually.
-
-Depending on the deployment option used and your environment, you might need to modify the steps and commands to
-suit your specific needs and policies.
+This document shows steps involved in enabling TLS and auth for manual deployments. Depending on the deployment option 
+used and your environment, you might need to modify the steps and commands to suit your specific needs and policies.
 
 ## Setting Up SSL/TLS
 
-There are broadly two ways of using TLS for client-server communications:
+At a high level, setting up TLS can be divided into two distinct stages:
 
-1. Setup Pravega to handle TLS directly. In this case, end-to-end traffic is encrypted.
-2. Terminate TLS outside of Pravega, in an infrastructure component such as a reverse proxy or a load balancer. Traffic is encrypted until the terminating point and is in plaintext from there to Pravega.
+1. Obtaining server certificates and private keys, which involves steps that Pravega is oblivious to
+3. Enabling TLS and Deploying certificates in Pravega 
 
-Depending on the deployment option used, it might be easier to use one or the other approach. For example, if you
-are deploying a Pravega cluster in Kubernetes, you might find approach 2 simpler and easier to manage. In a cluster deployed manually on hardware machines, it might be more convenient to use approach 1 in many cases.
-The specifics of enabling TLS will also differ depending on the deployment option used.
-
-Here, we describe the steps applicable for approach 1 in manual deployments. For approach 2, refer to the platform
-vendors' documentation, such as [this](https://cloud.google.com/kubernetes-engine/docs/concepts/ingress) one from
-Google Kubernetes Engine.
-
-At a high level, setting up TLS can be divided into three distinct stages:
-
-1. Setting up a Certificate Authority (CA)
-2. Obtaining server certificates and keys
-3. Enabling TLS and Deploying certificates
-
-They are described in detail in the following sub-sections.
-
-**Before you Begin**
-
-As the steps in this section use either OpenSSL or Java Keytool, install
-OpenSSL and Java Development Kit (JDK) on the hosts that will be used to  generate
-TLS certificates, keys, keystores are truststores.
-
-**Note:**
-* The examples shown in this section use command line arguments to pass all inputs to the command. To pass
-sensitive command arguments via prompts instead, just exclude the corresponding option. For example,
-
-  ```bash
-  # Inputs are passed as command line arguments.
-  $ keytool -keystore server01.keystore.jks -alias server01 -validity <validity> -genkey \
-              -storepass <keystore-password> -keypass <key-password> \
-              -dname <distinguished-name> -ext SAN=DNS:<hostname>,
-
-  # Passwords and other arguments are entered interactively on the prompt in this case.
-  $ keytool -keystore server01.keystore.jks -alias server01 -genkey
-  ```
-* A weak password `changeit` is used everywhere, for easier reading. Be sure to replace it with a strong and separate
-password for each file.
-
-### Stage 1: Setting Up a Certificate Authority (CA)
-
-If you are going to use an existing public or internal CA service or certificate and key bundle, you may skip this part altogether, and go to [Obtaining Server Certificates and keys](#stage-2-obtaining-server-certificates-and-keys).
-
-Here, we'll generate a CA in the form of a public/private key pair and a self-signed certificate.
-Later, we'll use the CA certificate/key bundle to sign server certificates used in the cluster.
-
-1. Generate a certificate and public/private key pair, for use as a CA.
-
-   ```bash
-   # All inputs provided using command line arguments
-   $ openssl req -new -x509 -keyout ca-key.key -out ca-cert.crt -days <validity> \
-            -subj "<distinguished_name>" \
-            -passout pass:<strong_password>
-
-   # Sample command
-   $ openssl req -new -x509 -keyout ca-key -out ca-cert -days 365 \
-            -subj "/C=US/ST=Washington/L=Seattle/O=Pravega/OU=CA/CN=Pravega-Stack-CA" \
-            -passout pass:changeit
-   ```
-
-2. Create a truststore containing the CA's certificate.
-
-   This truststore will be used by external and internal clients. External clients are client applications connected
-   to a Pravega cluster. Services running on server nodes play the role of internal clients when accessing other services.
-
-   ```bash
-   $ keytool -keystore client.truststore.jks -noprompt -alias CARoot -import -file ca-cert.crt \
-        -storepass changeit
-
-   # Optionally, list the truststore's contents to verify everything is in order. The output should show
-   # a single entry with alias name `caroot` and entry type `trustedCertEntry`.
-   $ keytool -list -v -keystore client.truststore.jks -storepass changeit
-   ```
-
-At this point, the following CA and client truststore artifacts shall be  available:
-
-| File | Description | Command for Inspecting the file's Contents |
-|:-----:|:--------|
-| `ca-cert.crt` | PEM-encoded X.509 certificate of the CA | `$ openssl x509 -in ca-cert.crt -text -noout` |
-| `ca-key.key` | PEM-encoded file containing the CA's encrypted private key  | `$ openssl pkcs8 -inform PEM -in ca-key.key -topk8` |
-| `client.truststore.jks` | A password-protected truststore file containing the CA's certificate | `$ keytool -list -v -keystore client.truststore.jks -storepass 1111_aaaa` |
-
-### Stage 2: Obtaining Server Certificates and keys
-
-This stage is about performing the following steps for each service.
-
-1. Generating server certificates and keys
-2. Generating a Certificate Signing Request (CSR)
-3. Submitting the CSR to a CA and obtaining a signed certificate
-4. Preparing a keystore containing the signed server certificate and the CA's certificate
-5. Exporting the server certificate's private key
-
-**Note:** For services running on the same host, the same certificate can be used, if those services are accessed using the same hostname/IP address. Also, wildcard certificates can be used to share certificates across hosts. However, it is strongly recommended that separate certificates be used for each service.
-
-The steps are:
-
-1. Generate a public/private key-pair and a X.509 certificate for each service.
-
-   This certificate is used for TLS connections with clients and by clients to  verifying the server's identity.
-
-   ```bash
-   $ keytool -keystore controller01.jks\
-        -genkey -keyalg RSA -keysize 2048 -keypass changeit\
-        -alias controller01 -validity 365\
-        -dname "CN=controller01.pravega.io, OU=..., O=..., L=..., S=..., C=..."\
-        -ext san=dns:controller01.pravega.io,ip:...\
-        -storepass changeit
-
-   # Optionally, verify the contents of the generated file
-   $ keytool -list -v -keystore controller01.jks -storepass changeit
-   ```
-
-2. Generate a certificate signing request (CSR) for each service.
-
-   It helps to think of a CSR as an application for getting a certificate signed by a trusted authority.
-
-   A CSR is typically generated on the same server/node on which the service is planned to be installed. In some other environments, CSRs are generated in a central server and the resulting certificates are distributed to the services that need them.  
-
-   ```bash
-   $ keytool -keystore controller01.jks -alias controller01 -certreq -file controller01.csr \
-             -storepass changeit
-
-   # Optionally, inspect the contents of the CSR file. The CSR is created in Base-64 encoded `PEM` format.
-   $ openssl req -in controller01.csr -noout -text
-   ```
-
-3. Submit the CSR to a CA and obtain a signed certificate for each service.
-
-   If you are using a public or internal CA service, follow that CA's process for submitting the CSR and obtaining
-   a signed certificate. To use the custom CA generated using the steps mentioned [earlier](#stage-1-setting-up-a-certificate-authority-ca) or an internal CA
-   certificate/key bundle, use the following command, to generate a CA-signed server certificate in `PEM` format:
-
-   ```bash
-   $ openssl x509 -req -CA ca-cert -CAkey ca-key -in controller01.csr -out controller01.pem \
-        -days 3650 -CAcreateserial -passin pass:changeit
-   ```
-
-4. Prepare a keystore containing the signed server certificate and the CA's certificate.
-
-   ```bash
-   # Import the CA certificate into a new keystore file.
-   $ keytool -keystore controller01.server.jks -alias CARoot -noprompt \
-           -import -file ca-cert -storepass changeit
-
-   # Import the signed server certificate into the keystore.
-   $ keytool -keystore controller01.server.jks -alias controller01 -noprompt \
-           -import -file controller01.pem -storepass changeit
-   ```
-
-5. Export each server's key into a separate `PEM` file.
-
-   This is a two step process.
-   * First, convert the server's keystore in `.jks` format into `.p12` format.
-
-     ```bash
-     $ keytool -importkeystore
-             -srckeystore controller01.jks \
-             -destkeystore controller01.p12 \
-             -srcstoretype jks -deststoretype pkcs12 \
-             -srcstorepass changeit -deststorepass changeit
-     ```
-   * Then, export the private key of the server into a `PEM` file. Note that the generated `PEM` file is not protected
-   by a password. The key itself is password-protected, as we are using the `-nodes` flag. So, be sure
-   to protect it using operating system's technical controls as well as procedural controls.
-
-     ```bash
-     $ openssl pkcs12 -in controller01.p12 -out controller01.key.pem -passin pass:1111_aaaa -nodes
-     ```
-
-Step 5 concludes this stage, and the stage is now set for installing the certificates and other PKI material in Pravega.
-
-The table below lists the key output of this stage. Note that you'll typically need one of each file per Pravega
-service, but you may share the same file for services collocated on the same host for logistical or economical reasons.
-
-| Files | Example File| Description |
-|:-----:| :---:|:--------|
-| Certificate in `PEM` format | `controller01.pem` file | The signed certificate to be used by the service.|
-| Private key in `PEM` format | `controller01.key.pem` file  |  The private key to be used by the service. |
-| Server keystore in `JKS` format | `controller01.server.jks` file | The keystore file to be used by the service. |
-
-
-### Stage 3: Enabling TLS and Deploying Certificates
-
-We'll discuss this in the [next](#enabling-tls-and-auth-in-pravega) section, together with other security configuration and setup.
+Stage 1 is described in [Creating TLS Certificates and Keys](generating-tls-material.md). Stage 2 is discussed in the 
+[next](#enabling-tls-and-auth-in-pravega) section.
 
 ## Enabling TLS and Auth in Pravega
 
@@ -279,23 +96,9 @@ Controller services can be configured in three different ways:
    controller.security.tls.enable=true
    controller.security.tls.server.certificate.location=/etc/secrets/controller01.pem
    ```
-2. By specifying configuration values via corresponding environment variables. For example,
 
-   ```bash
-   # TLS_ENABLED environment variable corresponds to Controller configuration parameter
-   # "controller.auth.tlsEnabled".
-   $ export TLS_ENABLED: "true"
-   ```
-
-   To identify the environment variables corresponding to the configuration parameter, inspect the default
-   `controller.config.properties` file and locate the variables.
-
-   ```
-   controller.security.tls.enable=${TLS_ENABLED}
-   controller.security.tls.server.certificate.location=${TLS_CERT_FILE}
-   ```
-
-3. By specifying configuration parameters as JVM system properties. This way of configuring Controller service is more relevant for container application deployment tools and orchestrators such as Docker Compose, Swarm and Kubernetes.
+2. By specifying configuration parameters as JVM system properties. This way of configuring Controller service is more 
+relevant for container application deployment tools and orchestrators such as Docker Compose, Swarm and Kubernetes.
 
    ```
    # Example: docker-compose.yml file
@@ -312,43 +115,47 @@ Controller services can be configured in three different ways:
       ...          
    ```
 
-The following table lists the Controller's TLS and auth parameters and representative values, for quick reference. For a detailed description of these parameters, refer to [this](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
+The following table lists the Controller's TLS and auth parameters and representative values, for quick reference. 
+For a detailed description of these parameters, refer to [this](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
 
  | Configuration Parameter| Example Value |
  |:-----------------------:|:-------------|
  | `controller.security.tls.enable` | true |
- | `controller.security.tls.server.certificate.location` | /etc/secrets/controller01.pem |
- | `controller.security.tls.server.privateKey.location` | /etc/secrets/controller01.key.pem |
- | `controller.security.tls.trustStore.location` | /etc/secrets/ca-cert |
- | `controller.security.tls.server.keyStore.location` | /etc/secrets/controller01.server.jks |
- | `controller.security.tls.server.keyStore.pwd.location` | /etc/secrets/controller01.server.jks.password <sup>1</sup> |
+ | `controller.security.tls.server.certificate.location` | /etc/secrets/controller01-server-cert.crt |
+ | `controller.security.tls.server.privateKey.location` | /etc/secrets/controller01-server-key.key |
+ | `controller.security.tls.trustStore.location` | /etc/secrets/ca-cert.crt |
+ | `controller.security.tls.server.keyStore.location` | /etc/secrets/controller01-server.keystore.jks |
+ | `controller.security.tls.server.keyStore.pwd.location` | /etc/secrets/controller01-server.keystore.jks.password <sup>1</sup> |
  | `controller.zk.connect.security.enable` | false <sup>2</sup> |
  | `controller.zk.connect.security.tls.trustStore.location` | /etc/secrets/client.truststore.jks |
  | `controller.zk.connect.security.tls.trustStore.pwd.location` | /etc/secrets/client.truststore.jks.password |
  | `controller.security.auth.enable` | true |
- | `controller.security.pwdAuthHandler.accountsDb.location` <sup>3</sup> | /etc/secrets/password-auth-handler.inputfile |
- | `controller.security.auth.delegationToken.signingKey.basis | a-secret-value |
+ | `controller.security.pwdAuthHandler.accountsDb.location` <sup>3</sup> | /etc/secrets/password-auth-handler.database |
+ | `controller.security.auth.delegationToken.signingKey.basis` | a-secret-value |
 
  [1]: This and other `.password` files are text files containing the password for the corresponding store.
 
- [2]: It is assumed here that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS configuration properties via the `controller.zk.*` properties.
+ [2]: It is assumed here that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side 
+ TLS configuration properties via the `controller.zk.*` properties.
 
  [3]: This configuration property is required when using the default Password Auth Handler only.
 
 **Segment Store**
 
-Segment store supports configuration via a properties file (`config.properties`) or JVM system properties. The table below lists its TLS and auth parameters and sample values. For a detailed discription of these parameters refer to [this](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
+Segment store supports configuration via a properties file (`config.properties`) or JVM system properties. The table 
+below lists its TLS and auth parameters and sample values. For a detailed discription of these parameters refer to
+[this](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
 
  | Configuration Parameter| Example Value |
  |:-----------------------:|:-------------|
  | `pravegaservice.security.tls.enable` | true |
- | `pravegaservice.security.tls.server.certificate.location` | /etc/secrets/segmentstore01.pem |
- | `pravegaservice.security.tls.server.privateKey.location` | /etc/secrets/segmentstore01.key.pem |
+ | `pravegaservice.security.tls.server.certificate.location` | /etc/secrets/segmentstore01-server-cert.crt |
+ | `pravegaservice.security.tls.server.privateKey.location` | /etc/secrets/segmentstore01-server-key.key |
  | `pravegaservice.zk.connect.security.enable` | false <sup>2</sup> |
  | `pravegaservice.zk.connect.security.tls.trustStore.location` | /etc/secrets/client.truststore.jks |
  | `pravegaservice.zk.connect.security.tls.trustStore.pwd.location` | /etc/secrets/client.truststore.jks.password |
  | `autoScale.controller.connect.security.tls.enable` | true |
- | `autoScale.controller.connect.security.tls.truststore.location` | /etc/secrets/segmentstore01.key.pem |
+ | `autoScale.controller.connect.security.tls.truststore.location` | /etc/secrets/ca-cert.crt |
  | `autoScale.controller.connect.security.auth.enable` | true |
  | `autoScale.security.auth.token.signingKey.basis` | a-secret-value <sup>1</sup>|
  | `autoScale.controller.connect.security.tls.validateHostName.enable` | true |
@@ -400,7 +207,8 @@ If the server certificates have a hostname assigned, you have used IP addresses 
 the client nodes, you might need to add mappings of
 IP addresses and DNS/Host names in the client-side operating system hosts file.
 
-Alternatively, you may disable hostname verification by invoking `validateHostName(false)` of the ClientConfig builder. It is strongly recommended to avoid disabling hostname verification for production clusters.
+Alternatively, you may disable hostname verification by invoking `validateHostName(false)` of the ClientConfig builder. 
+It is strongly recommended to avoid disabling hostname verification for production clusters.
 
 ### Having TLS and Auth Take Effect
 
@@ -411,7 +219,8 @@ For fresh deployments, starting the cluster and the clients after configuring TL
 
 ## Conclusion
 
-This document explained about how to enable security in a Pravega cluster running in distributed mode. Specifically, how to perform the following actions were discussed:
+This document explained about how to enable security in a Pravega cluster running in distributed mode. 
+Specifically, how to perform the following actions were discussed:
 
 * Generating a CA (if needed)
 * Generating server certificates and keys for Pravega services
