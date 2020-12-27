@@ -17,10 +17,9 @@ A TLS server certificate is an X.509 digital certificate that binds the server's
 DNS name or IP address or both) to the server's public key. The public key is part of the public-private key pair used 
 for asymmetric encryption during the TLS handshake. 
 
-While the server's certificate is public and is available to clients, the server's private key must be protected and 
-should be available only to the server. Ideally, each server should use its own public-private key pair, as using the same 
-private key (together with the public key/TLS certificate) across multiple servers increases the risk that the 
-private key will be compromised. 
+While the server's certificate is public and available to clients, the server's private key must be kept protected in the server.
+Ideally, each server should use its own public-private key pair, as using the same private key (together with the 
+public key/TLS certificate) across multiple servers increases the risk that the private key will be compromised. 
 
 A Pravega cluster's certificate and key requirements may vary depending on deployment options used for the cluster: 
 1. Use a separate TLS certificate and key pair for each host/machine. Manual deployments supports this configuration, 
