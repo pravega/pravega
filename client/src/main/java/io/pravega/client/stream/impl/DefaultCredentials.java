@@ -22,6 +22,9 @@ import lombok.EqualsAndHashCode;
         justification = "Interface with same name retained for compatibility with older implementations")
 @EqualsAndHashCode
 public class DefaultCredentials implements Credentials {
+
+    private static final long serialVersionUID = 1L;
+
     @EqualsAndHashCode.Exclude
     private final io.pravega.shared.security.auth.DefaultCredentials delegate;
 
