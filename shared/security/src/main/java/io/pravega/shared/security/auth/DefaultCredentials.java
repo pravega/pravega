@@ -11,6 +11,7 @@ package io.pravega.shared.security.auth;
 
 import io.pravega.auth.AuthConstants;
 import lombok.EqualsAndHashCode;
+import lombok.NonNull;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -22,7 +23,14 @@ public class DefaultCredentials implements Credentials {
 
     private final String token;
 
-    public DefaultCredentials(String password, String userName) {
+    /**
+     * Creates a new object containing a token that is valid for Basic authentication scheme. The object encapsulates a
+     * token value comprising of a Base64 encoded value of "<username>:<password>".
+     *
+     * @param password the password
+     * @param userName the user name
+     */
+    public DefaultCredentials(@NonNull String password, @NonNull String userName) {
         String decoded = userName + ":" + password;
         this.token = Base64.getEncoder().encodeToString(decoded.getBytes(StandardCharsets.UTF_8));
     }
