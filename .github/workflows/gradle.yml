@@ -34,8 +34,6 @@ jobs:
 #        java-version: 11
     - name: Assemble with Gradle
       run: ./gradlew assemble --parallel
-    - name: Javadoc with Gradle
-      run: ./gradlew javadocs
     - name: Rat, Checkstyle & Spotbugs with Gradle
       run: ./gradlew rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
 
