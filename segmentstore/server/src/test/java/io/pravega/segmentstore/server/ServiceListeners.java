@@ -46,9 +46,6 @@ public final class ServiceListeners {
     public static void awaitShutdown(Service service, Duration timeout, boolean throwIfFailed) throws TimeoutException {
         try {
             service.awaitTerminated(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        }catch (TimeoutException ex){
-            ex.printStackTrace();
-            throw ex;
         } catch (IllegalStateException ex) {
             if (throwIfFailed || service.state() != Service.State.FAILED) {
                 throw ex;
