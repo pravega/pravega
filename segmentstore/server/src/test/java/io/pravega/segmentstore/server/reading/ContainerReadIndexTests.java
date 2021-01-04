@@ -87,7 +87,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
             .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024)
             .build();
-    private static final Duration TIMEOUT = Duration.ofSeconds(20);
+    private static final Duration TIMEOUT = Duration.ofSeconds(60);
     private static final Duration SHORT_TIMEOUT = Duration.ofMillis(20);
 
     @Rule
@@ -1149,11 +1149,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext();
         ArrayList<Long> segmentIds = createSegments(context);
-        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
-
-        // Merge all Transaction names into the segment list. For this test, we do not care what kind of Segment we have.
-        transactionsBySegment.values().forEach(segmentIds::addAll);
 
         // Create all the segments in storage.
         createSegmentsInStorage(context);

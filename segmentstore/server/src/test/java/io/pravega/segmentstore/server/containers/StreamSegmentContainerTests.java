@@ -1672,8 +1672,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Verify container1 is shutting down (give it some time to complete) and that it ends up in a Failed state.
         ServiceListeners.awaitShutdown(container1, shutdownTimeout, false);
         Assert.assertEquals("Container1 is not in a failed state after fence-out detected.", Service.State.FAILED, container1.state());
-        Assert.assertTrue("Container1 did not fail with the correct exception.",
-                Exceptions.unwrap(container1.failureCause()) instanceof DataLogWriterNotPrimaryException);
     }
 
     /**

@@ -165,13 +165,13 @@ class InMemoryDurableDataLog implements DurableDataLog {
             }
             result = CompletableFuture.completedFuture(new InMemoryLogAddress(entry.sequenceNumber));
         } catch (Throwable ex) {
-            return Futures.failedFuture(ex);
+            result = Futures.failedFuture(ex);
         }
 
         Duration delay = this.appendDelayProvider.get();
         if (delay.compareTo(Duration.ZERO) <= 0) {
             // No delay, execute right away.
-            return result;
+            return Futures.completeOn(result, this.executorService); // Simulate "async" execution (new task in pool).
         } else {
             // Schedule the append after the given delay.
             return result.thenComposeAsync(
