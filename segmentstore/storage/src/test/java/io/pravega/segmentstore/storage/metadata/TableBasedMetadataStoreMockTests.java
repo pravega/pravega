@@ -20,6 +20,7 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.val;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -124,6 +125,25 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
                 "write should throw an exception",
                 tableBasedMetadataStore.writeAll(Collections.singleton(td)),
                 ex -> ex instanceof StorageMetadataException && ex.getCause() == e);
+    }
+
+    @Test
+    public void testExceptionDuringRemove() throws Exception {
+        TableStore mockTableStore = mock(TableStore.class);
+        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
+
+        when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
+
+        // Throw random exception
+        Exception e = new ArithmeticException();
+        val td = BaseMetadataStore.TransactionData.builder().key("foo").version(1L).dbObject(2L).build();
+        val toRet = new ArrayList<Long>();
+        toRet.add(3L);
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        f.completeExceptionally(e);
+        when(mockTableStore.remove(anyString(), any(), any())).thenReturn(f);
+        when(mockTableStore.put(anyString(), any(), any())).thenReturn(CompletableFuture.completedFuture(toRet));
+        tableBasedMetadataStore.writeAll(Collections.singleton(td)).get();
     }
 
     @Test

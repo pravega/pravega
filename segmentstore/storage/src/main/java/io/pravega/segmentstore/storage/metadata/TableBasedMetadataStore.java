@@ -158,13 +158,24 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                                 int i = 0;
                                 for (TableEntry tableEntry : toUpdate) {
                                     entryToTxnDataMap.get(tableEntry).setDbObject(ret.get(i));
+                                    entryToTxnDataMap.get(tableEntry).setPersisted(true);
                                     i++;
                                 }
                                 return null;
                             }, getExecutor())
                             .thenComposeAsync(v2 -> {
                                 // Delete deleted keys.
-                                return this.tableStore.remove(tableName, keysToDelete, timeout);
+                                return this.tableStore.remove(tableName, keysToDelete, timeout)
+                                        .handleAsync((v1, ex) -> {
+                                            deletedKeyToTxnDataMap.values().stream().forEach(txnData -> {
+                                                if (ex == null) {
+                                                    txnData.setDbObject(TableKey.NOT_EXISTS);
+                                                } else {
+                                                    txnData.setPersisted(false);
+                                                }
+                                            });
+                                            return null;
+                                        }, getExecutor());
                             }, getExecutor())
                             .thenRunAsync(() -> {
                                 for (val deletedKey : keysToDelete) {

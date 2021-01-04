@@ -387,8 +387,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                         .thenRunAsync(() -> {
                             log.trace("Done persisting all modified keys");
                             for (val writtenData : toWriteList) {
-                                // Mark written keys as persisted.
-                                writtenData.setPersisted(true);
                                 // Put it in cache.
                                 cache.put(writtenData.getKey(), writtenData);
                             }
