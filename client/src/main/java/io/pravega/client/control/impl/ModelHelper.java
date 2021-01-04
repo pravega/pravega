@@ -18,9 +18,11 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -37,6 +39,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
 
@@ -45,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
+import java.util.Collections;
 import java.util.stream.Collectors;
 
 /**
@@ -251,7 +256,38 @@ public final class ModelHelper {
     public static Map<Long, Long> encode(Controller.StreamCut streamCut) {
         return streamCut.getCutMap();
     }
-    
+
+    /**
+     * Helper method to convert stream cut to map of segment to position.
+     * @param rgConfig Reader Group configuration object.
+     * @return map of segment to position
+     */
+    public static ReaderGroupConfig encode(Controller.ReaderGroupConfiguration rgConfig) {
+        return ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(rgConfig.getAutomaticCheckpointIntervalMillis())
+                .groupRefreshTimeMillis(rgConfig.getGroupRefreshTimeMillis())
+                .maxOutstandingCheckpointRequest(rgConfig.getMaxOutstandingCheckpointRequest())
+                .retentionType(ReaderGroupConfig.StreamDataRetention.values()[rgConfig.getRetentionType()])
+                .generation(rgConfig.getGeneration())
+                .readerGroupId(UUID.fromString(rgConfig.getReaderGroupId()))
+                .startingStreamCuts(rgConfig.getStartingStreamCutsList().stream()
+                        .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(),
+                                streamCut.getStreamInfo().getStream()),
+                                streamCut -> new StreamCutImpl(Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream()),
+                                        getSegmentOffsetMap(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap())))))
+                .endingStreamCuts(rgConfig.getEndingStreamCutsList().stream()
+                        .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(),
+                                streamCut.getStreamInfo().getStream()),
+                                streamCut -> new StreamCutImpl(Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream()),
+                                        getSegmentOffsetMap(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap())))))
+                .build();
+    }
+
+    private static Map<Segment, Long> getSegmentOffsetMap(String streamName, String scopeName, Map<Long, Long> streamCutMap) {
+        return streamCutMap.entrySet().stream()
+                .collect(Collectors.toMap(s -> new Segment(scopeName, streamName, s.getKey()), s -> s.getValue()));
+    }
+
     /**
      * Returns TxnId object instance for a given transaction with UUID.
      *
@@ -350,22 +386,27 @@ public final class ModelHelper {
     }
 
     /**
-     * Converts StreamConfiguration into StreamConfig.
+     * Converts Subscriber and StreamCut information into SubscriberStreamCut.
      *
      * @param scope the stream's scope
      * @param streamName The Stream Name
      * @param subscriber subscriber for this stream.
+     * @param readerGroupId Reader Group Id.
+     * @param generation subscriber generation.
      * @param streamCut truncationStreamCut for this subscriber for this stream.
      * @return SubscriberStreamCut instance.
      */
-    public static final SubscriberStreamCut decode(String scope, String streamName,
-                                                   final String subscriber, Map<Long, Long> streamCut) {
+    public static final SubscriberStreamCut decode(String scope, String streamName, final String subscriber,
+                                                   final UUID readerGroupId, final long generation, final Map<Long, Long> streamCut) {
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "streamName");
         Preconditions.checkNotNull(subscriber, "subscriber");
         Preconditions.checkNotNull(streamCut, "streamCut");
+        Preconditions.checkNotNull(readerGroupId, "readerGroupId");
         final SubscriberStreamCut.Builder builder = SubscriberStreamCut.newBuilder()
-                .setSubscriber(subscriber).setStreamCut(decode(scope, streamName, streamCut));
+                .setSubscriber(subscriber).setGeneration(generation)
+                .setReaderGroupId(readerGroupId.toString())
+                .setStreamCut(decode(scope, streamName, streamCut));
         return builder.build();
     }
 
@@ -417,6 +458,44 @@ public final class ModelHelper {
                 .putAllTo(to).build();
     }
 
+
+    public static final Controller.ReaderGroupConfiguration decode(String scope, String groupName, final ReaderGroupConfig config) {
+        Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
+        Preconditions.checkNotNull(groupName, "ReaderGroup name is null");
+        Preconditions.checkNotNull(config, "ReaderGroupConfig is null");
+
+        List<StreamCut> startStreamCuts = config.getStartingStreamCuts().entrySet().stream()
+                .map(e -> Controller.StreamCut.newBuilder()
+                .setStreamInfo(createStreamInfo(e.getKey().getScope(), e.getKey().getStreamName()))
+                .putAllCut(getStreamCutMap(e.getValue())).build()).collect(Collectors.toList());
+
+        List<StreamCut> endStreamCuts = config.getEndingStreamCuts().entrySet().stream()
+                .map(e -> Controller.StreamCut.newBuilder()
+                        .setStreamInfo(createStreamInfo(e.getKey().getScope(), e.getKey().getStreamName()))
+                        .putAllCut(getStreamCutMap(e.getValue())).build()).collect(Collectors.toList());
+
+        final Controller.ReaderGroupConfiguration.Builder builder = ReaderGroupConfiguration.newBuilder()
+                .setScope(scope)
+                .setReaderGroupName(groupName)
+                .setGroupRefreshTimeMillis(config.getGroupRefreshTimeMillis())
+                .setAutomaticCheckpointIntervalMillis(config.getAutomaticCheckpointIntervalMillis())
+                .setMaxOutstandingCheckpointRequest(config.getMaxOutstandingCheckpointRequest())
+                .setRetentionType(config.getRetentionType().ordinal())
+                .setGeneration(config.getGeneration())
+                .setReaderGroupId(config.getReaderGroupId().toString())
+                .addAllStartingStreamCuts(startStreamCuts)
+                .addAllEndingStreamCuts(endStreamCuts);
+        return builder.build();
+    }
+
+    private static Map<Long, Long> getStreamCutMap(io.pravega.client.stream.StreamCut streamCut) {
+        if (streamCut.equals(io.pravega.client.stream.StreamCut.UNBOUNDED)) {
+            return Collections.emptyMap();
+        }
+        return streamCut.asImpl().getPositions().entrySet()
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
+    }
+
     public static final Controller.ScopeInfo createScopeInfo(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         return Controller.ScopeInfo.newBuilder().setScope(scope).build();
@@ -434,6 +513,16 @@ public final class ModelHelper {
 
     public static final StreamInfo createStreamInfo(final String scope, final String stream) {
         return createStreamInfo(scope, stream, null);
+    }
+
+    public static final ReaderGroupInfo createReaderGroupInfo(final String scope, final String readerGroup,
+                                                              String readerGroupId, long generation) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(readerGroup, "readerGroup");
+        Preconditions.checkNotNull(readerGroupId, "readerGroupId");
+        ReaderGroupInfo.Builder builder = ReaderGroupInfo.newBuilder().setScope(scope)
+                .setReaderGroup(readerGroup).setReaderGroupId(readerGroupId).setGeneration(generation);
+        return builder.build();
     }
 
     public static final KeyValueTableInfo createKeyValueTableInfo(final String scope, final String kvtName) {

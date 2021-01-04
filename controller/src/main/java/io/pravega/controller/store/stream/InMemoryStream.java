@@ -117,7 +117,7 @@ public class InMemoryStream extends PersistentStreamBase {
     private final List<VersionedMetadata<StreamSubscriber>> streamSubscribers = new ArrayList<>();
 
     @GuardedBy("subscribersLock")
-    private final Map<String, Long> subscribersSet = new HashMap<String, Long>();
+    private final Set<String> subscribersSet = new HashSet<String>();
 
     InMemoryStream(String scope, String name) {
         this(scope, name, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis());
@@ -836,31 +836,24 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> createSubscriber(String subscriber, long generation) {
+    public CompletableFuture<Void> addSubscriber(String subscriber, long generation) {
         synchronized (subscribersLock) {
-            if (subscribersSet.containsKey(subscriber)) {
-                Long subGeneration = subscribersSet.get(subscriber);
-                if (subGeneration < generation) {
-                    subscribersSet.put(subscriber, generation);
-                }
-            } else {
-                subscribersSet.put(subscriber, generation);
-                streamSubscribers.add(new VersionedMetadata<>(new StreamSubscriber(subscriber, ImmutableMap.of(),
-                        System.currentTimeMillis()), new Version.IntVersion(0)));
+            if (!subscribersSet.contains(subscriber)) {
+                subscribersSet.add(subscriber);
             }
+            streamSubscribers.add(new VersionedMetadata<>(new StreamSubscriber(subscriber, generation, ImmutableMap.of(),
+                        System.currentTimeMillis()), new Version.IntVersion(0)));
         }
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<Void> removeSubscriber(String subscriber, long generation) {
+    public CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation) {
         synchronized (subscribersLock) {
-            if (subscribersSet.containsKey(subscriber) && subscribersSet.get(subscriber).longValue() <= generation) {
-                subscribersSet.remove(subscriber);
-                Optional<VersionedMetadata<StreamSubscriber>> sub = streamSubscribers.stream().filter(s -> s.getObject().getSubscriber().equals(subscriber)).findAny();
-                if (sub.isPresent()) {
-                    streamSubscribers.remove(sub.get());
-                }
+            Optional<StreamSubscriber> foundSubscriber = streamSubscribers.stream()
+                    .map(s -> s.getObject()).filter(sub -> sub.getSubscriber().equals(subscriber)).findAny();
+            if (foundSubscriber.isPresent() && foundSubscriber.get().getGeneration() >= generation) {
+                streamSubscribers.remove(foundSubscriber.get());
             }
         }
         return CompletableFuture.completedFuture(null);

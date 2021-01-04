@@ -9,12 +9,13 @@
  */
 package io.pravega.shared.controller.event;
 
+import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.UUID;
-import java.util.function.Supplier;
 
+import java.util.function.Supplier;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
 import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
 import lombok.val;
@@ -28,6 +29,7 @@ public class ControllerEventSerializerTests {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
     private static final String KVTABLE = "kvtable";
+    private static final String READER_GROUP = "readergroup";
 
     @Test
     public void testAbortEvent() {
@@ -80,6 +82,21 @@ public class ControllerEventSerializerTests {
     @Test
     public void testDeleteTableEvent() {
         testClass(() -> new DeleteTableEvent(SCOPE, KVTABLE, 3, UUID.randomUUID()));
+    }
+
+    @Test
+    public void testCreateReaderGroupEvent() {
+        testClass(() -> new CreateReaderGroupEvent(SCOPE, READER_GROUP, 123L));
+    }
+
+    @Test
+    public void testDeleteReaderGroupEvent() {
+        testClass(() -> new DeleteReaderGroupEvent(SCOPE, READER_GROUP, 123L, UUID.randomUUID(), 0L));
+    }
+
+    @Test
+    public void testUpdateReaderGroupEvent() {
+        testClass(() -> new UpdateReaderGroupEvent(SCOPE, READER_GROUP, 123L, UUID.randomUUID(), 0L, ImmutableSet.of()));
     }
 
     private <T extends ControllerEvent> void testClass(Supplier<T> generateInstance) {

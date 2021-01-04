@@ -122,6 +122,7 @@ public class PravegaTablesStoreHelper {
      * Api to read cached value for the specified key from the requested table.
      * @param table name of table
      * @param key key to query
+     * @param time time after which the cache entry should have been loaded. 
      * @param <T> Type of object to deserialize the response into.
      * @return Returns a completableFuture which when completed will have the deserialized value with its store key version.
      */

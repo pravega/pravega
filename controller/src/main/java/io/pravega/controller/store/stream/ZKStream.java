@@ -244,7 +244,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> createSubscriber(String subscriber, long generation) {
+    public CompletableFuture<Void> addSubscriber(String subscriber, long generation) {
         throw new UnsupportedOperationException();
     }
 
@@ -259,12 +259,12 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriber) {
+    public CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public CompletableFuture<Void> removeSubscriber(String subscriber, long generation) {
+    public CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriber) {
         throw new UnsupportedOperationException();
     }
 
@@ -446,7 +446,7 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> createSubscribersRecordIfAbsent() {
-        Subscribers subscribersSetRecord = new Subscribers(ImmutableMap.of());
+        Subscribers subscribersSetRecord = Subscribers.EMPTY_SET;
         return Futures.toVoid(store.createZNodeIfNotExist(subscribersPath, subscribersSetRecord.toBytes()));
     }
 

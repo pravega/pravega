@@ -30,6 +30,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -332,6 +333,11 @@ public class ZKScope implements Scope {
         String scopePath = String.format(KVTABLES_IN_SCOPE_ROOT_PATH, scopeName);
         return store.getChildren(scopePath).thenApply( kvtables -> new ImmutablePair<>(kvtables, continuationToken));
 
+    }
+
+    @Override
+    public CompletableFuture<UUID> getReaderGroupId(String rgName) {
+        return null;
     }
 
     public CompletableFuture<Boolean> checkKeyValueTableExistsInScope(String kvt) {

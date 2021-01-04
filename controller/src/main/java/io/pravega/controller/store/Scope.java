@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.store;
 
+import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.ByteArraySegment;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -79,7 +81,15 @@ public interface Scope {
     CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final int limit, final String continuationToken,
                                                               final Executor executor);
 
+    CompletableFuture<UUID> getReaderGroupId(String rgName);
+
     default UUID newId() {
         return UUID.randomUUID();
+    }
+
+    default byte[] getIdInBytes(UUID id) {
+        byte[] b = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(b), id);
+        return b;
     }
 }
