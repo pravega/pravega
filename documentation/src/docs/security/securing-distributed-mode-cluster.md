@@ -168,8 +168,8 @@ Clients can be made to trust the server's certificates signed by custom CA's usi
      
      ```java
      ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI("tls://<DNS-NAME-OR-IP>:9090")
-                .trustStore("/etc/secrets/ca-cert")
+                .controllerURI("tls://<dns-name-or-ip>:9090")
+                .trustStore("/etc/secrets/ca-cert.crt")
                 ...
                 .build();
      ```
@@ -182,8 +182,8 @@ use the built-in Password Auth Handler that supports "Basic" authentication, you
 
   ```java
   ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI("tls://<DNS-NAME-OR-IP>:9090")
-                .trustStore("/etc/secrets/ca-cert")
+                .controllerURI("tls://<dns-name-or-ip>:9090")
+                .trustStore("/etc/secrets/ca-cert.crt")
                 .credentials(new DefaultCredentials("changeit", "marketinganaylticsapp"))
                 .build();
   ```
@@ -214,8 +214,10 @@ hostname verification in production.
 
   ```java
   ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(...).trustStore(...).credentials(...)
+                .controllerURI("tls://<dns-name-or-ip>:9090")
+                .trustStore("/etc/secrets/ca-cert.crt")
                 .validateHostName(false)
+                .credentials(...)
                 .build();
   ```
 
