@@ -89,10 +89,10 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         createStreamHelper(getStreamForReaderGroup(groupName), StreamConfiguration.builder()
                                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                                   .build());
+        getThrowingException(controller.createReaderGroup(scope, groupName, config));
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
-        getThrowingException(controller.createReaderGroup(scope, groupName, config));
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
     }
@@ -103,7 +103,6 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         ReaderGroupImpl group = (ReaderGroupImpl) getReaderGroup(groupName);
         getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, group.getGroupId(), group.getGeneration()),
                 RuntimeException::new);
-        
     }
 
     @Override

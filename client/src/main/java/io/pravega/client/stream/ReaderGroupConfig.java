@@ -30,7 +30,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
 
@@ -38,7 +37,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.stream.Collectors.summarizingLong;
 
 @Data
-@Builder
+@Builder(toBuilder = true)
 public class ReaderGroupConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -54,11 +53,9 @@ public class ReaderGroupConfig implements Serializable {
 
     private final StreamDataRetention retentionType;
 
-    @Setter
-    private long generation;
+    private final long generation;
 
-    @Setter
-    private UUID readerGroupId;
+    private final UUID readerGroupId;
 
     /**
      * If a Reader Group wants unconsumed data to be retained in a Stream,

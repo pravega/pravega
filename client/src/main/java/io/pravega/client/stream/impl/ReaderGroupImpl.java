@@ -221,13 +221,14 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             // We only move into the block if the state transition has happened successfully.
             if (stateTransition(state, new UpdatingConfig(true))) {
                 // Use the latest generation and reader group Id.
-                config.setGeneration(state.getConfig().getGeneration());
-                config.setReaderGroupId(state.getConfig().getReaderGroupId());
-                boolean success = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, config));
+                ReaderGroupConfig newConfig = config.toBuilder()
+                        .readerGroupId(state.getConfig().getReaderGroupId())
+                        .generation(state.getConfig().getGeneration()).build();
+                boolean success = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, newConfig));
                 if (success) {
                     synchronizer.updateState((s, updates) -> {
-                        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
-                        updates.add(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
+                        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
+                        updates.add(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(newConfig), false));
                     });
                     return;
                 }

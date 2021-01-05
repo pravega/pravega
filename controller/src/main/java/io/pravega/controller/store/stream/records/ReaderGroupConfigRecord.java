@@ -81,8 +81,11 @@ public class ReaderGroupConfigRecord {
 
     private static ImmutableMap<Long, Long> getStreamCutMap(StreamCut streamCut) {
         ImmutableMap.Builder<Long, Long> mapBuilder = ImmutableMap.builder();
-        return mapBuilder.putAll(streamCut.asImpl().getPositions().entrySet()
-                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue))).build();
+        if (!streamCut.equals(StreamCut.UNBOUNDED)) {
+            mapBuilder.putAll(streamCut.asImpl().getPositions().entrySet()
+                    .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue)));
+        }
+        return mapBuilder.build();
     }
 
     @SneakyThrows(IOException.class)
