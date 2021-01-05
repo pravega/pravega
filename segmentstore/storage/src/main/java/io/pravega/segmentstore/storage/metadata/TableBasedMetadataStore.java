@@ -178,9 +178,6 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                                         }, getExecutor());
                             }, getExecutor())
                             .thenRunAsync(() -> {
-                                for (val deletedKey : keysToDelete) {
-                                    deletedKeyToTxnDataMap.get(deletedKey).setDbObject(TableKey.NOT_EXISTS);
-                                }
                                 TABLE_WRITE_LATENCY.reportSuccessEvent(t.getElapsed());
                             }, getExecutor());
                 }, getExecutor())
