@@ -271,10 +271,10 @@ public final class ModelHelper {
                 .generation(rgConfig.getGeneration())
                 .readerGroupId(UUID.fromString(rgConfig.getReaderGroupId()))
                 .startingStreamCuts(rgConfig.getStartingStreamCutsList().stream()
-                        .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(),
-                                streamCut.getStreamInfo().getStream()),
-                                streamCut -> new StreamCutImpl(Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream()),
-                                        getSegmentOffsetMap(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap())))))
+                .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(),
+                         streamCut.getStreamInfo().getStream()),
+                         streamCut -> new StreamCutImpl(Stream.of(streamCut.getStreamInfo().getScope(),
+                                 streamCut.getStreamInfo().getStream()), getSegmentOffsetMap(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap())))))
                 .endingStreamCuts(rgConfig.getEndingStreamCutsList().stream()
                         .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(),
                                 streamCut.getStreamInfo().getStream()),
@@ -283,7 +283,7 @@ public final class ModelHelper {
                 .build();
     }
 
-    private static Map<Segment, Long> getSegmentOffsetMap(String streamName, String scopeName, Map<Long, Long> streamCutMap) {
+    public static Map<Segment, Long> getSegmentOffsetMap(String scopeName, String streamName, Map<Long, Long> streamCutMap) {
         return streamCutMap.entrySet().stream()
                 .collect(Collectors.toMap(s -> new Segment(scopeName, streamName, s.getKey()), s -> s.getValue()));
     }
@@ -464,12 +464,12 @@ public final class ModelHelper {
         Preconditions.checkNotNull(groupName, "ReaderGroup name is null");
         Preconditions.checkNotNull(config, "ReaderGroupConfig is null");
 
-        List<StreamCut> startStreamCuts = config.getStartingStreamCuts().entrySet().stream()
+        List<Controller.StreamCut> startStreamCuts = config.getStartingStreamCuts().entrySet().stream()
                 .map(e -> Controller.StreamCut.newBuilder()
                 .setStreamInfo(createStreamInfo(e.getKey().getScope(), e.getKey().getStreamName()))
                 .putAllCut(getStreamCutMap(e.getValue())).build()).collect(Collectors.toList());
 
-        List<StreamCut> endStreamCuts = config.getEndingStreamCuts().entrySet().stream()
+        List<Controller.StreamCut> endStreamCuts = config.getEndingStreamCuts().entrySet().stream()
                 .map(e -> Controller.StreamCut.newBuilder()
                         .setStreamInfo(createStreamInfo(e.getKey().getScope(), e.getKey().getStreamName()))
                         .putAllCut(getStreamCutMap(e.getValue())).build()).collect(Collectors.toList());
@@ -488,7 +488,7 @@ public final class ModelHelper {
         return builder.build();
     }
 
-    private static Map<Long, Long> getStreamCutMap(io.pravega.client.stream.StreamCut streamCut) {
+    public static Map<Long, Long> getStreamCutMap(io.pravega.client.stream.StreamCut streamCut) {
         if (streamCut.equals(io.pravega.client.stream.StreamCut.UNBOUNDED)) {
             return Collections.emptyMap();
         }

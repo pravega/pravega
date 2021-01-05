@@ -55,6 +55,7 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
+import io.pravega.shared.controller.event.RGStreamCutRecord;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -335,12 +336,22 @@ public class StreamMetadataTasks extends TaskBase {
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, ReaderGroupState.UNKNOWN)
                 .thenCompose(state -> {
                 if (state.equals(ReaderGroupState.UNKNOWN) || state.equals(ReaderGroupState.CREATING)) {
-                   CreateReaderGroupEvent event = new CreateReaderGroupEvent(scope, rgName, requestId);
+                    Map<String, RGStreamCutRecord> startStreamCuts = config.getStartingStreamCuts().entrySet().stream()
+                            .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                                    e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+                    Map<String, RGStreamCutRecord> endStreamCuts = config.getEndingStreamCuts().entrySet().stream()
+                            .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                                    e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+                   CreateReaderGroupEvent event = new CreateReaderGroupEvent(scope, rgName, config.getGroupRefreshTimeMillis(),
+                           config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
+                           config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
+                           startStreamCuts, endStreamCuts);
+
                    //3. Create Reader Group Metadata and submit event
                    return eventHelper.addIndexAndSubmitTask(event,
-                              () -> streamMetadataStore.createReaderGroup(scope, rgName, config, createTimestamp, null, executor))
+                              () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId())
                               .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
-                              .thenApply(done -> CreateReaderGroupStatus.Status.SUCCESS));
+                              .thenApply(done -> CreateReaderGroupStatus.Status.SUCCESS)));
                 }
                 // idempotent call
                 return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
