@@ -24,17 +24,26 @@ class ChunkIterator {
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final MetadataTransaction txn;
     private volatile String currentChunkName;
+    private volatile String lastChunkName;
     private volatile ChunkMetadata currentMetadata;
 
     ChunkIterator(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, SegmentMetadata segmentMetadata) {
         this.chunkedSegmentStorage = chunkedSegmentStorage;
         this.txn = txn;
-        currentChunkName = segmentMetadata.getFirstChunk();
+        this.currentChunkName = segmentMetadata.getFirstChunk();
+        lastChunkName = null;
+    }
+
+    ChunkIterator(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, SegmentMetadata segmentMetadata, String startChunkName, String lastChunkName ) {
+        this.chunkedSegmentStorage = chunkedSegmentStorage;
+        this.txn = txn;
+        this.currentChunkName = startChunkName;
+        this.lastChunkName = lastChunkName;
     }
 
     public CompletableFuture<Void> forEach(BiConsumer<ChunkMetadata, String> consumer) {
         return Futures.loop(
-                () -> currentChunkName != null,
+                () -> null != currentChunkName && !currentChunkName.equals(lastChunkName),
                 () -> txn.get(currentChunkName)
                         .thenAcceptAsync(storageMetadata -> {
                             currentMetadata = (ChunkMetadata) storageMetadata;

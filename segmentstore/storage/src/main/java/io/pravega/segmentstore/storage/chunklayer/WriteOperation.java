@@ -69,7 +69,6 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final AtomicLong bytesRemaining = new AtomicLong();
     private final AtomicLong currentOffset = new AtomicLong();
 
-
     private volatile boolean didSegmentLayoutChange = false;
 
     WriteOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, InputStream data, int length) {
@@ -217,6 +216,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                 .thenRunAsync(() -> {
                     // Check invariants.
                     segmentMetadata.checkInvariants();
+                    // Update block index.
+                    chunkedSegmentStorage.addBlockIndexEntries(txn, segmentMetadata.getName(), offset, segmentMetadata.getLength(), newReadIndexEntries);
                 }, chunkedSegmentStorage.getExecutor());
     }
 

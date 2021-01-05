@@ -19,6 +19,7 @@ import lombok.val;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -105,7 +106,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     private final ChunkedSegmentStorage chunkedSegmentStorage;
 
     private volatile ArrayList<ChunkInfo> chunksToConcat = new ArrayList<>();
-
+    private final List<ChunkNameOffsetPair> newReadIndexEntries;
     private volatile ChunkMetadata target;
     private volatile String targetChunkName;
     private final AtomicBoolean useAppend = new AtomicBoolean();
@@ -118,14 +119,24 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     private final AtomicInteger readAtOffset = new AtomicInteger();
     private final AtomicInteger bytesToRead = new AtomicInteger();
     private final AtomicInteger currentArgIndex = new AtomicInteger();
+    private final AtomicLong currentIndexOffset = new AtomicLong();
 
-    DefragmentOperation(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, SegmentMetadata segmentMetadata, String startChunkName, String lastChunkName, ArrayList<String> chunksToDelete) {
+    DefragmentOperation(ChunkedSegmentStorage chunkedSegmentStorage,
+                        MetadataTransaction txn,
+                        SegmentMetadata segmentMetadata,
+                        String startChunkName,
+                        String lastChunkName,
+                        ArrayList<String> chunksToDelete,
+                        List<ChunkNameOffsetPair> newReadIndexEntries,
+                        long currentIndexOffset) {
         this.txn = txn;
         this.segmentMetadata = segmentMetadata;
         this.startChunkName = startChunkName;
         this.lastChunkName = lastChunkName;
         this.chunksToDelete = chunksToDelete;
+        this.newReadIndexEntries = newReadIndexEntries;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
+        this.currentIndexOffset.set(currentIndexOffset);
     }
 
     public CompletableFuture<Void> call() {
@@ -186,7 +197,8 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                             }, chunkedSegmentStorage.getExecutor());
                         }, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor())
-                .thenRunAsync(segmentMetadata::checkInvariants, chunkedSegmentStorage.getExecutor());
+                .thenRunAsync(segmentMetadata::checkInvariants, chunkedSegmentStorage.getExecutor())
+                .thenComposeAsync(vvv -> updateReadIndex(), chunkedSegmentStorage.getExecutor());
     }
 
     private CompletableFuture<Void> concatChunks() {
@@ -304,5 +316,23 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                 },
                 chunkedSegmentStorage.getExecutor()
         );
+    }
+
+    private CompletableFuture<Void> updateReadIndex() {
+        return new ChunkIterator(chunkedSegmentStorage, txn, segmentMetadata, startChunkName, lastChunkName)
+                .forEach((metadata, name) -> {
+                    newReadIndexEntries.add(ChunkNameOffsetPair.builder()
+                            .chunkName(name)
+                            .offset(currentIndexOffset.get())
+                            .build());
+                    currentIndexOffset.addAndGet(metadata.getLength());
+                })
+                .thenRunAsync(() -> {
+                    if (newReadIndexEntries.size() > 0) {
+                        val start = newReadIndexEntries.get(0).getOffset();
+                        val end = currentIndexOffset.get();
+                        chunkedSegmentStorage.addBlockIndexEntries(txn, segmentMetadata.getName(), start, end, newReadIndexEntries);
+                    }
+                }, chunkedSegmentStorage.getExecutor());
     }
 }
