@@ -163,15 +163,18 @@ class InMemoryDurableDataLog implements DurableDataLog {
                 // Only update internals after a successful add.
                 this.offset += entry.data.length;
             }
-            result = CompletableFuture.completedFuture(new InMemoryLogAddress(entry.sequenceNumber));
+
+            result = CompletableFuture.supplyAsync(() -> new InMemoryLogAddress(entry.sequenceNumber), this.executorService);
         } catch (Throwable ex) {
-            result = Futures.failedFuture(ex);
+            result = CompletableFuture.supplyAsync(() -> {
+                throw new CompletionException(ex);
+            }, this.executorService);
         }
 
         Duration delay = this.appendDelayProvider.get();
         if (delay.compareTo(Duration.ZERO) <= 0) {
             // No delay, execute right away.
-            return Futures.completeOn(result, this.executorService); // Simulate "async" execution (new task in pool).
+            return result;
         } else {
             // Schedule the append after the given delay.
             return result.thenComposeAsync(
