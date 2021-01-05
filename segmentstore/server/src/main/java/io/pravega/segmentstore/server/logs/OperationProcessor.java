@@ -183,7 +183,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             // Shutdown exceptions means we are already stopping, so no need to do anything else. For all other cases,
             // record the failure and then stop the OperationProcessor.
             super.errorHandler(ex);
-            stopAsync();
+
+            // Run async to prevent deadlocks. closeQueue() above is the most important thing when shutting down as it
+            // will prevent anything new from being added while also cancelling in-flight requests.
+            this.executor.execute(this::stopAsync);
         }
     }
 
