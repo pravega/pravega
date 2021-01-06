@@ -120,7 +120,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     public UUID getGroupId() {
-        synchronizer.fetchUpdates();
         return synchronizer.getState().getConfig().getReaderGroupId();
     }
 
