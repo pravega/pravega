@@ -13,9 +13,7 @@ import com.google.common.base.Preconditions;
 
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
@@ -23,23 +21,17 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.stream.RGOperationContext;
-import io.pravega.controller.store.stream.ReaderGroupState;
-import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
-import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.CreateReaderGroupEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.Iterator;
 import java.util.stream.Collectors;
 
 /**
@@ -76,41 +68,11 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                         return CompletableFuture.completedFuture(null);
                     }
                     ReaderGroupConfig config = getConfigFromEvent(request);
-                    return Futures.exceptionallyExpecting(streamMetadataStore.getReaderGroupState(scope, readerGroup, true, null, executor),
-                            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, ReaderGroupState.UNKNOWN)
-                            .thenCompose(state -> {
-                                if (state.equals(ReaderGroupState.UNKNOWN) || state.equals(ReaderGroupState.CREATING)) {
-                                    return streamMetadataStore.createReaderGroup(scope, readerGroup, config, System.currentTimeMillis(), context, executor)
-                                            .thenCompose(v -> {
-                                             if (!ReaderGroupConfig.StreamDataRetention.NONE.equals(config.getRetentionType())) {
-                                                    String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
-                                                    // update Stream metadata tables, only if RG is a Subscriber
-                                                    Iterator<String> streamIter = config.getStartingStreamCuts().keySet().stream()
-                                                            .map(s -> s.getScopedName()).iterator();
-                                                    return Futures.loop(() -> streamIter.hasNext(), () -> {
-                                                        Stream stream = Stream.of(streamIter.next());
-                                                        return streamMetadataStore.addSubscriber(stream.getScope(),
-                                                                stream.getStreamName(), scopedRGName, config.getGeneration(), null, executor);
-                                                    }, executor);
-                                                }
-                                                return CompletableFuture.completedFuture(null);
-                                            }).thenCompose(x -> streamMetadataTasks.createRGStream(scope, NameUtils.getStreamForReaderGroup(readerGroup),
-                                                    StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
-                                                    System.currentTimeMillis(), 10)
-                                                    .thenCompose(createStatus -> {
-                                                        if (createStatus.equals(Controller.CreateStreamStatus.Status.STREAM_EXISTS)
-                                                                || createStatus.equals(Controller.CreateStreamStatus.Status.SUCCESS)) {
-                                                            return Futures.toVoid(streamMetadataStore.getVersionedReaderGroupState(scope, readerGroup, true, null, executor)
-                                                                    .thenCompose(newstate -> streamMetadataStore.updateReaderGroupVersionedState(scope, readerGroup,
-                                                                    ReaderGroupState.ACTIVE, newstate, context, executor)));
-                                                        }
-                                                        return Futures.failedFuture(new IllegalStateException(String.format("Error creating StateSynchronizer Stream for Reader Group %s: %s",
-                                                                readerGroup, createStatus.toString())));
-                                                    })).exceptionally(ex -> {
-                                                log.debug(ex.getMessage());
-                                                Throwable cause = Exceptions.unwrap(ex);
-                                                throw new CompletionException(cause);
-                                            });
+                    return streamMetadataTasks.isRGCreationComplete(scope, readerGroup)
+                            .thenCompose(complete -> {
+                                if (!complete) {
+                                    return Futures.toVoid(streamMetadataTasks.createReaderGroupTasks(scope, readerGroup,
+                                            config, System.currentTimeMillis()));
                                 }
                                 return CompletableFuture.completedFuture(null);
                             });
