@@ -37,8 +37,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.retryable.RetryableException;
-import io.pravega.controller.store.Version;
-import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.RGOperationContext;
 import io.pravega.controller.store.stream.ReaderGroupState;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -222,7 +220,7 @@ public class LocalController implements Controller {
         });
     }
 
-    private CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroupInternal(String scope, String rgName, ReaderGroupConfig config, final long createTimestamp) {
+    CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroupInternal(String scope, String rgName, ReaderGroupConfig config, final long createTimestamp) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
         Preconditions.checkNotNull(config, "ReaderGroup config is null");

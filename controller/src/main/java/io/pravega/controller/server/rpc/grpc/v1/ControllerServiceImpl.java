@@ -74,7 +74,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
@@ -156,7 +156,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void updateReaderGroup(ReaderGroupConfiguration request, StreamObserver<UpdateReaderGroupStatus> responseObserver) {
+    public void updateReaderGroup(ReaderGroupConfiguration request, StreamObserver<UpdateReaderGroupResponse> responseObserver) {
         String scope = request.getScope();
         String rgName = request.getReaderGroupName();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "updateReaderGroup",

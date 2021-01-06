@@ -405,10 +405,12 @@ public abstract class StreamMetadataTasksTest {
                 .readerGroupId(rgConfig.getReaderGroupId())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-        CompletableFuture<Controller.UpdateReaderGroupStatus.Status> updateFuture =
+        CompletableFuture<Controller.UpdateReaderGroupResponse> updateResponse =
         streamMetadataTasks.updateReaderGroup(SCOPE, "rg2", newConfig, null);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.UpdateReaderGroupStatus.Status.SUCCESS, updateFuture.join());
+        Controller.UpdateReaderGroupResponse updateResponseResult = updateResponse.join();
+        assertEquals(Controller.UpdateReaderGroupResponse.Status.SUCCESS, updateResponseResult.getStatus());
+        assertEquals(1L, updateResponseResult.getGeneration());
 
         response = streamMetadataTasks.getReaderGroupConfig(SCOPE, "rg2", null).get();
         assertEquals(ReaderGroupConfigResponse.Status.SUCCESS, response.getStatus());
