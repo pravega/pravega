@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
@@ -533,9 +534,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         for (Map.Entry<Long, TestReadResultHandler> e : entryHandlers.entrySet()) {
             Throwable err = e.getValue().getError().get();
             if (err != null) {
-                // Check to see if the exception we got was a SegmentSealedException. If so, this is only expected if the segment was to be sealed.
+                // Check to see if the exception we got was expected due to segment being sealed.
                 // The next check (see below) will verify if the segments were properly read).
-                if (!(err instanceof StreamSegmentSealedException && segmentsToSeal.contains(e.getKey()))) {
+                if (!(isExpectedAfterSealed(err) && segmentsToSeal.contains(e.getKey()))) {
                     Assert.fail("Unexpected error happened while processing Segment " + e.getKey() + ": " + e.getValue().getError().get());
                 }
             }
@@ -549,7 +550,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             byte[] expectedData = segmentContents.get(segmentId).toByteArray();
             byte[] actualData = readContents.get(segmentId).toByteArray();
             int expectedLength = isSealed ? expectedData.length : nonSealReadLimit;
-            Assert.assertEquals("Unexpected read length for segment " + expectedData.length, expectedLength, actualData.length);
+            Assert.assertEquals("Unexpected read length for " + (isSealed ? "sealed " : "") + "segment " + expectedData.length, expectedLength, actualData.length);
             AssertExtensions.assertArrayEquals("Unexpected read contents for segment " + segmentId, expectedData, 0, actualData, 0, actualData.length);
         }
 
@@ -2298,6 +2299,12 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         val sn = context.metadata.getOperationSequenceNumber() + 1;
         context.metadata.removeTruncationMarkers(sn);
         em.cleanup(candidates, sn);
+    }
+
+    private boolean isExpectedAfterSealed(Throwable ex) {
+        return ex instanceof StreamSegmentSealedException
+                || ex instanceof ObjectClosedException
+                || ex instanceof CancellationException;
     }
 
     //endregion

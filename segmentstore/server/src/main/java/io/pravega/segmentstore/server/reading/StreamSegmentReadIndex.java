@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AvlTreeIndex;
 import io.pravega.common.util.BufferView;
@@ -920,6 +921,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                         // is a Redirect; reissue the request to the appropriate index.
                         // This requires reaching out to another StreamSegmentReadIndex instance. We shouldn't be doing
                         // this while holding this lock as we risk deadlocking (via the Cache Manager).
+                        assert !((RedirectIndexEntry) indexEntry).getRedirectReadIndex().closed;
                         redirect = true;
                     }
                 }
@@ -1039,20 +1041,33 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         // Fetch the result from the other index - this method will acquire the other index' lock while executing.
-        CompletableReadResultEntry result = redirectedIndex.getSingleReadResultEntry(redirectOffset, maxLength, makeCopy);
-        if (result != null) {
-            // Since this is a redirect to a (merged) Transaction, it is possible that between now and when the caller
-            // invokes the requestContent() on the entry the Transaction may be fully merged (in Storage). If that's the
-            // case, then this entry will fail with either ObjectClosedException or StreamSegmentNotFoundException, since
-            // it is pointing to the now defunct Transaction segment. At that time, a simple retry of the read would
-            // yield the right result. However, in order to recover from this without the caller's intervention, we pass
-            // a pointer to getSingleReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
-            // that class has logic in it to invoke it if needed and get the right entry.
-            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(),
-                    (rso, ml, sourceSegmentId) -> getOrRegisterRedirectedRead(rso, ml, sourceSegmentId, makeCopy), redirectedIndex.metadata.getId());
-        }
 
-        return result;
+        try {
+            CompletableReadResultEntry result = redirectedIndex.getSingleReadResultEntry(redirectOffset, maxLength, makeCopy);
+            if (result != null) {
+                // Since this is a redirect to a (merged) Transaction, it is possible that between now and when the caller
+                // invokes the requestContent() on the entry the Transaction may be fully merged (in Storage). If that's the
+                // case, then this entry will fail with either ObjectClosedException or StreamSegmentNotFoundException, since
+                // it is pointing to the now defunct Transaction segment. At that time, a simple retry of the read would
+                // yield the right result. However, in order to recover from this without the caller's intervention, we pass
+                // a pointer to getSingleReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
+                // that class has logic in it to invoke it if needed and get the right entry.
+                result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(),
+                        (rso, ml, sourceSegmentId) -> getOrRegisterRedirectedRead(rso, ml, sourceSegmentId, makeCopy), redirectedIndex.metadata.getId());
+            }
+
+            return result;
+        } catch (ObjectClosedException ex) {
+            // Similarly to above, but the source Segment (Transaction) has been merged between when getSingleReadResultEntry
+            // (our caller) and redirectedIndex.getSingleReadResultEntry() was invoked. Since we are not holding the lock
+            // while executing this method (due to deadlock considerations), this scenario is plausible. If this does
+            // indeed happen, we need to reissue the read against ourself, in which case an updated result/entry will be
+            // returned.
+            if (!redirectedIndex.closed) {
+                throw ex;
+            }
+            return getSingleReadResultEntry(streamSegmentOffset, maxLength, makeCopy);
+        }
     }
 
     private CompletableReadResultEntry getOrRegisterRedirectedRead(long resultStartOffset, int maxLength, long sourceSegmentId, boolean makeCopy) {
