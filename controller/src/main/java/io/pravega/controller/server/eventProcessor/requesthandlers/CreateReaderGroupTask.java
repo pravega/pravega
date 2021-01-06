@@ -78,11 +78,10 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                         return CompletableFuture.completedFuture(null);
                     }
                     ReaderGroupConfig config = getConfigFromEvent(request);
-                    return Futures.exceptionallyExpecting(streamMetadataStore.getVersionedReaderGroupState(scope, readerGroup, true, null, executor),
-                            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, new VersionedMetadata<>(ReaderGroupState.UNKNOWN, new Version.IntVersion(0)))
+                    return Futures.exceptionallyExpecting(streamMetadataStore.getReaderGroupState(scope, readerGroup, true, null, executor),
+                            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, ReaderGroupState.UNKNOWN)
                             .thenCompose(state -> {
-                                if (state.getObject().equals(ReaderGroupState.UNKNOWN)
-                                        || state.getObject().equals(ReaderGroupState.CREATING)) {
+                                if (state.equals(ReaderGroupState.UNKNOWN) || state.equals(ReaderGroupState.CREATING)) {
                                     return streamMetadataStore.createReaderGroup(scope, readerGroup, config, System.currentTimeMillis(), context, executor)
                                             .thenCompose(v -> {
                                              if (!ReaderGroupConfig.StreamDataRetention.NONE.equals(config.getRetentionType())) {
@@ -103,8 +102,9 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                                                     .thenCompose(createStatus -> {
                                                         if (createStatus.equals(Controller.CreateStreamStatus.Status.STREAM_EXISTS)
                                                                 || createStatus.equals(Controller.CreateStreamStatus.Status.SUCCESS)) {
-                                                            return Futures.toVoid(streamMetadataStore.updateReaderGroupVersionedState(scope, readerGroup,
-                                                                    ReaderGroupState.ACTIVE, state, context, executor));
+                                                            return Futures.toVoid(streamMetadataStore.getVersionedReaderGroupState(scope, readerGroup, true, null, executor)
+                                                                    .thenCompose(newstate -> streamMetadataStore.updateReaderGroupVersionedState(scope, readerGroup,
+                                                                    ReaderGroupState.ACTIVE, newstate, context, executor)));
                                                         }
                                                         return Futures.failedFuture(new IllegalStateException(String.format("Error creating StateSynchronizer Stream for Reader Group %s: %s",
                                                                 readerGroup, createStatus.toString())));

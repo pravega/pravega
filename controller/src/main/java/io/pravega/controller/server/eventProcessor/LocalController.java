@@ -266,8 +266,10 @@ public class LocalController implements Controller {
                                  createTimestamp, 10)
                                  .thenCompose(createStatus -> {
                                  if (createStatus.equals(CreateStreamStatus.Status.STREAM_EXISTS) || createStatus.equals(CreateStreamStatus.Status.SUCCESS)) {
-                                    return streamMetadataStore.updateReaderGroupVersionedState(scope, rgName,
-                                                               ReaderGroupState.ACTIVE, state, context, localExecutor);
+                                    return streamMetadataStore.getVersionedReaderGroupState(scope, rgName, true, null, localExecutor)
+                                            .thenCompose(newstate -> streamMetadataStore.updateReaderGroupVersionedState(scope, rgName,
+                                                    ReaderGroupState.ACTIVE, newstate, context, localExecutor)
+                                                    .thenApply(v1 -> CreateReaderGroupStatus.Status.SUCCESS));
                                     }
                                     return Futures.failedFuture(new IllegalStateException(String.format("Error creating StateSynchronizer Stream for Reader Group %s: %s",
                                                                             rgName, createStatus.toString())));
