@@ -111,7 +111,7 @@ plugins.withId('java') {
         afterTest { descriptor, result ->
             if (result.resultType == TestResult.ResultType.FAILURE && outputCache.size() > 0) {
                 println()
-                println(" Output of ${descriptor.getClassName()}.${descriptor.getDisplayName()}:")
+                println("Output of ${descriptor.getClassName()}.${descriptor.getDisplayName()} (Last 300 lines):")
                 outputCache.each { print(" > $it") }
             }
         }
