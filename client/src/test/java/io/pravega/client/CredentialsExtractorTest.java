@@ -9,7 +9,6 @@
  */
 package io.pravega.client;
 
-import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.shared.security.auth.Credentials;
 import java.util.HashMap;
 import java.util.Map;
@@ -235,12 +234,6 @@ public class CredentialsExtractorTest {
         assertNotNull(LegacyCredentials2.class.getName(), credentials.getClass());
         assertEquals("Expected a different authentication type",
                 LegacyCredentials2.AUTHENTICATION_METHOD, credentials.getAuthenticationType());
-    }
-
-    @Test
-    public void defaultCredentialsIsAssignableToEitherCredsInterface() {
-        Credentials credentials1 = new DefaultCredentials("pwd", "username");
-        io.pravega.client.stream.impl.Credentials credentials2 = new DefaultCredentials("pwd", "username");
     }
 
     /**

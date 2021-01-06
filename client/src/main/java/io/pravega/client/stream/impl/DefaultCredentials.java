@@ -9,31 +9,35 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.auth.AuthConstants;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.EqualsAndHashCode;
 
 /**
  * Username/password credentials for basic authentication.
+ *
+ * @deprecated As of Pravega release 0.9, replaced by {@link io.pravega.shared.security.auth.DefaultCredentials}.
  */
-@SuppressWarnings("deprecation")
+@Deprecated
+@SuppressFBWarnings(value = "NM_SAME_SIMPLE_NAME_AS_INTERFACE",
+        justification = "Interface with same name retained for compatibility with older implementations")
 @EqualsAndHashCode
 public class DefaultCredentials implements Credentials {
-    
+
     private static final long serialVersionUID = 1L;
+
+    @EqualsAndHashCode.Exclude
+    private final io.pravega.shared.security.auth.DefaultCredentials delegate;
 
     private final String token;
 
     public DefaultCredentials(String password, String userName) {
-        String decoded = userName + ":" + password;
-        this.token = Base64.getEncoder().encodeToString(decoded.getBytes(StandardCharsets.UTF_8));
+        delegate = new io.pravega.shared.security.auth.DefaultCredentials(password, userName);
+        token = delegate.getAuthenticationToken();
     }
 
     @Override
     public String getAuthenticationType() {
-        return AuthConstants.BASIC;
+        return delegate.getAuthenticationType();
     }
 
     @Override
