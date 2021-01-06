@@ -11,7 +11,7 @@ package io.pravega.test.system.framework;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;

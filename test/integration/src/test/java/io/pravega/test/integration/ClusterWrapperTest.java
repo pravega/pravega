@@ -10,7 +10,7 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.demo.ClusterWrapper;
