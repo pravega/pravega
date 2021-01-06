@@ -18,6 +18,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.control.impl.CancellableRequest;
 import io.pravega.client.control.impl.Controller;
@@ -33,7 +34,15 @@ import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.retryable.RetryableException;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
+import io.pravega.controller.store.stream.RGOperationContext;
+import io.pravega.controller.store.stream.ReaderGroupState;
+import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.AsyncIterator;
@@ -43,6 +52,8 @@ import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -54,19 +65,24 @@ import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
+@Slf4j
 public class LocalController implements Controller {
 
     private static final int PAGE_LIMIT = 1000;
     private ControllerService controller;
     private final String tokenSigningKey;
     private final boolean authorizationEnabled;
+    private final ScheduledExecutorService localExecutor = ExecutorServiceHelpers.newScheduledThreadPool(5, "controllerpool");
 
     public LocalController(ControllerService controller, boolean authorizationEnabled, String tokenSigningKey) {
         this.controller = controller;
@@ -187,10 +203,10 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
-        final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
-        return this.controller.createReaderGroup(scopeName, rgName, config, System.currentTimeMillis())
+        return createReaderGroupInternal(scopeName, rgName, config, System.currentTimeMillis())
                 .thenApply(x -> {
-            switch (x.getStatus()) {
+            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
+            switch (x) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
                 case INVALID_RG_NAME:
@@ -201,9 +217,71 @@ public class LocalController implements Controller {
                     return true;
                 default:
                     throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
-                            + " " + x.getStatus());
+                            + " " + x);
             }
         });
+    }
+
+    private CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroupInternal(String scope, String rgName, ReaderGroupConfig config, final long createTimestamp) {
+        Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
+        Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
+        Preconditions.checkNotNull(config, "ReaderGroup config is null");
+        Preconditions.checkArgument(createTimestamp >= 0);
+        try {
+            NameUtils.validateReaderGroupName(rgName);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            log.warn("Create ReaderGroup failed due to invalid name {}", rgName);
+            return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.INVALID_RG_NAME);
+        }
+        StreamMetadataStore streamMetadataStore = controller.getStreamStore();
+        final RGOperationContext context = streamMetadataStore.createRGContext(scope, rgName);
+        return RetryHelper.withRetriesAsync(() -> {
+            // 1. check if scope with this name exists...
+            return streamMetadataStore.checkScopeExists(scope)
+                    .thenCompose(exists -> {
+                    if (!exists) {
+                            return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND);
+                    }
+                    //2. check state of the ReaderGroup
+                    return Futures.exceptionallyExpecting(streamMetadataStore.getReaderGroupState(scope, rgName, true, null, localExecutor),
+                           e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, ReaderGroupState.UNKNOWN)
+                           .thenCompose(state -> {
+                           if (state.equals(ReaderGroupState.UNKNOWN) || state.equals(ReaderGroupState.CREATING)) {
+                              return streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId())
+                              .thenCompose(v -> streamMetadataStore.createReaderGroup(scope, rgName, config, createTimestamp, context, localExecutor)
+                              .thenCompose(x -> {
+                                 if (!ReaderGroupConfig.StreamDataRetention.NONE.equals(config.getRetentionType())) {
+                                    String scopedRGName = NameUtils.getScopedReaderGroupName(scope, rgName);
+                                    // update Stream metadata tables, only if RG is a Subscriber
+                                    Iterator<String> streamIter = config.getStartingStreamCuts().keySet().stream().map(s -> s.getScopedName()).iterator();
+                                    return Futures.loop(() -> streamIter.hasNext(), () -> {
+                                    Stream stream = Stream.of(streamIter.next());
+                                                                    return streamMetadataStore.addSubscriber(stream.getScope(),
+                                                                            stream.getStreamName(), scopedRGName, config.getGeneration(), null, localExecutor);
+                                    }, localExecutor);
+                                 }
+                                 return CompletableFuture.completedFuture(null);
+                              }).thenCompose(x -> controller.getStreamMetadataTasks().createRGStream(scope, NameUtils.getStreamForReaderGroup(rgName),
+                                 StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                                 createTimestamp, 10)
+                                 .thenCompose(createStatus -> {
+                                 if (createStatus.equals(CreateStreamStatus.Status.STREAM_EXISTS) || createStatus.equals(CreateStreamStatus.Status.SUCCESS)) {
+                                    return streamMetadataStore.updateReaderGroupVersionedState(scope, rgName,
+                                                               ReaderGroupState.ACTIVE, state, context, localExecutor);
+                                    }
+                                    return Futures.failedFuture(new IllegalStateException(String.format("Error creating StateSynchronizer Stream for Reader Group %s: %s",
+                                                                            rgName, createStatus.toString())));
+                                    })).exceptionally(ex -> {
+                                                            log.debug(ex.getMessage());
+                                                            Throwable cause = Exceptions.unwrap(ex);
+                                                            throw new CompletionException(cause);
+                                                        }))
+                                    .thenApply(y -> CreateReaderGroupStatus.Status.SUCCESS);
+                                    }
+                                    return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
+                           });
+            });
+        }, e -> Exceptions.unwrap(e) instanceof RetryableException, 10, localExecutor);
     }
 
     @Override
