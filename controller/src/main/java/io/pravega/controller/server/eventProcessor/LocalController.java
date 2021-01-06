@@ -292,9 +292,9 @@ public class LocalController implements Controller {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
                 case INVALID_CONFIG:
-                    throw new IllegalArgumentException("Illegal ReaderGroup name: " + rgName);
+                    throw new IllegalArgumentException("Invalid Reader Group Config: " + scopedRGName);
                 case RG_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + scopeName);
+                    throw new IllegalArgumentException("Scope does not exist: " + scopedRGName);
                 case SUCCESS:
                     return true;
                 default:

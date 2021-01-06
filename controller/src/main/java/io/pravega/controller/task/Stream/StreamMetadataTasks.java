@@ -421,7 +421,7 @@ public class StreamMetadataTasks extends TaskBase {
                                           .thenCompose(y -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, context, executor)
                                           .thenApply(configRecord -> {
                                               UpdateReaderGroupResponse response = UpdateReaderGroupResponse.newBuilder()
-                                                      .setStatus(UpdateReaderGroupResponse.Status.INVALID_CONFIG)
+                                                      .setStatus(UpdateReaderGroupResponse.Status.SUCCESS)
                                                       .setGeneration(configRecord.getObject().getGeneration()).build();
                                               return response;
                                           })));
