@@ -243,8 +243,9 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             // If successfullyUpdated is false then that means the current state where this update should
             // take place (i.e. state with updatingConfig as false) is not the state we are in so we do not
             // make the update.
-            successfullyUpdated.set(s.getConfig().equals(state.getConfig()));
-            if (successfullyUpdated.get()) {
+            boolean updated = s.getConfig().equals(state.getConfig());
+            successfullyUpdated.set(updated);
+            if (updated) {
                 updates.add(update);
             }
         });
