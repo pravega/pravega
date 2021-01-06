@@ -21,7 +21,7 @@ import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.shared.security.auth.Credentials;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.client.control.impl.PravegaCredentialsWrapper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
