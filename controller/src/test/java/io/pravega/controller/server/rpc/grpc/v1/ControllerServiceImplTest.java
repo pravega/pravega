@@ -585,7 +585,7 @@ public abstract class ControllerServiceImplTest {
         assertEquals("Create Reader Group Scope not found", CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND, createRGStatus.getStatus());
     }
 
-    @Test
+    @Test(timeout = 50000)
     public void updateReaderGroupTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
         String rgName = "rg1";

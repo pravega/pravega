@@ -329,6 +329,7 @@ public class StreamMetadataTasks extends TaskBase {
       // 1. check if scope with this name exists...
       return streamMetadataStore.checkScopeExists(scope)
          .thenCompose(exists -> {
+         log.debug("Checking if RG scope exists...");
          if (!exists) {
                   return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND);
          }
@@ -349,9 +350,9 @@ public class StreamMetadataTasks extends TaskBase {
 
                          //3. Create Reader Group Metadata and submit event
                          return eventHelper.addIndexAndSubmitTask(event,
-                                 () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId())
+                                 () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId()))
                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
-                                                 .thenApply(done -> CreateReaderGroupStatus.Status.SUCCESS)));
+                                                 .thenApply(done -> CreateReaderGroupStatus.Status.SUCCESS));
                      }
                      return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
                  });
@@ -401,7 +402,7 @@ public class StreamMetadataTasks extends TaskBase {
                     return Futures.failedFuture(new IllegalStateException(String.format("Error creating StateSynchronizer Stream for Reader Group %s: %s",
                             readerGroup, createStatus.toString())));
                 })).exceptionally(ex -> {
-            log.debug(ex.getMessage());
+            log.debug("RG Stream Create failed with error: " + ex.getMessage());
             Throwable cause = Exceptions.unwrap(ex);
             throw new CompletionException(cause);
         });

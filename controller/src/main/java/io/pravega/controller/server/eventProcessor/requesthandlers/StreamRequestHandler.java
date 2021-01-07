@@ -133,7 +133,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
 
     @Override
     public CompletableFuture<Void> processUpdateReaderGroup(UpdateReaderGroupEvent updateRGEvent) {
-        log.info("Processing delete request {} for ReaderGroup {}/{}",
+        log.info("Processing update request {} for ReaderGroup {}/{}",
                 updateRGEvent.getRequestId(), updateRGEvent.getScope(), updateRGEvent.getRgName());
         return updateRGTask.execute(updateRGEvent);
     }
