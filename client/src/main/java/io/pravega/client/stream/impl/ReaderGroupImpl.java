@@ -119,12 +119,15 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                synchronizer.getState().getConfig().getRetentionType().toString());
     }
 
+    public void fetchUpdates() {
+        synchronizer.fetchUpdates();
+    }
+
     public UUID getGroupId() {
         return synchronizer.getState().getConfig().getReaderGroupId();
     }
 
     public long getGeneration() {
-        synchronizer.fetchUpdates();
         return synchronizer.getState().getConfig().getGeneration();
     }
 
@@ -224,8 +227,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                         .readerGroupId(currentConfig.getReaderGroupId())
                         .generation(currentConfig.getGeneration()).build();
                 boolean success = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, newConfig));
-                Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
                 if (success) {
+                    Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
                     synchronizer.updateState((s, updates) -> {
                         updates.add(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(newConfig), false));
                     });
