@@ -372,8 +372,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
 
-        createFuture = streamMetadataTasks.createReaderGroup(SCOPE, "rg3", rgConfig, System.currentTimeMillis());
-        assertTrue(Futures.await(processEvent(requestEventWriter)));
+        createFuture = streamMetadataTasks.createReaderGroupInternal(SCOPE, "rg3", rgConfig, System.currentTimeMillis());
         assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
 
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
