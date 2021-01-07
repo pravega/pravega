@@ -216,17 +216,17 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public void resetReaderGroup(ReaderGroupConfig config) {
         while (true) {
             synchronizer.fetchUpdates();
-            val state = synchronizer.getState();
+            val currentConfig = synchronizer.getState().getConfig();
             // We only move into the block if the state transition has happened successfully.
-            if (stateTransition(state, new UpdatingConfig(true))) {
+            if (stateTransition(currentConfig, new UpdatingConfig(true))) {
                 // Use the latest generation and reader group Id.
                 ReaderGroupConfig newConfig = config.toBuilder()
-                        .readerGroupId(state.getConfig().getReaderGroupId())
-                        .generation(state.getConfig().getGeneration()).build();
+                        .readerGroupId(currentConfig.getReaderGroupId())
+                        .generation(currentConfig.getGeneration()).build();
                 boolean success = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, newConfig));
+                Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
                 if (success) {
                     synchronizer.updateState((s, updates) -> {
-                        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
                         updates.add(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(newConfig), false));
                     });
                     return;
@@ -235,14 +235,14 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
     }
 
-    private boolean stateTransition(ReaderGroupState state, ReaderGroupState.ReaderGroupStateUpdate update) {
+    private boolean stateTransition(ReaderGroupConfig config, ReaderGroupState.ReaderGroupStateUpdate update) {
         // This boolean will help know if the update actually succeeds or not.
         AtomicBoolean successfullyUpdated = new AtomicBoolean(true);
-        synchronizer.updateState((s, updates) -> {
+        synchronizer.updateState((state, updates) -> {
             // If successfullyUpdated is false then that means the current state where this update should
             // take place (i.e. state with updatingConfig as false) is not the state we are in so we do not
             // make the update.
-            boolean updated = s.getConfig().equals(state.getConfig());
+            boolean updated = state.getConfig().equals(config);
             successfullyUpdated.set(updated);
             if (updated) {
                 updates.add(update);
