@@ -90,7 +90,7 @@ public class ControllerEventSerializerTests {
     public void testCreateReaderGroupEvent() {
         Map<String, RGStreamCutRecord> testMap = new HashMap<String, RGStreamCutRecord>(1);
         testClass(() ->
-                new CreateReaderGroupEvent(SCOPE, READER_GROUP,
+                new CreateReaderGroupEvent(111L, SCOPE, READER_GROUP,
                         123L, 456L, 10,
                         1, 0L, UUID.randomUUID(), testMap, testMap));
     }
