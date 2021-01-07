@@ -1967,6 +1967,7 @@ public abstract class StreamMetadataStoreTest {
                 .readerGroupId(rgId)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        store.addReaderGroupToScope(scope, rgName, rgConfig.getReaderGroupId());
         store.createReaderGroup(scope, rgName, rgConfig, System.currentTimeMillis(), null, executor).join();
         UUID readerGroupId = store.getReaderGroupId(scope, rgName, null, executor).get();
         assertEquals(rgId, readerGroupId);

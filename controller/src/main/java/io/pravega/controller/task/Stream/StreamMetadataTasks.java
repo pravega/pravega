@@ -329,7 +329,6 @@ public class StreamMetadataTasks extends TaskBase {
       // 1. check if scope with this name exists...
       return streamMetadataStore.checkScopeExists(scope)
          .thenCompose(exists -> {
-         log.debug("Checking if RG scope exists...");
          if (!exists) {
                   return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND);
          }
