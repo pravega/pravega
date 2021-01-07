@@ -202,7 +202,7 @@ public class ReadWithReadPermissionsTest {
         EventStreamReader<String> reader = readerClientFactory.createReader(
                 "readerId", "testRg",
                 new JavaSerializer<String>(), ReaderConfig.builder().initialAllocationDelay(0).build());
-        String readMessage = reader.readNextEvent(500).getEvent();
+        String readMessage = reader.readNextEvent(5000).getEvent();
 
         assertEquals("test message", readMessage);
     }
