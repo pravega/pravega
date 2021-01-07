@@ -619,6 +619,59 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the following scenario:
+     * 1. We have a future read registered at offset N.
+     * 2. (Thread A) Segment's length has been updated (via appends) to M (N < M).
+     * 3. (Thread A) A call to {@link ContainerReadIndex#append} is made for range [N-x, N).
+     * 4. (Thread B) Segment has been sealed with length M (asynchronously).
+     * 5. (Thread A) A call to {@link ContainerReadIndex#triggerFutureReads} is invoked for the appends at steps 2-3.
+     * 6. (Thread A) The appends at step 2. are added to the Read index. (This mimics the OperationProcessor behavior that adds
+     * entries to the read index asynchronously, after updating the metadata).
+     * <p>
+     * The Future Read Result at step 1 should correctly return the data from the appends that are added to the index at step 4.
+     */
+    @Test
+    public void testFutureReadsSealAppend() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // 1. Register a future read.
+        long segmentId = createSegment(0, context);
+        val segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
+
+        val append1 = getAppendData(segmentMetadata.getName(), segmentId, 0, 0);
+        val append2 = getAppendData(segmentMetadata.getName(), segmentId, 1, 1);
+
+        @Cleanup
+        val rr = context.readIndex.read(segmentId, append1.getLength(), append2.getLength(), TIMEOUT);
+        val index = context.readIndex.getIndex(segmentId);
+        val futureReadEntry = rr.next();
+        Assert.assertEquals("Unexpected entry type.", ReadResultEntryType.Future, futureReadEntry.getType());
+        Assert.assertFalse("ReadResultEntry is completed.", futureReadEntry.getContent().isDone());
+        Assert.assertEquals("Expected future read to have been registered.", 1, index.getFutureReadCount());
+
+        // 2. Set the segment's length.
+        segmentMetadata.setLength(append1.getLength() + append2.getLength());
+
+        // 3. Make the initial append.
+        index.append(0, append1);
+
+        // 4. Seal the segment
+        segmentMetadata.markSealed();
+
+        // 5. First triggerFutureReads (due to append1)
+        index.triggerFutureReads();
+        Assert.assertFalse("Not expecting future read to have been completed yet.", futureReadEntry.getContent().isDone());
+        Assert.assertEquals("Expected original future read to still be registered.", 1, index.getFutureReadCount());
+
+        // 6. Make append2.
+        index.append(append1.getLength(), append2);
+        index.triggerFutureReads();
+        val readContent = futureReadEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected data read back from future read.", append2, readContent);
+    }
+
+    /**
      * Tests the handling of invalid operations. Scenarios include:
      * * Appends at wrong offsets
      * * Bad SegmentIds

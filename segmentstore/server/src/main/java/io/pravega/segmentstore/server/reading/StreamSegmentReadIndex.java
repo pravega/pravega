@@ -717,9 +717,18 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         for (FutureReadResultEntry r : futureReads) {
             ReadResultEntry entry = getSingleReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength(), false);
             assert entry != null : "Serving a FutureReadResultEntry with a null result";
-            assert !(entry instanceof FutureReadResultEntry) : "Serving a FutureReadResultEntry with another FutureReadResultEntry.";
+            if (entry instanceof FutureReadResultEntry) {
+                // The only valid situation when we can complete a FutureReadResultEntry with another FutureReadResultEntry
+                // is when the segment is sealed. That's because we may have a situation with multiple appends in short
+                // sequence followed closely by a seal; in that case one of those appends may trigger the invocation of
+                // this method which may pick up registered Future Reads beyond what has been added to the read index.
+                // The new FutureReadResultEntries will be completed when the rest of the appends are processed.
+                assert entry.getStreamSegmentOffset() == r.getStreamSegmentOffset();
+                log.warn("{}: triggerFutureReads (Offset = {}). Serving a FutureReadResultEntry ({}) with another FutureReadResultEntry ({}). Segment Info = [{}].",
+                        this.traceObjectId, r.getStreamSegmentOffset(), r, entry, this.metadata.getSnapshot());
+            }
 
-            log.trace("{}: triggerFutureReads (Offset = {}, Type = {}).", this.traceObjectId, r.getStreamSegmentOffset(), entry.getType());
+            log.debug("{}: triggerFutureReads (Offset = {}, Type = {}).", this.traceObjectId, r.getStreamSegmentOffset(), entry.getType());
             if (entry.getType() == ReadResultEntryType.EndOfStreamSegment) {
                 // We have attempted to read beyond the end of the stream. Fail the read request with the appropriate message.
                 r.fail(new StreamSegmentSealedException(String.format("StreamSegment has been sealed at offset %d. There can be no more reads beyond this offset.", this.metadata.getLength())));
