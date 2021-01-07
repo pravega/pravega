@@ -31,6 +31,7 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.test.common.ThreadPooledTestSuite;
 
 import java.util.ArrayList;
@@ -257,6 +258,57 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.updateStream("scope", "stream", StreamConfiguration.builder().build()).join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testCreateReaderGroup() throws ExecutionException, InterruptedException {
+        final Segment seg0 = new Segment("scope", "stream1", 0L);
+        final Segment seg1 = new Segment("scope", "stream1", 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of("scope", "stream1"),
+                new StreamCutImpl(Stream.of("scope", "stream1"), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of("scope", "stream1"),
+                new StreamCutImpl(Stream.of("scope", "stream1"), endStreamCut));
+        ReaderGroupConfig config = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(UUID.randomUUID())
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        StreamMetadataTasks mockStreamMetaTasks = mock(StreamMetadataTasks.class);
+        when(this.mockControllerService.getStreamMetadataTasks()).thenReturn(mockStreamMetaTasks);
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.Status.SUCCESS));
+        Assert.assertTrue(this.testController.createReaderGroup("scope", "subscriber", config).join());
+
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.Status.FAILURE));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.Status.INVALID_RG_NAME));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.newBuilder()
+                        .setStatusValue(-1).build().getStatus()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
                 ex -> ex instanceof ControllerFailureException);
     }
 
