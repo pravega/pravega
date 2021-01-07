@@ -307,6 +307,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                 () -> ((PravegaTablesScope) getScope(scope)).getReaderGroupsInScopeTableName(), executor);
     }
 
+    @Override
     public CompletableFuture<Void> addReaderGroupToScope(final String scope,
                                                          final String name, final UUID readerGroupId) {
         return Futures.completeOn(((PravegaTablesScope) getScope(scope)).addReaderGroupToScope(name, readerGroupId), executor);

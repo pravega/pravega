@@ -342,7 +342,7 @@ public class StreamMetadataTasks extends TaskBase {
                          Map<String, RGStreamCutRecord> endStreamCuts = config.getEndingStreamCuts().entrySet().stream()
                                  .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
                                          e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
-                         CreateReaderGroupEvent event = new CreateReaderGroupEvent(scope, rgName, config.getGroupRefreshTimeMillis(),
+                         CreateReaderGroupEvent event = new CreateReaderGroupEvent(requestId, scope, rgName, config.getGroupRefreshTimeMillis(),
                                  config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
                                  config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
                                  startStreamCuts, endStreamCuts);

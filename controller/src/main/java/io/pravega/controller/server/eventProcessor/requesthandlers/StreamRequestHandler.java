@@ -119,7 +119,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
 
     @Override
     public CompletableFuture<Void> processCreateReaderGroup(CreateReaderGroupEvent createRGEvent) {
-        log.info("Processing create request for ReaderGroup {}/{}",
+        log.info("Processing create request {} for ReaderGroup {}/{}", createRGEvent.getRequestId(),
                 createRGEvent.getScope(), createRGEvent.getRgName());
         return createRGTask.execute(createRGEvent);
     }

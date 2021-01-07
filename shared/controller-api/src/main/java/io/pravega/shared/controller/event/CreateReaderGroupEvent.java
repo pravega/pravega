@@ -30,6 +30,7 @@ import java.util.concurrent.CompletableFuture;
 @AllArgsConstructor
 public class CreateReaderGroupEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
+    private final long requestId;
     private final String scope;
     private final String rgName;
     private final long groupRefreshTimeMillis;
@@ -72,6 +73,7 @@ public class CreateReaderGroupEvent implements ControllerEvent {
         }
 
         private void write00(CreateReaderGroupEvent e, RevisionDataOutput target) throws IOException {
+            target.writeLong(e.requestId);
             target.writeUTF(e.scope);
             target.writeUTF(e.rgName);
             target.writeLong(e.groupRefreshTimeMillis);
@@ -85,6 +87,7 @@ public class CreateReaderGroupEvent implements ControllerEvent {
         }
 
         private void read00(RevisionDataInput source, CreateReaderGroupEventBuilder eb) throws IOException {
+            eb.requestId(source.readLong());
             eb.scope(source.readUTF());
             eb.rgName(source.readUTF());
             eb.groupRefreshTimeMillis(source.readLong());

@@ -60,14 +60,14 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         String scope = request.getScope();
         String readerGroup = request.getRgName();
         UUID readerGroupId = request.getReaderGroupId();
+        ReaderGroupConfig config = getConfigFromEvent(request);
         final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
                 .thenCompose(rgId -> {
                     if (!rgId.equals(readerGroupId)) {
-                        log.warn("Skipping processing of CreateReaderGroupEvent with invalid UUID.");
+                        log.warn("Skipping processing of CreateReaderGroupEvent with stale UUID.");
                         return CompletableFuture.completedFuture(null);
                     }
-                    ReaderGroupConfig config = getConfigFromEvent(request);
                     return streamMetadataTasks.isRGCreationComplete(scope, readerGroup)
                             .thenCompose(complete -> {
                                 if (!complete) {
