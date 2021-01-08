@@ -135,8 +135,7 @@ public class ControllerServiceTest {
         assertFalse(controller.createStream(scope, stream, streamConfiguration).join());
     }
     
-    
-    @Test(timeout = 80000)
+    @Test(timeout = 30000)
     public void testControllerService() throws Exception {
         final String scope1 = "scope1";
         final String scope2 = "scope2";
