@@ -171,6 +171,11 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     }
 
     @Override
+    public CompletableFuture<Void> addReaderGroupToScope(String scopeName, String rgName, UUID readerGroupId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CompletableFuture<Boolean> checkReaderGroupExists(String scope, String rgName) {
         throw new UnsupportedOperationException();
     }

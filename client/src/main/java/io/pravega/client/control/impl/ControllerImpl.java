@@ -99,7 +99,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
@@ -1571,8 +1571,8 @@ public class ControllerImpl implements Controller {
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "updateReaderGroup", rgConfig, requestId);
 
-        final CompletableFuture<UpdateReaderGroupStatus> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<UpdateReaderGroupStatus> callback = new RPCAsyncCallback<>(requestId, "updateReaderGroup", scope, rgName, rgConfig);
+        final CompletableFuture<UpdateReaderGroupResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<UpdateReaderGroupResponse> callback = new RPCAsyncCallback<>(requestId, "updateReaderGroup", scope, rgName, rgConfig);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "updateReaderGroup", scope, rgName)
                     .updateReaderGroup(ModelHelper.decode(scope, rgName, rgConfig), callback);
             return callback.getFuture();
@@ -1863,7 +1863,7 @@ public class ControllerImpl implements Controller {
                     .deleteReaderGroup(readerGroupInfo, callback);
         }
 
-        void updateReaderGroup(ReaderGroupConfiguration rgConfig, RPCAsyncCallback<UpdateReaderGroupStatus> callback) {
+        void updateReaderGroup(ReaderGroupConfiguration rgConfig, RPCAsyncCallback<UpdateReaderGroupResponse> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .updateReaderGroup(rgConfig, callback);
         }
