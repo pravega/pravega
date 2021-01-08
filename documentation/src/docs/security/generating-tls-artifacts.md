@@ -114,14 +114,18 @@ Later, we'll use this CA certificate/key bundle to sign the servers' certificate
    they configure the truststore using the `javax.net.ssl.trustStore` Java option. 
    
    ```bash
-   $ keytool -keystore <java-truststore-file-path> -noprompt -alias <trusted-cert-entry-alias> -import -file <ca-cert-file-path> \
-           -storepass <java-truststore-file-password>
+   $ keytool -keystore <java-truststore-file-path> -noprompt \
+             -alias <trusted-cert-entry-alias> \
+             -import -file <ca-cert-file-path> \
+             -storepass <java-truststore-file-password>
    ```
    
    Example:
    ```bash
-   $ keytool -keystore client.truststore.jks -noprompt -alias caroot -import -file ca-cert.crt \
-        -storepass changeit
+   $ keytool -keystore client.truststore.jks -noprompt \
+             -alias caroot \ 
+             -import -file ca-cert.crt \
+             -storepass changeit
 
    # Optionally, list the truststore's contents and inspect the output to verify everything is in order. The output 
    # should show a single entry with alias name `caroot` and entry type `trustedCertEntry`.
