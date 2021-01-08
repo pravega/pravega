@@ -11,7 +11,7 @@ package io.pravega.test.integration;
 
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -138,7 +138,6 @@ public class BatchClientAuthTest extends BatchClientTest {
             setClientAuthProperties("unauthorizeduser", "1111_aaaa");
             ClientConfig config = ClientConfig.builder()
                     .controllerURI(URI.create(this.controllerUri()))
-                    .credentials(new DefaultCredentials("1111_aaaa", "unauthorizeduser"))
                     .build();
 
             AssertExtensions.assertThrows("Auth exception did not occur.",
@@ -189,7 +188,7 @@ public class BatchClientAuthTest extends BatchClientTest {
         // Depending on an exception message for determining whether the given exception represents auth failure
         // is not a good thing to do, but we have no other choice here because auth failures are represented as the
         // overly general io.grpc.StatusRuntimeException.
-        return innermostException instanceof StatusRuntimeException &&
+        return innermostException != null && innermostException instanceof StatusRuntimeException &&
                 innermostException.getMessage().toUpperCase().contains("PERMISSION_DENIED");
     }
 
@@ -199,7 +198,7 @@ public class BatchClientAuthTest extends BatchClientTest {
         // Depending on an exception message for determining whether the given exception represents auth failure
         // is not a good thing to do, but we have no other choice here because auth failures are represented as the
         // overly general io.grpc.StatusRuntimeException.
-        return innermostException instanceof StatusRuntimeException &&
+        return innermostException != null && innermostException instanceof StatusRuntimeException &&
                 innermostException.getMessage().toUpperCase().contains("UNAUTHENTICATED");
     }
 }

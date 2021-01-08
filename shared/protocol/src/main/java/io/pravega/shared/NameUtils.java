@@ -387,6 +387,17 @@ public final class NameUtils {
     }
 
     /**
+     * Compose and return scoped ReaderGroup name.
+     *
+     * @param scope scope to be used in ScopedReaderGroup name.
+     * @param rgName ReaderGroup name to be used in ScopedReaderGroup name.
+     * @return scoped stream name.
+     */
+    public static String getScopedReaderGroupName(String scope, String rgName) {
+        return getScopedStreamNameInternal(scope, rgName).toString();
+    }
+
+    /**
      * Method to generate Fully Qualified TableSegmentName using scope, stream and segment id.
      *
      * @param scope scope to be used in the ScopedTableSegment name
