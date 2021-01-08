@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream.records;
+package io.pravega.shared.controller.event;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.ObjectBuilder;
@@ -61,7 +61,7 @@ public class RGStreamCutRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
-    static class RGStreamCutRecordSerializer
+    public static class RGStreamCutRecordSerializer
             extends VersionedSerializer.WithBuilder<RGStreamCutRecord, RGStreamCutRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
