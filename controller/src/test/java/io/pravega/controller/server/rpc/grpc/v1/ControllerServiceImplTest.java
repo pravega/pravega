@@ -54,7 +54,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
 import io.pravega.shared.NameUtils;
@@ -609,20 +609,21 @@ public abstract class ControllerServiceImplTest {
                 .readerGroupId(rgId)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-        ResultObserver<UpdateReaderGroupStatus> result = new ResultObserver<>();
+        ResultObserver<UpdateReaderGroupResponse> result = new ResultObserver<>();
         this.controllerService.updateReaderGroup(ModelHelper.decode(SCOPE1, rgName, newConfig), result);
-        UpdateReaderGroupStatus rgStatus = result.get();
-        assertEquals("Update Reader Group", UpdateReaderGroupStatus.Status.SUCCESS, rgStatus.getStatus());
+        UpdateReaderGroupResponse rgStatus = result.get();
+        assertEquals("Update Reader Group Status", UpdateReaderGroupResponse.Status.SUCCESS, rgStatus.getStatus());
+        assertEquals("Updated Generation", 1L, rgStatus.getGeneration());
 
-        ResultObserver<UpdateReaderGroupStatus> result1 = new ResultObserver<>();
+        ResultObserver<UpdateReaderGroupResponse> result1 = new ResultObserver<>();
         this.controllerService.updateReaderGroup(ModelHelper.decode(SCOPE1, rgName, newConfig), result1);
         rgStatus = result1.get();
-        assertEquals("Update Reader Group", UpdateReaderGroupStatus.Status.INVALID_CONFIG, rgStatus.getStatus());
+        assertEquals("Update Reader Group", UpdateReaderGroupResponse.Status.INVALID_CONFIG, rgStatus.getStatus());
 
-        ResultObserver<UpdateReaderGroupStatus> result2 = new ResultObserver<>();
+        ResultObserver<UpdateReaderGroupResponse> result2 = new ResultObserver<>();
         this.controllerService.updateReaderGroup(ModelHelper.decode(SCOPE1, "somerg", newConfig), result2);
         rgStatus = result2.get();
-        assertEquals("Update Reader Group", UpdateReaderGroupStatus.Status.RG_NOT_FOUND, rgStatus.getStatus());
+        assertEquals("Update Reader Group", UpdateReaderGroupResponse.Status.RG_NOT_FOUND, rgStatus.getStatus());
     }
 
     @Test
