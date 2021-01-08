@@ -163,7 +163,7 @@ public class ControllerServiceTest {
         //Different name in same scope
         createAStream(scope1, streamName2, controller, config3);
         createAStream(scope1, streamName3, controller, config3);
-        /*
+
         final String kvtName1 = "kvtable1";
         final String kvtName2 = "kvtable2";
         final String kvtZero = "kvtableZero";
@@ -220,7 +220,7 @@ public class ControllerServiceTest {
         getSegmentsBeforeCreation(controller, scope1, streamName1);
 
         getSegmentsAfterCreation(controller, scope1, streamName1);
-        */
+
         readerGroupsTest(controller, scope1, streamName1, streamName2, streamName3);
 
         updateSubscriberStreamCutTest(controller, scope2, streamName1);
