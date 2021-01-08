@@ -345,7 +345,7 @@ public class StreamMetadataTasks extends TaskBase {
                          CreateReaderGroupEvent event = new CreateReaderGroupEvent(requestId, scope, rgName, config.getGroupRefreshTimeMillis(),
                                  config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
                                  config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
-                                 startStreamCuts, endStreamCuts);
+                                 startStreamCuts, endStreamCuts, createTimestamp);
 
                          //3. Create Reader Group Metadata and submit event
                          return eventHelper.addIndexAndSubmitTask(event,

@@ -41,6 +41,7 @@ public class CreateReaderGroupEvent implements ControllerEvent {
     private final UUID readerGroupId;
     private final Map<String, RGStreamCutRecord> startingStreamCuts;
     private final Map<String, RGStreamCutRecord> endingStreamCuts;
+    private final long createTimeStamp;
 
     @Override
     public String getKey() {
@@ -76,6 +77,7 @@ public class CreateReaderGroupEvent implements ControllerEvent {
             target.writeLong(e.requestId);
             target.writeUTF(e.scope);
             target.writeUTF(e.rgName);
+            target.writeLong(e.createTimeStamp);
             target.writeLong(e.groupRefreshTimeMillis);
             target.writeLong(e.automaticCheckpointIntervalMillis);
             target.writeInt(e.maxOutstandingCheckpointRequest);
@@ -90,6 +92,7 @@ public class CreateReaderGroupEvent implements ControllerEvent {
             eb.requestId(source.readLong());
             eb.scope(source.readUTF());
             eb.rgName(source.readUTF());
+            eb.createTimeStamp(source.readLong());
             eb.groupRefreshTimeMillis(source.readLong());
             eb.automaticCheckpointIntervalMillis(source.readLong());
             eb.maxOutstandingCheckpointRequest(source.readInt());
@@ -102,6 +105,7 @@ public class CreateReaderGroupEvent implements ControllerEvent {
             ImmutableMap.Builder<String, RGStreamCutRecord> endStreamCutBuilder = ImmutableMap.builder();
             source.readMap(DataInput::readUTF, RGStreamCutRecord.SERIALIZER::deserialize, endStreamCutBuilder);
             eb.endingStreamCuts(endStreamCutBuilder.build());
+
         }
     }
     //endregion
