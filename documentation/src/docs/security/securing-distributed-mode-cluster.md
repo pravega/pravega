@@ -10,7 +10,7 @@ You may obtain a copy of the License at
 # Setting Up Security for a Distributed Mode Cluster
 
    * [Introduction](#introduction)
-   * [Generating TLS Certificates, Private Keys and Other Artifacts](#generating-tls-certificates-private-keys-and-other-artifacts)
+   * [Generating Certificates and Other TLS Artifacts](#generating-certificates-and-other-tls-artifacts)
    * [Enabling TLS and Auth in Pravega](#enabling-tls-and-auth-in-pravega)
       + [Configuring TLS and Auth on Server Side](#configuring-tls-and-auth-on-server-side)
       + [Configuring TLS and Credentials on Client Side](#configuring-tls-and-credentials-on-client-side)
@@ -40,7 +40,7 @@ production.
 This document lists steps for enabling TLS and auth for manual deployments. Depending on the deployment option 
 used and your environment, you might need to modify the steps and commands to suit your specific needs and policies.
 
-## Generating TLS Certificates, Private Keys and Other Artifacts
+## Generating Certificates and Other TLS Artifacts
 
 At a high-level, setting up TLS in Pravega comprises of two distinct activities:
 
