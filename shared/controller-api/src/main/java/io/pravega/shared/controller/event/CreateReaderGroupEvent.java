@@ -105,6 +105,4 @@ public class CreateReaderGroupEvent implements ControllerEvent {
         }
     }
     //endregion
-
-
 }

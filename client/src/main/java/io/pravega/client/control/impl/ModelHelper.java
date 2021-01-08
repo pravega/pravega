@@ -10,6 +10,7 @@
 package io.pravega.client.control.impl;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.segment.impl.Segment;
@@ -488,12 +489,15 @@ public final class ModelHelper {
         return builder.build();
     }
 
-    public static Map<Long, Long> getStreamCutMap(io.pravega.client.stream.StreamCut streamCut) {
+    public static ImmutableMap<Long, Long> getStreamCutMap(io.pravega.client.stream.StreamCut streamCut) {
         if (streamCut.equals(io.pravega.client.stream.StreamCut.UNBOUNDED)) {
-            return Collections.emptyMap();
+            return ImmutableMap.of();
         }
-        return streamCut.asImpl().getPositions().entrySet()
-                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
+        ImmutableMap.Builder<Long, Long> mapBuilder = ImmutableMap.builder();
+        streamCut.asImpl().getPositions().entrySet()
+                .stream().forEach(entry -> mapBuilder.put(entry.getKey().getSegmentId(), entry.getValue()));
+        return mapBuilder.build();
+
     }
 
     public static final Controller.ScopeInfo createScopeInfo(final String scope) {
