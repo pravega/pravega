@@ -84,9 +84,8 @@ sensitive command arguments via prompts instead, just exclude the corresponding 
 
 ## Setting up a Certificate Authority (CA)
 
-If you are going to use a public or an existing internal CA, you may skip 
-this part altogether and go directly to
-[Generate TLS Certificates and Other TLS Artifacts for the Server](#generate-tls-certificates-and-other-tls-artifacts-for-the-server).
+If you are planning to use a public CA or an existing private/internal CA, you may skip 
+this part altogether and go directly to the [next section](#generate-tls-certificates-and-other-tls-artifacts-for-the-server).
 
 Here, we'll create a CA in the form of a public/private key pair and a self-signed certificate.
 Later, we'll use this CA certificate/key bundle to sign the servers' certificates.
