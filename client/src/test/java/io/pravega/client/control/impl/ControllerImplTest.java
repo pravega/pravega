@@ -82,7 +82,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatu
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
@@ -372,25 +372,25 @@ public class ControllerImplTest {
 
             @Override
             public void updateReaderGroup(ReaderGroupConfiguration request,
-                                          StreamObserver<UpdateReaderGroupStatus> responseObserver) {
+                                          StreamObserver<UpdateReaderGroupResponse> responseObserver) {
                 if (request.getReaderGroupName().equals("rg1")) {
-                    responseObserver.onNext(UpdateReaderGroupStatus.newBuilder()
-                            .setStatus(UpdateReaderGroupStatus.Status.SUCCESS)
+                    responseObserver.onNext(UpdateReaderGroupResponse.newBuilder()
+                            .setStatus(UpdateReaderGroupResponse.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg2")) {
-                    responseObserver.onNext(UpdateReaderGroupStatus.newBuilder()
-                            .setStatus(UpdateReaderGroupStatus.Status.FAILURE)
+                    responseObserver.onNext(UpdateReaderGroupResponse.newBuilder()
+                            .setStatus(UpdateReaderGroupResponse.Status.FAILURE)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg3")) {
-                    responseObserver.onNext(UpdateReaderGroupStatus.newBuilder()
-                            .setStatus(UpdateReaderGroupStatus.Status.RG_NOT_FOUND)
+                    responseObserver.onNext(UpdateReaderGroupResponse.newBuilder()
+                            .setStatus(UpdateReaderGroupResponse.Status.RG_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg4")) {
-                    responseObserver.onNext(UpdateReaderGroupStatus.newBuilder()
-                            .setStatus(UpdateReaderGroupStatus.Status.INVALID_CONFIG)
+                    responseObserver.onNext(UpdateReaderGroupResponse.newBuilder()
+                            .setStatus(UpdateReaderGroupResponse.Status.INVALID_CONFIG)
                             .build());
                     responseObserver.onCompleted();
                 }
