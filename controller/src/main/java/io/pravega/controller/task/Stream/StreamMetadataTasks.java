@@ -407,7 +407,8 @@ public class StreamMetadataTasks extends TaskBase {
         });
     }
 
-    public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroupInternal(String scope, String rgName, ReaderGroupConfig config, final long createTimestamp) {
+    public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroupInternal(String scope, String rgName,
+                                                                                       ReaderGroupConfig config, final long createTimestamp) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
         Preconditions.checkNotNull(config, "ReaderGroup config is null");
@@ -418,7 +419,6 @@ public class StreamMetadataTasks extends TaskBase {
             log.warn("Create ReaderGroup failed due to invalid name {}", rgName);
             return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.INVALID_RG_NAME);
         }
-
         return RetryHelper.withRetriesAsync(() -> {
             // 1. check if scope with this name exists...
             return streamMetadataStore.checkScopeExists(scope)
@@ -431,7 +431,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(complete -> {
                                     if (!complete) {
                                         return streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId())
-                                                .thenCompose(x -> createReaderGroupTasks(scope, rgName, config, System.currentTimeMillis()))
+                                                .thenCompose(x -> createReaderGroupTasks(scope, rgName, config, createTimestamp))
                                                 .thenApply(y -> CreateReaderGroupStatus.Status.SUCCESS);
                                     }
                                     return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
