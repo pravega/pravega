@@ -390,6 +390,17 @@ public class ControllerServiceTest {
         assertEquals(newRGConfig.getEndingStreamCuts().keySet().size(), updatedConfig.getEndingStreamCuts().keySet().size());
         assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream3)));
         assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream2)));
+
+        // Create a ReaderGroup
+        String scopedStreamName = NameUtils.getScopedStreamName(scope, stream1);
+        ReaderGroupConfig rgconfig = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(scopedStreamName).retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .build();
+        ReaderGroupConfig rgconfig2 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(scopedStreamName).readerGroupId(rgconfig.getReaderGroupId()).generation(rgconfig.getGeneration())
+                .build();
+        controller.createReaderGroup(scope, "group", rgconfig).join();
+        controller.updateReaderGroup(scope, "group", rgconfig2).join();
     }
 
     private static void updateSubscriberStreamCutTest(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {

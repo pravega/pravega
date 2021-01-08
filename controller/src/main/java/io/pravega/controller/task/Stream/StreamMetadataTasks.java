@@ -491,10 +491,10 @@ public class StreamMetadataTasks extends TaskBase {
                                          .setGeneration(config.getGeneration()).build();
                                  return CompletableFuture.completedFuture(response);
                              }
-                             ImmutableSet<String> removeStreams = getStreamsToBeUnsubscribed(rgConfigRecord.getObject().getStartingStreamCuts().keySet(),
-                             config.getStartingStreamCuts().keySet().stream().map(s -> s.getScopedName()).collect(Collectors.toSet()));
+                             ImmutableSet<String> removeStreams = getStreamsToBeUnsubscribed(rgConfigRecord.getObject(), config);
+                             boolean isTransition = isTransitionToFromSubscriber(rgConfigRecord.getObject(), config);
                              UpdateReaderGroupEvent event = new UpdateReaderGroupEvent(scope, rgName, requestId, rgId,
-                                                                 rgConfigRecord.getObject().getGeneration() + 1, removeStreams);
+                                                                 rgConfigRecord.getObject().getGeneration() + 1, isTransition, removeStreams);
                              //3. Create Reader Group Metadata and submit event
                              return eventHelper.addIndexAndSubmitTask(event,
                                     () -> streamMetadataStore.startRGConfigUpdate(scope, rgName, config, null, executor))
@@ -519,11 +519,55 @@ public class StreamMetadataTasks extends TaskBase {
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
-    private ImmutableSet<String> getStreamsToBeUnsubscribed(final Set<String> currentConfigStreams, final Set<String> newConfigStreams) {
-        ImmutableSet.Builder<String> setBuilder = ImmutableSet.builder();
-        currentConfigStreams.stream()
-                .filter(s -> !newConfigStreams.contains(s)).forEach(s -> setBuilder.add(s));
-        return setBuilder.build();
+    private boolean isTransitionToFromSubscriber(final ReaderGroupConfigRecord currentConfig,
+                                                 final ReaderGroupConfig newConfig) {
+        if (ReaderGroupConfig.StreamDataRetention.NONE
+                .equals(ReaderGroupConfig.StreamDataRetention.values()[currentConfig.getRetentionTypeOrdinal()])
+                && ReaderGroupConfig.StreamDataRetention.NONE.equals(newConfig.getRetentionType())) {
+            return false;
+        }
+        return true;
+    }
+
+    private ImmutableSet<String> getStreamsToBeUnsubscribed(final ReaderGroupConfigRecord currentConfig,
+                                                            final ReaderGroupConfig newConfig) {
+        if (isNonSubscriberToSubscriberUpdate(currentConfig, newConfig)) {
+            // changing from a non-subscriber to subscriber reader group
+            // so we just need to add RG as subscriber to Streams in the new config
+            return ImmutableSet.of();
+        } else if (isSubscriberToNonSubscriberUpdate(currentConfig, newConfig)) {
+            // changing from subscriber to non-subscriber
+            // unsubscribe from all streams from current config
+            ImmutableSet.Builder<String> streamsToBeUnsubscribedBuilder = ImmutableSet.builder();
+            currentConfig.getStartingStreamCuts().keySet().forEach(s -> streamsToBeUnsubscribedBuilder.add(s));
+            return streamsToBeUnsubscribedBuilder.build();
+        } else {
+            final Set<String> currentConfigStreams = currentConfig.getStartingStreamCuts().keySet();
+            final Set<String> newConfigStreams = newConfig.getStartingStreamCuts().keySet().stream().map(s -> s.getScopedName()).collect(Collectors.toSet());
+            ImmutableSet.Builder<String> setBuilder = ImmutableSet.builder();
+            currentConfigStreams.stream()
+                    .filter(s -> !newConfigStreams.contains(s)).forEach(s -> setBuilder.add(s));
+            return setBuilder.build();
+        }
+
+    }
+
+    private boolean isNonSubscriberToSubscriberUpdate(final ReaderGroupConfigRecord currentConfig, final ReaderGroupConfig newConfig) {
+        if (ReaderGroupConfig.StreamDataRetention.NONE
+                .equals(ReaderGroupConfig.StreamDataRetention.values()[currentConfig.getRetentionTypeOrdinal()])
+                && (!ReaderGroupConfig.StreamDataRetention.NONE.equals(newConfig.getRetentionType()))) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isSubscriberToNonSubscriberUpdate(final ReaderGroupConfigRecord currentConfig, final ReaderGroupConfig newConfig) {
+        if (!ReaderGroupConfig.StreamDataRetention.NONE
+                .equals(ReaderGroupConfig.StreamDataRetention.values()[currentConfig.getRetentionTypeOrdinal()])
+                && (ReaderGroupConfig.StreamDataRetention.NONE.equals(newConfig.getRetentionType()))) {
+            return true;
+        }
+        return false;
     }
 
     private CompletableFuture<Boolean> isRGUpdated(String scope, String rgName, Executor executor) {
