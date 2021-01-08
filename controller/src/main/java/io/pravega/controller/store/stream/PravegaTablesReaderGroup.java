@@ -158,7 +158,7 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
     public CompletableFuture<Void> delete() {
         return getId().thenCompose(id -> storeHelper.deleteTable(getMetadataTableName(id), false)
         .thenCompose(v -> {
-            this.idRef = new AtomicReference<>(null);
+            this.idRef.set(null);
             return CompletableFuture.completedFuture(null);
         }));
     }
@@ -176,5 +176,6 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
 
     @Override
     public void refresh() {
+        idRef.set(null);
     }
 }
