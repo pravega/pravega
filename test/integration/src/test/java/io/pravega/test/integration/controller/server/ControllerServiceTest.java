@@ -391,6 +391,9 @@ public class ControllerServiceTest {
         assertEquals(newRGConfig.getEndingStreamCuts().keySet().size(), updatedConfig.getEndingStreamCuts().keySet().size());
         assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream3)));
         assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream2)));
+
+        createRG = controller.createReaderGroup(scope, "rg2", rgConfig);
+        assertTrue(createRG.get());
     }
 
     private static void updateSubscriberStreamCutTest(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {
