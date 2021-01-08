@@ -10,12 +10,12 @@ You may obtain a copy of the License at
 # Setting Up Security for a Distributed Mode Cluster
 
    * [Introduction](#introduction)
-   * [Setting Up TLS](#setting-up-tls)
+   * [Generating TLS Certificates, Private Keys and Other Artifacts](#generating-tls-certificates-private-keys-and-other-artifacts)
    * [Enabling TLS and Auth in Pravega](#enabling-tls-and-auth-in-pravega)
-       - [Configuring TLS and Auth on Server Side](#configuring-tls-and-auth-on-server-side)
-       - [Configuring TLS and Credentials on Client Side](#configuring-tls-and-credentials-on-client-side)
-            * [Server Hostname Verification](#server-hostname-verification)
-       - [Having TLS and Auth Take Effect](#having-tls-and-auth-take-effect)
+      + [Configuring TLS and Auth on Server Side](#configuring-tls-and-auth-on-server-side)
+      + [Configuring TLS and Credentials on Client Side](#configuring-tls-and-credentials-on-client-side)
+          - [Server Hostname Verification](#server-hostname-verification)
+      + [Having TLS and Auth Take Effect](#having-tls-and-auth-take-effect)
    * [Conclusion](#conclusion)
 
 ## Introduction
@@ -30,7 +30,7 @@ include:
     * A Docker Compose application deployment
     * A Docker Swarm based distributed deployment
 
-Regardless of the deployment option used, setting up Transport Layer Security (TLS) and Pravega "Auth" (short for
+Regardless of the deployment option used, setting up Transport Layer Security (TLS) and Pravega Auth (short for
 authentication and authorization) are essential requirements of a secure Pravega deployment. TLS encrypts 
 client-server as well as internal communication server components. TLS also enables clients to authenticate
 the services running on the server. Auth, on the other hand, enables the services to validate that the users accounts 
@@ -40,15 +40,15 @@ production.
 This document lists steps for enabling TLS and auth for manual deployments. Depending on the deployment option 
 used and your environment, you might need to modify the steps and commands to suit your specific needs and policies.
 
-## Setting Up TLS
+## Generating TLS Certificates, Private Keys and Other Artifacts
 
-At a high level, setting up TLS can be divided into two distinct stages:
+At a high-level, setting up TLS in Pravega comprises of two distinct activities:
 
-1. Obtaining server certificates and private keys, which involves steps that Pravega is oblivious to.
-3. Enabling TLS and deploying certificates in Pravega. 
+1. Generating TLS Certificates, Private Keys and Other Artifacts, which involves steps that Pravega is oblivious to.
+2. Enabling and configuring TLS in Pravega.
 
-[Creating TLS Certificates and Keys](generating-tls-material.md) explains instructions for stage 1. Stage 2 is 
-discussed in the [next](#enabling-tls-and-auth-in-pravega) section.
+[Creating TLS Certificates and Keys](./generating-tls-artifacts.md) explains how to perform the first activity. 
+The [next](#enabling-tls-and-auth-in-pravega) section explains the second activity. 
 
 ## Enabling TLS and Auth in Pravega
 
@@ -197,7 +197,7 @@ server must match one of the following in the server's certificate:
 * One of the `Subject Alternative Names` (SAN) field entries
 
 Even if the server listens on the loopback address `127.0.0.1` and its certificate is assigned to `localhost`, hostname 
-verification will fail if the client attempts to access the server via `127.0.01`. Fit the verification to pass, 
+verification will fail if the client attempts to access the server via `127.0.0.1`. For the verification to pass, 
 the client must access the server using the hostname assigned on the certificate `localhost` and have a hosts file entry 
 that maps `localhost` to `127.0.0.1` (which is usually already there). 
 

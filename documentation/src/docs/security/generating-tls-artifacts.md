@@ -11,63 +11,82 @@ You may obtain a copy of the License at
 
 This document describes how to create TLS certificates and keys for the server components. 
 
+   * [Overview](#overview)
+   * [Setting up a Certificate Authority (CA)](#setting-up-a-certificate-authority-ca)
+   * [Generate TLS Certificates and Other TLS Artifacts for the Server](#generate-tls-certificates-and-other-tls-artifacts-for-the-server)
+
 ## Overview
 
 A TLS server certificate is an X.509 digital certificate that binds the server's identity (such as the server's 
 DNS name or IP address or both) to the server's public key. The public key is part of the public-private key pair used 
 for asymmetric encryption during the TLS handshake. 
 
-While the server's certificate is public and available to clients, the server's private key must be kept protected in the server.
-Ideally, each server should use its own public-private key pair, as using the same private key (together with the 
-public key/TLS certificate) across multiple servers increases the risk that the private key will be compromised. 
+Each Controller and Segment Store service requires a pair of PEM-encoded TLS certificate and private key. Each 
+service also requires a PEM-encoded certificate of the CA that has signed the server certificates. Moreover, the 
+Controller REST interface requires its certificate and keys in Java JKS formats. We refer to all the required files 
+as TLS artifacts, henceforth. 
 
-A Pravega cluster's certificate and key requirements may vary depending on deployment options used for the cluster: 
-1. Use a separate TLS certificate and key pair for each host/machine. Manual deployments supports this configuration, 
-   as well as the rest of the  configurations below. In this case, each certificate identifies the respective server. 
-   This is the most secure option. 
-2. Use two pairs of certificate and key, one pair for the Controllers and the other for the Segment Stores. 
-   Each certificate contains the DNS names and/or IP addresses of respective servers. Pravega Kubernetes deployment supports 
-   this configuration, as well as the next one. 
-3. Use the same certificate and key pair for all Controllers and Segment Store Create a single set of certificate and key and use the same set across all the Controllers and Segment Stores. The 
-   certificate will need to contain the identity of all the respective servers. In this case, a single ceritificate/
-   private key is sufficient. 
+While the TLS certificate is public, the corresponding key is private and must be kept protected (typically
+in the server that uses the TLS certificate and the key). Each server should use its own set of TLS artifacts; 
+reusing certificates requires reusing private keys as well, and sharing private keys across multiple servers increases 
+the risk that they will be compromised.
+
+Here are a few strategies for determining the number of sets TLS artifacts sets required for a Pravega cluster: 
+1. _Use separate TLS artifacts for each host/machine or service_. 
    
-Depending on the chosen configuration, multiple pairs of public key server certificate and private key may be required, 
-and creation and signing process described below will need to be repeated for each pair. 
+   Manual deployments supports this and the other other configurations listed below. This is the most secure option. 
+2. _Use two sets of TLS artifacts - one for the Controllers and the other for the Segment Stores_. 
+   
+   In this case, each certificate is assigned to all the respective nodes (Controllers or Segment Stores) by specifying 
+   the nodes' network identities (DNS names and/or IP addresses) in the certificate's 
+   [Subject Alternative Name (SAN)(https://en.wikipedia.org/wiki/Subject_Alternative_Name) field. 
+   
+   Kubernetes and other forms of containerized deployments supports this configuration. 
+3. _Use the same set for all Controllers and Segment Store services_. 
+   
+   In this case, the certificate must contain the network identity of all the Controller and Segment Store services. This is 
+   the least secured option. All deployment options support this configuration.  
+   
+The chosen configuration determines the number of TLS artifacts sets required for a 
+Pravega cluster. Each set can be prepared using the process described later in this document under
+[Generate TLS Certificates and Other TLS Artifacts for the Server](#generate-tls-certificates-and-other-tls-artifacts-for-the-server). 
 
-Also, rather than terminating TLS at the Pravega services, one may choose to offload TLS termination to an external 
-infrastructural component like reverse proxy, Kubernetes Ingress or load balancer. If that's the case, the subject of the 
-TLS certificates and keys shall be that external component and not a Pravega server, and additional steps may be required 
-to ensure that other parts of the infrastructure can communicate with it. Refer to the Platform vendor's documentation, 
+Another important consideration is whether you want to terminate TLS at an external infrastructural component like 
+reverse proxy, Kubernetes Ingress or a load balancer. If TLS is terminated at such an infrastructural component, instead 
+of Pravega services, you will need to generate TLS artifacts for those infrastructural components instead, using similar
+steps described in this document; however, the exact steps may be slightly different and additional steps may be required to 
+ensure that other parts of the infrastructure can communicate with it. Refer to the respective platform vendor's 
+documentation, 
 such as [this](https://cloud.google.com/kubernetes-engine/docs/concepts/ingress) one from Google Kubernetes Engine, 
 for instructions.
 
-**Before you Begin**
+**Before you Begin:**
 
-As the steps in this section use either OpenSSL or Java Keytool, install
-OpenSSL and Java Development Kit (JDK) on the hosts that will be used to  generate
-TLS certificates, keys, keystores are truststores.
+The steps described in this document use OpenSSL and Java Keytool to generate TLS artifacts like certificates, keys, 
+Java keystores and Java truststores. Install OpenSSL and Java Development Kit (JDK) on the hosts where the artifacts 
+will be generated.
 
 **Note:**
 * The examples shown in this section use command line arguments to pass all inputs to the command. To pass
 sensitive command arguments via prompts instead, just exclude the corresponding option. For example,
 
   ```bash
-  # Inputs are passed as command line arguments.
+  # Passwords are passed as command line arguments.
   $ keytool -keystore server01.keystore.jks -alias server01 -validity <validity> -genkey \
               -storepass <keystore-password> -keypass <key-password> \
               -dname <distinguished-name> -ext SAN=DNS:<hostname>,
 
-  # Passwords and other arguments are entered interactively on the prompt in this case.
+  # Passwords (and some other arguments) are to be entered interactively on the prompt.
   $ keytool -keystore server01.keystore.jks -alias server01 -genkey
   ```
 * A weak password `changeit` is used everywhere in this document for easier reading. Be sure to replace it with 
-a strong and separate password for each file.
+  a strong and separate password for each file.
 
 ## Setting up a Certificate Authority (CA)
 
-If you are going to use an existing public or internal CA service or certificate and key bundle, you may skip 
-this part altogether, and go to [Obtaining Server Certificates and keys](#stage-2-obtaining-server-certificates-and-keys).
+If you are going to use a public or an existing internal CA, you may skip 
+this part altogether and go directly to
+[Generate TLS Certificates and Other TLS Artifacts for the Server](#generate-tls-certificates-and-other-tls-artifacts-for-the-server).
 
 Here, we'll create a CA in the form of a public/private key pair and a self-signed certificate.
 Later, we'll use this CA certificate/key bundle to sign the servers' certificates.
@@ -78,37 +97,38 @@ Later, we'll use this CA certificate/key bundle to sign the servers' certificate
    $ openssl req -new -x509 -keyout <ca-private-key-file-path> -out <ca-cert-file-path> -days <validity-in-days> \
             -subj "<distinguished_name>" \
             -passout pass:<ca-private-key-password>
+   ```
 
-   # Example command
+   Example:
+   ```bash
    $ openssl req -new -x509 -keyout ca-key.key -out ca-cert.crt -days 365 \
             -subj "/C=US/ST=Washington/L=Seattle/O=Pravega/OU=CA/CN=Pravega-Stack-CA" \
             -passout pass:changeit
    ```
   
-   The command above will generate two PEM-encoded files:
-   * A file containing the encrypted private key 
-   * A file containing the CA certificate
+   The command above will generate the following two PEM-encoded files: 
+   * A file containing the encrypted private key.
+   * A file containing the CA certificate.
    
-2. Create a Java truststore containing the CA's certificate.
-
-   The truststore we generate here will be used by external and internal TLS clients for determining whether to 
-   trust the server's certificate. External clients are client applications connected to a Pravega cluster. Services 
-   running on server nodes play the role of internal clients when accessing other services.
-
+2. Optionally, create a Java truststore containing the CA's certificate. This may be used by client applications if 
+   they configure the truststore using the `javax.net.ssl.trustStore` Java option. 
+   
    ```bash
-   $ keytool -keystore <java-truststore-file-name> -noprompt -alias <trusted-cert-entry-alias> -import -file <ca-cert-file-name> \
+   $ keytool -keystore <java-truststore-file-path> -noprompt -alias <trusted-cert-entry-alias> -import -file <ca-cert-file-path> \
            -storepass <java-truststore-file-password>
+   ```
    
-   $ Example command
+   Example:
+   ```bash
    $ keytool -keystore client.truststore.jks -noprompt -alias caroot -import -file ca-cert.crt \
         -storepass changeit
 
-   # Optionally, list the truststore's contents to verify everything is in order. The output should show
-   # a single entry with alias name `caroot` and entry type `trustedCertEntry`.
+   # Optionally, list the truststore's contents and inspect the output to verify everything is in order. The output 
+   # should show a single entry with alias name `caroot` and entry type `trustedCertEntry`.
    $ keytool -list -v -keystore client.truststore.jks -storepass changeit
    ```
 
-At this point, the following CA and truststore artifacts shall be  available:
+At this point, the following CA and truststore artifacts should be ready:
 
 | File | Description | Example command for inspecting the file's Contents |
 |:-----:|:--------|:--------------|
@@ -116,27 +136,31 @@ At this point, the following CA and truststore artifacts shall be  available:
 | `ca-key.key` | PEM-encoded file containing the CA's encrypted private key  | `$ openssl pkcs8 -inform PEM -in ca-key.key -topk8` |
 | `client.truststore.jks` | A password-protected truststore file containing the CA's certificate | `$ keytool -list -v -keystore client.truststore.jks -storepass changeit` |
 
-## Creating and Signing Server Certificates and Private Keys
+## Generate TLS Certificates and Other TLS Artifacts for the Server
 
-This stage is about preparing a set of server certificate and private key, and getting it signed by a CA. We'll use the CA
-created in the previous stage to sign the server certificate for demonstration, but in real usage you may instead get 
-it signed by an existing internal CA in your environment or a public CA.
+Here, we prepare a set of TLS artifacts that can be used by one or more nodes.  
+
+We'll use the CA created in the previous stage to sign the server certificate for demonstration, but in real usage you 
+may instead get it signed by an existing internal CA in your environment or a public CA.
 
 The high-level steps involved in this stage are:
 
 1. Generate a set of server certificate and private key.
 2. Generate a Certificate Signing Request (CSR) for the server certificate.
-3. Submit the CSR to a CA and obtain a signed certificate
+3. Submit the CSR to a CA and obtain a signed certificate.
 4. Prepare a keystore containing the signed server certificate and the CA's certificate.
-5. Export the server certificate's private key
+5. Export the server certificate's private key.
 
-**Note:** For services running on the same host, the same certificate can be used, if those services are 
-accessed using the same hostname/IP address. Also, multi-server wildcard certificates can be used to share certificates across 
-hosts to reuse certificates. However, it is strongly recommended that separate certificates be used for each service.
+Note that these steps will need to be repeated with different input for each set. We discussed the number of sets 
+required earlier in the [Overview](#overview) section. 
 
-The steps are:
+The above steps are described below: 
 
-1. Generate a public/private key-pair and a X.509 certificate.
+1. Generate a set of server certificate and private key.
+
+   The following command will generate a Java JKS keystore containing the following artifacts for the server:
+   * An X.509 certificate containing the public key identifying the server
+   * A private key for the public/private key pair
 
    ```bash
    $ keytool -storetype JKS -keystore <java-keystore-file-name> -storepass <java-keystore-password>\
@@ -148,21 +172,21 @@ The steps are:
    
    Example:
    ```bash
-   $ keytool -storetype JKS -keystore server.keystore.jks -storepass changeit\
+   $ keytool -storetype JKS -keystore server_unsigned.keystore.jks -storepass changeit\
               -genkey -keyalg RSA -keysize 2048 -keypass changeit\
               -alias server -validity 365\
               -dname "CN=server.pravega.io, OU=Unknown, O=Unknown, L=Unknown, ST=Unknown, C=Unknown"\
               -ext SAN=dns:server.abc.com,ip:127.0.0.1
    
    # Optionally, verify the contents of the generated file
-   $ keytool -list -v -storetype JKS -keystore server.keystore.jks -storepass changeit
+   $ keytool -list -v -storetype JKS -keystore server_unsigned.keystore.jks -storepass changeit
    ```
 
-2. Generate a certificate signing request (CSR).
+2. Generate a certificate signing request (CSR) for the server certificate.
 
-   It helps to think of a CSR as an application for getting a certificate signed by a trusted authority.
-
-   A CSR is typically generated on the same server/node that hosts the TLS enabled service, so that the generated private key
+   It helps to think of a CSR as an application for getting a certificate signed by a trusted authority. 
+   
+   A CSR is typically generated on the same server/node that uses the certificate, so that the corresponding private key
    doesn't need to be moved anywhere else. In some other environments, CSRs are generated in a central server and the 
    resulting certificates are distributed to the services that need them.  
 
@@ -174,7 +198,7 @@ The steps are:
    
    Example:
    ```bash
-   $ keytool -keystore server.keystore.jks -storepass changeit -alias server \ 
+   $ keytool -keystore server_unsigned.keystore.jks -storepass changeit -alias server \ 
              -certreq -file server.csr \
              -ext SAN=dns:server.abc.com,ip:127.0.0.1
    ```
@@ -203,7 +227,7 @@ The steps are:
    IP.1 = 127.0.0.1
    ```
    
-   Now, use the CA to sign the certificate:
+   Now, have the CA to sign the certificate:
 
    ```bash
    $ openssl x509 -req -CA <ca-cert-file-path> -CAkey <ca-private-key-file-path> \ 
@@ -211,6 +235,7 @@ The steps are:
            -days <validity> -CAcreateserial -passin pass:<csr-file-password> \
            -extfile server-csr.conf -extensions v3_req
    ```
+   
    Example:
    ```bash
    $ openssl x509 -req -CA ca-cert.crt -CAkey ca-key.key \
@@ -218,19 +243,19 @@ The steps are:
         -days 365 -CAcreateserial -passin pass:changeit \
         -extfile server-csr.conf -extensions v3_req
    
-   # Optionally, check the contents of the signed certificate
+   # Optionally, check the contents of the signed certificate.
    $ openssl x509 -in server-cert.crt -text -noout
    ```
 
-4. Prepare a keystore containing the CA's certificate and the signed server certificate. 
+4. Prepare a new keystore containing the signed server certificate and the CA's certificate chain. 
 
    ```bash
    # Import the CA certificate into a new keystore file.
    $ keytool -keystore <server-jks-keystore-file-path> -alias <ca-alias> -noprompt \
                 -import -file <ca-cert-file-path> -storepass <server-jks-keystore-password>
    
-    # Import the signed server certificate into the keystore.
-      $ keytool -keystore <server-jks-keystore-file-path> -alias <server-alias> -noprompt \
+   # Import the signed server certificate into the keystore.
+   $ keytool -keystore <server-jks-keystore-file-path> -alias <server-alias> -noprompt \
                 -import -file <signed-server-cert-file-path> -storepass <server-jks-keystore-password>
    ```
    
@@ -242,11 +267,12 @@ The steps are:
    $ keytool -keystore server.keystore.jks -alias server -noprompt \
                 -import -file server-cert.crt -storepass changeit
    
+   # Optionally, list the keystore and inspect the output
    $ keytool -list -v -storepass changeit -keystore server.keystore.jks
    ```
 
-5. Export the server's key into a separate file.
-
+5. Export the server certificate's private key. 
+   
    This is a two-step process.
    * First, convert the server's keystore in `.jks` format into `.p12` format.
 
@@ -268,8 +294,8 @@ The steps are:
      ```
      
    * Now, export the private key of the server into a `PEM` encoded file. Note that the generated `PEM` file is not protected
-   by a password. The key itself is password-protected, as we are using the `-nodes` flag. So, be sure
-   to protect it using operating system's technical and procedural controls.
+     by a password. The key itself is password-protected, as we are using the `-nodes` flag. So, be sure
+     to protect it using operating system's technical and procedural controls.
 
      ```bash
      $ openssl pkcs12 -in <server-pkcs12-keystore-file-path> -passin pass:<key-password> \
@@ -281,10 +307,9 @@ The steps are:
      $ openssl pkcs12 -in server.keystore.p12 -out server-key.key -passin pass:changeit -nodes
      ```
 
-Step 5 concludes this stage, and the stage is now set for installing the certificates and other PKI material in Pravega.
+Step 5 concludes this stage and the stage is now set for installing the certificates and other TLS artifacts in Pravega.
 
-The table below lists the key output of this stage. Note that you'll typically need one of each file per Pravega
-service, but you may share the same file for services collocated on the same host for logistical or economical reasons.
+The table below lists the key output of this stage. 
 
 | File | Description| Command for Inspecting the Contents |
 |:-----:| :---:|:--------|
