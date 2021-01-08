@@ -47,7 +47,7 @@ At a high-level, setting up TLS in Pravega comprises of two distinct activities:
 1. Generating TLS Certificates, Private Keys and Other Artifacts, which involves steps that Pravega is oblivious to.
 2. Enabling and configuring TLS in Pravega.
 
-[Creating TLS Certificates and Keys](./generating-tls-artifacts.md) explains how to perform the first activity. 
+[Creating TLS Certificates, Keys and Other TLS Artifacts](./generating-tls-artifacts.md) explains how to perform the first activity. 
 The [next](#enabling-tls-and-auth-in-pravega) section explains the second activity. 
 
 ## Enabling TLS and Auth in Pravega

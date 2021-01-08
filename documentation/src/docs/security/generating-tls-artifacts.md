@@ -7,9 +7,9 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-# Creating TLS Certificates and Keys
+# Creating TLS Certificates, Keys and Other TLS Artifacts
 
-This document describes how to create TLS certificates and keys for the server components. 
+This document describes how to create TLS certificates, keys and other artifacts for the server components. 
 
    * [Overview](#overview)
    * [Setting up a Certificate Authority (CA)](#setting-up-a-certificate-authority-ca)
