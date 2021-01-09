@@ -379,7 +379,7 @@ public class ControllerServiceTest {
                 .readerGroupId(rgConfig.getReaderGroupId())
                 .startingStreamCuts(startSCNew)
                 .endingStreamCuts(endSCNew).build();
-        assertTrue(controller.updateReaderGroup(scope, "rg1", newRGConfig).get());
+        assertNotNull(controller.updateReaderGroup(scope, "rg1", newRGConfig).get());
         ReaderGroupConfig updatedConfig = controller.getReaderGroupConfig(scope, "rg1").get();
         assertEquals(newRGConfig.getGroupRefreshTimeMillis(), updatedConfig.getGroupRefreshTimeMillis());
         assertEquals(newRGConfig.getGeneration() + 1, updatedConfig.getGeneration());
