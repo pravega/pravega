@@ -414,7 +414,7 @@ public class ControllerServiceTest {
         assertEquals(0, subscribers.size());
 
         // Update ReaderGroup from Non-Subscriber to Subscriber
-        ReaderGroupConfig subscriberConfig = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+        ReaderGroupConfig subscriberConfig = ReaderGroupConfig.builder()
                 .stream(scopedStreamName).retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .generation(updatedConfig.getGeneration()).readerGroupId(updatedConfig.getReaderGroupId())
                 .build();

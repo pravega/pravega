@@ -138,6 +138,8 @@ public abstract class StreamMetadataTasksTest {
     protected boolean authEnabled = false;
     protected CuratorFramework zkClient;
     private final String stream1 = "stream1";
+    private final String stream2 = "stream2";
+    private final String stream3 = "stream3";
 
     private ControllerService consumer;
     private TestingServer zkServer;
@@ -155,7 +157,6 @@ public abstract class StreamMetadataTasksTest {
     private KVTableMetadataStore kvtStore;
     @Mock
     private TableMetadataTasks kvtMetadataTasks;
-    private ReaderGroupConfig rgConfig;
 
     @Before
     public void setup() throws Exception {
@@ -206,6 +207,7 @@ public abstract class StreamMetadataTasksTest {
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         streamStorePartialMock.createScope(SCOPE).join();
 
+        //stream1
         long start = System.currentTimeMillis();
         streamStorePartialMock.createStream(SCOPE, stream1, configuration1, start, null, executor).get();
         streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
@@ -222,21 +224,12 @@ public abstract class StreamMetadataTasksTest {
         streamStorePartialMock.completeScale(SCOPE, stream1, response, null, executor).join();
         streamStorePartialMock.updateVersionedState(SCOPE, stream1, State.ACTIVE, state, null, executor).get();
 
-        final Segment seg0 = new Segment(SCOPE, stream1, 0L);
-        final Segment seg1 = new Segment(SCOPE, stream1, 1L);
-        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
-        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(SCOPE, stream1), new StreamCutImpl(Stream.of(SCOPE, stream1), startStreamCut));
-        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
-        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(SCOPE, stream1), new StreamCutImpl(Stream.of(SCOPE, stream1), endStreamCut));
-        this.rgConfig = ReaderGroupConfig.builder()
-                .automaticCheckpointIntervalMillis(30000L)
-                .groupRefreshTimeMillis(20000L)
-                .maxOutstandingCheckpointRequest(2)
-                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
-                .startingStreamCuts(startSC)
-                .endingStreamCuts(endSC).build();
+        //stream2
+        streamStorePartialMock.createStream(SCOPE, stream2, configuration1, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+
+        streamStorePartialMock.createStream(SCOPE, stream3, configuration1, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
     }
 
     abstract StreamMetadataStore getStore();
@@ -350,7 +343,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(0, listSubscribersResponse.getSubscribersList().size());
 
         // subscribers for non-existing stream
-        listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, "stream2", null).get();
+        listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, "somestream", null).get();
         assertEquals(SubscribersResponse.Status.STREAM_NOT_FOUND, listSubscribersResponse.getStatus());
         assertEquals(0, listSubscribersResponse.getSubscribersList().size());
 
@@ -361,18 +354,40 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(Controller.UpdateStreamStatus.Status.SUCCESS))
                 .when(streamMetadataTasks).sealStream(anyString(), anyString(), any());
 
+        final String stream1ScopedName = NameUtils.getScopedStreamName(SCOPE,stream1);
+        final String stream2ScopedName = NameUtils.getScopedStreamName(SCOPE,stream2);
+        final UUID rgId = UUID.randomUUID();
+        ReaderGroupConfig rgConfigSubscriber = ReaderGroupConfig.builder()
+                .stream(stream1ScopedName)
+                .stream(stream2ScopedName)
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(rgId)
+                .build();
+
+        final String stream3ScopedName = NameUtils.getScopedStreamName(SCOPE,stream3);
+        ReaderGroupConfig rgConfigNonSubscriber = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(stream1ScopedName).stream(stream3ScopedName).generation(0L)
+                .build();
+        assertEquals(ReaderGroupConfig.StreamDataRetention.NONE, rgConfigNonSubscriber.getRetentionType());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
         CompletableFuture<Controller.CreateReaderGroupStatus.Status> createFuture =
-        streamMetadataTasks.createReaderGroup(SCOPE, "rg1", rgConfig, System.currentTimeMillis());
+        streamMetadataTasks.createReaderGroup(SCOPE, "rg1", rgConfigSubscriber, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
 
-        createFuture = streamMetadataTasks.createReaderGroup(SCOPE, "rg2", rgConfig, System.currentTimeMillis());
+        createFuture = streamMetadataTasks.createReaderGroup(SCOPE, "rg2", rgConfigSubscriber, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
 
-        createFuture = streamMetadataTasks.createReaderGroupInternal(SCOPE, "rg3", rgConfig, System.currentTimeMillis());
+        createFuture = streamMetadataTasks.createReaderGroupInternal(SCOPE, "rg3", rgConfigSubscriber, System.currentTimeMillis());
+        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
+
+        createFuture = streamMetadataTasks.createReaderGroupInternal(SCOPE, "rg4", rgConfigNonSubscriber, System.currentTimeMillis());
         assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
 
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
@@ -382,28 +397,23 @@ public abstract class StreamMetadataTasksTest {
         ReaderGroupConfigResponse response = streamMetadataTasks.getReaderGroupConfig(SCOPE, "rg2", null).get();
         assertEquals(ReaderGroupConfigResponse.Status.SUCCESS, response.getStatus());
         assertNotNull(response.getConfig());
-        assertEquals(this.rgConfig.getAutomaticCheckpointIntervalMillis(), response.getConfig().getAutomaticCheckpointIntervalMillis());
-        assertEquals(this.rgConfig.getGroupRefreshTimeMillis(), response.getConfig().getGroupRefreshTimeMillis());
-        assertEquals(this.rgConfig.getRetentionType().ordinal(), response.getConfig().getRetentionType());
-        assertEquals(this.rgConfig.getGeneration(), response.getConfig().getGeneration());
-        assertEquals(this.rgConfig.getStartingStreamCuts().size(), response.getConfig().getStartingStreamCutsCount());
-        assertEquals(this.rgConfig.getEndingStreamCuts().size(), response.getConfig().getEndingStreamCutsCount());
+        assertEquals(rgConfigSubscriber.getAutomaticCheckpointIntervalMillis(), response.getConfig().getAutomaticCheckpointIntervalMillis());
+        assertEquals(rgConfigSubscriber.getGroupRefreshTimeMillis(), response.getConfig().getGroupRefreshTimeMillis());
+        assertEquals(rgConfigSubscriber.getRetentionType().ordinal(), response.getConfig().getRetentionType());
+        assertEquals(rgConfigSubscriber.getGeneration(), response.getConfig().getGeneration());
+        assertEquals(rgConfigSubscriber.getStartingStreamCuts().size(), response.getConfig().getStartingStreamCutsCount());
+        assertEquals(rgConfigSubscriber.getEndingStreamCuts().size(), response.getConfig().getEndingStreamCutsCount());
 
-        final Segment seg0 = new Segment(SCOPE, stream1, 0L);
-        final Segment seg1 = new Segment(SCOPE, stream1, 1L);
-        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 100L, seg1, 1000L);
-        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(SCOPE, stream1), new StreamCutImpl(Stream.of(SCOPE, stream1), startStreamCut));
-        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 2000L, seg1, 3000L);
-        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(SCOPE, stream1), new StreamCutImpl(Stream.of(SCOPE, stream1), endStreamCut));
         ReaderGroupConfig newConfig = ReaderGroupConfig.builder()
-                .automaticCheckpointIntervalMillis(80000L)
+                .disableAutomaticCheckpoints()
+                .stream(stream2ScopedName).stream(stream3ScopedName)
                 .groupRefreshTimeMillis(40000L)
                 .maxOutstandingCheckpointRequest(5)
-                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .generation(0L)
-                .readerGroupId(rgConfig.getReaderGroupId())
-                .startingStreamCuts(startSC)
-                .endingStreamCuts(endSC).build();
+                .readerGroupId(rgConfigSubscriber.getReaderGroupId())
+                .build();
+
         CompletableFuture<Controller.UpdateReaderGroupResponse> updateResponse =
         streamMetadataTasks.updateReaderGroup(SCOPE, "rg2", newConfig, null);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
@@ -421,6 +431,50 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(newConfig.getStartingStreamCuts().size(), response.getConfig().getStartingStreamCutsCount());
         assertEquals(newConfig.getEndingStreamCuts().size(), response.getConfig().getEndingStreamCutsCount());
 
+        listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
+        assertEquals(2, listSubscribersResponse.getSubscribersCount());
+
+        ReaderGroupConfig nonSubscriberStreamChangeConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(10000L)
+                .stream(stream2ScopedName).stream(stream3ScopedName)
+                .readerGroupId(rgConfigNonSubscriber.getReaderGroupId())
+                .generation(0L)
+                .build();
+        // StreamDataRetention stays NONE
+        // streams change from (stream1, stream3) to (stream2, stream3)
+        assertEquals(ReaderGroupConfig.StreamDataRetention.NONE, nonSubscriberStreamChangeConfig.getRetentionType());
+        updateResponse = streamMetadataTasks.updateReaderGroup(SCOPE, "rg4", nonSubscriberStreamChangeConfig, null);
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+        updateResponseResult = updateResponse.join();
+        assertEquals(Controller.UpdateReaderGroupResponse.Status.SUCCESS, updateResponseResult.getStatus());
+        assertEquals(1L, updateResponseResult.getGeneration());
+
+        response = streamMetadataTasks.getReaderGroupConfig(SCOPE, "rg4", null).get();
+        assertEquals(ReaderGroupConfigResponse.Status.SUCCESS, response.getStatus());
+        assertNotNull(response.getConfig());
+        assertEquals(nonSubscriberStreamChangeConfig.getAutomaticCheckpointIntervalMillis(), response.getConfig().getAutomaticCheckpointIntervalMillis());
+        assertEquals(nonSubscriberStreamChangeConfig.getGroupRefreshTimeMillis(), response.getConfig().getGroupRefreshTimeMillis());
+        assertEquals(nonSubscriberStreamChangeConfig.getRetentionType().ordinal(), response.getConfig().getRetentionType());
+        assertEquals(nonSubscriberStreamChangeConfig.getGeneration() + 1, response.getConfig().getGeneration());
+        assertEquals(nonSubscriberStreamChangeConfig.getStartingStreamCuts().size(), response.getConfig().getStartingStreamCutsCount());
+        assertEquals(nonSubscriberStreamChangeConfig.getEndingStreamCuts().size(), response.getConfig().getEndingStreamCutsCount());
+
+        ReaderGroupConfig subscriberConfig = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(stream3ScopedName)
+                .readerGroupId(nonSubscriberStreamChangeConfig.getReaderGroupId())
+                .generation(1L)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .build();
+        // StreamDataRetention change from NONE to MANUAL_RELEASE_AT_USER_STREAMCUT
+        // streams change from stream1, stream3 to stream2, stream3
+        updateResponse = streamMetadataTasks.updateReaderGroup(SCOPE, "rg4", subscriberConfig, null);
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+        updateResponseResult = updateResponse.join();
+        assertEquals(Controller.UpdateReaderGroupResponse.Status.SUCCESS, updateResponseResult.getStatus());
+        assertEquals(2L, updateResponseResult.getGeneration());
+        listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream3, null).get();
+        assertEquals(2, listSubscribersResponse.getSubscribersCount());
+
         CompletableFuture<DeleteReaderGroupStatus.Status> deleteStatus = streamMetadataTasks.deleteReaderGroup(SCOPE, "rg2",
                 response.getConfig().getReaderGroupId(), response.getConfig().getGeneration(), null);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
@@ -428,10 +482,25 @@ public abstract class StreamMetadataTasksTest {
 
         response = streamMetadataTasks.getReaderGroupConfig(SCOPE, "rg2", null).get();
         assertEquals(ReaderGroupConfigResponse.Status.RG_NOT_FOUND, response.getStatus());
+
+        listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream3, null).get();
+        assertEquals(1, listSubscribersResponse.getSubscribersCount());
     }
 
     @Test(timeout = 30000)
     public void updateSubscriberStreamCutTest() throws InterruptedException, ExecutionException {
+        final String stream1ScopedName = NameUtils.getScopedStreamName(SCOPE,stream1);
+        final UUID rgId = UUID.randomUUID();
+        ReaderGroupConfig rgConfigSubscriber = ReaderGroupConfig.builder()
+                .stream(stream1ScopedName)
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(rgId)
+                .build();
+
         doReturn(CompletableFuture.completedFuture(Controller.CreateStreamStatus.Status.SUCCESS))
                 .when(streamMetadataTasks).createRGStream(anyString(), anyString(), any(), anyLong(), anyInt());
 
@@ -440,12 +509,12 @@ public abstract class StreamMetadataTasksTest {
 
         String subscriber1 = "subscriber1";
         CompletableFuture<Controller.CreateReaderGroupStatus.Status> createStatus
-        = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, rgConfig, System.currentTimeMillis());
+        = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, rgConfigSubscriber, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
 
         String subscriber2 = "subscriber2";
-        createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, rgConfig, System.currentTimeMillis());
+        createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, rgConfigSubscriber, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
 
@@ -456,28 +525,28 @@ public abstract class StreamMetadataTasksTest {
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 50L, 1L, 20L);
         UpdateSubscriberStatus.Status updateStatus = streamMetadataTasks.
-                updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, rgConfig.getReaderGroupId().toString(), 0L,
+                updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, rgConfigSubscriber.getReaderGroupId().toString(), 0L,
                                                                                             streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
 
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, rgConfig.getReaderGroupId().toString(), 0L, streamCut1, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, rgConfigSubscriber.getReaderGroupId().toString(), 0L, streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
 
         ImmutableMap<Long, Long> streamCut2 = ImmutableMap.of(0L, 70L, 1L, 30L);
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, rgConfig.getReaderGroupId().toString(), 0L, streamCut2, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, rgConfigSubscriber.getReaderGroupId().toString(), 0L, streamCut2, null).get();
         assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus);
 
         ImmutableMap<Long, Long> streamCut3 = ImmutableMap.of(0L, 20L, 1L, 1L);
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, rgConfig.getReaderGroupId().toString(), 0L, streamCut3, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, rgConfigSubscriber.getReaderGroupId().toString(), 0L, streamCut3, null).get();
         assertEquals(UpdateSubscriberStatus.Status.STREAM_CUT_NOT_VALID, updateStatus);
 
         ImmutableMap<Long, Long> streamCut4 = ImmutableMap.of(0L, 25L);
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, rgConfig.getReaderGroupId().toString(), 0L, streamCut4, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber2Name, rgConfigSubscriber.getReaderGroupId().toString(), 0L, streamCut4, null).get();
         assertEquals(UpdateSubscriberStatus.Status.STREAM_CUT_NOT_VALID, updateStatus);
 
         // update non-existing stream
-        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, "nostream", subscriber2Name, rgConfig.getReaderGroupId().toString(), 0L, streamCut1, null).get();
+        updateStatus = streamMetadataTasks.updateSubscriberStreamCut(SCOPE, "nostream", subscriber2Name, rgConfigSubscriber.getReaderGroupId().toString(), 0L, streamCut1, null).get();
         assertEquals(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND, updateStatus);
 
         // update non-existing subscriber
