@@ -122,7 +122,7 @@ public class ReaderGroupImplTest {
                 .build();
         when(state.getConfig()).thenReturn(config);
         when(synchronizer.getState()).thenReturn(state);
-        when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
+        when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(1L));
 
         readerGroup.resetReaderGroup(config);
 
@@ -140,7 +140,7 @@ public class ReaderGroupImplTest {
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromCheckpoint(checkpoint).build();
         when(state.getConfig()).thenReturn(config);
         when(synchronizer.getState()).thenReturn(state);
-        when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
+        when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(1L));
 
         readerGroup.resetReaderGroup(config);
 

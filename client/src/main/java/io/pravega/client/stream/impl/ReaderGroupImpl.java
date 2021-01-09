@@ -224,14 +224,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 ReaderGroupConfig newConfig = config.toBuilder()
                         .readerGroupId(currentConfig.getReaderGroupId())
                         .generation(currentConfig.getGeneration()).build();
-                boolean success = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, newConfig));
-                if (success) {
-                    Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
-                    synchronizer.updateState((s, updates) -> {
-                        updates.add(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(newConfig), false));
-                    });
-                    return;
-                }
+                long newGen = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, newConfig));
+                Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
+                synchronizer.updateState((s, updates) -> {
+                    updates.add(new ReaderGroupStateInit(newConfig.toBuilder().generation(newGen).build(), segments, getEndSegmentsForStreams(newConfig), false));
+                });
+                return;
             }
         }
     }

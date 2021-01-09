@@ -280,12 +280,14 @@ public class MockController implements Controller {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> updateReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+    public CompletableFuture<Long> updateReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
         String key = getScopedReaderGroupName(scopeName, getStreamForReaderGroup(rgName));
         MockScope scopeMeta = createdScopes.get(scopeName);
         assert scopeMeta != null : "Scope not created";
         assert scopeMeta.readerGroups.containsKey(key) : "ReaderGroup is not created";
-        return CompletableFuture.completedFuture(scopeMeta.readerGroups.replace(key, scopeMeta.readerGroups.get(key), config));
+        long newGen = scopeMeta.readerGroups.get(key).getGeneration() + 1;
+        scopeMeta.readerGroups.replace(key, scopeMeta.readerGroups.get(key), config.toBuilder().generation(newGen).build());
+        return CompletableFuture.completedFuture(newGen);
     }
 
     @Override

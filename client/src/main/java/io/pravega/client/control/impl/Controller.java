@@ -141,7 +141,7 @@ public interface Controller extends AutoCloseable {
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscriber was updated in Stream Metadata.
      */
-    CompletableFuture<Boolean> updateReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
+    CompletableFuture<Long> updateReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
 
     /**
      * API to get Reader Group Configuration.
