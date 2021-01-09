@@ -271,15 +271,25 @@ public final class ModelHelper {
                 .generation(rgConfig.getGeneration())
                 .readerGroupId(UUID.fromString(rgConfig.getReaderGroupId()))
                 .startingStreamCuts(rgConfig.getStartingStreamCutsList().stream()
-                                    .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(),
-                                    streamCut.getStreamInfo().getStream()),
-                                    streamCut -> new StreamCutImpl(Stream.of(streamCut.getStreamInfo().getScope(),
-                                    streamCut.getStreamInfo().getStream()), getSegmentOffsetMap(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap())))))
+                        .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(),
+                                streamCut.getStreamInfo().getStream()),
+                                streamCut -> {
+                                    if (streamCut.getCutMap().isEmpty()) {
+                                        return io.pravega.client.stream.StreamCut.UNBOUNDED;
+                                    }
+                                    return new StreamCutImpl(Stream.of(streamCut.getStreamInfo().getScope(),
+                                            streamCut.getStreamInfo().getStream()), getSegmentOffsetMap(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap()));
+                                })))
                 .endingStreamCuts(rgConfig.getEndingStreamCutsList().stream()
                         .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(),
                                 streamCut.getStreamInfo().getStream()),
-                                streamCut -> new StreamCutImpl(Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream()),
-                                        getSegmentOffsetMap(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap())))))
+                                streamCut -> {
+                                    if (streamCut.getCutMap().isEmpty()) {
+                                        return io.pravega.client.stream.StreamCut.UNBOUNDED;
+                                    }
+                                    return new StreamCutImpl(Stream.of(streamCut.getStreamInfo().getScope(),
+                                            streamCut.getStreamInfo().getStream()), getSegmentOffsetMap(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap()));
+                                })))
                 .build();
     }
 

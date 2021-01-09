@@ -34,6 +34,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
+import static io.pravega.client.stream.StreamCut.UNBOUNDED;
+
 /**
  * Request handler for executing a create operation for a ReaderGroup.
  */
@@ -60,6 +62,7 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         String scope = request.getScope();
         String readerGroup = request.getRgName();
         UUID readerGroupId = request.getReaderGroupId();
+        log.debug("");
         ReaderGroupConfig config = getConfigFromEvent(request);
         final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
@@ -82,16 +85,26 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
     private ReaderGroupConfig getConfigFromEvent(CreateReaderGroupEvent request) {
         Map<Stream, StreamCut> startStreamCut = request.getStartingStreamCuts().entrySet()
                                                 .stream().collect(Collectors.toMap(e -> Stream.of(e.getKey()),
-                                                e -> new StreamCutImpl(Stream.of(e.getKey()),
-                                                        ModelHelper.getSegmentOffsetMap(Stream.of(e.getKey()).getScope(),
-                                                                Stream.of(e.getKey()).getStreamName(),
-                                                                e.getValue().getStreamCut()))));
+                                                e -> {
+                                                    if (e.getValue().getStreamCut().isEmpty()) {
+                                                        return UNBOUNDED;
+                                                    }
+                                                    return new StreamCutImpl(Stream.of(e.getKey()),
+                                                            ModelHelper.getSegmentOffsetMap(Stream.of(e.getKey()).getScope(),
+                                                                    Stream.of(e.getKey()).getStreamName(),
+                                                                    e.getValue().getStreamCut()));
+                                                }));
         Map<Stream, StreamCut> endStreamCut = request.getEndingStreamCuts().entrySet()
                 .stream().collect(Collectors.toMap(e -> Stream.of(e.getKey()),
-                        e -> new StreamCutImpl(Stream.of(e.getKey()),
-                                ModelHelper.getSegmentOffsetMap(Stream.of(e.getKey()).getScope(),
-                                                                Stream.of(e.getKey()).getStreamName(),
-                                                                e.getValue().getStreamCut()))));
+                        e -> {
+                            if (e.getValue().getStreamCut().isEmpty()) {
+                                return UNBOUNDED;
+                            }
+                            return new StreamCutImpl(Stream.of(e.getKey()),
+                                    ModelHelper.getSegmentOffsetMap(Stream.of(e.getKey()).getScope(),
+                                            Stream.of(e.getKey()).getStreamName(),
+                                            e.getValue().getStreamCut()));
+                        }));
         return ReaderGroupConfig.builder().readerGroupId(request.getReaderGroupId())
                 .groupRefreshTimeMillis(request.getGroupRefreshTimeMillis())
                 .automaticCheckpointIntervalMillis(request.getAutomaticCheckpointIntervalMillis())
