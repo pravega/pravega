@@ -62,7 +62,6 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         String scope = request.getScope();
         String readerGroup = request.getRgName();
         UUID readerGroupId = request.getReaderGroupId();
-        log.debug("");
         ReaderGroupConfig config = getConfigFromEvent(request);
         final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
