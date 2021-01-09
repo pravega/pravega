@@ -120,6 +120,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     public UUID getGroupId() {
+        synchronizer.fetchUpdates();
         return synchronizer.getState().getConfig().getReaderGroupId();
     }
 
@@ -214,8 +215,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
+        synchronizer.fetchUpdates();
         while (true) {
-            synchronizer.fetchUpdates();
             val currentConfig = synchronizer.getState().getConfig();
             // We only move into the block if the state transition has happened successfully.
             if (stateTransition(currentConfig, new UpdatingConfig(true))) {

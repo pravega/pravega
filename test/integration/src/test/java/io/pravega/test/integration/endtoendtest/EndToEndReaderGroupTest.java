@@ -178,7 +178,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
                                                                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT).build());
 
         List<String> subs = controller.listSubscribers("test", "test").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("test/group"));
     }
 
     @Test
@@ -202,13 +202,13 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
                 .stream("test/test").retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT).build());
 
         List<String> subs = controller.listSubscribers("test", "test").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("test/group"));
 
         ReaderGroup subGroup = groupManager.getReaderGroup("group");
         subGroup.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/test").build());
 
         subs = controller.listSubscribers("test", "test").get();
-        assertFalse("Subscriber list contains required reader group", subs.contains("group"));
+        assertFalse("Subscriber list contains required reader group", subs.contains("test/group"));
     }
 
     @Test
@@ -232,14 +232,14 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
                 .stream("test/test").build());
 
         List<String> subs = controller.listSubscribers("test", "test").get();
-        assertFalse("Subscriber list contains required reader group", subs.contains("group"));
+        assertFalse("Subscriber list contains required reader group", subs.contains("test/group"));
 
         ReaderGroup subGroup = groupManager.getReaderGroup("group");
         subGroup.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/test")
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT).build());
 
         subs = controller.listSubscribers("test", "test").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("group"));
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("test/group"));
     }
 
     @Test(timeout = 30000)
