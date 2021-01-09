@@ -102,7 +102,7 @@ public class ControllerEventSerializerTests {
 
     @Test
     public void testUpdateReaderGroupEvent() {
-        testClass(() -> new UpdateReaderGroupEvent(SCOPE, READER_GROUP, 123L, UUID.randomUUID(), 0L, ImmutableSet.of()));
+        testClass(() -> new UpdateReaderGroupEvent(SCOPE, READER_GROUP, 123L, UUID.randomUUID(), 0L, false, ImmutableSet.of()));
     }
 
     private <T extends ControllerEvent> void testClass(Supplier<T> generateInstance) {
