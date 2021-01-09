@@ -69,16 +69,6 @@ import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
  */
 @Slf4j
 public class StreamTransactionMetadataTasks implements AutoCloseable {
-    /**
-     * We derive the maximum execution timeout from the lease time. We assume
-     * a maximum number of renewals for the txn and compute the maximum execution
-     * time by multiplying the lease timeout by the maximum number of renewals. This
-     * multiplier is currently hardcoded because we do not expect applications to change
-     * it. The maximum execution timeout is only a safety mechanism for application that
-     * should rarely be triggered.
-     */
-    private static final int MAX_EXECUTION_TIME_MULTIPLIER = 1000;
-
     protected final String hostId;
     protected final ScheduledExecutorService executor;
     protected final ScheduledExecutorService eventExecutor;
@@ -323,7 +313,14 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                    final OperationContext ctx) {
         // Step 1. Validate parameters.
         CompletableFuture<Void> validate = validate(lease);
-        long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
+        
+        // We derive the maximum execution timeout from the lease time. We assume
+        // a maximum number of renewals for the txn and compute the maximum execution
+        // time by multiplying the lease timeout by the maximum number of renewals. This
+        // multiplier is currently hardcoded because we do not expect applications to change
+        // it. The maximum execution timeout is only a safety mechanism for application that
+        // should rarely be triggered.
+        long maxExecutionPeriod = Math.min(Config.MAX_TXN_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
 
         // 1. get latest epoch from history
         // 2. generateNewTransactionId.. this step can throw WriteConflictException
