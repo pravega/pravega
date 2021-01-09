@@ -492,7 +492,7 @@ public class StreamMetadataTasks extends TaskBase {
                                  return CompletableFuture.completedFuture(response);
                              }
                              ImmutableSet<String> removeStreams = getStreamsToBeUnsubscribed(rgConfigRecord.getObject(), config);
-                             boolean isTransition = isTransitionToFromSubscriber(rgConfigRecord.getObject(), config);
+                             boolean isTransition = isTransitionToOrFromSubscriber(rgConfigRecord.getObject(), config);
                              UpdateReaderGroupEvent event = new UpdateReaderGroupEvent(scope, rgName, requestId, rgId,
                                                                  rgConfigRecord.getObject().getGeneration() + 1, isTransition, removeStreams);
                              //3. Create Reader Group Metadata and submit event
@@ -519,11 +519,13 @@ public class StreamMetadataTasks extends TaskBase {
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
-    private boolean isTransitionToFromSubscriber(final ReaderGroupConfigRecord currentConfig,
-                                                 final ReaderGroupConfig newConfig) {
+    private boolean isTransitionToOrFromSubscriber(final ReaderGroupConfigRecord currentConfig,
+                                                   final ReaderGroupConfig newConfig) {
         if (ReaderGroupConfig.StreamDataRetention.NONE
                 .equals(ReaderGroupConfig.StreamDataRetention.values()[currentConfig.getRetentionTypeOrdinal()])
                 && ReaderGroupConfig.StreamDataRetention.NONE.equals(newConfig.getRetentionType())) {
+            // if both existing and new config have StreamDataRetention.NONE
+            // we're not transitioning this ReaderGroup from Subscriber to non-Subscriber or vice versa
             return false;
         }
         return true;
@@ -531,11 +533,11 @@ public class StreamMetadataTasks extends TaskBase {
 
     private ImmutableSet<String> getStreamsToBeUnsubscribed(final ReaderGroupConfigRecord currentConfig,
                                                             final ReaderGroupConfig newConfig) {
-        if (isNonSubscriberToSubscriberUpdate(currentConfig, newConfig)) {
+        if (isNonSubscriberToSubscriberTransition(currentConfig, newConfig)) {
             // changing from a non-subscriber to subscriber reader group
             // so we just need to add RG as subscriber to Streams in the new config
             return ImmutableSet.of();
-        } else if (isSubscriberToNonSubscriberUpdate(currentConfig, newConfig)) {
+        } else if (isSubscriberToNonSubscriberTransition(currentConfig, newConfig)) {
             // changing from subscriber to non-subscriber
             // unsubscribe from all streams from current config
             ImmutableSet.Builder<String> streamsToBeUnsubscribedBuilder = ImmutableSet.builder();
@@ -552,7 +554,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     }
 
-    private boolean isNonSubscriberToSubscriberUpdate(final ReaderGroupConfigRecord currentConfig, final ReaderGroupConfig newConfig) {
+    private boolean isNonSubscriberToSubscriberTransition(final ReaderGroupConfigRecord currentConfig, final ReaderGroupConfig newConfig) {
         if (ReaderGroupConfig.StreamDataRetention.NONE
                 .equals(ReaderGroupConfig.StreamDataRetention.values()[currentConfig.getRetentionTypeOrdinal()])
                 && (!ReaderGroupConfig.StreamDataRetention.NONE.equals(newConfig.getRetentionType()))) {
@@ -561,7 +563,7 @@ public class StreamMetadataTasks extends TaskBase {
         return false;
     }
 
-    private boolean isSubscriberToNonSubscriberUpdate(final ReaderGroupConfigRecord currentConfig, final ReaderGroupConfig newConfig) {
+    private boolean isSubscriberToNonSubscriberTransition(final ReaderGroupConfigRecord currentConfig, final ReaderGroupConfig newConfig) {
         if (!ReaderGroupConfig.StreamDataRetention.NONE
                 .equals(ReaderGroupConfig.StreamDataRetention.values()[currentConfig.getRetentionTypeOrdinal()])
                 && (ReaderGroupConfig.StreamDataRetention.NONE.equals(newConfig.getRetentionType()))) {
