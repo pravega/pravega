@@ -34,6 +34,7 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.AsyncIterator;
@@ -59,8 +60,11 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
+@Slf4j
 public class LocalController implements Controller {
 
     private static final int PAGE_LIMIT = 1000;
@@ -187,10 +191,11 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
-        final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
-        return this.controller.createReaderGroup(scopeName, rgName, config, System.currentTimeMillis())
+        StreamMetadataTasks streamMetadataTasks = controller.getStreamMetadataTasks();
+        return streamMetadataTasks.createReaderGroupInternal(scopeName, rgName, config, System.currentTimeMillis())
                 .thenApply(x -> {
-            switch (x.getStatus()) {
+            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
+            switch (x) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
                 case INVALID_RG_NAME:
@@ -201,7 +206,7 @@ public class LocalController implements Controller {
                     return true;
                 default:
                     throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
-                            + " " + x.getStatus());
+                            + " " + x);
             }
         });
     }
@@ -214,9 +219,9 @@ public class LocalController implements Controller {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
                 case INVALID_CONFIG:
-                    throw new IllegalArgumentException("Illegal ReaderGroup name: " + rgName);
+                    throw new IllegalArgumentException("Invalid Reader Group Config: " + scopedRGName);
                 case RG_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + scopeName);
+                    throw new IllegalArgumentException("Scope does not exist: " + scopedRGName);
                 case SUCCESS:
                     return true;
                 default:
