@@ -14,8 +14,13 @@ import com.google.common.collect.ImmutableMap;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
@@ -46,14 +51,20 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
+
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -542,84 +553,144 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
-    public void addSubscriberTests() {
+    public void createReaderGroupTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+        final Segment seg0 = new Segment(SCOPE1, STREAM1, 0L);
+        final Segment seg1 = new Segment(SCOPE1, STREAM1, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(SCOPE1, STREAM1),
+                new StreamCutImpl(Stream.of(SCOPE1, STREAM1), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(SCOPE1, STREAM1),
+                new StreamCutImpl(Stream.of(SCOPE1, STREAM1), endStreamCut));
+        ReaderGroupConfig config = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(UUID.randomUUID())
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        ResultObserver<CreateReaderGroupStatus> result = new ResultObserver<>();
+        String rgName = "rg_1";
+        this.controllerService.createReaderGroup(ModelHelper.decode(SCOPE1, rgName, config), result);
+        CreateReaderGroupStatus createRGStatus = result.get();
+        assertEquals("Create Reader Group Invalid RG Name", CreateReaderGroupStatus.Status.INVALID_RG_NAME, createRGStatus.getStatus());
 
-        // Add Subscriber for non-existent stream.
-        ResultObserver<AddSubscriberStatus> result1 = new ResultObserver<>();
-        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, "unknownstream", "subscriber", 0L), result1);
-        AddSubscriberStatus  addStatus = result1.get();
-        Assert.assertEquals(addStatus.getStatus(), AddSubscriberStatus.Status.STREAM_NOT_FOUND);
-
-        ResultObserver<AddSubscriberStatus> result = new ResultObserver<>();
-        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber", 0L), result);
-        addStatus = result.get();
-        Assert.assertEquals(addStatus.getStatus(), AddSubscriberStatus.Status.SUCCESS);
-
-        // Add existing Subscriber again.
-        ResultObserver<AddSubscriberStatus> result3 = new ResultObserver<>();
-        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber", 1L), result3);
-        addStatus = result3.get();
-        Assert.assertEquals(addStatus.getStatus(), AddSubscriberStatus.Status.SUCCESS);
+        ResultObserver<CreateReaderGroupStatus> result1 = new ResultObserver<>();
+        rgName = "rg1";
+        this.controllerService.createReaderGroup(ModelHelper.decode("somescope", rgName, config), result1);
+        createRGStatus = result1.get();
+        assertEquals("Create Reader Group Scope not found", CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND, createRGStatus.getStatus());
     }
 
     @Test
-    public void deleteSubscriberTests() {
+    public void updateReaderGroupTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+        String rgName = "rg1";
+        UUID rgId = UUID.randomUUID();
+        createReaderGroup(SCOPE1, STREAM1, rgName, rgId);
 
-        // delete subscriber from non-existing stream
-        ResultObserver<DeleteSubscriberStatus> result1 = new ResultObserver<>();
-        this.controllerService.deleteSubscriber(ModelHelper.decode(SCOPE1, "unknownstream", "subscriber", 2L), result1);
-        DeleteSubscriberStatus deleteStatus = result1.get();
-        Assert.assertEquals(DeleteSubscriberStatus.Status.STREAM_NOT_FOUND, deleteStatus.getStatus());
+        final Segment seg0 = new Segment(SCOPE1, STREAM1, 0L);
+        final Segment seg1 = new Segment(SCOPE1, STREAM1, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 100L, seg1, 1000L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(SCOPE1, STREAM1),
+                new StreamCutImpl(Stream.of(SCOPE1, STREAM1), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 2000L, seg1, 3000L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(SCOPE1, STREAM1),
+                new StreamCutImpl(Stream.of(SCOPE1, STREAM1), endStreamCut));
+        ReaderGroupConfig newConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(80000L)
+                .groupRefreshTimeMillis(40000L)
+                .maxOutstandingCheckpointRequest(5)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(rgId)
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        ResultObserver<UpdateReaderGroupResponse> result = new ResultObserver<>();
+        this.controllerService.updateReaderGroup(ModelHelper.decode(SCOPE1, rgName, newConfig), result);
+        UpdateReaderGroupResponse rgStatus = result.get();
+        assertEquals("Update Reader Group Status", UpdateReaderGroupResponse.Status.SUCCESS, rgStatus.getStatus());
+        assertEquals("Updated Generation", 1L, rgStatus.getGeneration());
 
-        // delete non-exitsing subscriber from existing stream
-        ResultObserver<DeleteSubscriberStatus> result2 = new ResultObserver<>();
-        this.controllerService.deleteSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber", 2L), result2);
+        ResultObserver<UpdateReaderGroupResponse> result1 = new ResultObserver<>();
+        this.controllerService.updateReaderGroup(ModelHelper.decode(SCOPE1, rgName, newConfig), result1);
+        rgStatus = result1.get();
+        assertEquals("Update Reader Group", UpdateReaderGroupResponse.Status.INVALID_CONFIG, rgStatus.getStatus());
+
+        ResultObserver<UpdateReaderGroupResponse> result2 = new ResultObserver<>();
+        this.controllerService.updateReaderGroup(ModelHelper.decode(SCOPE1, "somerg", newConfig), result2);
+        rgStatus = result2.get();
+        assertEquals("Update Reader Group", UpdateReaderGroupResponse.Status.RG_NOT_FOUND, rgStatus.getStatus());
+    }
+
+    @Test
+    public void deleteReaderGroupTests() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+        String rgName = "rg1";
+        UUID rgId = UUID.randomUUID();
+        createReaderGroup(SCOPE1, STREAM1, rgName, rgId);
+
+        ResultObserver<DeleteReaderGroupStatus> result1 = new ResultObserver<>();
+        this.controllerService.deleteReaderGroup(
+                ModelHelper.createReaderGroupInfo(SCOPE1, "somerg", rgId.toString(), 0L), result1);
+        DeleteReaderGroupStatus deleteStatus = result1.get();
+        assertEquals("Delete Reader Group not found", DeleteReaderGroupStatus.Status.RG_NOT_FOUND, deleteStatus.getStatus());
+
+        ResultObserver<DeleteReaderGroupStatus> result2 = new ResultObserver<>();
+        this.controllerService.deleteReaderGroup(
+                ModelHelper.createReaderGroupInfo(SCOPE1, rgName, UUID.randomUUID().toString(), 0L), result2);
         deleteStatus = result2.get();
-        Assert.assertEquals(DeleteSubscriberStatus.Status.SUCCESS, deleteStatus.getStatus());
-
-        ResultObserver<AddSubscriberStatus> result = new ResultObserver<>();
-        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber", 2L), result);
-        AddSubscriberStatus addStatus = result.get();
-        Assert.assertEquals(addStatus.getStatus(), AddSubscriberStatus.Status.SUCCESS);
-
-        ResultObserver<DeleteSubscriberStatus> result3 = new ResultObserver<>();
-        this.controllerService.deleteSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber", 2L), result3);
-        deleteStatus = result3.get();
-        Assert.assertEquals(DeleteSubscriberStatus.Status.SUCCESS, deleteStatus.getStatus());
+        assertEquals("Delete Reader Group not found", DeleteReaderGroupStatus.Status.RG_NOT_FOUND, deleteStatus.getStatus());
     }
 
     @Test
     public void updateSubscriberStreamCutTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+        String rgName = "rg1";
+        createReaderGroup(SCOPE1, STREAM1, rgName, UUID.randomUUID());
+        ResultObserver<ReaderGroupConfigResponse> configResponse = new ResultObserver<>();
+        this.controllerService.getReaderGroupConfig(
+                ModelHelper.createReaderGroupInfo(SCOPE1, rgName, "", 0L), configResponse);
+        ReaderGroupConfiguration rgConfig = configResponse.get().getConfig();
 
         // Update StreamCut for non-existent stream.
         ResultObserver<UpdateSubscriberStatus> result1 = new ResultObserver<>();
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L, 1L, 10L);
         this.controllerService.updateSubscriberStreamCut(ModelHelper.decode(SCOPE1, "unknownstream",
-                "subscriber", streamCut1), result1);
+                rgName, UUID.fromString(rgConfig.getReaderGroupId()), rgConfig.getGeneration(), streamCut1), result1);
         UpdateSubscriberStatus updateStatus = result1.get();
         Assert.assertEquals(UpdateSubscriberStatus.Status.STREAM_NOT_FOUND, updateStatus.getStatus());
 
         // Update StreamCut for non-existent subscriber.
         ResultObserver<UpdateSubscriberStatus> result2 = new ResultObserver<>();
-        this.controllerService.updateSubscriberStreamCut(ModelHelper.decode(SCOPE1, STREAM1, "somesubscriber", streamCut1), result2);
+        this.controllerService.updateSubscriberStreamCut(ModelHelper.decode(SCOPE1, STREAM1, "scope1/somesubscriber",
+                UUID.fromString(rgConfig.getReaderGroupId()), rgConfig.getGeneration(), streamCut1), result2);
         updateStatus = result2.get();
         Assert.assertEquals(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND, updateStatus.getStatus());
 
-        ResultObserver<AddSubscriberStatus> result = new ResultObserver<>();
-        this.controllerService.addSubscriber(ModelHelper.decode(SCOPE1, STREAM1, "subscriber1", 0L), result);
-        AddSubscriberStatus addStatus = result.get();
-        Assert.assertEquals(addStatus.getStatus(), AddSubscriberStatus.Status.SUCCESS);
-
-        // Update StreamCut for non-existent subscriber.
         ResultObserver<UpdateSubscriberStatus> result3 = new ResultObserver<>();
-        this.controllerService.updateSubscriberStreamCut(ModelHelper.decode(SCOPE1, STREAM1, "subscriber1", streamCut1), result3);
+        String subscriberName = NameUtils.getScopedReaderGroupName(SCOPE1, rgName);
+        this.controllerService.updateSubscriberStreamCut(ModelHelper.decode(SCOPE1, STREAM1, subscriberName,
+                UUID.fromString(rgConfig.getReaderGroupId()), 1L, streamCut1), result3);
         updateStatus = result3.get();
-        Assert.assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus.getStatus());
-    }
+        Assert.assertEquals(UpdateSubscriberStatus.Status.GENERATION_MISMATCH, updateStatus.getStatus());
 
+        ResultObserver<UpdateSubscriberStatus> result4 = new ResultObserver<>();
+        this.controllerService.updateSubscriberStreamCut(ModelHelper.decode(SCOPE1, STREAM1, subscriberName,
+                UUID.fromString(rgConfig.getReaderGroupId()), rgConfig.getGeneration(), streamCut1), result4);
+        updateStatus = result4.get();
+        Assert.assertEquals(UpdateSubscriberStatus.Status.SUCCESS, updateStatus.getStatus());
+
+        ImmutableMap<Long, Long> streamCut2 = ImmutableMap.of(0L, 5L, 1L, 5L);
+        ResultObserver<UpdateSubscriberStatus> result5 = new ResultObserver<>();
+        this.controllerService.updateSubscriberStreamCut(ModelHelper.decode(SCOPE1, STREAM1, subscriberName,
+                UUID.fromString(rgConfig.getReaderGroupId()), rgConfig.getGeneration(), streamCut2), result5);
+        updateStatus = result5.get();
+        Assert.assertEquals(UpdateSubscriberStatus.Status.STREAM_CUT_NOT_VALID, updateStatus.getStatus());
+    }
 
     @Test
     public void streamCutValidationTest() {
@@ -1101,6 +1172,31 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.createStream(ModelHelper.decode(scope, stream, configuration1), result2);
         CreateStreamStatus createStreamStatus = result2.get();
         assertEquals("Create stream", CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
+    }
+
+    protected void createReaderGroup(String scope, String stream, String rgName, UUID rgId) {
+        final Segment seg0 = new Segment(scope, stream, 0L);
+        final Segment seg1 = new Segment(scope, stream, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(scope, stream),
+                new StreamCutImpl(Stream.of(scope, stream), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(scope, stream),
+                new StreamCutImpl(Stream.of(scope, stream), endStreamCut));
+        ReaderGroupConfig config = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(rgId)
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        ResultObserver<CreateReaderGroupStatus> result = new ResultObserver<>();
+
+        this.controllerService.createReaderGroup(ModelHelper.decode(scope, rgName, config), result);
+        CreateReaderGroupStatus createRGStatus = result.get();
+        assertEquals("Create Reader Group", CreateReaderGroupStatus.Status.SUCCESS, createRGStatus.getStatus());
     }
 
     @Test(timeout = 30000L)

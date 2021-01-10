@@ -15,6 +15,10 @@ import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.test.common.TestingServerStarter;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -23,20 +27,14 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * Zookeeper based counter tests.
@@ -54,7 +52,7 @@ public class ZKCounterTest {
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
-        executor = Executors.newScheduledThreadPool(3);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(3, "test");
     }
 
     @After

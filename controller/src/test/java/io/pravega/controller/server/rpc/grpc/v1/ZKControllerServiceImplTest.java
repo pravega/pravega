@@ -34,6 +34,9 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
@@ -123,6 +126,9 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executorService),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
+                new CreateReaderGroupTask(streamMetadataTasks, streamStore, executorService),
+                new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executorService),
+                new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
                 executorService);
 
@@ -268,21 +274,28 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
 
     @Test
     @Override
-    public void addSubscriberTests() {
-        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
-        // Subscribers are not implemented in ZK Metadata.
-    }
-
-    @Test
-    @Override
-    public void deleteSubscriberTests() {
-        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
-        // Subscribers are not implemented in ZK Metadata.
-    }
-
-    @Test
-    @Override
     public void updateSubscriberStreamCutTests() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Subscribers are not implemented in ZK Metadata.
+    }
+
+    @Test
+    @Override
+    public void deleteReaderGroupTests() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Subscribers are not implemented in ZK Metadata.
+    }
+
+    @Test
+    @Override
+    public void createReaderGroupTests() {
+        // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
+        // Subscribers are not implemented in ZK Metadata.
+    }
+
+    @Test
+    @Override
+    public void updateReaderGroupTests() {
         // TODO: consider implementing ZK metadata support or removing altogether (https://github.com/pravega/pravega/issues/4922).
         // Subscribers are not implemented in ZK Metadata.
     }

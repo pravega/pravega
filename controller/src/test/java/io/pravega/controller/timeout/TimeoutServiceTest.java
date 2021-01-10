@@ -21,6 +21,7 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -28,13 +29,12 @@ import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.Version;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -50,7 +50,6 @@ import io.pravega.test.common.TestingServerStarter;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -104,7 +103,7 @@ public abstract class TimeoutServiceTest {
         String connectionString = zkTestServer.getConnectString();
 
         // Initialize the executor service.
-        executor = Executors.newScheduledThreadPool(5);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
         // Initialize ZK client.
         client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
         client.start();

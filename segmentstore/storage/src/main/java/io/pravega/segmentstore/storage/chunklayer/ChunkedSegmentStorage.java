@@ -39,15 +39,14 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.ConcurrentModificationException;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
@@ -123,12 +122,6 @@ public class ChunkedSegmentStorage implements Storage {
     private final ReadIndexCache readIndexCache;
 
     /**
-     * List of garbage chunks.
-     */
-    @Getter
-    private final List<String> garbageChunks = new ArrayList<>();
-
-    /**
      * Prefix string to use for logging.
      */
     @Getter
@@ -141,6 +134,9 @@ public class ChunkedSegmentStorage implements Storage {
 
     @GuardedBy("activeSegments")
     private final HashSet<String> activeRequests = new HashSet<>();
+
+    @Getter
+    private final GarbageCollector garbageCollector;
 
     /**
      * Creates a new instance of the ChunkedSegmentStorage class.
@@ -158,13 +154,17 @@ public class ChunkedSegmentStorage implements Storage {
         this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.readIndexCache = new ReadIndexCache(config.getMaxIndexedSegments(),
-                config.getMaxIndexedChunksPerSegment(),
                 config.getMaxIndexedChunks());
         this.systemJournal = new SystemJournal(containerId,
                 chunkStorage,
                 metadataStore,
                 config);
         this.taskProcessor = new MultiKeySequentialProcessor<>(this.executor);
+        this.garbageCollector = new GarbageCollector(containerId,
+                chunkStorage,
+                metadataStore,
+                config,
+                (ScheduledExecutorService) executor);
         this.closed = new AtomicBoolean(false);
     }
 
@@ -179,7 +179,9 @@ public class ChunkedSegmentStorage implements Storage {
 
         // Now bootstrap
         log.debug("{} STORAGE BOOT: Started.", logPrefix);
-        return this.systemJournal.bootstrap(epoch).thenRunAsync(() -> log.debug("{} STORAGE BOOT: Ended.", logPrefix), executor);
+        return this.systemJournal.bootstrap(epoch)
+                .thenRun(() -> garbageCollector.initialize())
+                .thenRun(() -> log.debug("{} STORAGE BOOT: Ended.", logPrefix));
     }
 
     @Override
@@ -382,35 +384,6 @@ public class ChunkedSegmentStorage implements Storage {
         return null != systemJournal && segmentMetadata.isStorageSystemSegment();
     }
 
-    /**
-     * Delete the garbage chunks.
-     *
-     * @param chunksToDelete List of chunks to delete.
-     */
-    CompletableFuture<Void> collectGarbage(Collection<String> chunksToDelete) {
-        CompletableFuture[] futures = new CompletableFuture[chunksToDelete.size()];
-        int i = 0;
-        for (val chunkToDelete : chunksToDelete) {
-            futures[i++] = chunkStorage.openWrite(chunkToDelete)
-                    .thenComposeAsync(chunkStorage::delete, executor)
-                    .thenRunAsync(() -> log.debug("{} collectGarbage - deleted chunk={}.", logPrefix, chunkToDelete), executor)
-                    .exceptionally(e -> {
-                        val ex = Exceptions.unwrap(e);
-                        if (ex instanceof ChunkNotFoundException) {
-                            log.debug("{} collectGarbage - Could not delete garbage chunk {}.", logPrefix, chunkToDelete);
-                        } else {
-                            log.warn("{} collectGarbage - Could not delete garbage chunk {}.", logPrefix, chunkToDelete);
-                            // Add it to garbage chunks.
-                            synchronized (garbageChunks) {
-                                garbageChunks.add(chunkToDelete);
-                            }
-                        }
-                        return null;
-                    });
-        }
-        return CompletableFuture.allOf(futures);
-    }
-
     @Override
     public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
         checkInitialized();
@@ -515,17 +488,17 @@ public class ChunkedSegmentStorage implements Storage {
                         val chunksToDelete = new ArrayList<String>();
                         return new ChunkIterator(this, txn, segmentMetadata)
                                 .forEach((metadata, name) -> {
-                                    txn.delete(name);
+                                    metadata.setActive(false);
+                                    txn.update(metadata);
                                     chunksToDelete.add(name);
                                 })
                                 .thenRunAsync(() -> txn.delete(streamSegmentName), executor)
                                 .thenComposeAsync(v ->
                                         txn.commit()
-                                                .thenComposeAsync(vv -> {
-                                                    // Collect garbage.
-                                                    return collectGarbage(chunksToDelete);
-                                                }, executor)
                                                 .thenRunAsync(() -> {
+                                                    // Collect garbage
+                                                    garbageCollector.addToGarbage(chunksToDelete);
+
                                                     // Update the read index.
                                                     readIndexCache.remove(streamSegmentName);
 
@@ -572,7 +545,7 @@ public class ChunkedSegmentStorage implements Storage {
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
         checkInitialized();
-        return executeSerialized(() -> {
+        return executeParallel(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
             // Validate preconditions and return handle.
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
@@ -587,14 +560,15 @@ public class ChunkedSegmentStorage implements Storage {
                                     log.debug("{} openRead - Segment needs ownership change. segment={}.", logPrefix, segmentMetadata.getName());
                                     // In case of a fail-over, length recorded in metadata will be lagging behind its actual length in the storage.
                                     // This can happen with lazy commits that were still not committed at the time of fail-over.
-                                    f = claimOwnership(txn, segmentMetadata)
+                                    f = executeSerialized(() ->
+                                        claimOwnership(txn, segmentMetadata)
                                             .exceptionally(e -> {
                                                 val ex = Exceptions.unwrap(e);
                                                 if (ex instanceof StorageMetadataWritesFencedOutException) {
                                                     throw new CompletionException(new StorageNotPrimaryException(streamSegmentName, ex));
                                                 }
                                                 throw new CompletionException(ex);
-                                            });
+                                            }), streamSegmentName);
                                 } else {
                                     f = CompletableFuture.completedFuture(null);
                                 }
@@ -611,13 +585,13 @@ public class ChunkedSegmentStorage implements Storage {
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         checkInitialized();
-        return executeSerialized(new ReadOperation(this, handle, offset, buffer, bufferOffset, length), handle.getSegmentName());
+        return executeParallel(new ReadOperation(this, handle, offset, buffer, bufferOffset, length), handle.getSegmentName());
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         checkInitialized();
-        return executeSerialized(() -> {
+        return executeParallel(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
             return tryWith(metadataStore.beginTransaction(true, streamSegmentName), txn ->
@@ -645,7 +619,7 @@ public class ChunkedSegmentStorage implements Storage {
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
         checkInitialized();
-        return executeSerialized(() -> {
+        return executeParallel(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "exists", streamSegmentName);
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
             return tryWith(metadataStore.beginTransaction(true, streamSegmentName),
@@ -662,14 +636,21 @@ public class ChunkedSegmentStorage implements Storage {
 
     @Override
     public void close() {
-        try {
-            if (null != this.metadataStore) {
-                this.metadataStore.close();
-            }
-        } catch (Exception e) {
-            log.warn("Error during close", e);
-        }
+        close("metadataStore", this.metadataStore);
+        close("garbageCollector", this.garbageCollector);
         this.closed.set(true);
+    }
+
+    private void close(String message, AutoCloseable toClose) {
+        try {
+            log.debug("{} Closing {}", logPrefix, message);
+            if (null != toClose) {
+                toClose.close();
+            }
+            log.info("{} Closed {}", logPrefix, message);
+        } catch (Exception e) {
+            log.error("{} Error while closing {}", logPrefix, message, e);
+        }
     }
 
     /**
@@ -751,6 +732,30 @@ public class ChunkedSegmentStorage implements Storage {
                 activeRequests.remove(segmentName);
             }
         }
+    }
+
+    /**
+     * Executes the given Callable asynchronously and concurrently.
+     * It returns a CompletableFuture that will be completed with the result.
+     * The operations are assumed to be independent of other operations.
+     *
+     * @param operation    The Callable to execute.
+     * @param <R>       Return type of the operation.
+     * @param segmentNames The names of the Segments involved in this operation (for sequencing purposes).
+     * @return A CompletableFuture that, when completed, will contain the result of the operation.
+     * If the operation failed, it will contain the cause of the failure.
+     * */
+    private <R> CompletableFuture<R> executeParallel(Callable<CompletableFuture<R>> operation, String... segmentNames) {
+        return CompletableFuture.completedFuture(null).thenComposeAsync(v -> {
+            Exceptions.checkNotClosed(this.closed.get(), this);
+            try {
+                return operation.call();
+            } catch (CompletionException e) {
+                throw new CompletionException(Exceptions.unwrap(e));
+            } catch (Exception e) {
+                throw new CompletionException(e);
+            }
+        }, this.executor);
     }
 
     static <T extends AutoCloseable, R> CompletableFuture<R> tryWith(T closeable, Function<T, CompletableFuture<R>> function, Executor executor) {

@@ -20,12 +20,12 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -41,8 +41,9 @@ import io.pravega.test.integration.demo.ControllerWrapper;
 import java.io.IOException;
 import java.util.Arrays;
 import lombok.Cleanup;
-import lombok.val;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -60,6 +61,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller = null;
+    private ServiceBuilder serviceBuilder;
 
     @Before
     public void setup() throws Exception {
@@ -73,7 +75,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
         this.zkTestServer = new TestingServerStarter().start();
 
         // 2. Start Pravega SegmentStore service.
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
@@ -98,6 +100,10 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
         if (this.server != null) {
             this.server.close();
             this.server = null;
+        }
+        if (this.serviceBuilder != null) {
+            this.serviceBuilder.close();
+            this.serviceBuilder = null;
         }
         if (this.zkTestServer != null) {
             this.zkTestServer.close();
@@ -125,7 +131,9 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
         byte[] payload = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
         byte[] readBuffer = new byte[10];
 
+        @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(stream);
+        @Cleanup
         ByteStreamReader reader = client.createByteStreamReader(stream);
 
         AssertExtensions.assertBlocks(() -> reader.read(readBuffer), () -> writer.write(payload));
@@ -168,7 +176,9 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
         byte[] payload = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         byte[] readBuffer = new byte[10];
 
+        @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(stream);
+        @Cleanup
         ByteStreamReader reader = client.createByteStreamReader(stream);
         // Verify reads and writes.
         AssertExtensions.assertBlocks(() -> reader.read(readBuffer), () -> writer.write(payload));
@@ -221,7 +231,9 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
         byte[] readBuffer = new byte[PendingEvent.MAX_WRITE_SIZE];
         Arrays.fill(readBuffer, (byte) 0);
 
+        @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(stream);
+        @Cleanup
         ByteStreamReader reader = client.createByteStreamReader(stream);
         writer.write(payload);
         writer.closeAndSeal();
@@ -260,7 +272,9 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
         byte[] readBuffer = new byte[200];
         Arrays.fill(readBuffer, (byte) 0);
 
+        @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(stream);
+        @Cleanup
         ByteStreamReader reader = client.createByteStreamReader(stream);
         AssertExtensions.assertBlocks(() -> {
             assertEquals(100, reader.read(readBuffer));
@@ -304,6 +318,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
         verifyByteClientReadWrite(scope, stream);
     }
 
+    @SneakyThrows(IOException.class)
     private void verifyByteClientReadWrite(String scope, String stream) {
         @Cleanup
         ByteStreamClientFactory client = createClientFactory(scope);
@@ -313,7 +328,9 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
         byte[] readBuffer = new byte[200];
         Arrays.fill(readBuffer, (byte) 0);
 
+        @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(stream);
+        @Cleanup
         ByteStreamReader reader = client.createByteStreamReader(stream);
         AssertExtensions.assertBlocks(() -> {
             assertEquals(100, reader.read(readBuffer));

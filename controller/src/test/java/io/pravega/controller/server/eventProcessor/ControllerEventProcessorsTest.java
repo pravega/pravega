@@ -50,6 +50,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.pravega.test.common.ThreadPooledTestSuite;
+import lombok.Cleanup;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -98,6 +99,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
             e.printStackTrace();
         }
 
+        @Cleanup
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, 
@@ -165,6 +167,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
             return createStreamResponses.take();
         }).when(controller).createStream(anyString(), anyString(), any());
 
+        @Cleanup
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
@@ -274,6 +277,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
             throw new CheckpointStoreException("checkpointstoreexception");
         });
 
+        @Cleanup
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, controller, checkpointStore, streamStore, bucketStore,
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks,
