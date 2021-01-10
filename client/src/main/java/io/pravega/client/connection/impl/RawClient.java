@@ -9,7 +9,6 @@
  */
 package io.pravega.client.connection.impl;
 
-import com.google.common.base.Preconditions;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.control.impl.Controller;
