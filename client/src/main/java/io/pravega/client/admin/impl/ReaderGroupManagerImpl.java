@@ -39,6 +39,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.UUID;
+
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -100,8 +102,12 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     @Override
     public void deleteReaderGroup(String groupName) {
         @Cleanup
-        ReaderGroupImpl group = (ReaderGroupImpl) getReaderGroup(groupName);
-        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, group.getGroupId(), group.getGeneration()),
+        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+        synchronizer.fetchUpdates();
+        UUID groupId = synchronizer.getState().getConfig().getReaderGroupId();
+        long generation = synchronizer.getState().getConfig().getGeneration();
+        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, groupId, generation),
                 RuntimeException::new);
     }
 

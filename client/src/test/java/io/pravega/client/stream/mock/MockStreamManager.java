@@ -39,12 +39,14 @@ import io.pravega.shared.NameUtils;
 import java.net.URI;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;
 import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
@@ -202,8 +204,12 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Override
     public void deleteReaderGroup(String groupName) {
         @Cleanup
-        ReaderGroupImpl group = (ReaderGroupImpl) getReaderGroup(groupName);
-        Futures.getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, group.getGroupId(), group.getGeneration()),
-                                       RuntimeException::new);
+        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+        synchronizer.fetchUpdates();
+        UUID groupId = synchronizer.getState().getConfig().getReaderGroupId();
+        long generation = synchronizer.getState().getConfig().getGeneration();
+        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, groupId, generation),
+                RuntimeException::new);
     }
 }

@@ -57,7 +57,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
@@ -117,16 +116,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
        throw new UnsupportedOperationException("Operation not allowed when ReaderGroup retentionConfig is set to " +
                synchronizer.getState().getConfig().getRetentionType().toString());
-    }
-
-    public UUID getGroupId() {
-        synchronizer.fetchUpdates();
-        return synchronizer.getState().getConfig().getReaderGroupId();
-    }
-
-    public long getGeneration() {
-        synchronizer.fetchUpdates();
-        return synchronizer.getState().getConfig().getGeneration();
     }
 
     @Override
