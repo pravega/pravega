@@ -137,7 +137,7 @@ public class RawClient implements AutoCloseable {
         if (closed.compareAndSet(false, true)) {
             if (connection == null) {
                 // This is caused by the shutdown of the underlying TCP connection
-                // during the RawClient's initialization.
+                // during initialization of RawClient.
                 log.info("Connection is not initialized when closing");
                 return;
             }
