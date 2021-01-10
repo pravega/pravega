@@ -47,12 +47,12 @@ public class ReaderGroupStreamFileParsingCommand extends AdminCommand {
             FileInputStream fileInputStream = new FileInputStream(new File(inputFileName));
             BufferedWriter writer = new BufferedWriter(new FileWriter(outputFileName));
 
-            while(fileInputStream.available() > 0) {
+            while (fileInputStream.available() > 0) {
                 // read type
                 // type should be 0 as Wirecommand.Event type is 0
                 byte[] type = new byte[HEADER];
                 int read = fileInputStream.read(type);
-                assertEquals(read ,HEADER);
+                assertEquals(read, HEADER);
                 ByteBuffer b = ByteBuffer.wrap(type);
                 int t = b.getInt();
                 assertEquals(t, TYPE);
@@ -60,7 +60,7 @@ public class ReaderGroupStreamFileParsingCommand extends AdminCommand {
                 // read length
                 byte[] len = new byte[LENGTH];
                 read = fileInputStream.read(len);
-                assertEquals(read ,LENGTH);
+                assertEquals(read, LENGTH);
                 b = ByteBuffer.wrap(len);
                 int eventLength = b.getInt();
 
