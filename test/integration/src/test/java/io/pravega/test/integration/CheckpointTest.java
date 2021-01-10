@@ -140,7 +140,7 @@ public class CheckpointTest {
         assertFalse(read.isCheckpoint());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(cpResult).build());
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(cpResult).disableAutomaticCheckpoints().build());
         try {
             reader.readNextEvent(60000);
             fail();
