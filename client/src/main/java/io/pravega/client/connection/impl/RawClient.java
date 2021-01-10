@@ -9,6 +9,7 @@
  */
 package io.pravega.client.connection.impl;
 
+import com.google.common.base.Preconditions;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.control.impl.Controller;
@@ -135,6 +136,12 @@ public class RawClient implements AutoCloseable {
             log.warn("Closing connection to segment {} with exception", segmentId, exceptionToInflightRequests);
         }
         if (closed.compareAndSet(false, true)) {
+            if (connection == null) {
+                // This is caused by the shutdown of the underlying TCP connection
+                // during the RawClient initialization.
+                log.info("Connection is not initialized when closing");
+                return;
+            }
             connection.thenAccept(c -> {
                 try {
                     c.close();
