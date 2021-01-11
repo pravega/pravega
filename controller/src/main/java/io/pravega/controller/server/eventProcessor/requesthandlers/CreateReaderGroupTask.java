@@ -68,7 +68,7 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                             .thenCompose(complete -> {
                                 if (!complete) {
                                     return Futures.toVoid(streamMetadataTasks.createReaderGroupTasks(scope, readerGroup,
-                                            config, System.currentTimeMillis()));
+                                            config, request.getCreateTimeStamp()));
                                 }
                                 return CompletableFuture.completedFuture(null);
                             });
