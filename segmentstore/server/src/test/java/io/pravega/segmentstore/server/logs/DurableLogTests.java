@@ -1089,7 +1089,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * Tests the truncate() method without doing any recovery.
      */
     @Test
-    public void testTruncateWithoutRecovery() throws Exception {
+    public void testTruncateWithoutRecovery() {
         int streamSegmentCount = 50;
         int appendsPerStreamSegment = 20;
 
@@ -1121,11 +1121,13 @@ public class DurableLogTests extends OperationLogTestBase {
             // recovery, it wipes away all existing metadata).
             Set<Long> streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> queuedOperations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
-            val lastOp = new MetadataCheckpointOperation();
-            queuedOperations.add(lastOp); // Add one of these at the end to ensure we can truncate everything.
 
-            List<OperationWithCompletion> completionFutures = processOperations(queuedOperations, durableLog);
-            OperationWithCompletion.allOf(completionFutures).join();
+            // Process all operations.
+            OperationWithCompletion.allOf(processOperations(queuedOperations, durableLog)).join();
+
+            // Add a MetadataCheckpointOperation at the end, after everything else has processed. This ensures that it
+            // sits in a DataFrame by itself and enables us to truncate everything at the end.
+            processOperation(new MetadataCheckpointOperation(), durableLog).completion.join();
             awaitLastOperationAdded(durableLog, metadata);
 
             // Get a list of all the operations, before truncation.
@@ -1478,20 +1480,24 @@ public class DurableLogTests extends OperationLogTestBase {
         int index = 0;
         for (Operation o : operations) {
             index++;
-            CompletableFuture<Void> completionFuture;
-            try {
-                completionFuture = durableLog.add(o, OperationPriority.Normal, TIMEOUT);
-            } catch (Exception ex) {
-                completionFuture = Futures.failedFuture(ex);
-            }
-
-            completionFutures.add(new OperationWithCompletion(o, completionFuture));
+            val oc = processOperation(o, durableLog);
+            completionFutures.add(oc);
             if (index % waitEvery == 0) {
-                completionFuture.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                oc.completion.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
         }
 
         return completionFutures;
+    }
+
+    private OperationWithCompletion processOperation(Operation o, DurableLog durableLog) {
+        CompletableFuture<Void> completionFuture;
+        try {
+            completionFuture = durableLog.add(o, OperationPriority.Normal, TIMEOUT);
+        } catch (Exception ex) {
+            completionFuture = Futures.failedFuture(ex);
+        }
+        return new OperationWithCompletion(o, completionFuture);
     }
 
     private void assertRecoveredOperationsMatch(List<Operation> expected, List<Operation> actual) {
