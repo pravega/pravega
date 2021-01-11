@@ -13,6 +13,7 @@ import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.state.impl.UpdateOrInitSerializer;
+import lombok.Cleanup;
 import lombok.val;
 
 import java.io.BufferedWriter;
@@ -44,7 +45,9 @@ public class ReaderGroupStreamFileParsingCommand extends AdminCommand {
             String inputFileName = getInputStreamFilename(getCommandArgs().getArgs());
             String outputFileName = getOutputStreamFilename(getCommandArgs().getArgs());
 
+            @Cleanup
             FileInputStream fileInputStream = new FileInputStream(new File(inputFileName));
+            @Cleanup
             BufferedWriter writer = new BufferedWriter(new FileWriter(outputFileName));
 
             while (fileInputStream.available() > 0) {
