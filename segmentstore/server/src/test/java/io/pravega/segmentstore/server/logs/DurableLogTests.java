@@ -315,7 +315,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Generate some test data (we need to do this after we started the DurableLog because in the process of
         // recovery, it wipes away all existing metadata).
-        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
+        Set<Long> streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
 
         List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
         ErrorInjector<Exception> aSyncErrorInjector = new ErrorInjector<>(
@@ -337,9 +337,11 @@ public class DurableLogTests extends OperationLogTestBase {
         Assert.assertEquals("Expected the DurableLog to fail after DurableDataLogException encountered.",
                 Service.State.FAILED, durableLog.state());
 
-        // We can't really check the DurableLog or the DurableDataLog contents since they are both closed.
-        performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, setup.metadata, false, false);
-        performReadIndexChecks(completionFutures, setup.readIndex);
+        durableLog.close();
+        setup.readIndex.close();
+
+        // Perform failure-recovery specific checks. The regular checks cannot be done here since we are in a failed state.
+        performPostFailureRecoveryChecks(setup, streamSegmentCount, completionFutures);
     }
 
     /**
@@ -385,7 +387,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * is generated.
      */
     @Test
-    public void testAddWithDataCorruptionFailures() throws Exception {
+    public void testAddWithDataCorruptionFailures() {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
         int failAtOperationIndex = 123;
@@ -1401,6 +1403,36 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         Assert.assertFalse(logIterator.hasNext());
+    }
+
+    private void performPostFailureRecoveryChecks(ContainerSetup setup, int streamSegmentCount, List<OperationWithCompletion> completionFutures) {
+        val recoveredMetadata = new MetadataBuilder(CONTAINER_ID).build();
+        @Cleanup
+        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, recoveredMetadata, setup.storage, setup.cacheManager, executorService());
+        @Cleanup
+        DurableLog recoveredLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), recoveredMetadata, setup.dataLogFactory, readIndex, executorService());
+        recoveredLog.startAsync().awaitRunning();
+
+        // Fetch recovered operations and skip over the segment creation ones.
+        List<Operation> recoveredOperations = readUpToSequenceNumber(recoveredLog, recoveredMetadata.getOperationSequenceNumber());
+        recoveredOperations = recoveredOperations.subList(1 + streamSegmentCount, recoveredOperations.size());
+
+        val successfulOperationCount = completionFutures.stream().filter(oc -> !oc.completion.isCompletedExceptionally()).count();
+
+        // We expect that we recover the exact set of operations that were acked. However in the process of shutting down
+        // we may have failed some operations that have been successfully written to DurableDataLog (i.e., persisted, but
+        // the connection failed so we never got an ack). Since we cannot determine which of the "failed" operations should
+        // have been successful, we can only check the ones that were.
+        AssertExtensions.assertGreaterThanOrEqual("Fewer operations were recovered than were acked.", successfulOperationCount, recoveredOperations.size());
+
+        val operationsToCheck = completionFutures.subList(0, recoveredOperations.size()).stream()
+                .map(oc -> oc.operation)
+                .collect(Collectors.toList());
+
+        assertRecoveredOperationsMatch(operationsToCheck, recoveredOperations);
+
+        // Stop the services.
+        recoveredLog.stopAsync().awaitTerminated();
     }
 
     /**
