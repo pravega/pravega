@@ -605,6 +605,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private CacheIndexEntry insertEntriesToCacheAndIndex(BufferView data, long segmentOffset) {
         CacheIndexEntry lastInsertedEntry = null;
         synchronized (this.lock) {
+            // Do not insert after we have closed the index, otherwise we will leak cache entries.
+            Exceptions.checkNotClosed(this.closed, this);
             while (data != null && data.getLength() > 0) {
                 // Figure out if the first byte in the buffer is already cached.
                 ReadIndexEntry existingEntry = this.indexEntries.getFloor(segmentOffset);
