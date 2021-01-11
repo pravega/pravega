@@ -26,6 +26,7 @@ import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.DeleteObjectsRequest;
 import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
+import com.google.common.base.Preconditions;
 import io.pravega.common.io.StreamHelpers;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
@@ -66,7 +67,8 @@ public class S3FileSystemImpl extends S3ImplBase {
 
     @Override
     public PutObjectResult putObject(PutObjectRequest request) {
-
+        Preconditions.checkState(null != request);
+        Preconditions.checkState(null != request.getKey());
         if (request.getObjectMetadata() != null) {
             request.setObjectMetadata(new S3ObjectMetadata()
                     .withContentType(request.getObjectMetadata().getContentType())
@@ -81,17 +83,21 @@ public class S3FileSystemImpl extends S3ImplBase {
             if (null !=  request.getObject()) {
                 try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
 
-                    long startOffset = 0;
+                    long contentLength = request.getObjectMetadata().getContentLength();
                     long length = request.getObjectMetadata().getContentLength();
                     do {
                         long bytesTransferred = channel.transferFrom(Channels.newChannel((InputStream) request.getObject()),
                                 0, length);
                         length -= bytesTransferred;
-                        startOffset += bytesTransferred;
                     } while (length > 0);
+                    channel.force(true);
 
                     AclSize aclKey = aclMap.get(request.getKey());
-                    aclMap.put(request.getKey(), aclKey.withSize(length));
+                    if (null != aclKey) {
+                        aclMap.put(request.getKey(), aclKey.withSize(contentLength));
+                    } else {
+                        aclMap.put(request.getKey(), new AclSize(request.getAcl(), contentLength));
+                    }
                 } catch (IOException e) {
                     throw new S3Exception("NoObject", 404, "NoSuchKey", request.getKey());
                 }
@@ -113,7 +119,6 @@ public class S3FileSystemImpl extends S3ImplBase {
     @Synchronized
     @Override
     public void putObject(String bucketName, String key, Range range, Object content) {
-
         Path path = Paths.get(this.baseDir, bucketName, key);
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
 
@@ -125,7 +130,7 @@ public class S3FileSystemImpl extends S3ImplBase {
                 length -= bytesTransferred;
                 startOffset += bytesTransferred;
             } while (length > 0);
-
+            channel.force(true);
             AclSize aclKey = aclMap.get(key);
             aclMap.put(key, aclKey.withSize(range.getLast() + 1));
         } catch (IOException e) {

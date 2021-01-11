@@ -158,7 +158,9 @@ public class SystemJournal {
      * @throws Exception Exception if any.
      */
     public void initialize() throws Exception {
-        chunkStorage.create(getSystemJournalChunkName()).get();
+        if (chunkStorage.supportsAppend()) {
+            chunkStorage.create(getSystemJournalChunkName()).get();
+        }
     }
 
     /**

@@ -139,6 +139,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
     @Override
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
+        Preconditions.checkState(supportsAppend, "supportsAppend is false.");
         try {
             val objectPath = getObjectPath(handle.getChunkName());
             // Check object exists.
@@ -249,6 +250,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
     @Override
     protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException {
+        Preconditions.checkState(supportsAppend, "supportsAppend is false.");
         try {
             if (!client.listObjects(config.getBucket(), getObjectPath(chunkName)).getObjects().isEmpty()) {
                 throw new ChunkAlreadyExistsException(chunkName, "Chunk already exists");
