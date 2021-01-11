@@ -595,8 +595,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     OperationProcessor.this.metadataUpdater.commit(commitArgs.getMetadataTransactionId());
 
                     // Queue operations for memory commit, which will be done asynchronously.
-                    toAck.forEach(OperationProcessor.this.commitQueue::add);
-
+                    queueMemoryCommit(toAck);
                     this.highestCommittedDataFrame = addressSequence;
                 }
             } finally {
@@ -605,6 +604,17 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     metrics.operationsCompleted(toAck, timer.getElapsed());
                 }
                 this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
+            }
+        }
+
+        private void queueMemoryCommit(List<List<CompletableOperation>> toAck) {
+            try {
+                toAck.forEach(OperationProcessor.this.commitQueue::add);
+            } catch (Exception ex) {
+                // If we are unable to queue up these operations for whatever reason, we must unregister them from the
+                // CacheUtilizationProvider, otherwise we will be "leaking" bytes (i.e., overcounting).
+                toAck.forEach(l -> l.forEach(this::notifyOperationCommitted));
+                throw ex;
             }
         }
 
