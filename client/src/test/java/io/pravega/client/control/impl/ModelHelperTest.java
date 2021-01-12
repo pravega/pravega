@@ -9,11 +9,16 @@
  */
 package io.pravega.client.control.impl;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
@@ -32,6 +37,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static io.pravega.shared.NameUtils.getScopedStreamName;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -274,6 +280,18 @@ public class ModelHelperTest {
                 ModelHelper.createStreamInfo("testScope", "testStream", AccessOperation.WRITE).getAccessOperation());
         assertEquals(Controller.StreamInfo.AccessOperation.READ_WRITE,
                 ModelHelper.createStreamInfo("testScope", "testStream", AccessOperation.READ_WRITE).getAccessOperation());
+    }
+
+    @Test
+    public void testReaderGroupConfig() {
+        String scope = "test";
+        String stream = "test";
+        ImmutableMap<Segment, Long> positions = ImmutableMap.<Segment, Long>builder().put(new Segment(scope, stream, 0), 90L).build();
+        StreamCut sc = new StreamCutImpl(Stream.of(scope, stream), positions);
+        ReaderGroupConfig config = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(getScopedStreamName(scope, stream), StreamCut.UNBOUNDED, sc).build();
+        Controller.ReaderGroupConfiguration decodedConfig = ModelHelper.decode(scope, "group", config);
+        assertEquals(config, ModelHelper.encode(decodedConfig));
     }
 
     private Controller.SegmentRange createSegmentRange(double minKey, double maxKey) {
