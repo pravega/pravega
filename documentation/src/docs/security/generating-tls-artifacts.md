@@ -31,21 +31,22 @@ in the server that uses the TLS certificate and the key). Each server should use
 reusing certificates requires reusing private keys as well, and sharing private keys across multiple servers increases 
 the risk that they will be compromised.
 
-Here are a few strategies for determining the number of sets TLS artifacts sets required for a Pravega cluster: 
+Here are a few strategies for determining the sets of TLS artifacts required for a Pravega cluster:
+
 1. _Use separate TLS artifacts for each host/machine or service_. 
    
-   Manual deployments supports this and the other other configurations listed below. This is the most secure option. 
+   Manual deployments supports this and the other configurations listed below. This is the most secure option. 
 2. _Use two sets of TLS artifacts - one for the Controllers and the other for the Segment Stores_. 
    
    In this case, each certificate is assigned to all the respective nodes (Controllers or Segment Stores) by specifying 
-   the nodes' network identities (DNS names and/or IP addresses) in the certificate's 
-   [Subject Alternative Name (SAN)(https://en.wikipedia.org/wiki/Subject_Alternative_Name) field. 
+   the nodes' DNS names and/or IP addresses in the certificate's 
+   [Subject Alternative Name (SAN)](https://en.wikipedia.org/wiki/Subject_Alternative_Name) field. 
    
    Kubernetes and other forms of containerized deployments supports this configuration. 
 3. _Use the same set for all Controllers and Segment Store services_. 
    
    In this case, the certificate must contain the network identity of all the Controller and Segment Store services. This is 
-   the least secured option. All deployment options support this configuration.  
+   the least secure option. All deployment options support this configuration.  
    
 The chosen configuration determines the number of TLS artifacts sets required for a 
 Pravega cluster. Each set can be prepared using the process described later in this document under
@@ -67,8 +68,9 @@ Java keystores and Java truststores. Install OpenSSL and Java Development Kit (J
 will be generated.
 
 **Note:**
-* The examples shown in this section use command line arguments to pass all inputs to the command. To pass
-sensitive command arguments via prompts instead, just exclude the corresponding option. For example,
+* The examples shown in this document use command line arguments to pass all inputs to the command. To pass
+  sensitive command arguments via prompts instead, just exclude the corresponding option (as shown in the second command
+  below). 
 
   ```bash
   # Passwords are passed as command line arguments.
@@ -185,7 +187,7 @@ The above steps are described below:
    $ keytool -list -v -storetype JKS -keystore server_unsigned.keystore.jks -storepass changeit
    ```
 
-2. Generate a certificate signing request (CSR) for the server certificate.
+2. Generate a Certificate Signing Request (CSR) for the server certificate.
 
    It helps to think of a CSR as an application for getting a certificate signed by a trusted authority. 
    
