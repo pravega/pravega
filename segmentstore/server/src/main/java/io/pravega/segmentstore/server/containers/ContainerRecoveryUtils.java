@@ -307,7 +307,7 @@ public class ContainerRecoveryUtils {
                                             ExecutorService executorService,
                                             Duration timeout) throws InterruptedException, ExecutionException,
             TimeoutException {
-        Preconditions.checkState(backUpMetadataSegments.size() == containersMap.size(), "The number of " +
+        Preconditions.checkState(backUpMetadataSegments.size() <= containersMap.size(), "The number of " +
                 "back-up metadata segments and containers should match.");
 
         val args = IteratorArgs.builder().fetchTimeout(timeout).build();

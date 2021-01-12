@@ -538,7 +538,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             throws Exception {
         for (int containerId = 0; containerId < containerCount; containerId++) {
             debugStreamSegmentContainerMap.get(containerId).flushToStorage(TIMEOUT).join();
-            Services.stopAsync(debugStreamSegmentContainerMap.get(containerId), executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             debugStreamSegmentContainerMap.get(containerId).close();
         }
     }
