@@ -177,9 +177,14 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
         @Cleanup
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
         val timedoutTake = queue.take(MAX_READ_COUNT, shortTimeout, executorService());
+        AssertExtensions.assertSuppliedFutureThrows(
+                "take did not time out",
+                () -> timedoutTake,
+                ex -> ex instanceof TimeoutException);
 
+        val finalTake = queue.take(MAX_READ_COUNT, Duration.ofMillis(TIMEOUT_MILLIS), executorService());
         AssertExtensions.assertThrows(
-                "poll() succeeded even though there was another incomplete take() request.",
+                "take() succeeded even though there was another incomplete take() request.",
                 () -> queue.take(MAX_READ_COUNT),
                 ex -> ex instanceof IllegalStateException);
 
@@ -188,12 +193,6 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
                 () -> queue.poll(MAX_READ_COUNT),
                 ex -> ex instanceof IllegalStateException);
 
-        AssertExtensions.assertSuppliedFutureThrows(
-                "take did not time out",
-                () -> timedoutTake,
-                ex -> ex instanceof TimeoutException);
-
-        val finalTake = queue.take(MAX_READ_COUNT, Duration.ofMillis(TIMEOUT_MILLIS), executorService());
         queue.add(valueToQueue);
 
         val result = finalTake.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
