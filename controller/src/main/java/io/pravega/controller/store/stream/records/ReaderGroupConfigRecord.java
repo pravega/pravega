@@ -53,10 +53,10 @@ public class ReaderGroupConfigRecord {
     public static ReaderGroupConfigRecord update(ReaderGroupConfig rgConfig, long generation, boolean isUpdating) {
         Map<String, RGStreamCutRecord> startStreamCuts = rgConfig.getStartingStreamCuts().entrySet().stream()
                 .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
-                        e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+                        e -> new RGStreamCutRecord(ModelHelper.getStreamCutMap(e.getValue()))));
         Map<String, RGStreamCutRecord> endStreamCuts = rgConfig.getEndingStreamCuts().entrySet().stream()
                 .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
-                        e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+                        e -> new RGStreamCutRecord(ModelHelper.getStreamCutMap(e.getValue()))));
         return ReaderGroupConfigRecord.builder()
                 .generation(generation)
                 .groupRefreshTimeMillis(rgConfig.getGroupRefreshTimeMillis())
