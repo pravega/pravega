@@ -9,7 +9,8 @@ You may obtain a copy of the License at
 -->
 # Creating TLS Certificates, Keys and Other TLS Artifacts
 
-This document describes how to create TLS certificates, keys and other artifacts for the server components. 
+This document describes how to create TLS certificates, keys and other artifacts for the server components. The 
+generated CA certificate and Java truststore may also be used on client-side for validating the servers' certificates.
 
    * [Overview](#overview)
    * [Setting up a Certificate Authority (CA)](#setting-up-a-certificate-authority-ca)
