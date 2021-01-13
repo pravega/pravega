@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import io.pravega.shared.NameUtils;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -512,7 +513,8 @@ public class ReaderGroupStateManager {
             cuts.orElseThrow(() -> new CheckpointFailedException("Could not get positions for last checkpoint."))
                  .entrySet().forEach(entry ->
                         controller.updateSubscriberStreamCut(entry.getKey().getScope(), entry.getKey().getStreamName(),
-                                readerId, state.getConfig().getReaderGroupId(), state.getConfig().getGeneration(), new StreamCutImpl(entry.getKey(), entry.getValue())));
+                                NameUtils.getScopedReaderGroupName(scope, groupName), state.getConfig().getReaderGroupId(),
+                                state.getConfig().getGeneration(), new StreamCutImpl(entry.getKey(), entry.getValue())));
                 sync.updateStateUnconditionally(new UpdateCheckpointPublished(true));
         }
     }
