@@ -1816,7 +1816,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
      * Verifies that any FutureRead that resulted from a partial merge operation is cancelled when the ReadIndex is closed.
      */
     @Test
-    public void testMergeReadCancelledOnClose() throws Exception {
+    public void testMergeFutureReadCancelledOnClose() throws Exception {
         CachePolicy cachePolicy = new CachePolicy(1, Duration.ZERO, Duration.ofMillis(1));
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG, cachePolicy);
@@ -1843,6 +1843,45 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 "Expected entry to have been cancelled upon closing",
                 () -> entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
                 ex -> ex instanceof CancellationException);
+    }
+
+    /**
+     * Tests a case when a Read Result is sitting on an incomplete {@link ReadResultEntry} that points to a recently
+     * merged segment, and the Read Result is closed. In this case. The entry should be failed.
+     */
+    @Test
+    public void testMergeReadResultCancelledOnClose() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // Create parent segment and one transaction
+        long parentId = createSegment(0, context);
+        long transactionId = createTransaction(1, context);
+        createSegmentsInStorage(context);
+
+        val parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
+        val transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
+
+        // Write something to the transaction - only in Storage.
+        val txnData = getAppendData(context.metadata.getStreamSegmentMetadata(transactionId).getName(), transactionId, 0, 0);
+        val transactionWriteHandle = context.storage.openWrite(transactionMetadata.getName()).join();
+        context.storage.write(transactionWriteHandle, 0, txnData.getReader(), txnData.getLength(), TIMEOUT).join();
+
+        transactionMetadata.setLength(txnData.getLength());
+        transactionMetadata.setStorageLength(txnData.getLength());
+        transactionMetadata.markSealed();
+        parentMetadata.setLength(transactionMetadata.getLength());
+        context.readIndex.beginMerge(parentId, 0, transactionId);
+        transactionMetadata.markMerged();
+
+        // Setup a Read Result, verify that it is indeed returning a RedirectedReadResultEntry, and immediately close it.
+        // Then verify that the entry itself has been cancelled.
+        @Cleanup
+        val rr = context.readIndex.read(parentId, 0, txnData.getLength(), TIMEOUT);
+        val entry = rr.next();
+        Assert.assertTrue(entry instanceof RedirectedReadResultEntry);
+        rr.close();
+        Assert.assertTrue(entry.getContent().isCancelled());
     }
 
     /**
