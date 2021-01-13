@@ -28,6 +28,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import java.util.Arrays;
@@ -326,14 +327,14 @@ public class ReaderGroupImplTest {
                 .readerGroupId(UUID.randomUUID())
                 .build();
         when(synchronizer.getState().getConfig()).thenReturn(config);
-        when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME,
+        when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), NameUtils.getScopedReaderGroupName(SCOPE, GROUP_NAME),
                 config.getReaderGroupId(), 0L, createStreamCut("test", 1)))
                 .thenReturn(CompletableFuture.completedFuture(true));
         Map<Stream, StreamCut> cuts = new HashMap<>();
         cuts.put(test, createStreamCut("test", 1));
         readerGroup.updateRetentionStreamCut(cuts);
         verify(controller, times(1))
-                .updateSubscriberStreamCut(test.getScope(), test.getStreamName(), GROUP_NAME,
+                .updateSubscriberStreamCut(test.getScope(), test.getStreamName(), NameUtils.getScopedReaderGroupName(SCOPE, GROUP_NAME),
                         config.getReaderGroupId(), 0L, createStreamCut("test", 1));
     }
 
