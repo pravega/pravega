@@ -19,6 +19,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
 
+import java.time.Duration;
+
 /**
  * Configuration for {@link ChunkedSegmentStorage}.
  */
@@ -36,6 +38,12 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", SegmentRollingPolicy.MAX_CHUNK_LENGTH);
     public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
+    public static final Property<Integer> GARBAGE_COLLECTION_DELAY = Property.named("garbage.collection.delay.seconds", 60);
+    public static final Property<Integer> GARBAGE_COLLECTION_MAX_CONCURRENCY = Property.named("garbage.collection.concurrency.max", 10);
+    public static final Property<Integer> GARBAGE_COLLECTION_MAX_QUEUE_SIZE = Property.named("garbage.collection.queue.size.max", 16 * 1024);
+    public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.seconds", 60);
+    public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPS = Property.named("garbage.collection.attempts.max", 3);
+
 
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
@@ -52,6 +60,11 @@ public class ChunkedSegmentStorageConfig {
             .lazyCommitEnabled(true)
             .inlineDefragEnabled(true)
             .lateWarningThresholdInMillis(100)
+            .garbageCollectionDelay(Duration.ofSeconds(60))
+            .garbageCollectionMaxConcurrency(10)
+            .garbageCollectionMaxQueueSize(16 * 1024)
+            .garbageCollectionSleep(Duration.ofSeconds(60))
+            .garbageCollectionMaxAttempts(3)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -125,6 +138,38 @@ public class ChunkedSegmentStorageConfig {
     final private int lateWarningThresholdInMillis;
 
     /**
+     * Minimum delay in seconds between when garbage chunks are marked for deletion and actually deleted.
+     */
+    @Getter
+    final private Duration garbageCollectionDelay;
+
+    /**
+     * Number of chunks deleted concurrently.
+     * This number should be small enough so that it does interfere foreground requests.
+     */
+    @Getter
+    final private int garbageCollectionMaxConcurrency;
+
+    /**
+     * Max size of garbage collection queue.
+     */
+    @Getter
+    final private int garbageCollectionMaxQueueSize;
+
+    /**
+     * Duration for which garbage collector sleeps if there is no work.
+     */
+    @Getter
+    final private Duration garbageCollectionSleep;
+
+
+    /**
+     * Max number of attempts per chunk for garbage collection.
+     */
+    @Getter
+    final private int garbageCollectionMaxAttempts;
+
+    /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
@@ -143,6 +188,11 @@ public class ChunkedSegmentStorageConfig {
         long defaultMaxLength = properties.getLong(DEFAULT_ROLLOVER_SIZE);
         this.defaultRollingPolicy = new SegmentRollingPolicy(defaultMaxLength);
         this.lateWarningThresholdInMillis = properties.getInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
+        this.garbageCollectionDelay = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_DELAY));
+        this.garbageCollectionMaxConcurrency = properties.getInt(GARBAGE_COLLECTION_MAX_CONCURRENCY);
+        this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
+        this.garbageCollectionSleep = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_SLEEP));
+        this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPS);
     }
 
     /**

@@ -32,6 +32,9 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.Credentials;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
@@ -94,12 +97,17 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
-import io.pravega.shared.security.auth.Credentials;
 import java.io.File;
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -121,12 +129,9 @@ import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
 import org.slf4j.LoggerFactory;
 
-import static io.pravega.controller.stream.api.grpc.v1.Controller.AddSubscriberStatus;
-import static io.pravega.controller.stream.api.grpc.v1.Controller.DeleteSubscriberStatus;
 import static io.pravega.controller.stream.api.grpc.v1.Controller.ExistsResponse;
 import static io.pravega.controller.stream.api.grpc.v1.Controller.ScopesRequest;
 import static io.pravega.controller.stream.api.grpc.v1.Controller.ScopesResponse;
-import static io.pravega.controller.stream.api.grpc.v1.Controller.StreamSubscriberInfo;
 import static io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import static io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 
@@ -535,84 +540,6 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> addSubscriber(String scope, String streamName, String subscriber, long generation) {
-        Exceptions.checkNotClosed(closed.get(), this);
-        Preconditions.checkNotNull(scope, "scope");
-        Preconditions.checkNotNull(streamName, "stream");
-        Preconditions.checkNotNull(subscriber, "subscriber");
-        final long requestId = requestIdGenerator.get();
-        long traceId = LoggerHelpers.traceEnter(log, "addSubscriber", subscriber, requestId);
-
-        final CompletableFuture<AddSubscriberStatus> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<AddSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "addSubscriber", scope, streamName, subscriber);
-            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "addSubscriber", scope, streamName)
-                    .addSubscriber(ModelHelper.decode(scope, streamName, subscriber, generation), callback);
-            return callback.getFuture();
-        }, this.executor);
-        return result.thenApply(x -> {
-            switch (x.getStatus()) {
-                case FAILURE:
-                    log.warn(requestId, "Failed to update stream: {}", streamName);
-                    throw new ControllerFailureException("Failed to add subscriber: " + subscriber);
-                case STREAM_NOT_FOUND:
-                    log.warn(requestId, "Stream does not exist: {}/{}", scope, streamName);
-                    throw new IllegalArgumentException("Stream does not exist: " + scope + "/" + streamName);
-                case SUCCESS:
-                    log.info(requestId, "Successfully updated stream: {}", streamName);
-                    return true;
-                case UNRECOGNIZED:
-                default:
-                    throw new ControllerFailureException("Unknown return status adding subscriber " + subscriber
-                            + " " + x.getStatus());
-            }
-        }).whenComplete((x, e) -> {
-            if (e != null) {
-                log.warn(requestId, "addSubscriber {} for stream {}/{} failed: ", subscriber, scope, streamName, e);
-            }
-            LoggerHelpers.traceLeave(log, "addSubscriber", traceId, subscriber, requestId);
-        });
-    }
-
-    @Override
-    public CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber, final long generation) {
-        Exceptions.checkNotClosed(closed.get(), this);
-        Preconditions.checkNotNull(scope, "scope");
-        Preconditions.checkNotNull(streamName, "stream");
-        Preconditions.checkNotNull(subscriber, "subscriber");
-        final long requestId = requestIdGenerator.get();
-        long traceId = LoggerHelpers.traceEnter(log, "deleteSubscriber", subscriber, requestId);
-
-        final CompletableFuture<DeleteSubscriberStatus> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<DeleteSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "deleteSubscriber", scope, streamName, subscriber);
-            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "deleteSubscriber", scope, streamName)
-                    .deleteSubscriber(ModelHelper.decode(scope, streamName, subscriber, generation), callback);
-            return callback.getFuture();
-        }, this.executor);
-        return result.thenApply(x -> {
-            switch (x.getStatus()) {
-                case FAILURE:
-                    log.warn(requestId, "Failed to delete subscriber: {} to stream {}/{}", subscriber, scope, streamName);
-                    throw new ControllerFailureException("Failed to delete subscriber: " + subscriber);
-                case STREAM_NOT_FOUND:
-                    log.warn(requestId, "Stream does not exist: {}", streamName);
-                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
-                case SUCCESS:
-                    log.info(requestId, "Successfully delete subscriber {} from stream: {}/{}", subscriber, scope, streamName);
-                    return true;
-                case UNRECOGNIZED:
-                default:
-                    throw new ControllerFailureException("Unknown return status delete subscriber " + subscriber
-                            + " " + x.getStatus());
-            }
-        }).whenComplete((x, e) -> {
-            if (e != null) {
-                log.warn(requestId, "deleteSubscriber {} for stream {}/{} failed: ", subscriber, scope, streamName, e);
-            }
-            LoggerHelpers.traceLeave(log, "deleteSubscriber", traceId, subscriber, requestId);
-        });
-    }
-
-    @Override
     public CompletableFuture<List<String>> listSubscribers(String scope, String streamName) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(scope, "scope");
@@ -650,37 +577,41 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> updateSubscriberStreamCut(String scope, String streamName, String subscriber, StreamCut streamCut) {
+    public CompletableFuture<Boolean> updateSubscriberStreamCut(String scope, String streamName, String subscriber,
+                                                                final UUID readerGroupId, long generation, StreamCut streamCut) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(streamName, "stream");
         Preconditions.checkNotNull(subscriber, "subscriber");
+        Preconditions.checkNotNull(readerGroupId, "readerGroupId");
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "updateTruncationStreamCut", subscriber, requestId);
 
         final CompletableFuture<UpdateSubscriberStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateSubscriberStatus> callback = new RPCAsyncCallback<>(requestId, "updateTruncationStreamCut", scope, streamName, subscriber, streamCut);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "updateTruncationStreamCut", scope, streamName)
-                    .updateSubscriberStreamCut(ModelHelper.decode(scope, streamName, subscriber, getStreamCutMap(streamCut)), callback);
+                .updateSubscriberStreamCut(ModelHelper.decode(scope, streamName, subscriber, readerGroupId, generation, getStreamCutMap(streamCut)), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
-                    log.warn(requestId, "Failed to update stream: {}", streamName);
-                    throw new ControllerFailureException("Failed to updateTruncationStreamcut for Stream:" + scope + "/" + streamName
-                            + ": subscriber:" + subscriber);
+                    log.warn(requestId, "Failed to update stream cut for Reader Group: {}", subscriber);
+                    throw new ControllerFailureException("Failed to update stream cut for Reader Group:" + subscriber);
                 case STREAM_NOT_FOUND:
                     log.warn(requestId, "Stream does not exist: {}", streamName);
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
                 case SUBSCRIBER_NOT_FOUND:
                     log.warn(requestId, "Subscriber does not exist: {} for stream {}/{}", subscriber, scope, streamName);
                     throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
-                case STREAMCUT_NOT_VALID:
+                case STREAM_CUT_NOT_VALID:
                     log.warn(requestId, "StreamCut not valid for stream {}/{} subscriber {}.", scope, streamName, subscriber);
                     throw new IllegalArgumentException("StreamCut not valid for stream " + scope + "/" + streamName + ": subscriber:" + subscriber);
+                case GENERATION_MISMATCH:
+                    log.warn(requestId, "Invalid generation for ReaderGroup {}.", subscriber);
+                    throw new IllegalArgumentException("Invalid generation for ReaderGroup " + subscriber);
                 case SUCCESS:
-                    log.info(requestId, "Successfully updated truncationStreamCut for subscriber {} from stream: {}/{}", subscriber, scope, streamName);
+                    log.info(requestId, "Successfully updated truncationStreamCut for subscriber {} for stream: {}/{}", subscriber, scope, streamName);
                     return true;
                 case UNRECOGNIZED:
                 default:
@@ -1588,8 +1519,170 @@ public class ControllerImpl implements Controller {
                 LoggerHelpers.traceLeave(log, "getCurrentSegmentsForKeyValueTable", traceId);
             });
         }
-
     //endregion
+
+    // region ReaderGroups
+    public CompletableFuture<Boolean> createReaderGroup(String scope, String rgName, final ReaderGroupConfig rgConfig) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(rgName, "rgName");
+        Preconditions.checkNotNull(rgConfig, "rgConfig");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "createReaderGroup", rgConfig, requestId);
+
+        final CompletableFuture<CreateReaderGroupStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<CreateReaderGroupStatus> callback = new RPCAsyncCallback<>(requestId, "createReaderGroup", scope, rgName, rgConfig);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "createReaderGroup", scope, rgName)
+                    .createReaderGroup(ModelHelper.decode(scope, rgName, rgConfig), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to create reader group: {}", rgName);
+                    throw new ControllerFailureException("Failed to create reader group: " + rgName);
+                case INVALID_RG_NAME:
+                    log.warn(requestId, "Illegal Reader Group Name: {}", rgName);
+                    throw new IllegalArgumentException("Illegal readergroup name: " + rgName);
+                case SCOPE_NOT_FOUND:
+                    log.warn(requestId, "Scope not found: {}", scope);
+                    throw new IllegalArgumentException("Scope does not exist: " + scope);
+                case SUCCESS:
+                    log.info(requestId, "ReaderGroup created successfully: {}", rgName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status creating reader group " + rgName
+                            + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "createReaderGroup {}/{} failed: ", scope, rgName, e);
+            }
+            LoggerHelpers.traceLeave(log, "createReaderGroup", traceId, rgConfig, requestId);
+        });
+    }
+
+    public CompletableFuture<Boolean> updateReaderGroup(String scope, String rgName, final ReaderGroupConfig rgConfig) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(rgName, "rgName");
+        Preconditions.checkNotNull(rgConfig, "rgConfig");
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "updateReaderGroup", rgConfig, requestId);
+
+        final CompletableFuture<UpdateReaderGroupResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<UpdateReaderGroupResponse> callback = new RPCAsyncCallback<>(requestId, "updateReaderGroup", scope, rgName, rgConfig);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "updateReaderGroup", scope, rgName)
+                    .updateReaderGroup(ModelHelper.decode(scope, rgName, rgConfig), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to create reader group: {}", rgName);
+                    throw new ControllerFailureException("Failed to create readergroup: " + rgName);
+                case INVALID_CONFIG:
+                    log.warn(requestId, "Illegal Reader Group Name: {}", rgName);
+                    throw new IllegalArgumentException("Illegal readergroup name: " + rgName);
+                case RG_NOT_FOUND:
+                    log.warn(requestId, "Scope not found: {}", scope);
+                    throw new IllegalArgumentException("Scope does not exist: " + scope);
+                case SUCCESS:
+                    log.info(requestId, "ReaderGroup created successfully: {}", rgName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status creating reader group " + rgName
+                            + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "createReaderGroup {}/{} failed: ", scope, rgName, e);
+            }
+            LoggerHelpers.traceLeave(log, "createReaderGroup", traceId, rgConfig, requestId);
+        });
+    }
+
+    @Override
+    public CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(final String scope, final String rgName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        final String emptyUUID = "";
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "getReaderGroupConfig", scope, rgName, requestId);
+        final String scopedRGName = NameUtils.getScopedReaderGroupName(scope, rgName);
+
+        final CompletableFuture<ReaderGroupConfigResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<ReaderGroupConfigResponse> callback = new RPCAsyncCallback<>(requestId, "getReaderGroupConfig", scope, rgName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getReaderGroupConfig", scope, rgName)
+                    .getReaderGroupConfig(ModelHelper.createReaderGroupInfo(scope, rgName, emptyUUID, 0L), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to get config for reader group: {}", scopedRGName);
+                    throw new ControllerFailureException("Failed to get config for reader group: " + scopedRGName);
+                case RG_NOT_FOUND:
+                    log.warn(requestId, "ReaderGroup not found: {}", scopedRGName);
+                    throw new IllegalArgumentException("ReaderGroup does not exist: " + scopedRGName);
+                case SUCCESS:
+                    log.info(requestId, "Successfully got config for Reader Group: {}", scopedRGName);
+                    return ModelHelper.encode(x.getConfig());
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status getting config for ReaderGroup " + scopedRGName + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "getReaderGroupConfig failed for Reader Group: ", scopedRGName, e);
+            }
+            LoggerHelpers.traceLeave(log, "getReaderGroupConfig", traceId, scope, rgName, requestId);
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteReaderGroup(final String scope, final String rgName,
+                                                        final UUID readerGroupId, final long generation) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(rgName, "rgName");
+        Preconditions.checkNotNull(readerGroupId, "rgId");
+        Preconditions.checkArgument( generation >= 0 );
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "deleteReaderGroup", scope, rgName, requestId);
+        final String scopedRGName = NameUtils.getScopedReaderGroupName(scope, rgName);
+
+        final CompletableFuture<DeleteReaderGroupStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<DeleteReaderGroupStatus> callback = new RPCAsyncCallback<>(requestId, "deleteReaderGroup", scope, rgName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "deleteReaderGroup", scope, rgName)
+                    .deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope, rgName, readerGroupId.toString(), generation), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to delete reader group: {}", scopedRGName);
+                    throw new ControllerFailureException("Failed to delete reader group: " + scopedRGName);
+                case RG_NOT_FOUND:
+                    log.warn(requestId, "ReaderGroup not found: {}", scopedRGName);
+                    throw new IllegalArgumentException("ReaderGroup does not exist: " + scopedRGName);
+                case SUCCESS:
+                    log.info(requestId, "Successfully deleted Reader Group: {}", scopedRGName);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status getting config for ReaderGroup " + scopedRGName + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "deleteReaderGroup failed for Reader Group: ", scopedRGName, e);
+            }
+            LoggerHelpers.traceLeave(log, "deleteReaderGroup", traceId, scope, rgName, requestId);
+        });
+    }
+    // endregion
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.
     private static final class RPCAsyncCallback<T> implements StreamObserver<T> {
@@ -1728,16 +1821,6 @@ public class ControllerImpl implements Controller {
                       .deleteStream(streamInfo, callback);
         }
 
-        public void addSubscriber(StreamSubscriberInfo streamSubscriberInfo, RPCAsyncCallback<AddSubscriberStatus> callback) {
-            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                    .addSubscriber(streamSubscriberInfo, callback);
-        }
-
-        public void deleteSubscriber(StreamSubscriberInfo streamSubscriberInfo, RPCAsyncCallback<DeleteSubscriberStatus> callback) {
-            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                    .deleteSubscriber(streamSubscriberInfo, callback);
-        }
-
         public void updateSubscriberStreamCut(SubscriberStreamCut subscriberStreamCut, RPCAsyncCallback<UpdateSubscriberStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .updateSubscriberStreamCut(subscriberStreamCut, callback);
@@ -1763,6 +1846,26 @@ public class ControllerImpl implements Controller {
         void deleteKeyValueTable(io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo kvtInfo, RPCAsyncCallback<DeleteKVTableStatus> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .deleteKeyValueTable(kvtInfo, callback);
+        }
+
+        void createReaderGroup(ReaderGroupConfiguration rgConfig, RPCAsyncCallback<CreateReaderGroupStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .createReaderGroup(rgConfig, callback);
+        }
+
+        void getReaderGroupConfig(ReaderGroupInfo readerGroupInfo, RPCAsyncCallback<ReaderGroupConfigResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .getReaderGroupConfig(readerGroupInfo, callback);
+        }
+
+        void deleteReaderGroup(ReaderGroupInfo readerGroupInfo, RPCAsyncCallback<DeleteReaderGroupStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .deleteReaderGroup(readerGroupInfo, callback);
+        }
+
+        void updateReaderGroup(ReaderGroupConfiguration rgConfig, RPCAsyncCallback<UpdateReaderGroupResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .updateReaderGroup(rgConfig, callback);
         }
     }
 }

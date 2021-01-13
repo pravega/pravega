@@ -59,6 +59,20 @@ public interface SegmentInputStreamFactory {
     EventSegmentReader createEventReaderForSegment(Segment segment);
 
     /**
+     * Opens an existing segment for reading events. This operation will fail if the
+     * segment does not exist.
+     * This operation may be called multiple times on the same segment from the
+     * same client (i.e., there can be concurrent Event Readers in the same
+     * process space).
+     *
+     * @param segment The segment to create an input for.
+     * @param startOffset the start offset of the segment.
+     * @param endOffset The end offset of the segment.
+     * @return New instance of EventSegmentReader for reading.
+     */
+    EventSegmentReader createEventReaderForSegment(Segment segment, long startOffset, long endOffset);
+
+    /**
      * Open an existing segment for reading up to the provided end offset. This operation will fail if the segment
      * does not exist.
      *

@@ -98,7 +98,7 @@ public class StreamCommandTest {
         Assert.assertNotNull(StreamCommand.List.descriptor());
     }
 
-    @Test(timeout = 20000)
+    @Test(timeout = 40000)
     @SneakyThrows
     public void testAppendAndReadStream() {
         String scope = "appendAndReadStreamScope";

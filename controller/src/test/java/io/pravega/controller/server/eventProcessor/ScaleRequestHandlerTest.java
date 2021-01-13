@@ -190,7 +190,7 @@ public abstract class ScaleRequestHandlerTest {
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler,
-                null, null, null, null, streamStore, executor);
+                null, null, null, null, null, null, null, streamStore, executor);
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
         streamMetadataTasks.setRequestEventWriter(writer);
@@ -288,7 +288,7 @@ public abstract class ScaleRequestHandlerTest {
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler,
-                null, null, null, null, streamStore, executor);
+                null, null, null, null, null, null, null, streamStore, executor);
         EventWriterMock writer = new EventWriterMock();
         streamMetadataTasks.setRequestEventWriter(writer);
 
@@ -380,7 +380,7 @@ public abstract class ScaleRequestHandlerTest {
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
-                null, null, null, null, streamStore, executor);
+                null, null, null, null, null, null, null, streamStore, executor);
         CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
 
         // 1 create transaction on old epoch and set it to committing
@@ -451,7 +451,7 @@ public abstract class ScaleRequestHandlerTest {
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
-                null, null, null, null, streamStore, executor);
+                null, null, null, null, null, null, null, streamStore, executor);
         CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
 
         // 1 create transaction on old epoch and set it to committing
@@ -509,7 +509,7 @@ public abstract class ScaleRequestHandlerTest {
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
-                null, null, null, null, streamStore, executor);
+                null, null, null, null, null, null, null, streamStore, executor);
         CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
 
         // 1 create transaction on old epoch and set it to committing
@@ -928,7 +928,7 @@ public abstract class ScaleRequestHandlerTest {
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null,
-                null, null, null, streamStore, executor);
+                null, null, null, null, null, null, streamStore, executor);
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
         streamMetadataTasks.setRequestEventWriter(writer);

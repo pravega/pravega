@@ -125,6 +125,10 @@ allprojects {
             }
         }
     }
+
+    tasks.withType(Test) {
+        jvmArgs = ["-Xmx2g"]
+    }
 }
 
 project('common') {

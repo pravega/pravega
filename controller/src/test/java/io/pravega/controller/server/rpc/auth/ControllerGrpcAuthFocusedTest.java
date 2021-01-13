@@ -21,7 +21,7 @@ import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.shared.security.auth.Credentials;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.client.control.impl.PravegaCredentialsWrapper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
@@ -47,6 +47,9 @@ import io.pravega.shared.rest.security.AuthInterceptor;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.authplugin.basic.PasswordAuthHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableStoreFactory;
@@ -178,6 +181,9 @@ public class ControllerGrpcAuthFocusedTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, EXECUTOR),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, EXECUTOR),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, EXECUTOR),
+                new CreateReaderGroupTask(streamMetadataTasks, streamStore, EXECUTOR),
+                new DeleteReaderGroupTask(streamMetadataTasks, streamStore, EXECUTOR),
+                new UpdateReaderGroupTask(streamMetadataTasks, streamStore, EXECUTOR),
                 streamStore,
                 EXECUTOR);
 
