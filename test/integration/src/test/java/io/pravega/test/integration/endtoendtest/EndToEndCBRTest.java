@@ -14,18 +14,7 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.stream.Checkpoint;
-import io.pravega.client.stream.EventRead;
-import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ReaderConfig;
-import io.pravega.client.stream.ReaderGroup;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.RetentionPolicy;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.controller.server.eventProcessor.LocalController;
@@ -36,6 +25,7 @@ import lombok.Cleanup;
 import org.junit.Test;
 
 import java.net.URI;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -116,6 +106,82 @@ public class EndToEndCBRTest extends AbstractEndToEndTest {
         assertFalse(read.isCheckpoint());
 
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(new StreamImpl(scope, streamName), 0L)
+                .join().values().stream().anyMatch(off -> off > 0), 30 * 1000L);
+
+        groupManager.createReaderGroup("group2", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(NameUtils.getScopedStreamName(scope, streamName)).build());
+        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", "group2", serializer, ReaderConfig.builder().build());
+        EventRead<String> eventRead2 = reader2.readNextEvent(10000);
+        assertEquals("e2", eventRead2.getEvent());
+    }
+
+    @Test
+    public void testReaderGroupManualRetention() throws Exception {
+        String scope = "test";
+        String streamName = "test";
+        String groupName = "group";
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .retentionPolicy(RetentionPolicy.builder().retentionType(RetentionPolicy.RetentionType.TIME).retentionParam(1L).retentionMax(Long.MAX_VALUE).build())
+                .build();
+        LocalController controller = (LocalController) controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(scope).get();
+        controller.createStream(scope, streamName, config).get();
+        Stream stream = Stream.of(scope, streamName);
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
+                .controllerURI(URI.create("tcp://" + serviceHost))
+                .build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+
+        // write events
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
+                EventWriterConfig.builder().build());
+        writer.writeEvent("1", "e1").join();
+        writer.writeEvent("2", "e2").join();
+
+        // Create a ReaderGroup
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory);
+        groupManager.createReaderGroup(groupName, ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints()
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .stream(stream).build());
+
+        System.out.println("Sub list: " + controller.listSubscribers(scope, streamName).get());
+
+        // Create a Reader
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("reader1", groupName, serializer,
+                ReaderConfig.builder().build(), clock::get,
+                clock::get);
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        EventRead<String> read = reader.readNextEvent(60000);
+        assertEquals("e1", read.getEvent());
+
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        @Cleanup("shutdown")
+        final InlineExecutor backgroundExecutor = new InlineExecutor();
+        ReaderGroup readerGroup = groupManager.getReaderGroup(groupName);
+        CompletableFuture<Map<Stream, StreamCut>> streamCuts = readerGroup.generateStreamCuts(backgroundExecutor);
+        assertFalse(streamCuts.isDone());
+        read = reader.readNextEvent(60000);
+        assertEquals("e2", read.getEvent());
+
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        read = reader.readNextEvent(60000);
+        assertNull(read.getEvent());
+        Map<Stream, StreamCut> scResult = streamCuts.get(5, TimeUnit.SECONDS);
+        assertTrue(streamCuts.isDone());
+
+        System.out.println("StreamCut: " + scResult);
+
+        readerGroup.updateRetentionStreamCut(scResult);
+
+        System.out.println("Segments: " + controller.getSegmentsAtTime(stream, 0L).join());
+        AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(stream, 0L)
                 .join().values().stream().anyMatch(off -> off > 0), 30 * 1000L);
 
         groupManager.createReaderGroup("group2", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(NameUtils.getScopedStreamName(scope, streamName)).build());
