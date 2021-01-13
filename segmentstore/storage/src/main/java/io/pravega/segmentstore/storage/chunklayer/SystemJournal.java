@@ -172,7 +172,6 @@ public class SystemJournal {
     public CompletableFuture<Void> bootstrap(long epoch) throws Exception {
         this.epoch = epoch;
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
-        Preconditions.checkState(!chunkStorage.exists(getSystemJournalChunkName()).get());
         try (val txn = metadataStore.beginTransaction(false, getSystemSegments())) {
             // Keep track of offsets at which chunks were added to the system segments.
             val chunkStartOffsets = new HashMap<String, Long>();
