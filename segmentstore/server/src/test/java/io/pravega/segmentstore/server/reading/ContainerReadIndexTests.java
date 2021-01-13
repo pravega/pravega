@@ -30,6 +30,7 @@ import io.pravega.segmentstore.server.TestStorage;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.cache.CacheState;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
@@ -56,6 +57,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -73,6 +75,7 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
 
 /**
  * Unit tests for ContainerReadIndex class.
@@ -1855,33 +1858,117 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         TestContext context = new TestContext();
 
         // Create parent segment and one transaction
-        long parentId = createSegment(0, context);
-        long transactionId = createTransaction(1, context);
+        long targetSegmentId = createSegment(0, context);
+        long sourceSegmentId = createTransaction(1, context);
         createSegmentsInStorage(context);
 
-        val parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
-        val transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
+        val targetMetadata = context.metadata.getStreamSegmentMetadata(targetSegmentId);
+        val sourceMetadata = context.metadata.getStreamSegmentMetadata(sourceSegmentId);
 
         // Write something to the transaction - only in Storage.
-        val txnData = getAppendData(context.metadata.getStreamSegmentMetadata(transactionId).getName(), transactionId, 0, 0);
-        val transactionWriteHandle = context.storage.openWrite(transactionMetadata.getName()).join();
+        val txnData = getAppendData(context.metadata.getStreamSegmentMetadata(sourceSegmentId).getName(), sourceSegmentId, 0, 0);
+        val transactionWriteHandle = context.storage.openWrite(sourceMetadata.getName()).join();
         context.storage.write(transactionWriteHandle, 0, txnData.getReader(), txnData.getLength(), TIMEOUT).join();
 
-        transactionMetadata.setLength(txnData.getLength());
-        transactionMetadata.setStorageLength(txnData.getLength());
-        transactionMetadata.markSealed();
-        parentMetadata.setLength(transactionMetadata.getLength());
-        context.readIndex.beginMerge(parentId, 0, transactionId);
-        transactionMetadata.markMerged();
+        sourceMetadata.setLength(txnData.getLength());
+        sourceMetadata.setStorageLength(txnData.getLength());
+        sourceMetadata.markSealed();
+        targetMetadata.setLength(sourceMetadata.getLength());
+        context.readIndex.beginMerge(targetSegmentId, 0, sourceSegmentId);
+        sourceMetadata.markMerged();
 
         // Setup a Read Result, verify that it is indeed returning a RedirectedReadResultEntry, and immediately close it.
         // Then verify that the entry itself has been cancelled.
         @Cleanup
-        val rr = context.readIndex.read(parentId, 0, txnData.getLength(), TIMEOUT);
+        val rr = context.readIndex.read(targetSegmentId, 0, txnData.getLength(), TIMEOUT);
         val entry = rr.next();
         Assert.assertTrue(entry instanceof RedirectedReadResultEntry);
         rr.close();
         Assert.assertTrue(entry.getContent().isCancelled());
+    }
+
+    /**
+     * Tests a case when a Read Result about to fetch a {@link RedirectedReadResultEntry} at the same time as the source
+     * {@link StreamSegmentReadIndex} is about to close.
+     * Note: this test overlaps with {@link #testMergeReadResultCancelledOnClose()}, but this one is more complex so it
+     * is still worth it to keep the other one for simplicity.
+     */
+    @Test
+    public void testMergeReadResultConcurrentCompleteMerge() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+        val spiedIndex = Mockito.spy(context.readIndex);
+
+        // Create parent segment and one transaction
+        long targetSegmentId = createSegment(0, context);
+        long sourceSegmentId = createTransaction(1, context);
+        createSegmentsInStorage(context);
+
+        val targetMetadata = context.metadata.getStreamSegmentMetadata(targetSegmentId);
+        val sourceMetadata = context.metadata.getStreamSegmentMetadata(sourceSegmentId);
+
+        // Write something to the source segment - only in Storage.
+        val sourceData = getAppendData(context.metadata.getStreamSegmentMetadata(sourceSegmentId).getName(), sourceSegmentId, 0, 0);
+        val sourceWriteHandle = context.storage.openWrite(sourceMetadata.getName()).join();
+        context.storage.write(sourceWriteHandle, 0, sourceData.getReader(), sourceData.getLength(), TIMEOUT).join();
+
+        // Update the source metadata to reflect the Storage situation.
+        sourceMetadata.setLength(sourceData.getLength());
+        sourceMetadata.setStorageLength(sourceData.getLength());
+        sourceMetadata.markSealed();
+
+        // Intercept the ContainerReadIndex.createSegmentIndex to wrap the actual StreamSegmentReadIndex with a spy.
+        val spiedIndices = Collections.synchronizedMap(new HashMap<Long, StreamSegmentReadIndex>());
+        Mockito.doAnswer(arg1 -> {
+            val sm = (SegmentMetadata) arg1.getArgument(1);
+            StreamSegmentReadIndex result = (StreamSegmentReadIndex) arg1.callRealMethod();
+            if (result == null) {
+                spiedIndices.remove(sm.getId());
+            } else if (spiedIndices.get(sm.getId()) == null) {
+                result = Mockito.spy(result);
+                spiedIndices.put(sm.getId(), result);
+            }
+
+            return spiedIndices.get(sm.getId());
+        }).when(spiedIndex).createSegmentIndex(Mockito.any(ReadIndexConfig.class), Mockito.any(SegmentMetadata.class),
+                Mockito.any(CacheStorage.class), Mockito.any(ReadOnlyStorage.class), Mockito.any(ScheduledExecutorService.class), Mockito.anyBoolean());
+
+        // Initiate the merge.
+        targetMetadata.setLength(sourceMetadata.getLength());
+        spiedIndex.beginMerge(targetSegmentId, 0, sourceSegmentId);
+        sourceMetadata.markMerged();
+
+        // Sanity check. Before completeMerge, we should get a RedirectedReadResultEntry.
+        @Cleanup
+        val rrBeforeComplete = spiedIndex.read(targetSegmentId, 0, sourceData.getLength(), TIMEOUT);
+        val reBeforeComplete = rrBeforeComplete.next();
+        Assert.assertTrue(reBeforeComplete instanceof RedirectedReadResultEntry);
+        rrBeforeComplete.close();
+        Assert.assertTrue(reBeforeComplete.getContent().isCancelled());
+
+        // Intercept the source segment's index getSingleReadResultEntry to "concurrently" complete its merger.
+        Mockito.doAnswer(arg2 -> {
+            // Simulate Storage merger.
+            val targetWriteHandle = context.storage.openWrite(targetMetadata.getName()).join();
+            context.storage.write(targetWriteHandle, 0, sourceData.getReader(), sourceData.getLength(), TIMEOUT).join();
+
+            // Update metadata.
+            sourceMetadata.markDeleted();
+            targetMetadata.setStorageLength(sourceMetadata.getStorageLength());
+            spiedIndex.completeMerge(targetSegmentId, sourceSegmentId);
+
+            return arg2.callRealMethod();
+        }).when(spiedIndices.get(sourceSegmentId)).getSingleReadResultEntry(Mockito.anyLong(), Mockito.anyInt(), Mockito.anyBoolean());
+
+        // Setup a Read Result, verify that it is indeed returning a RedirectedReadResultEntry, and immediately close it.
+        // Then verify that the entry itself has been cancelled.
+        @Cleanup
+        val rrAfterComplete = spiedIndex.read(targetSegmentId, 0, sourceData.getLength(), TIMEOUT);
+        val reAfterComplete = rrAfterComplete.next();
+        Assert.assertTrue(reAfterComplete instanceof StorageReadResultEntry);
+
+        reAfterComplete.requestContent(TIMEOUT);
+        reAfterComplete.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     /**

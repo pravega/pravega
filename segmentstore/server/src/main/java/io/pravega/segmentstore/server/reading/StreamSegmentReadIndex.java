@@ -892,7 +892,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param makeCopy          If true, any data retrieved from the Cache will be copied into a Heap buffer before being returned.
      * @return A ReadResultEntry representing the data to return.
      */
-    private CompletableReadResultEntry getSingleReadResultEntry(long resultStartOffset, int maxLength, boolean makeCopy) {
+    @VisibleForTesting
+    CompletableReadResultEntry getSingleReadResultEntry(long resultStartOffset, int maxLength, boolean makeCopy) {
         Exceptions.checkNotClosed(this.closed, this);
 
         if (maxLength < 0) {
@@ -1052,7 +1053,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         // Fetch the result from the other index - this method will acquire the other index' lock while executing.
-
         try {
             CompletableReadResultEntry result = redirectedIndex.getSingleReadResultEntry(redirectOffset, maxLength, makeCopy);
             if (result != null) {
