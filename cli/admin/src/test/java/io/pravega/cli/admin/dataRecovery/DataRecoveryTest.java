@@ -494,8 +494,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         private void restartControllerAndSegmentStore(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory)
                 throws DurableDataLogException, InterruptedException {
             this.segmentStoreRunner = new SegmentStoreRunner(storageFactory, dataLogFactory, this.containerCount);
-            log.info("bk port to be connected = {}", this.bookKeeperRunner.getBkPort());
-            this.controllerRunner = new ControllerRunner(this.bookKeeperRunner.getBkPort(), this.segmentStoreRunner.servicePort, containerCount);
+            log.info("bk port to be connected = {}", this.bookKeeperRunner.bkPort);
+            this.controllerRunner = new ControllerRunner(this.bookKeeperRunner.bkPort, this.segmentStoreRunner.servicePort, containerCount);
         }
 
         private void shutDownControllerRunner() throws Exception {
