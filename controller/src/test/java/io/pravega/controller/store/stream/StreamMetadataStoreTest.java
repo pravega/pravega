@@ -1945,7 +1945,8 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, store.createScope(scope).join());
+        Controller.CreateScopeStatus createScopeStatus = store.createScope(scope).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
 
         store.createStream(scope, stream, configuration, start, null, executor).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
