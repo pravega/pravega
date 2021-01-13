@@ -124,6 +124,7 @@ public class EventHelper implements AutoCloseable {
                                             if (e != null) {
                                                 throw new CompletionException(e);
                                             } else {
+                                                log.info("Successfully submitted event {}", event.getClass().getName());
                                                 return r;
                                             }
                                         });

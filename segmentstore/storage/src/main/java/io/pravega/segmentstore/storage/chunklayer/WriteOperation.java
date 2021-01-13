@@ -171,7 +171,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private void collectGarbage() {
         if (!isCommitted && chunksAddedCount.get() > 0) {
             // Collect garbage.
-            chunkedSegmentStorage.collectGarbage(newReadIndexEntries.stream().map(ChunkNameOffsetPair::getChunkName).collect(Collectors.toList()));
+            chunkedSegmentStorage.getGarbageCollector().addToGarbage(newReadIndexEntries.stream().map(ChunkNameOffsetPair::getChunkName).collect(Collectors.toList()));
         }
     }
 
@@ -310,6 +310,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         ChunkMetadata newChunkMetadata = ChunkMetadata.builder()
                 .name(newChunkName)
                 .build();
+        newChunkMetadata.setActive(true);
         segmentMetadata.setLastChunk(newChunkName);
         if (lastChunkMetadata == null) {
             segmentMetadata.setFirstChunk(newChunkName);

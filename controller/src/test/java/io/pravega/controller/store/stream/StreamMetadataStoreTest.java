@@ -15,6 +15,11 @@ import com.google.common.collect.Lists;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -1929,6 +1934,43 @@ public abstract class StreamMetadataStoreTest {
         segmentId = NameUtils.computeSegmentId(2, 2);
         epoch = store.getSegmentSealedEpoch(scope, stream, segmentId, null, executor).join();
         assertEquals(epoch, -1);
+    }
+
+    @Test
+    public void testReaderGroups() throws Exception {
+        final String scope = "scope";
+        final String stream = "stream";
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).join();
+
+        store.createStream(scope, stream, configuration, start, null, executor).join();
+        store.setState(scope, stream, State.ACTIVE, null, executor).join();
+        final String rgName = "readerGroup";
+        final UUID rgId = UUID.randomUUID();
+        final Segment seg0 = new Segment(scope, stream, 0L);
+        final Segment seg1 = new Segment(scope, stream, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(scope, stream),
+                new StreamCutImpl(Stream.of(scope, stream), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(scope, stream),
+                new StreamCutImpl(Stream.of(scope, stream), endStreamCut));
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(rgId)
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        store.addReaderGroupToScope(scope, rgName, rgConfig.getReaderGroupId());
+        store.createReaderGroup(scope, rgName, rgConfig, System.currentTimeMillis(), null, executor).join();
+        UUID readerGroupId = store.getReaderGroupId(scope, rgName, null, executor).get();
+        assertEquals(rgId, readerGroupId);
     }
     
     private void createAndScaleStream(StreamMetadataStore store, String scope, String stream, int times) {

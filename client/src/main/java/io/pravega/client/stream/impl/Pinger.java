@@ -108,7 +108,7 @@ public class Pinger implements AutoCloseable {
                                       Throwable unwrap = Exceptions.unwrap(e);
                                       if (unwrap instanceof StatusRuntimeException && 
                                               ((StatusRuntimeException) unwrap).getStatus().equals(Status.NOT_FOUND)) {
-                                          log.info("Ping Transaction for txn ID:{} did not find the transaction");
+                                          log.info("Ping Transaction for txn ID:{} did not find the transaction", uuid);
                                           completedTxns.add(uuid);
                                       }
                                       log.warn("Ping Transaction for txn ID:{} failed", uuid, unwrap(e));

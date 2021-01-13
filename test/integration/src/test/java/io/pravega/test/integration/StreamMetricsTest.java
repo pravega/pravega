@@ -13,13 +13,17 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.metrics.StreamMetrics;
@@ -32,6 +36,7 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.MetricsNames;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -42,6 +47,7 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.time.Duration;
+import java.util.UUID;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -156,6 +162,24 @@ public class StreamMetricsTest {
         String scopeName = "scopeBasic";
         String streamName = "streamBasic";
 
+        Segment seg0 = new Segment(scopeName, streamName, 0L);
+        Segment seg1 = new Segment(scopeName, streamName, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(scopeName, streamName),
+                new StreamCutImpl(Stream.of(scopeName, streamName), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(scopeName, streamName),
+                new StreamCutImpl(Stream.of(scopeName, streamName), endStreamCut));
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(UUID.randomUUID())
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+
         // Here, the system scope and streams are already created.
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
         assertEquals(8, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
@@ -173,17 +197,26 @@ public class StreamMetricsTest {
         controllerWrapper.getControllerService().updateStream(scopeName, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build()).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
 
+        final String subscriber = "subscriber1";
+        controllerWrapper.getControllerService().createReaderGroup(scopeName, subscriber, rgConfig, System.currentTimeMillis()).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_READER_GROUP).count());
+
+        final String subscriberScopedName = NameUtils.getScopedReaderGroupName(scopeName, subscriber);
+        ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
+        controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, subscriberScopedName,
+                rgConfig.getReaderGroupId().toString(), 0L, streamCut1).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER).count());
+
+        controllerWrapper.getControllerService().updateReaderGroup(scopeName, subscriber, rgConfig).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP).count());
+
+        controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber,
+                rgConfig.getReaderGroupId().toString(), 1L).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP).count());
+
         // Seal the Stream.
         controllerWrapper.getControllerService().sealStream(scopeName, streamName).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
-
-        controllerWrapper.getControllerService().addSubscriber(scopeName, streamName, "subscriber1", 0L).get();
-        ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
-        controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, "subscriber1", streamCut1).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.ADD_SUBSCRIBER).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER).count());
-        controllerWrapper.getControllerService().deleteSubscriber(scopeName, streamName, "subscriber1", 1L).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.REMOVE_SUBSCRIBER).count());
 
         // Delete the Stream and Scope and check for the respective metrics.
         controllerWrapper.getControllerService().deleteStream(scopeName, streamName).get();
@@ -199,9 +232,10 @@ public class StreamMetricsTest {
         StreamMetrics.getInstance().updateStreamFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().truncateStreamFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().sealStreamFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().addSubscriberFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().deleteSubscriberFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().updateTruncationSCFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().createReaderGroupFailed("failedRG", "failedRG");
+        StreamMetrics.getInstance().deleteReaderGroupFailed("failedRG", "failedRG");
+        StreamMetrics.getInstance().updateReaderGroupFailed("failedRG", "failedRG");
+        StreamMetrics.getInstance().updateTruncationSCFailed("failedRG", "failedRG");
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM_FAILED).count());
@@ -209,7 +243,10 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_STREAM_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.TRUNCATE_STREAM_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.ADD_SUBSCRIBER_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_READER_GROUP_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER_FAILED).count());
     }
 
     @Test(timeout = 30000)
