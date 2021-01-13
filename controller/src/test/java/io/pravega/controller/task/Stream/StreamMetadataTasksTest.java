@@ -356,6 +356,7 @@ public abstract class StreamMetadataTasksTest {
 
         final String stream1ScopedName = NameUtils.getScopedStreamName(SCOPE, stream1);
         final String stream2ScopedName = NameUtils.getScopedStreamName(SCOPE, stream2);
+        final String stream3ScopedName = NameUtils.getScopedStreamName(SCOPE, stream3);
         final UUID rgIdSub1 = UUID.randomUUID();
         ReaderGroupConfig rgConfigSubscriber1 = ReaderGroupConfig.builder()
                 .stream(stream1ScopedName)
@@ -381,7 +382,7 @@ public abstract class StreamMetadataTasksTest {
         final UUID rgIdSub3 = UUID.randomUUID();
         ReaderGroupConfig rgConfigSubscriber3 = ReaderGroupConfig.builder()
                 .stream(stream1ScopedName)
-                .stream(stream2ScopedName)
+                .stream(stream3ScopedName)
                 .automaticCheckpointIntervalMillis(30000L)
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
@@ -390,7 +391,6 @@ public abstract class StreamMetadataTasksTest {
                 .readerGroupId(rgIdSub3)
                 .build();
 
-        final String stream3ScopedName = NameUtils.getScopedStreamName(SCOPE, stream3);
         ReaderGroupConfig rgConfigNonSubscriber = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream(stream1ScopedName).stream(stream3ScopedName).generation(0L)
                 .build();
@@ -487,7 +487,7 @@ public abstract class StreamMetadataTasksTest {
                 .generation(1L)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
-        // StreamDataRetention changes from NONE (non-subscriber) to MANUAL_RELEASE_AT_USER_STREAMCUT (subscriber)
+        // Update Config from Non-Subscriber to Subscriber
         // streams change from stream2, stream3 to stream3 only
         updateResponse = streamMetadataTasks.updateReaderGroup(SCOPE, "rg4", subscriberConfig, null);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
@@ -495,7 +495,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(Controller.UpdateReaderGroupResponse.Status.SUCCESS, updateResponseResult.getStatus());
         assertEquals(2L, updateResponseResult.getGeneration());
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream3, null).get();
-        assertEquals(2, listSubscribersResponse.getSubscribersCount());
+        assertEquals(3, listSubscribersResponse.getSubscribersCount());
 
         CompletableFuture<DeleteReaderGroupStatus.Status> deleteStatus = streamMetadataTasks.deleteReaderGroup(SCOPE, "rg2",
                 rgIdSub2.toString(), responseRG2.getConfig().getGeneration(), null);
@@ -506,7 +506,36 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(ReaderGroupConfigResponse.Status.RG_NOT_FOUND, responseRG2.getStatus());
 
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream3, null).get();
+        assertEquals(2, listSubscribersResponse.getSubscribersCount());
+
+        // Update Config from Subscriber to Non-Subscriber
+        ReaderGroupConfig nonSubscriberToSubscriberConfig = ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .stream(stream2ScopedName)
+                .readerGroupId(rgIdSub3)
+                .generation(0L)
+                .build();
+        updateResponse = streamMetadataTasks.updateReaderGroup(SCOPE, "rg3", nonSubscriberToSubscriberConfig, null);
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+        Controller.UpdateReaderGroupResponse updateRGResponse = updateResponse.join();
+        assertTrue(Controller.UpdateReaderGroupResponse.Status.SUCCESS.equals(updateRGResponse.getStatus()));
+        assertEquals(1L, updateRGResponse.getGeneration());
+
+        listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream3, null).get();
         assertEquals(1, listSubscribersResponse.getSubscribersCount());
+        listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream2, null).get();
+        assertEquals(1, listSubscribersResponse.getSubscribersCount());
+        listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
+        assertEquals(1, listSubscribersResponse.getSubscribersCount());
+
+        ReaderGroupConfigResponse responseRG3 = streamMetadataTasks.getReaderGroupConfig(SCOPE, "rg3", null).get();
+        assertEquals(ReaderGroupConfigResponse.Status.SUCCESS, responseRG3.getStatus());
+        assertEquals(nonSubscriberToSubscriberConfig.getReaderGroupId(), UUID.fromString(responseRG3.getConfig().getReaderGroupId()));
+        assertEquals(nonSubscriberToSubscriberConfig.getRetentionType().ordinal(), responseRG3.getConfig().getRetentionType());
+        assertEquals(nonSubscriberToSubscriberConfig.getGeneration() + 1, responseRG3.getConfig().getGeneration());
+        assertEquals(nonSubscriberToSubscriberConfig.getAutomaticCheckpointIntervalMillis(), responseRG3.getConfig().getAutomaticCheckpointIntervalMillis());
+        assertEquals(nonSubscriberToSubscriberConfig.getStartingStreamCuts().size(), responseRG3.getConfig().getStartingStreamCutsCount());
+        assertEquals(nonSubscriberToSubscriberConfig.getEndingStreamCuts().size(), responseRG3.getConfig().getEndingStreamCutsCount());
     }
 
     @Test(timeout = 30000)
