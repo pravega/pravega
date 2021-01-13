@@ -354,8 +354,8 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(Controller.UpdateStreamStatus.Status.SUCCESS))
                 .when(streamMetadataTasks).sealStream(anyString(), anyString(), any());
 
-        final String stream1ScopedName = NameUtils.getScopedStreamName(SCOPE,stream1);
-        final String stream2ScopedName = NameUtils.getScopedStreamName(SCOPE,stream2);
+        final String stream1ScopedName = NameUtils.getScopedStreamName(SCOPE, stream1);
+        final String stream2ScopedName = NameUtils.getScopedStreamName(SCOPE, stream2);
         final UUID rgId = UUID.randomUUID();
         ReaderGroupConfig rgConfigSubscriber = ReaderGroupConfig.builder()
                 .stream(stream1ScopedName)
@@ -368,7 +368,7 @@ public abstract class StreamMetadataTasksTest {
                 .readerGroupId(rgId)
                 .build();
 
-        final String stream3ScopedName = NameUtils.getScopedStreamName(SCOPE,stream3);
+        final String stream3ScopedName = NameUtils.getScopedStreamName(SCOPE, stream3);
         ReaderGroupConfig rgConfigNonSubscriber = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream(stream1ScopedName).stream(stream3ScopedName).generation(0L)
                 .build();
@@ -489,7 +489,7 @@ public abstract class StreamMetadataTasksTest {
 
     @Test(timeout = 30000)
     public void updateSubscriberStreamCutTest() throws InterruptedException, ExecutionException {
-        final String stream1ScopedName = NameUtils.getScopedStreamName(SCOPE,stream1);
+        final String stream1ScopedName = NameUtils.getScopedStreamName(SCOPE, stream1);
         final UUID rgId = UUID.randomUUID();
         ReaderGroupConfig rgConfigSubscriber = ReaderGroupConfig.builder()
                 .stream(stream1ScopedName)

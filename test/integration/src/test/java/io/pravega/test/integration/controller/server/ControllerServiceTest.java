@@ -135,7 +135,7 @@ public class ControllerServiceTest {
         assertFalse(controller.createStream(scope, stream, streamConfiguration).join());
     }
     
-    @Test(timeout = 30000)
+    @Test(timeout = 80000)
     public void testControllerService() throws Exception {
         final String scope1 = "scope1";
         final String scope2 = "scope2";
@@ -341,8 +341,7 @@ public class ControllerServiceTest {
         CompletableFuture<Boolean> createRG = controller.createReaderGroup(scope, "rg1", rgConfig);
         assertTrue(createRG.get());
 
-        createRG = controller.createReaderGroup(scope, "rg2", rgConfig);
-        assertTrue(createRG.get());
+        assertTrue(controller.createReaderGroup(scope, "rg2", rgConfig).get());
 
         assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup(scope, "bad_rg_name", rgConfig).get());
         assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup("badscope", "rg3", rgConfig).get());
@@ -393,6 +392,13 @@ public class ControllerServiceTest {
         assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream3)));
         assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream2)));
 
+        // re-create ReaderGroup with same name
+        String scopedStreamName3 = NameUtils.getScopedStreamName(scope, stream3);
+        final ReaderGroupConfig rgConfig1 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(scopedStreamName3).retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .build();
+        assertTrue(controller.createReaderGroup(scope, "rg2", rgConfig1).get());
+
         // Update a ReaderGroup from Subscriber to Non-subscriber
         String scopedStreamName = NameUtils.getScopedStreamName(scope, stream1);
         ReaderGroupConfig rgConfigSubscriber = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
@@ -426,7 +432,6 @@ public class ControllerServiceTest {
 
         subscribers = controller.listSubscribers(scope, stream1).get();
         assertEquals(1, subscribers.size());
-
     }
 
     private static void updateSubscriberStreamCutTest(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {
