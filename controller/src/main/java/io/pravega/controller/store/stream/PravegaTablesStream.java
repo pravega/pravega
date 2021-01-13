@@ -362,7 +362,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                                     return storeHelper.updateEntry(table, SUBSCRIBER_SET_KEY, subSet.toBytes(), subscriberSetRecord.getVersion())
                                             .thenAccept(x -> storeHelper.invalidateCache(table, SUBSCRIBER_SET_KEY));
                                 }
-                                return null;
+                                return CompletableFuture.completedFuture(null);
                             })));
         });
     }

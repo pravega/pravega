@@ -11,7 +11,7 @@ package io.pravega.local;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.security.ZKTLSUtils;
 import io.pravega.controller.server.ControllerServiceConfig;

@@ -79,9 +79,6 @@ abstract class MetricProxy<T extends Metric> implements AutoCloseable {
     }
 
     protected T getInstance() {
-        if (!closed.get()) {
-            log.warn("This MetricProxy ({}) has already been closed. Further updates to this Metric will not be seen by a MeterRegistry.", proxyName);
-        }
         return this.instance.get();
     }
 }

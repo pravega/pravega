@@ -13,6 +13,8 @@ import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
+import java.util.HashMap;
 
 import java.util.function.Supplier;
 import com.google.common.collect.ImmutableSet;
@@ -86,7 +88,11 @@ public class ControllerEventSerializerTests {
 
     @Test
     public void testCreateReaderGroupEvent() {
-        testClass(() -> new CreateReaderGroupEvent(SCOPE, READER_GROUP, 123L));
+        Map<String, RGStreamCutRecord> testMap = new HashMap<String, RGStreamCutRecord>(1);
+        testClass(() ->
+                new CreateReaderGroupEvent(111L, SCOPE, READER_GROUP,
+                        123L, 456L, 10,
+                        1, 0L, UUID.randomUUID(), testMap, testMap, System.currentTimeMillis()));
     }
 
     @Test
