@@ -161,8 +161,6 @@ public class EndToEndCBRTest extends AbstractEndToEndTest {
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .stream(stream).build());
 
-        System.out.println("Sub list: " + controller.listSubscribers(scope, streamName).get());
-
         // Create a Reader
         AtomicLong clock = new AtomicLong();
         @Cleanup
@@ -188,11 +186,8 @@ public class EndToEndCBRTest extends AbstractEndToEndTest {
         Map<Stream, StreamCut> scResult = streamCuts.get(5, TimeUnit.SECONDS);
         assertTrue(streamCuts.isDone());
 
-        System.out.println("StreamCut: " + scResult);
-
         readerGroup.updateRetentionStreamCut(scResult);
 
-        System.out.println("Segments: " + controller.getSegmentsAtTime(stream, 0L).join());
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(stream, 0L)
                 .join().values().stream().anyMatch(off -> off > 0), 30 * 1000L);
 
