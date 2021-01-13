@@ -575,7 +575,7 @@ public class StreamMetadataTasks extends TaskBase {
     private CompletableFuture<Boolean> isRGUpdated(String scope, String rgName, Executor executor) {
             return streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
                     .thenCompose(rgConfigRecord -> {
-                        log.debug("ReaderGroup Config is {}", rgConfigRecord.getObject().isUpdating());
+                        log.debug("Is ReaderGroup Config update complete ? {}", rgConfigRecord.getObject().isUpdating());
                         return CompletableFuture.completedFuture(!rgConfigRecord.getObject().isUpdating());
                    });
     }

@@ -360,9 +360,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                     .thenCompose(v -> getSubscriberSetRecord(true)
                             .thenCompose(subscriberSetRecord -> {
                                 if (subscriberSetRecord.getObject().getSubscribers().contains(subscriber)) {
-                                    log.info("Inside deleteSubscriber. deleting subscriber from subscriber setRecord.");
                                     Subscribers subSet = Subscribers.remove(subscriberSetRecord.getObject(), subscriber);
-                                    log.info("Inside deleteSubscriber. New set size {}", subSet.getSubscribers().size());
                                     return storeHelper.updateEntry(table, SUBSCRIBER_SET_KEY, subSet.toBytes(), subscriberSetRecord.getVersion())
                                             .thenAccept(x -> storeHelper.invalidateCache(table, SUBSCRIBER_SET_KEY));
                                 }
