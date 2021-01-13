@@ -40,6 +40,7 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
@@ -1944,7 +1945,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, store.createScope(scope).join());
 
         store.createStream(scope, stream, configuration, start, null, executor).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
