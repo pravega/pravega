@@ -20,6 +20,9 @@ import io.grpc.auth.MoreCallCredentials;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
+import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.Credentials;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.client.control.impl.PravegaCredentialsWrapper;
@@ -85,6 +88,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -129,7 +133,7 @@ public class ControllerGrpcAuthFocusedTest {
      * This rule makes sure that the tests in this class run in 10 seconds or less.
      */
     @Rule
-    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
 
     /**
      * This rule is used later to expect both the exception class and the message.
@@ -272,6 +276,175 @@ public class ControllerGrpcAuthFocusedTest {
 
         //Act
         blockingStub.createScope(Controller.ScopeInfo.newBuilder().setScope("dummy").build());
+    }
+
+    @Test
+    public void createReaderGroupSucceedsForPrivilegedUser() {
+        //Arrange
+        String scope = "test";
+        String stream = "test";
+        createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
+
+        //Act
+        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+
+        //Verify
+        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, status.getStatus());
+    }
+
+    @Test
+    public void createReaderGroupFailsForUnauthorizedUser() {
+        //Arrange
+        String scope = "test";
+        String stream = "test";
+        createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStub(UserNames.SCOPE_READER, DEFAULT_PASSWORD);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
+
+        //Verify
+        thrown.expect(StatusRuntimeException.class);
+        thrown.expectMessage("PERMISSION_DENIED");
+
+        //Act
+        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+    }
+
+    @Test
+    public void createReaderGroupFailsForNonExistentUser() {
+        //Arrange
+        String scope = "test";
+        String stream = "test";
+        createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStub("whatever", "whatever");
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
+
+        //Verify
+        thrown.expect(StatusRuntimeException.class);
+        thrown.expectMessage("UNAUTHENTICATED");
+
+        //Act
+        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+    }
+
+    @Test
+    public void deleteReaderGroupSucceedsForPrivilegedUser() {
+        //Arrange
+        String scope = "test";
+        String stream = "test";
+        String readerGroup = "group";
+        ReaderGroupConfig config = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build();
+        createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        createReaderGroup(scope, readerGroup, config);
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+
+        //Act
+        Controller.DeleteReaderGroupStatus status = blockingStub.deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope,
+                readerGroup, config.getReaderGroupId().toString(), 0));
+
+        //Verify
+        assertEquals(Controller.DeleteReaderGroupStatus.Status.SUCCESS, status.getStatus());
+    }
+
+    @Test
+    public void deleteReaderGroupFailsForUnauthorizedUser() {
+        //Arrange
+        String scope = "test";
+        String stream = "test";
+        createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStub(UserNames.SCOPE_READER, DEFAULT_PASSWORD);
+
+        //Verify
+        thrown.expect(StatusRuntimeException.class);
+        thrown.expectMessage("PERMISSION_DENIED");
+
+        //Act
+        Controller.DeleteReaderGroupStatus status = blockingStub.deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope,
+                "group", UUID.randomUUID().toString(), 0));
+    }
+
+    @Test
+    public void deleteReaderGroupFailsForNonExistentUser() {
+        //Arrange
+        String scope = "test";
+        String stream = "test";
+        createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStub("whatever", "whatever");
+
+        //Verify
+        thrown.expect(StatusRuntimeException.class);
+        thrown.expectMessage("UNAUTHENTICATED");
+
+        //Act
+        Controller.DeleteReaderGroupStatus status = blockingStub.deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope,
+                "group", UUID.randomUUID().toString(), 0));
+    }
+
+    @Test
+    public void updateReaderGroupSucceedsForPrivilegedUser() {
+        //Arrange
+        String scope = "test";
+        String stream1 = "test1";
+        String stream2 = "test2";
+        String readerGroup = "group";
+        ReaderGroupConfig oldConfig = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream1)).build();
+        createScopeAndStreams(scope, Arrays.asList(stream1, stream2), prepareFromFixedScaleTypePolicy(2));
+        createReaderGroup(scope, readerGroup, oldConfig);
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup, ReaderGroupConfig.builder()
+                .stream(NameUtils.getScopedStreamName(scope, stream2)).readerGroupId(oldConfig.getReaderGroupId()).build());
+
+        //Act
+        Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
+
+        //Verify
+        assertEquals(Controller.UpdateReaderGroupResponse.Status.SUCCESS, status.getStatus());
+    }
+
+    @Test
+    public void updateReaderGroupFailsForUnauthorizedUser() {
+        //Arrange
+        String scope = "test";
+        String stream = "test";
+        createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStub(UserNames.SCOPE_READER, DEFAULT_PASSWORD);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group",
+                ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
+
+        //Verify
+        thrown.expect(StatusRuntimeException.class);
+        thrown.expectMessage("PERMISSION_DENIED");
+
+        //Act
+        Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
+    }
+
+    @Test
+    public void updateReaderGroupFailsForNonExistentUser() {
+        //Arrange
+        String scope = "test";
+        String stream = "test";
+        createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStub("whatever", "whatever");
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group",
+                ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
+
+        //Verify
+        thrown.expect(StatusRuntimeException.class);
+        thrown.expectMessage("UNAUTHENTICATED");
+
+        //Act
+        Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
     }
 
     @Test
@@ -693,6 +866,19 @@ public class ControllerGrpcAuthFocusedTest {
 
         if (!status.getStatus().equals(Controller.CreateStreamStatus.Status.SUCCESS)) {
             throw new RuntimeException("Failed to create stream");
+        }
+    }
+
+    private void createReaderGroup(String scope, String group, ReaderGroupConfig config) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(group, "group name");
+        Preconditions.checkNotNull(config, "ReaderGroupConfig");
+        ControllerServiceBlockingStub stub =
+                prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+
+        Controller.CreateReaderGroupStatus status = stub.createReaderGroup(ModelHelper.decode(scope, group, config));
+        if (!status.getStatus().equals(Controller.CreateReaderGroupStatus.Status.SUCCESS)) {
+            throw new RuntimeException("Failed to create reader-group");
         }
     }
 
