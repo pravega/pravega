@@ -59,6 +59,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -138,6 +139,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
      * @throws Exception    In case of any exception thrown while execution.
      */
     @Test
+    @Ignore
     public void testDataRecoveryCommand() throws Exception {
         int instanceId = 0;
         int bookieCount = 3;
