@@ -17,6 +17,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.time.Duration;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.val;
 import org.junit.Assert;
@@ -183,6 +184,19 @@ public class RedirectedReadResultEntryTests {
         Assert.assertEquals("Unexpected result from getRequestedReadLength after successful redirect.", t5Bad.getRequestedReadLength(), e5.getRequestedReadLength());
         Assert.assertEquals("Unexpected result from getStreamSegmentOffset after successful redirect.", t5Good.getStreamSegmentOffset(), e5.getStreamSegmentOffset());
         Assert.assertEquals("Unexpected result from getContent after successful redirect.", t5Good.getContent().join(), finalResult);
+    }
+
+    @Test
+    public void testFail() {
+        MockReadResultEntry t1 = new MockReadResultEntry(1, 1);
+        val retryInvoked = new AtomicBoolean(false);
+        RedirectedReadResultEntry e1 = new RedirectedReadResultEntry(t1, 0, (o, l, m) -> {
+            retryInvoked.set(true);
+            return null;
+        }, 2);
+        e1.fail(new CancellationException());
+        Assert.assertTrue("Expected the callback to have been failed.", t1.getContent().isCompletedExceptionally());
+        Assert.assertFalse("Not expected a retry invocation.", retryInvoked.get());
     }
 
     private CompletableReadResultEntry illegalGetNext(long offset, int length, long mergeOffset) {
