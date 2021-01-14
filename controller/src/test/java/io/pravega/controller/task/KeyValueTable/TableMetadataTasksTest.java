@@ -149,7 +149,7 @@ public abstract class TableMetadataTasksTest {
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
 
         assertEquals(Controller.DeleteKVTableStatus.Status.SUCCESS, future.get());
-
+        assertTrue(kvtMetadataTasks.isDeleted(SCOPE, kvtable1, null).join());
         assertFalse(kvtStore.checkTableExists(SCOPE, kvtable1).join());
     }
 

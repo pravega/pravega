@@ -9,7 +9,7 @@
  */
 package io.pravega.client;
 
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 import java.net.URI;
 import org.junit.Test;

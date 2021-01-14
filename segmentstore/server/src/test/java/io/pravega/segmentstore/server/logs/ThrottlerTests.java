@@ -25,6 +25,7 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -372,13 +373,13 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         // Test 2: When the current delay future completes normally.
         disabled.set(false);
         val t2 = t.throttle();
+        t.awaitCreateDelayFuture(TIMEOUT_MILLIS);
         Assert.assertFalse("Not expected non-disabled throttle to be completed yet.", t2.isDone());
         disabled.set(true);
         Assert.assertFalse("Not expected throttle future to be completed yet.", t2.isDone());
-        if (delayMillis < ThrottlerCalculator.MAX_DELAY_MILLIS) {
-            // This is only set for non-maximum delays.
-            t.completeDelayFuture();
-        }
+
+        // We don't want to wait the actual timeout. Complete it now and check the result.
+        t.completeDelayFuture();
         TestUtils.await(t2::isDone, 5, TIMEOUT_MILLIS);
     }
 
@@ -424,6 +425,10 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
             val result = super.createDelayFuture(millis);
             this.lastDelayFuture.set(result);
             return result;
+        }
+
+        void awaitCreateDelayFuture(int timeoutMillis) throws TimeoutException {
+            TestUtils.await(() -> this.lastDelayFuture.get() != null, 5, timeoutMillis);
         }
 
         void completeDelayFuture() {

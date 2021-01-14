@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
@@ -146,7 +147,7 @@ public abstract class AbstractDrainingQueue<T> {
             if (result.size() > 0) {
                 return CompletableFuture.completedFuture(result);
             } else {
-                this.pendingTake = new CompletableFuture<>();
+                this.pendingTake = newTakeResult();
                 return this.pendingTake;
             }
         }
@@ -174,6 +175,12 @@ public abstract class AbstractDrainingQueue<T> {
                 synchronized (this.lock) {
                     if (this.pendingTake == result) {
                         this.pendingTake = null;
+                    } else {
+                        // This take result is no longer registered, which means it has either (just) been completed
+                        // or it is about to. There is a small window (in the #add() method) where the future is
+                        // unregistered but not yet completed. WE MUST MAKE SURE that we do not preemptively cancel it
+                        // (with a TimeoutException), otherwise we will lose data.
+                        return;
                     }
                 }
 
@@ -245,6 +252,11 @@ public abstract class AbstractDrainingQueue<T> {
      * @return The extracted items, in order.
      */
     protected abstract Queue<T> fetch(int maxCount);
+
+    @VisibleForTesting
+    protected CompletableFuture<Queue<T>> newTakeResult() {
+        return new CompletableFuture<>();
+    }
 
     //endregion
 }
