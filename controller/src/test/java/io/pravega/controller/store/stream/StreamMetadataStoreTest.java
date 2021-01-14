@@ -1939,27 +1939,27 @@ public abstract class StreamMetadataStoreTest {
 
     @Test
     public void testReaderGroups() throws Exception {
-        final String scope = "scope";
-        final String stream = "stream";
+        final String scopeRGTest = "scopeRGTest";
+        final String streamRGTest = "streamRGTest";
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        Controller.CreateScopeStatus createScopeStatus = store.createScope(scope).join();
+        Controller.CreateScopeStatus createScopeStatus = store.createScope(scopeRGTest).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
 
-        store.createStream(scope, stream, configuration, start, null, executor).join();
-        store.setState(scope, stream, State.ACTIVE, null, executor).join();
-        final String rgName = "readerGroup";
+        store.createStream(scopeRGTest, streamRGTest, configuration, start, null, executor).join();
+        store.setState(scopeRGTest, streamRGTest, State.ACTIVE, null, executor).join();
+        final String rgName = "readerGroupRGTest";
         final UUID rgId = UUID.randomUUID();
-        final Segment seg0 = new Segment(scope, stream, 0L);
-        final Segment seg1 = new Segment(scope, stream, 1L);
+        final Segment seg0 = new Segment(scopeRGTest, streamRGTest, 0L);
+        final Segment seg1 = new Segment(scopeRGTest, streamRGTest, 1L);
         ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
-        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(scope, stream),
-                new StreamCutImpl(Stream.of(scope, stream), startStreamCut));
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(scopeRGTest, streamRGTest),
+                new StreamCutImpl(Stream.of(scopeRGTest, streamRGTest), startStreamCut));
         ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
-        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(scope, stream),
-                new StreamCutImpl(Stream.of(scope, stream), endStreamCut));
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(scopeRGTest, streamRGTest),
+                new StreamCutImpl(Stream.of(scopeRGTest, streamRGTest), endStreamCut));
         ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
                 .automaticCheckpointIntervalMillis(30000L)
                 .groupRefreshTimeMillis(20000L)
@@ -1969,9 +1969,9 @@ public abstract class StreamMetadataStoreTest {
                 .readerGroupId(rgId)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-        store.addReaderGroupToScope(scope, rgName, rgConfig.getReaderGroupId());
-        store.createReaderGroup(scope, rgName, rgConfig, System.currentTimeMillis(), null, executor).join();
-        UUID readerGroupId = store.getReaderGroupId(scope, rgName, null, executor).get();
+        store.addReaderGroupToScope(scopeRGTest, rgName, rgConfig.getReaderGroupId());
+        store.createReaderGroup(scopeRGTest, rgName, rgConfig, System.currentTimeMillis(), null, executor).join();
+        UUID readerGroupId = store.getReaderGroupId(scopeRGTest, rgName, null, executor).get();
         assertEquals(rgId, readerGroupId);
     }
     
