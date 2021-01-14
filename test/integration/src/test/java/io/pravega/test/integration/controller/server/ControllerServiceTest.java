@@ -135,7 +135,7 @@ public class ControllerServiceTest {
         assertFalse(controller.createStream(scope, stream, streamConfiguration).join());
     }
     
-    @Test(timeout = 30000)
+    @Test(timeout = 80000)
     public void testControllerService() throws Exception {
         final String scope1 = "scope1";
         final String scope2 = "scope2";
@@ -179,7 +179,7 @@ public class ControllerServiceTest {
         createAKeyValueTable(scope2, kvtName2, controller, kvtConfig1);
         //KVTable with 0 partitions should fail
         createAKeyValueTableZeroPC(scope2, kvtZero, controller, kvtConfigZeroPC);
-        
+
         final String scopeSeal = "scopeSeal";
         final String streamNameSeal = "streamSeal";
         sealAStream(controllerWrapper, controller, scalingPolicy, scopeSeal, streamNameSeal);
@@ -341,8 +341,7 @@ public class ControllerServiceTest {
         CompletableFuture<Boolean> createRG = controller.createReaderGroup(scope, "rg1", rgConfig);
         assertTrue(createRG.get());
 
-        createRG = controller.createReaderGroup(scope, "rg2", rgConfig);
-        assertTrue(createRG.get());
+        assertTrue(controller.createReaderGroup(scope, "rg2", rgConfig).get());
 
         assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup(scope, "bad_rg_name", rgConfig).get());
         assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup("badscope", "rg3", rgConfig).get());
@@ -353,6 +352,8 @@ public class ControllerServiceTest {
         assertTrue(controller.deleteReaderGroup(scope, "rg2", rgConfig.getReaderGroupId(), rgConfig.getGeneration()).get());
         assertThrows(IllegalArgumentException.class, () -> controller.getReaderGroupConfig(scope, "rg2").get());
 
+        subscribers = controller.listSubscribers(scope, stream1).get();
+        assertTrue(subscribers.size() == 1);
         ReaderGroupConfig config = controller.getReaderGroupConfig(scope, "rg1").get();
         assertEquals(rgConfig.getGroupRefreshTimeMillis(), config.getGroupRefreshTimeMillis());
         assertEquals(rgConfig.getGeneration(), config.getGeneration());
@@ -390,6 +391,47 @@ public class ControllerServiceTest {
         assertEquals(newRGConfig.getEndingStreamCuts().keySet().size(), updatedConfig.getEndingStreamCuts().keySet().size());
         assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream3)));
         assertTrue(updatedConfig.getStartingStreamCuts().keySet().contains(Stream.of(scope, stream2)));
+
+        // re-create ReaderGroup with same name
+        String scopedStreamName3 = NameUtils.getScopedStreamName(scope, stream3);
+        final ReaderGroupConfig rgConfig1 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(scopedStreamName3).retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .build();
+        assertTrue(controller.createReaderGroup(scope, "rg2", rgConfig1).get());
+
+        // Update a ReaderGroup from Subscriber to Non-subscriber
+        String scopedStreamName = NameUtils.getScopedStreamName(scope, stream1);
+        ReaderGroupConfig rgConfigSubscriber = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(scopedStreamName).retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .build();
+        ReaderGroupConfig rgConfigNonSubscriber = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(scopedStreamName).readerGroupId(rgConfigSubscriber.getReaderGroupId()).generation(rgConfigSubscriber.getGeneration())
+                .build();
+        assertTrue(controller.createReaderGroup(scope, "group", rgConfigSubscriber).join());
+        subscribers = controller.listSubscribers(scope, stream1).get();
+        assertEquals(1, subscribers.size());
+        assertTrue(controller.updateReaderGroup(scope, "group", rgConfigNonSubscriber).join());
+        updatedConfig = controller.getReaderGroupConfig(scope, "group").join();
+        assertEquals(rgConfigNonSubscriber.getReaderGroupId(), updatedConfig.getReaderGroupId());
+        assertEquals(rgConfigNonSubscriber.getRetentionType(), updatedConfig.getRetentionType());
+        assertEquals(rgConfigNonSubscriber.getGeneration() + 1, updatedConfig.getGeneration());
+
+        subscribers = controller.listSubscribers(scope, stream1).get();
+        assertEquals(0, subscribers.size());
+
+        // Update ReaderGroup from Non-Subscriber to Subscriber
+        ReaderGroupConfig subscriberConfig = ReaderGroupConfig.builder()
+                .stream(scopedStreamName).retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(updatedConfig.getGeneration()).readerGroupId(updatedConfig.getReaderGroupId())
+                .build();
+        assertTrue(controller.updateReaderGroup(scope, "group", subscriberConfig).join());
+        ReaderGroupConfig newUpdatedConfig = controller.getReaderGroupConfig(scope, "group").join();
+        assertEquals(subscriberConfig.getReaderGroupId(), newUpdatedConfig.getReaderGroupId());
+        assertEquals(subscriberConfig.getRetentionType(), newUpdatedConfig.getRetentionType());
+        assertEquals(updatedConfig.getGeneration() + 1, newUpdatedConfig.getGeneration());
+
+        subscribers = controller.listSubscribers(scope, stream1).get();
+        assertEquals(1, subscribers.size());
     }
 
     private static void updateSubscriberStreamCutTest(Controller controller, final String scope, final String stream) throws InterruptedException, ExecutionException {

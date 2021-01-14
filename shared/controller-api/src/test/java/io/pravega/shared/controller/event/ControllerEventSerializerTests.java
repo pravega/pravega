@@ -92,7 +92,7 @@ public class ControllerEventSerializerTests {
         testClass(() ->
                 new CreateReaderGroupEvent(111L, SCOPE, READER_GROUP,
                         123L, 456L, 10,
-                        1, 0L, UUID.randomUUID(), testMap, testMap));
+                        1, 0L, UUID.randomUUID(), testMap, testMap, System.currentTimeMillis()));
     }
 
     @Test
@@ -102,7 +102,7 @@ public class ControllerEventSerializerTests {
 
     @Test
     public void testUpdateReaderGroupEvent() {
-        testClass(() -> new UpdateReaderGroupEvent(SCOPE, READER_GROUP, 123L, UUID.randomUUID(), 0L, ImmutableSet.of()));
+        testClass(() -> new UpdateReaderGroupEvent(SCOPE, READER_GROUP, 123L, UUID.randomUUID(), 0L, false, ImmutableSet.of()));
     }
 
     private <T extends ControllerEvent> void testClass(Supplier<T> generateInstance) {
