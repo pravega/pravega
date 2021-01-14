@@ -65,7 +65,7 @@ jobs:
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
- integration:
+  integration:
 
     needs: build
     runs-on: ubuntu-20.04
