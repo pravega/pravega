@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -18,6 +19,8 @@ import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.Cleanup;
@@ -177,9 +180,14 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
         @Cleanup
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
         val timedoutTake = queue.take(MAX_READ_COUNT, shortTimeout, executorService());
+        AssertExtensions.assertSuppliedFutureThrows(
+                "take did not time out",
+                () -> timedoutTake,
+                ex -> ex instanceof TimeoutException);
 
+        val finalTake = queue.take(MAX_READ_COUNT, Duration.ofMillis(TIMEOUT_MILLIS), executorService());
         AssertExtensions.assertThrows(
-                "poll() succeeded even though there was another incomplete take() request.",
+                "take() succeeded even though there was another incomplete take() request.",
                 () -> queue.take(MAX_READ_COUNT),
                 ex -> ex instanceof IllegalStateException);
 
@@ -188,12 +196,6 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
                 () -> queue.poll(MAX_READ_COUNT),
                 ex -> ex instanceof IllegalStateException);
 
-        AssertExtensions.assertSuppliedFutureThrows(
-                "take did not time out",
-                () -> timedoutTake,
-                ex -> ex instanceof TimeoutException);
-
-        val finalTake = queue.take(MAX_READ_COUNT, Duration.ofMillis(TIMEOUT_MILLIS), executorService());
         queue.add(valueToQueue);
 
         val result = finalTake.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
@@ -203,6 +205,45 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
 
         val remainingItems = queue.poll(MAX_READ_COUNT);
         Assert.assertEquals("Queue was not emptied out after take() completed successfully.", 0, remainingItems.size());
+    }
+
+    /**
+     * Tests a case where the result from {@link AbstractDrainingQueue#take(int, Duration, ScheduledExecutorService)}
+     * is completed concurrently with it timing out.
+     */
+    @Test
+    public void testTakeCompleteTimeoutConcurrently() throws Exception {
+        final int valueToQueue = 1234;
+        final Duration shortTimeout = Duration.ofMillis(TIMEOUT_MILLIS);
+
+        // We create an InterceptableQueue, which allows us to customize the CompletableFuture returned by take().
+        @Cleanup
+        InterceptableQueue queue = new InterceptableQueue();
+
+        // We use a special Executor that allows us to intercept calls to schedule().
+        @Cleanup("shutdownNow")
+        val e = new MockExecutor(1);
+
+        // Register a take() with a timeout (the timeout value is irrelevant for this test).
+        val takeFuture = queue.take(1, shortTimeout, e);
+
+        // Fetch the intercepted calls.
+        val timeoutRunnable = e.lastScheduledRunnable;
+        Assert.assertNotNull("Unable to intercept the schedule() runnable.", timeoutRunnable);
+        Assert.assertTrue("Unable to intercept take() future creation.", takeFuture instanceof InterceptableFuture);
+
+        // When CompletableFuture.complete() is invoked (from the BlockingDrainingQueue.add() method), we want to
+        // immediately invoke the timeout runnable, before we actually complete the CompletableFuture. We want to verify
+        // that the timeout won't preempt the normal completion of the future, which would have caused us to lose data.
+        ((InterceptableFuture<Queue<Integer>>) takeFuture).completeInterceptor = timeoutRunnable;
+
+        // Add a value, which should trigger the take() future to complete.
+        queue.add(valueToQueue);
+
+        // Verify result is as expected.
+        val takeResult = takeFuture.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        Assert.assertEquals(1, takeResult.size());
+        Assert.assertEquals(valueToQueue, (long) takeResult.peek());
     }
 
     /**
@@ -230,7 +271,7 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
      * Tests the ability of the queue to cancel a take() request if it is closed.
      */
     @Test
-    public void testCloseCancel() throws Exception {
+    public void testCloseCancel() {
         @Cleanup
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
         CompletableFuture<Queue<Integer>> result = queue.take(MAX_READ_COUNT);
@@ -248,7 +289,7 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
      * Tests the ability of the queue to return its contents when it is closed.
      */
     @Test
-    public void testCloseResult() throws Exception {
+    public void testCloseResult() {
         @Cleanup
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
         populate(queue);
@@ -268,4 +309,53 @@ public class BlockingDrainingQueueTests extends ThreadPooledTestSuite {
             queue.add(i);
         }
     }
+
+    //region Helper classes
+
+    /**
+     * {@link ScheduledThreadPoolExecutor} that intercepts any calls to {@link #schedule(Runnable, long, TimeUnit)},
+     * captures the {@link Runnable} passed to it and returns a null result.
+     */
+    private static class MockExecutor extends ScheduledThreadPoolExecutor {
+        volatile Runnable lastScheduledRunnable;
+
+        public MockExecutor(int corePoolSize) {
+            super(corePoolSize);
+        }
+
+        @Override
+        public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+            this.lastScheduledRunnable = command;
+            return null;
+        }
+    }
+
+    /**
+     * {@link BlockingDrainingQueue} that intercepts the creation of the {@link CompletableFuture} returned by
+     * {@link #take} and returns an instance of {@link InterceptableFuture}.
+     */
+    private static class InterceptableQueue extends BlockingDrainingQueue<Integer> {
+        @VisibleForTesting
+        protected CompletableFuture<Queue<Integer>> newTakeResult() {
+            return new InterceptableFuture<>();
+        }
+    }
+
+    /**
+     * {@link CompletableFuture} that allows the interception of the {@link #complete} method.
+     */
+    private static class InterceptableFuture<T> extends CompletableFuture<T> {
+        volatile Runnable completeInterceptor;
+
+        @Override
+        public boolean complete(T value) {
+            Runnable i = this.completeInterceptor;
+            if (i != null) {
+                i.run();
+            }
+            return super.complete(value);
+        }
+    }
+
+    //endregion
 }
