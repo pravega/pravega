@@ -410,7 +410,7 @@ public class ControllerServiceTest {
         assertTrue(controller.createReaderGroup(scope, "group", rgConfigSubscriber).join());
         subscribers = controller.listSubscribers(scope, stream1).get();
         assertEquals(1, subscribers.size());
-        assertTrue(controller.updateReaderGroup(scope, "group", rgConfigNonSubscriber).join());
+        assertNotNull(controller.updateReaderGroup(scope, "group", rgConfigNonSubscriber).join());
         updatedConfig = controller.getReaderGroupConfig(scope, "group").join();
         assertEquals(rgConfigNonSubscriber.getReaderGroupId(), updatedConfig.getReaderGroupId());
         assertEquals(rgConfigNonSubscriber.getRetentionType(), updatedConfig.getRetentionType());
@@ -424,7 +424,7 @@ public class ControllerServiceTest {
                 .stream(scopedStreamName).retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .generation(updatedConfig.getGeneration()).readerGroupId(updatedConfig.getReaderGroupId())
                 .build();
-        assertTrue(controller.updateReaderGroup(scope, "group", subscriberConfig).join());
+        assertNotNull(controller.updateReaderGroup(scope, "group", subscriberConfig).join());
         ReaderGroupConfig newUpdatedConfig = controller.getReaderGroupConfig(scope, "group").join();
         assertEquals(subscriberConfig.getReaderGroupId(), newUpdatedConfig.getReaderGroupId());
         assertEquals(subscriberConfig.getRetentionType(), newUpdatedConfig.getRetentionType());

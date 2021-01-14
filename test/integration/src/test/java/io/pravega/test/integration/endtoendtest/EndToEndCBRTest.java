@@ -14,6 +14,7 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -28,6 +29,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.shared.NameUtils;
@@ -37,6 +39,7 @@ import lombok.Cleanup;
 import org.junit.Test;
 
 import java.net.URI;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -58,7 +61,7 @@ public class EndToEndCBRTest extends AbstractEndToEndTest {
         String groupName = "group";
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
-                .retentionPolicy(RetentionPolicy.builder().retentionType(RetentionPolicy.RetentionType.TIME).retentionParam(1L).retentionMax(Long.MAX_VALUE).build())
+                .retentionPolicy(RetentionPolicy.bySizeBytes(10, Long.MAX_VALUE))
                 .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(scope).get();
@@ -133,7 +136,7 @@ public class EndToEndCBRTest extends AbstractEndToEndTest {
         String groupName = "group";
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
-                .retentionPolicy(RetentionPolicy.builder().retentionType(RetentionPolicy.RetentionType.TIME).retentionParam(1L).retentionMax(Long.MAX_VALUE).build())
+                .retentionPolicy(RetentionPolicy.bySizeBytes(10, Long.MAX_VALUE))
                 .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(scope).get();
@@ -172,21 +175,17 @@ public class EndToEndCBRTest extends AbstractEndToEndTest {
         assertEquals("e1", read.getEvent());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        @Cleanup("shutdown")
-        final InlineExecutor backgroundExecutor = new InlineExecutor();
-        ReaderGroup readerGroup = groupManager.getReaderGroup(groupName);
-        CompletableFuture<Map<Stream, StreamCut>> streamCuts = readerGroup.generateStreamCuts(backgroundExecutor);
-        assertFalse(streamCuts.isDone());
         read = reader.readNextEvent(60000);
         assertEquals("e2", read.getEvent());
 
-        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        read = reader.readNextEvent(60000);
-        assertNull(read.getEvent());
-        Map<Stream, StreamCut> scResult = streamCuts.get(5, TimeUnit.SECONDS);
-        assertTrue(streamCuts.isDone());
+        ReaderGroup readerGroup = groupManager.getReaderGroup(groupName);
 
-        readerGroup.updateRetentionStreamCut(scResult);
+        Map<Segment, Long> segmentMap = new HashMap<>();
+        segmentMap.put(new Segment(scope, streamName, 0), 17L);
+        Map<Stream, StreamCut> scResult2 = new HashMap<>();
+        scResult2.put(stream, new StreamCutImpl(stream, segmentMap));
+
+        readerGroup.updateRetentionStreamCut(scResult2);
 
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(stream, 0L)
                 .join().values().stream().anyMatch(off -> off > 0), 30 * 1000L);

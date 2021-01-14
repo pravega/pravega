@@ -98,9 +98,9 @@ public class RetentionTest {
     @Test(timeout = 30000)
     public void testRetentionTime() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(2))
-                .retentionPolicy(RetentionPolicy.byTime(Duration.ofSeconds(1)))
-                .build();
+                                                        .scalingPolicy(ScalingPolicy.fixed(2))
+                                                        .retentionPolicy(RetentionPolicy.byTime(Duration.ofSeconds(1)))
+                                                        .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
         String name = "testtime";
         Stream stream = new StreamImpl(name, name);
@@ -108,8 +108,8 @@ public class RetentionTest {
         controller.createStream(name, name, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(controllerURI)
-                .build());
+                                                                                          .controllerURI(controllerURI)
+                                                                                          .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(name, controller, connectionFactory);
         @Cleanup
@@ -129,9 +129,9 @@ public class RetentionTest {
     @Test(timeout = 30000)
     public void testRetentionSize() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(2))
-                .retentionPolicy(RetentionPolicy.bySizeBytes(10))
-                .build();
+                                                        .scalingPolicy(ScalingPolicy.fixed(2))
+                                                        .retentionPolicy(RetentionPolicy.bySizeBytes(10))
+                                                        .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
         String name = "testsize";
         Stream stream = new StreamImpl(name, name);
@@ -139,8 +139,8 @@ public class RetentionTest {
         controller.createStream(name, name, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(controllerURI)
-                .build());
+                                                                                          .controllerURI(controllerURI)
+                                                                                          .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(name, controller, connectionFactory);
         @Cleanup
