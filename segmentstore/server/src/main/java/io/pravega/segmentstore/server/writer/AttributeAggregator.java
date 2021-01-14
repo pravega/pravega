@@ -243,6 +243,13 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
     }
 
     private void queueRootPointerUpdate(long newRootPointer, long lastSeqNo) {
+        // TODO: remove this method and all associated code (including Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER) once
+        // ChunkedSegmentStorage is the only supported Storage (and RollingStorage is retired).
+        if (newRootPointer < 0) {
+            log.trace("{}: Not updating Root Pointer.", this.traceObjectId);
+            return;
+        }
+
         if (this.lastRootPointer.getAndSet(new RootPointerInfo(newRootPointer, lastSeqNo)) == null) {
             // There was nothing else executing now.
             // Initiate an async loop that will execute as long as we have a new value.

@@ -24,6 +24,7 @@ import io.pravega.common.util.btree.BTreeIndex;
 import io.pravega.common.util.btree.PageEntry;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -278,7 +279,8 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         }
 
         Collection<PageEntry> entries = values.entrySet().stream().map(this::serialize).collect(Collectors.toList());
-        return executeConditionally(tm -> this.index.update(entries, tm), timeout);
+        return executeConditionally(tm -> this.index.update(entries, tm), timeout)
+                .thenApply(this::maybeIgnoreRootPointer);
     }
 
     @Override
@@ -291,7 +293,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
 
         // Keep two lists, one of keys (in some order) and one of serialized keys (in the same order).
         val keyList = new ArrayList<UUID>(keys.size());
-        val serializedKeys = new ArrayList<ByteArraySegment>(keyList.size());
+        val serializedKeys = new ArrayList<ByteArraySegment>(keys.size());
         for (UUID key : keys) {
             keyList.add(key);
             serializedKeys.add(serializeKey(key));
@@ -479,21 +481,44 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         return this.storage.getStreamSegmentInfo(handle.getSegmentName(), timeout)
                 .thenApply(segmentInfo -> {
                     // Get the root pointer from the Segment's Core Attributes.
-                    long rootPointer = this.segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, BTreeIndex.IndexInfo.EMPTY.getRootPointer());
-                    if (rootPointer != BTreeIndex.IndexInfo.EMPTY.getRootPointer() && rootPointer < segmentInfo.getStartOffset()) {
-                        // The Root Pointer is invalid as it points to an offset prior to the Attribute Segment's Start Offset.
-                        // The Attribute Segment is updated in 3 sequential steps: 1) Write new BTree pages, 2) Truncate and
-                        // 3) Update root Pointer.
-                        // The purpose of the Root Pointer is to provide a location of a consistently written update in case
-                        // step 1) above fails (it is not atomic). However, if both 1) and 2) complete but 3) doesn't, then
-                        // it's possible that the existing Root Pointer has been truncated out. In this case, it should be
-                        // safe to ignore it and let the BTreeIndex read the file from the end (as it does in this case).
-                        log.info("{}: Root Pointer ({}) is below Attribute Segment's StartOffset ({}). Ignoring.", this.traceObjectId, rootPointer, segmentInfo.getStartOffset());
-                        rootPointer = BTreeIndex.IndexInfo.EMPTY.getRootPointer();
-                    }
-
+                    long rootPointer = getRootPointer(segmentInfo);
                     return new BTreeIndex.IndexInfo(segmentInfo.getLength(), rootPointer);
                 });
+    }
+
+    private long getRootPointer(SegmentProperties segmentInfo) {
+        // Get the root pointer from the Segment's Core Attributes.
+        long rootPointer = BTreeIndex.IndexInfo.EMPTY.getRootPointer(); // -1;
+        if (this.storage.supportsAtomicWrites()) {
+            // No need to worry about Root Pointers if the underlying Storage supports atomic writes. We only need this
+            // for RollingStorage which does not make such guarantees.
+            return rootPointer;
+        }
+
+        rootPointer = this.segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, BTreeIndex.IndexInfo.EMPTY.getRootPointer());
+        if (rootPointer != BTreeIndex.IndexInfo.EMPTY.getRootPointer() && rootPointer < segmentInfo.getStartOffset()) {
+            // The Root Pointer is invalid as it points to an offset prior to the Attribute Segment's Start Offset.
+            // The Attribute Segment is updated in 3 sequential steps: 1) Write new BTree pages, 2) Truncate and
+            // 3) Update root Pointer.
+            // The purpose of the Root Pointer is to provide a location of a consistently written update in case
+            // step 1) above fails (it is not atomic). However, if both 1) and 2) complete but 3) doesn't, then
+            // it's possible that the existing Root Pointer has been truncated out. In this case, it should be
+            // safe to ignore it and let the BTreeIndex read the file from the end (as it does in this case).
+            log.info("{}: Root Pointer ({}) is below Attribute Segment's StartOffset ({}). Ignoring.", this.traceObjectId, rootPointer, segmentInfo.getStartOffset());
+            rootPointer = BTreeIndex.IndexInfo.EMPTY.getRootPointer();
+        }
+        return rootPointer;
+    }
+
+    /**
+     * If {@link #storage} supports atomic writes ({@link Storage#supportsAtomicWrites()} is true), then this method
+     * returns a negative value. Otherwise it returns the given parameter.
+     *
+     * @param rootPointer The actual root pointer.
+     * @return The {@code rootPointer} if atomic writes are supported, or a negative value otherwise.
+     */
+    private long maybeIgnoreRootPointer(long rootPointer) {
+        return this.storage.supportsAtomicWrites() ? BTreeIndex.IndexInfo.EMPTY.getRootPointer() : rootPointer;
     }
 
     private CompletableFuture<ByteArraySegment> readPage(long offset, int length, Duration timeout) {
