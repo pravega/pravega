@@ -216,12 +216,9 @@ public class PravegaTablesScope implements Scope {
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, kvt)));
     }
 
-    public CompletableFuture<Boolean> addReaderGroupToScope(String readerGroupName, UUID readerGroupId) {
+    public CompletableFuture<Void> addReaderGroupToScope(String readerGroupName, UUID readerGroupId) {
         return getReaderGroupsInScopeTableName()
-                .thenCompose(tableName ->
-                        Futures.exceptionallyExpecting(storeHelper.addNewEntry(tableName, readerGroupName, getIdInBytes(readerGroupId))
-                                        .thenApply(v -> Boolean.TRUE),
-                        e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, Boolean.FALSE));
+                .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntry(tableName, readerGroupName, getIdInBytes(readerGroupId))));
     }
 
     public CompletableFuture<Void> removeReaderGroupFromScope(String readerGroup) {
