@@ -164,7 +164,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                     }
                     return CompletableFuture.completedFuture(null);
                 }, chunkedSegmentStorage.getExecutor())
-                .thenCompose( v -> Futures.allOf(chunkReadFutures));
+                .thenCompose(v -> Futures.allOf(chunkReadFutures));
     }
 
     private CompletableFuture<Void> readChunk(String chunkName,
@@ -177,7 +177,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         // Note that technically it is possible that read actually request reads less than requested bytes, requiring additional reads on the same chunk.
         // Hence the for loop below.
         return chunkedSegmentStorage.getChunkStorage().openRead(chunkName)
-                .thenComposeAsync( chunkHandle ->
+                .thenComposeAsync(chunkHandle ->
                     Futures.loop(
                             () -> chunkBytesRemaining.get() > 0 && null != currentChunkName,
                             () -> chunkedSegmentStorage.getChunkStorage().read(chunkHandle,
