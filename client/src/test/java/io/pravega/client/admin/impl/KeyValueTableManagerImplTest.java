@@ -44,7 +44,7 @@ public class KeyValueTableManagerImplTest {
     private static final String DEFAULT_SCOPE = "DefaultScope";
     private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder().partitionCount(4).build();
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(10);
+    public Timeout globalTimeout = Timeout.seconds(30);
     private MockConnectionFactoryImpl connectionFactory;
     private Controller controller = null;
     private final Set<String> segments = Collections.synchronizedSet(new HashSet<>());
