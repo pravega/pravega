@@ -280,7 +280,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     .setStatus(ReaderGroupConfigResponse.Status.RG_NOT_FOUND).build());
                }
                final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
-               return streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
+               return streamMetadataStore.getReaderGroupId(scope, rgName)
                     .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, context, executor)
                             .thenApply(configRecord -> ReaderGroupConfigResponse.newBuilder()
                                 .setConfig(getRGConfigurationFromRecord(scope, rgName, configRecord.getObject(), rgId.toString()))
@@ -483,7 +483,7 @@ public class StreamMetadataTasks extends TaskBase {
                             return CompletableFuture.completedFuture(response);
                         }
                         if (!rgConfigRecord.getObject().isUpdating()) {
-                          return streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
+                          return streamMetadataStore.getReaderGroupId(scope, rgName)
                              .thenCompose(rgId -> {
                              if (!config.getReaderGroupId().equals(rgId)) {
                                  UpdateReaderGroupResponse response = UpdateReaderGroupResponse.newBuilder()
@@ -602,7 +602,7 @@ public class StreamMetadataTasks extends TaskBase {
                     if (!exists) {
                        return CompletableFuture.completedFuture(DeleteReaderGroupStatus.Status.RG_NOT_FOUND);
                     }
-                    return streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
+                    return streamMetadataStore.getReaderGroupId(scope, rgName)
                            .thenCompose(rgId -> {
                                if (!rgId.equals(UUID.fromString(readerGroupId))) {
                                    return CompletableFuture.completedFuture(DeleteReaderGroupStatus.Status.RG_NOT_FOUND);
@@ -781,7 +781,7 @@ public class StreamMetadataTasks extends TaskBase {
                            return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND);
                        }
                        final List<String> subscriberScopedName = NameUtils.extractScopedNameTokens(subscriber);
-                       return streamMetadataStore.getReaderGroupId(subscriberScopedName.get(0), subscriberScopedName.get(1), null, executor)
+                       return streamMetadataStore.getReaderGroupId(subscriberScopedName.get(0), subscriberScopedName.get(1))
                                .thenCompose(rgId -> {
                                  // 3. Check if subscriber Id matches
                                  if (!rgId.equals(UUID.fromString(readerGroupId))) {

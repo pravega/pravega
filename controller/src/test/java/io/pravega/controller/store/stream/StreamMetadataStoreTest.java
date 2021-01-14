@@ -1969,9 +1969,10 @@ public abstract class StreamMetadataStoreTest {
                 .readerGroupId(rgId)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        final RGOperationContext rgContext = store.createRGContext(scopeRGTest, rgName);
         store.addReaderGroupToScope(scopeRGTest, rgName, rgConfig.getReaderGroupId());
-        store.createReaderGroup(scopeRGTest, rgName, rgConfig, System.currentTimeMillis(), null, executor).join();
-        UUID readerGroupId = store.getReaderGroupId(scopeRGTest, rgName, null, executor).get();
+        store.createReaderGroup(scopeRGTest, rgName, rgConfig, System.currentTimeMillis(), rgContext, executor).join();
+        UUID readerGroupId = store.getReaderGroupId(scopeRGTest, rgName).get();
         assertEquals(rgId, readerGroupId);
     }
     
