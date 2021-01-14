@@ -279,8 +279,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         }
 
         Collection<PageEntry> entries = values.entrySet().stream().map(this::serialize).collect(Collectors.toList());
-        return executeConditionally(tm -> this.index.update(entries, tm), timeout)
-                .thenApply(this::maybeIgnoreRootPointer);
+        return executeConditionally(tm -> this.index.update(entries, tm), timeout);
     }
 
     @Override
@@ -481,12 +480,20 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         return this.storage.getStreamSegmentInfo(handle.getSegmentName(), timeout)
                 .thenApply(segmentInfo -> {
                     // Get the root pointer from the Segment's Core Attributes.
-                    long rootPointer = getRootPointer(segmentInfo);
+                    long rootPointer = getRootPointerIfNeeded(segmentInfo);
                     return new BTreeIndex.IndexInfo(segmentInfo.getLength(), rootPointer);
                 });
     }
 
-    private long getRootPointer(SegmentProperties segmentInfo) {
+    /**
+     * Extracts the {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER} from the given {@link SegmentProperties} if necessary.
+     * If {@link Storage#supportsAtomicWrites()} is true for {@link #storage}, then a negative value is returned and
+     * the information from the given {@link SegmentProperties} is ignored.
+     *
+     * @param segmentInfo The {@link SegmentProperties} to extract from.
+     * @return The extracted root pointer or a negative value if not needed.
+     */
+    private long getRootPointerIfNeeded(SegmentProperties segmentInfo) {
         // Get the root pointer from the Segment's Core Attributes.
         long rootPointer = BTreeIndex.IndexInfo.EMPTY.getRootPointer(); // -1;
         if (this.storage.supportsAtomicWrites()) {
@@ -495,7 +502,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
             return rootPointer;
         }
 
-        rootPointer = this.segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, BTreeIndex.IndexInfo.EMPTY.getRootPointer());
+        rootPointer = this.segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, rootPointer);
         if (rootPointer != BTreeIndex.IndexInfo.EMPTY.getRootPointer() && rootPointer < segmentInfo.getStartOffset()) {
             // The Root Pointer is invalid as it points to an offset prior to the Attribute Segment's Start Offset.
             // The Attribute Segment is updated in 3 sequential steps: 1) Write new BTree pages, 2) Truncate and
@@ -508,17 +515,6 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
             rootPointer = BTreeIndex.IndexInfo.EMPTY.getRootPointer();
         }
         return rootPointer;
-    }
-
-    /**
-     * If {@link #storage} supports atomic writes ({@link Storage#supportsAtomicWrites()} is true), then this method
-     * returns a negative value. Otherwise it returns the given parameter.
-     *
-     * @param rootPointer The actual root pointer.
-     * @return The {@code rootPointer} if atomic writes are supported, or a negative value otherwise.
-     */
-    private long maybeIgnoreRootPointer(long rootPointer) {
-        return this.storage.supportsAtomicWrites() ? BTreeIndex.IndexInfo.EMPTY.getRootPointer() : rootPointer;
     }
 
     private CompletableFuture<ByteArraySegment> readPage(long offset, int length, Duration timeout) {
