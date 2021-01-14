@@ -85,6 +85,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.net.URI;
@@ -118,6 +119,7 @@ import static org.junit.Assert.assertTrue;
  * Tests replicate different environments for data recovery.
  */
 @Slf4j
+@Ignore
 public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
     private static final Duration READ_TIMEOUT = Duration.ofMillis(1000);
