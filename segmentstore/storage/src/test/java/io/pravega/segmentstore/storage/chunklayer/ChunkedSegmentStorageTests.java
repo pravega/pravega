@@ -1119,7 +1119,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void testBaseConcat(TestContext testContext, int maxRollingLength, long[] targetLayout, long[] sourceLayout, long[] resultLayout) throws Exception {
+    private void testBaseConcat(TestContext testContext, long maxRollingLength, long[] targetLayout, long[] sourceLayout, long[] resultLayout) throws Exception {
         val source = testContext.insertMetadata("source", maxRollingLength, 1, sourceLayout);
         val target = testContext.insertMetadata("target", maxRollingLength, 1, targetLayout);
 
@@ -2237,6 +2237,43 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             futureToWaitOn.complete(null);
         }
         CompletableFuture.allOf(futures).join();
+    }
+
+    @Test
+    public void testReadHugeChunks() throws Exception {
+        String testSegmentName = "foo";
+        @Cleanup
+        TestContext testContext = getTestContext();
+        // Setup a segment with 5 chunks with given lengths.
+        val segment = testContext.insertMetadata(testSegmentName, 10 * Integer.MAX_VALUE, 1,
+                new long[]{
+                        Integer.MAX_VALUE + 1L,
+                        Integer.MAX_VALUE + 2L,
+                        Integer.MAX_VALUE + 3L,
+                        Integer.MAX_VALUE + 4L,
+                        Integer.MAX_VALUE + 5L});
+
+        val h = testContext.chunkedSegmentStorage.openRead(testSegmentName).get();
+
+        byte[] output = new byte[10];
+        // Read bytes
+        for (long i = 0; i < 5; i++) {
+            val bytesRead = testContext.chunkedSegmentStorage.read(h, i * Integer.MAX_VALUE, output, 0, 10, null).get();
+            Assert.assertEquals(10, bytesRead.intValue());
+        }
+    }
+
+    @Test
+    public void testConcatHugeChunks() throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .minSizeLimitForConcat(10L * Integer.MAX_VALUE)
+                .maxSizeLimitForConcat(100L * Integer.MAX_VALUE)
+                .build());
+        testBaseConcat(testContext, 10L * Integer.MAX_VALUE,
+                new long[]{Integer.MAX_VALUE + 1L},
+                new long[]{Integer.MAX_VALUE + 1L, Integer.MAX_VALUE + 1L},
+                new long[]{3L * Integer.MAX_VALUE + 3L});
     }
 
     private void checkDataRead(String testSegmentName, TestContext testContext, long offset, long length) throws InterruptedException, java.util.concurrent.ExecutionException {

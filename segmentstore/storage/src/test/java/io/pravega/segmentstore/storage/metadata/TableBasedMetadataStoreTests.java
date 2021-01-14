@@ -86,6 +86,14 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
             return new TableBasedMetadataTestContext(executorService());
         }
 
+        @Override
+        public void testReadHugeChunks() {
+        }
+
+        @Override
+        public void testConcatHugeChunks(){
+        }
+
         public static class TableBasedMetadataTestContext extends TestContext {
             TableBasedMetadataTestContext() {
             }
