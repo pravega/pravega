@@ -183,7 +183,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             // Shutdown exceptions means we are already stopping, so no need to do anything else. For all other cases,
             // record the failure and then stop the OperationProcessor.
             super.errorHandler(ex);
-            stopAsync();
+
+            // Run async to prevent deadlocks. closeQueue() above is the most important thing when shutting down as it
+            // will prevent anything new from being added while also cancelling in-flight requests.
+            this.executor.execute(this::stopAsync);
         }
     }
 
@@ -592,8 +595,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     OperationProcessor.this.metadataUpdater.commit(commitArgs.getMetadataTransactionId());
 
                     // Queue operations for memory commit, which will be done asynchronously.
-                    toAck.forEach(OperationProcessor.this.commitQueue::add);
-
+                    queueMemoryCommit(toAck);
                     this.highestCommittedDataFrame = addressSequence;
                 }
             } finally {
@@ -602,6 +604,17 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     metrics.operationsCompleted(toAck, timer.getElapsed());
                 }
                 this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
+            }
+        }
+
+        private void queueMemoryCommit(List<List<CompletableOperation>> toAck) {
+            try {
+                toAck.forEach(OperationProcessor.this.commitQueue::add);
+            } catch (Exception ex) {
+                // If we are unable to queue up these operations for whatever reason, we must unregister them from the
+                // CacheUtilizationProvider, otherwise we will be "leaking" bytes (i.e., overcounting).
+                toAck.forEach(l -> l.forEach(this::notifyOperationCommitted));
+                throw ex;
             }
         }
 
