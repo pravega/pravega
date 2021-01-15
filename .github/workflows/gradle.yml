@@ -98,8 +98,6 @@ jobs:
         run: ./gradlew segmentstore:server:test
       - name: Segment Store Host Unit tests
         run: ./gradlew segmentstore:server:host:test
-      - name: Segment Store Storage Unit tests
-        run: ./gradlew segmentstore:storage:test
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
@@ -120,10 +118,8 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Segment Store Storage Impl Unit tests
-        run: ./gradlew segmentstore:storage:impl:test
-      - name: Segment Store LTS Bindings Unit tests
-        run: ./gradlew bindings:test
+      - name: Storage Impl Unit tests
+        run: ./gradlew segmentstore:storage:test segmentstore:storage:impl:test bindings:test --parallel
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
@@ -155,6 +151,7 @@ jobs:
           -x segmentstore:storage:test
           -x segmentstore:server:host:test
           -x segmentstore:server:test
+          --parallel
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
