@@ -1055,7 +1055,6 @@ public class ReaderGroupStateManagerTest {
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
 
-
         // Initialize RG state with updatingConfig as true.
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         createScopeAndStream(scope, rgStream, controller);
