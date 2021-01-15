@@ -328,9 +328,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
         Assert.assertEquals("Expected the OperationProcessor to fail after DurableDataLogException encountered.",
                 Service.State.FAILED, operationProcessor.state());
 
-        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata);
-        performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, context.metadata, false, false);
-        performReadIndexChecks(completionFutures, context.readIndex);
+        performFailureRecoveryChecks(completionFutures, dataLog);
+        context.close();
     }
 
     /**
@@ -643,6 +642,48 @@ public class OperationProcessorTests extends OperationLogTestBase {
         }
     }
 
+    private void performFailureRecoveryChecks(List<OperationWithCompletion> operations, TestDurableDataLog dataLog) throws Exception {
+        boolean encounteredFailure = false;
+        val successfulOps = new ArrayList<Operation>();
+        for (val oc : operations) {
+            encounteredFailure |= oc.completion.isCompletedExceptionally();
+            if (encounteredFailure) {
+                Assert.assertTrue("Found a non-errorred operation after an errorred operation.", oc.completion.isCompletedExceptionally());
+            } else {
+                Assert.assertTrue(oc.completion.isDone());
+                successfulOps.add(oc.operation);
+            }
+        }
+
+        @Cleanup
+        DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationSerializer(), CONTAINER_ID);
+        long lastSeqNo = -1;
+        for (Operation expectedOp : successfulOps) {
+            // Verify that the operations have been completed and assigned sequential Sequence Numbers.
+            AssertExtensions.assertGreaterThan("Operations were not assigned sequential Sequence Numbers.", lastSeqNo, expectedOp.getSequenceNumber());
+            lastSeqNo = expectedOp.getSequenceNumber();
+
+            // DataLog: read back using DataFrameReader and verify the operations match that of the expected list.
+            DataFrameRecord<Operation> dataFrameRecord = dataFrameReader.getNext();
+            Assert.assertNotNull("No more items left to read from DataLog. Expected: " + expectedOp, dataFrameRecord);
+
+            // We are reading the raw operation from the DataFrame, so expect different objects (but same contents).
+            if (expectedOp instanceof CheckpointOperationBase) {
+                // Checkpoint operations are different. While they do serialize their contents, we do not hold on to that
+                // since they may be pretty big and serve no purpose after serialization. There are other tests in this suite
+                // and in ContainerMetadataUpdateTransactionTests and DurableLogTests that verify we can properly read
+                // their contents during recovery.
+                val actualEntry = (CheckpointOperationBase) dataFrameRecord.getItem();
+                Assert.assertNull("Expected in-memory checkpoint operation to not have contents set.", ((CheckpointOperationBase) expectedOp).getContents());
+                Assert.assertNotNull("Expected serialized checkpoint operation to have contents set.", actualEntry.getContents());
+                Assert.assertEquals(" Unexpected Sequence Number", expectedOp.getSequenceNumber(), actualEntry.getSequenceNumber());
+            } else {
+                // All other operations.
+                OperationComparer.DEFAULT.assertEquals(expectedOp, dataFrameRecord.getItem());
+            }
+        }
+    }
+
     @SneakyThrows
     private List<Operation> readUpToSequenceNumber(InMemoryLog log, long seqNo) {
         ArrayList<Operation> result = new ArrayList<>();
@@ -656,7 +697,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             // Figure out how much to read. If we don't know, read at least one item so we see what's the first SeqNo
             // in the Log.
             int maxCount = result.size() == 0 ? 1 : (int) (seqNo - result.get(result.size() - 1).getSequenceNumber());
-            Queue<Operation> logIterator = log.take(maxCount, TIMEOUT, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            Queue<Operation> logIterator = log.take(maxCount, TIMEOUT, executorService()).get(5000, TimeUnit.MILLISECONDS);
             while (!logIterator.isEmpty()) {
                 result.add(logIterator.poll());
             }
