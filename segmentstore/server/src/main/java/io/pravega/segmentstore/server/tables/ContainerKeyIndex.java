@@ -816,7 +816,6 @@ class ContainerKeyIndex implements AutoCloseable {
 
             // Cleanup whenever the task is done.
             task.task.whenComplete((r, ex) -> {
-                sf.cancel(true);
                 synchronized (this) {
                     // Cleanup.
                     RecoveryTask removed = this.recoveryTasks.remove(task.segmentId);
@@ -825,6 +824,11 @@ class ContainerKeyIndex implements AutoCloseable {
                         this.recoveryTasks.put(task.segmentId, removed);
                     }
                 }
+
+                // It doesn't matter much if we attempt to cancel this ScheduledFuture before or after unregistering it.
+                // If it has already been completed (normally or exceptionally), this will have no effect. It is preferred
+                // to cancel it after being unregistered since that helps unit testing.
+                sf.cancel(true);
             });
         }
 
