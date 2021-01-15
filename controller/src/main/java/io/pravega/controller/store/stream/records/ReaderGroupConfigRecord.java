@@ -10,12 +10,13 @@
 package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.StreamCut;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.shared.controller.event.RGStreamCutRecord;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -52,10 +53,10 @@ public class ReaderGroupConfigRecord {
     public static ReaderGroupConfigRecord update(ReaderGroupConfig rgConfig, long generation, boolean isUpdating) {
         Map<String, RGStreamCutRecord> startStreamCuts = rgConfig.getStartingStreamCuts().entrySet().stream()
                 .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
-                        e -> new RGStreamCutRecord(getStreamCutMap(e.getValue()))));
+                        e -> new RGStreamCutRecord(ModelHelper.getStreamCutMap(e.getValue()))));
         Map<String, RGStreamCutRecord> endStreamCuts = rgConfig.getEndingStreamCuts().entrySet().stream()
                 .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
-                        e -> new RGStreamCutRecord(getStreamCutMap(e.getValue()))));
+                        e -> new RGStreamCutRecord(ModelHelper.getStreamCutMap(e.getValue()))));
         return ReaderGroupConfigRecord.builder()
                 .generation(generation)
                 .groupRefreshTimeMillis(rgConfig.getGroupRefreshTimeMillis())
@@ -77,12 +78,6 @@ public class ReaderGroupConfigRecord {
                 .startingStreamCuts(rgConfigRecord.getStartingStreamCuts())
                 .endingStreamCuts(rgConfigRecord.getEndingStreamCuts())
                 .updating(false).build();
-    }
-
-    private static ImmutableMap<Long, Long> getStreamCutMap(StreamCut streamCut) {
-        ImmutableMap.Builder<Long, Long> mapBuilder = ImmutableMap.builder();
-        return mapBuilder.putAll(streamCut.asImpl().getPositions().entrySet()
-                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue))).build();
     }
 
     @SneakyThrows(IOException.class)

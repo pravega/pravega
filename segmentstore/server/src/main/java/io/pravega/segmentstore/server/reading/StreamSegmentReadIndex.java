@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AvlTreeIndex;
 import io.pravega.common.util.BufferView;
@@ -604,6 +605,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private CacheIndexEntry insertEntriesToCacheAndIndex(BufferView data, long segmentOffset) {
         CacheIndexEntry lastInsertedEntry = null;
         synchronized (this.lock) {
+            // Do not insert after we have closed the index, otherwise we will leak cache entries.
+            Exceptions.checkNotClosed(this.closed, this);
             while (data != null && data.getLength() > 0) {
                 // Figure out if the first byte in the buffer is already cached.
                 ReadIndexEntry existingEntry = this.indexEntries.getFloor(segmentOffset);
@@ -716,9 +719,18 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         for (FutureReadResultEntry r : futureReads) {
             ReadResultEntry entry = getSingleReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength(), false);
             assert entry != null : "Serving a FutureReadResultEntry with a null result";
-            assert !(entry instanceof FutureReadResultEntry) : "Serving a FutureReadResultEntry with another FutureReadResultEntry.";
+            if (entry instanceof FutureReadResultEntry) {
+                // The only valid situation when we can complete a FutureReadResultEntry with another FutureReadResultEntry
+                // is when the segment is sealed. That's because we may have a situation with multiple appends in short
+                // sequence followed closely by a seal; in that case one of those appends may trigger the invocation of
+                // this method which may pick up registered Future Reads beyond what has been added to the read index.
+                // The new FutureReadResultEntries will be completed when the rest of the appends are processed.
+                assert entry.getStreamSegmentOffset() == r.getStreamSegmentOffset();
+                log.warn("{}: triggerFutureReads (Offset = {}). Serving a FutureReadResultEntry ({}) with another FutureReadResultEntry ({}). Segment Info = [{}].",
+                        this.traceObjectId, r.getStreamSegmentOffset(), r, entry, this.metadata.getSnapshot());
+            }
 
-            log.trace("{}: triggerFutureReads (Offset = {}, Type = {}).", this.traceObjectId, r.getStreamSegmentOffset(), entry.getType());
+            log.debug("{}: triggerFutureReads (Offset = {}, Type = {}).", this.traceObjectId, r.getStreamSegmentOffset(), entry.getType());
             if (entry.getType() == ReadResultEntryType.EndOfStreamSegment) {
                 // We have attempted to read beyond the end of the stream. Fail the read request with the appropriate message.
                 r.fail(new StreamSegmentSealedException(String.format("StreamSegment has been sealed at offset %d. There can be no more reads beyond this offset.", this.metadata.getLength())));
@@ -880,7 +892,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param makeCopy          If true, any data retrieved from the Cache will be copied into a Heap buffer before being returned.
      * @return A ReadResultEntry representing the data to return.
      */
-    private CompletableReadResultEntry getSingleReadResultEntry(long resultStartOffset, int maxLength, boolean makeCopy) {
+    @VisibleForTesting
+    CompletableReadResultEntry getSingleReadResultEntry(long resultStartOffset, int maxLength, boolean makeCopy) {
         Exceptions.checkNotClosed(this.closed, this);
 
         if (maxLength < 0) {
@@ -920,6 +933,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                         // is a Redirect; reissue the request to the appropriate index.
                         // This requires reaching out to another StreamSegmentReadIndex instance. We shouldn't be doing
                         // this while holding this lock as we risk deadlocking (via the Cache Manager).
+                        assert !((RedirectIndexEntry) indexEntry).getRedirectReadIndex().closed;
                         redirect = true;
                     }
                 }
@@ -1039,20 +1053,32 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         // Fetch the result from the other index - this method will acquire the other index' lock while executing.
-        CompletableReadResultEntry result = redirectedIndex.getSingleReadResultEntry(redirectOffset, maxLength, makeCopy);
-        if (result != null) {
-            // Since this is a redirect to a (merged) Transaction, it is possible that between now and when the caller
-            // invokes the requestContent() on the entry the Transaction may be fully merged (in Storage). If that's the
-            // case, then this entry will fail with either ObjectClosedException or StreamSegmentNotFoundException, since
-            // it is pointing to the now defunct Transaction segment. At that time, a simple retry of the read would
-            // yield the right result. However, in order to recover from this without the caller's intervention, we pass
-            // a pointer to getSingleReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
-            // that class has logic in it to invoke it if needed and get the right entry.
-            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(),
-                    (rso, ml, sourceSegmentId) -> getOrRegisterRedirectedRead(rso, ml, sourceSegmentId, makeCopy), redirectedIndex.metadata.getId());
-        }
+        try {
+            CompletableReadResultEntry result = redirectedIndex.getSingleReadResultEntry(redirectOffset, maxLength, makeCopy);
+            if (result != null) {
+                // Since this is a redirect to a (merged) Transaction, it is possible that between now and when the caller
+                // invokes the requestContent() on the entry the Transaction may be fully merged (in Storage). If that's the
+                // case, then this entry will fail with either ObjectClosedException or StreamSegmentNotFoundException, since
+                // it is pointing to the now defunct Transaction segment. At that time, a simple retry of the read would
+                // yield the right result. However, in order to recover from this without the caller's intervention, we pass
+                // a pointer to getSingleReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
+                // that class has logic in it to invoke it if needed and get the right entry.
+                result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(),
+                        (rso, ml, sourceSegmentId) -> getOrRegisterRedirectedRead(rso, ml, sourceSegmentId, makeCopy), redirectedIndex.metadata.getId());
+            }
 
-        return result;
+            return result;
+        } catch (ObjectClosedException ex) {
+            // Similarly to above, but the source Segment (Transaction) has been merged between when getSingleReadResultEntry
+            // (our caller) and redirectedIndex.getSingleReadResultEntry() was invoked. Since we are not holding the lock
+            // while executing this method (due to deadlock considerations), this scenario is plausible. If this does
+            // indeed happen, we need to reissue the read against ourself, in which case an updated result/entry will be
+            // returned.
+            if (!redirectedIndex.closed) {
+                throw ex;
+            }
+            return getSingleReadResultEntry(streamSegmentOffset, maxLength, makeCopy);
+        }
     }
 
     private CompletableReadResultEntry getOrRegisterRedirectedRead(long resultStartOffset, int maxLength, long sourceSegmentId, boolean makeCopy) {
