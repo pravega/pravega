@@ -31,26 +31,6 @@ jobs:
       - name: Static Analysis
         run: ./gradlew rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
 
-  unit_other:
-    needs: build
-    runs-on: ubuntu-20.04
-    name: All Other Unit Tests
-    steps:
-      - uses: actions/checkout@v1
-      - name: Restore local Gradle & Maven cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            .gradle
-            ~/.gradle
-            ~/.m2
-          key: gradle-m2-java-11
-          restore-keys: |
-            gradle-m2-java-
-            gradle-m2
-      - name: Unit tests
-        run: ./gradlew test --exclude-task client:test controller:test test:integration:test
-
   unit_client:
     needs: build
     runs-on: ubuntu-20.04
@@ -74,7 +54,7 @@ jobs:
   unit_controller:
     needs: build
     runs-on: ubuntu-20.04
-    name: Client Unit Tests
+    name: Controller Unit Tests
     steps:
       - uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
@@ -91,8 +71,83 @@ jobs:
       - name: Controller Unit tests
         run: ./gradlew controller:test
 
-  test:
-    needs: [unit_other, unit_client, unit_controller]
+  unit_segment_store:
+    needs: build
+    runs-on: ubuntu-20.04
+    name: Segment Store Unit Tests
+    steps:
+      - uses: actions/checkout@v1
+      - name: Restore local Gradle & Maven cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: |
+            .gradle
+            ~/.gradle
+            ~/.m2
+          key: gradle-m2-java-11
+          restore-keys: |
+            gradle-m2-java-
+            gradle-m2
+      - name: Segment Store Unit tests
+        run: ./gradlew segmentstore:server:test
+      - name: Segment Store Host Unit tests
+        run: ./gradlew segmentstore:server:host:test
+      - name: Segment Store Storage Unit tests
+        run: ./gradlew segmentstore:storage:test
+
+  unit_segment_store_storage:
+    needs: build
+    runs-on: ubuntu-20.04
+    name: Segment Store Unit Tests
+    steps:
+      - uses: actions/checkout@v1
+      - name: Restore local Gradle & Maven cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: |
+            .gradle
+            ~/.gradle
+            ~/.m2
+          key: gradle-m2-java-11
+          restore-keys: |
+            gradle-m2-java-
+            gradle-m2
+      - name: Segment Store Storage Impl Unit tests
+        run: ./gradlew segmentstore:storage:impl:test
+      - name: Segment Store LTS Bindings Unit tests
+        run: ./gradlew bindings:test
+
+  unit_other:
+    needs: build
+    runs-on: ubuntu-20.04
+    name: All Other Unit Tests
+    steps:
+      - uses: actions/checkout@v1
+      - name: Restore local Gradle & Maven cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: |
+            .gradle
+            ~/.gradle
+            ~/.m2
+          key: gradle-m2-java-11
+          restore-keys: |
+            gradle-m2-java-
+            gradle-m2
+      - name: Unit tests
+        run: >
+          ./gradlew test --exclude-task
+          client:test
+          controller:test
+          test:integration:test
+          bindings:test
+          segmentstore:storage:impl:test
+          segmentstore:storage:test
+          segmentstore:server:host:test
+          segmentstore:server:test
+
+  codecov:
+    needs: [unit_other, unit_client, unit_controller, unit_segment_store, unit_segment_store_storage]
     runs-on: ubuntu-20.04
     name: Code Coverage
     steps:
