@@ -39,6 +39,7 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -1972,8 +1973,12 @@ public abstract class StreamMetadataStoreTest {
         final RGOperationContext rgContext = store.createRGContext(scopeRGTest, rgName);
         store.addReaderGroupToScope(scopeRGTest, rgName, rgConfig.getReaderGroupId());
         store.createReaderGroup(scopeRGTest, rgName, rgConfig, System.currentTimeMillis(), rgContext, executor).join();
-        UUID readerGroupId = store.getReaderGroupId(scopeRGTest, rgName).get();
-        assertEquals(rgId, readerGroupId);
+        ReaderGroupConfigRecord cfgRecord = store.getReaderGroupConfigRecord(scopeRGTest, rgName, rgContext, executor).join().getObject();
+        assertEquals(false, cfgRecord.isUpdating());
+        assertEquals(rgConfig.getGeneration(), cfgRecord.getGeneration());
+        assertEquals(rgConfig.getAutomaticCheckpointIntervalMillis(), cfgRecord.getAutomaticCheckpointIntervalMillis());
+        assertEquals(rgConfig.getGroupRefreshTimeMillis(), cfgRecord.getGroupRefreshTimeMillis());
+        assertEquals(rgConfig.getStartingStreamCuts().size(), cfgRecord.getStartingStreamCuts().size());
     }
     
     private void createAndScaleStream(StreamMetadataStore store, String scope, String stream, int times) {
