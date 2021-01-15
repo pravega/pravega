@@ -19,7 +19,6 @@ import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -86,7 +85,6 @@ public class ClusterWrapperTest {
     }
 
     @Test
-    @Ignore
     public void writeAndReadBackAMessageWithTlsAndAuthOn() {
         String scopeName = "testScope";
         String streamName = "testStream";

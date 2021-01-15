@@ -25,7 +25,6 @@ import io.pravega.test.integration.utils.TestUtils;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -50,7 +49,6 @@ public class ReadWithReadPermissionsTest {
      */
     @SneakyThrows
     @Test
-    @Ignore
     public void readWithReadOnlyPermissions() {
         final Map<String, String> passwordInputFileEntries = new HashMap<>();
 
