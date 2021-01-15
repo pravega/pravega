@@ -83,7 +83,7 @@ Controller services can be configured in two different ways:
 
    ```
    controller.security.tls.enable=true
-   controller.security.tls.server.certificate.location=/etc/secrets/controller01-server-cert.crt
+   controller.security.tls.server.certificate.location=/etc/secrets/server-cert.crt
    ```
 
 2. By specifying configuration parameters as JVM system properties when starting the Controller service instance. 
@@ -104,17 +104,17 @@ Controller services can be configured in two different ways:
    ```
 
 The following table lists the Controller service's TLS and auth parameters as well as samples values, for quick reference. 
-For a detailed description of these parameters, refer to 
-[this](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
+For a detailed description of these parameters, refer to the
+[Pravega Security Configurations](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
 
  | Configuration Parameter| Example Value |
  |:-----------------------:|:-------------|
  | `controller.security.tls.enable` | `true` |
- | `controller.security.tls.server.certificate.location` | `/etc/secrets/controller01-server-cert.crt` |
- | `controller.security.tls.server.privateKey.location` | `/etc/secrets/controller01-server-key.key` |
+ | `controller.security.tls.server.certificate.location` | `/etc/secrets/server-cert.crt` |
+ | `controller.security.tls.server.privateKey.location` | `/etc/secrets/server-key.key` |
  | `controller.security.tls.trustStore.location` | `/etc/secrets/ca-cert.crt` |
- | `controller.security.tls.server.keyStore.location` | `/etc/secrets/controller01-server.keystore.jks` |
- | `controller.security.tls.server.keyStore.pwd.location` | `/etc/secrets/controller01-server.keystore.jks.password` <sup>1</sup> |
+ | `controller.security.tls.server.keyStore.location` | `/etc/secrets/server.keystore.jks` |
+ | `controller.security.tls.server.keyStore.pwd.location` | `/etc/secrets/server.keystore.jks.password` <sup>1</sup> |
  | `controller.zk.connect.security.enable` | `false` <sup>2</sup> |
  | `controller.zk.connect.security.tls.trustStore.location` | Unspecified <sup>2</sup>|
  | `controller.zk.connect.security.tls.trustStore.pwd.location` | Unspecified <sup>2</sup>|
@@ -133,30 +133,30 @@ For a detailed description of these parameters, refer to
 
 Segment store supports security configuration via a properties file (`config.properties`) or JVM system properties. The table 
 below lists its TLS and auth parameters and sample values. For a detailed discription of these parameters refer to
-[this](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
+[Pravega Security Configurations](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
 
  | Configuration Parameter| Example Value |
  |:-----------------------:|:-------------|
  | `pravegaservice.security.tls.enable` | `true` |
- | `pravegaservice.security.tls.server.certificate.location` | `/etc/secrets/segmentstore01-server-cert.crt` |
+ | `pravegaservice.security.tls.server.certificate.location` | `/etc/secrets/server-cert.crt` |
  | `pravegaservice.security.tls.certificate.autoReload.enable` | `false` |
- | `pravegaservice.security.tls.server.privateKey.location` | `/etc/secrets/segmentstore01-server-key.key` |
- | `pravegaservice.zk.connect.security.enable` | `false` <sup>2</sup> |
- | `pravegaservice.zk.connect.security.tls.trustStore.location` | Unspecified <sup>2</sup>|
- | `pravegaservice.zk.connect.security.tls.trustStore.pwd.location` | Unspecified <sup>2</sup>|
+ | `pravegaservice.security.tls.server.privateKey.location` | `/etc/secrets/server-key.key` |
+ | `pravegaservice.zk.connect.security.enable` | `false` <sup>1</sup> |
+ | `pravegaservice.zk.connect.security.tls.trustStore.location` | Unspecified <sup>1</sup>|
+ | `pravegaservice.zk.connect.security.tls.trustStore.pwd.location` | Unspecified <sup>1</sup>|
  | `autoScale.controller.connect.security.tls.enable` | `true` |
  | `autoScale.controller.connect.security.tls.truststore.location` | `/etc/secrets/ca-cert.crt` |
  | `autoScale.controller.connect.security.auth.enable` | `true` |
- | `autoScale.security.auth.token.signingKey.basis` | `a-secret-value` <sup>1</sup>|
+ | `autoScale.security.auth.token.signingKey.basis` | `a-secret-value` <sup>2</sup>|
  | `autoScale.controller.connect.security.tls.validateHostName.enable` | `true` |
  | `pravega.client.auth.loadDynamic` | `false` |
  | `pravega.client.auth.method` | `Basic` |
  | `pravega.client.auth.token` | Base64-encoded value of 'username:password' string | 
 
-[1]: It is assumed here that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS 
-configuration properties via the `pravegaservice.zk.*` properties.
+[1]: The secret value you use here must match the same value used for other Controller and Segment Store services.
 
-[2]: The secret value you use here must match the same value used for other Controller and Segment Store services.
+[2]: It is assumed here that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS
+configuration properties via these properties.
 
 ### Configuring TLS and Credentials on Client Side
 
@@ -185,7 +185,7 @@ use the built-in Password Auth Handler that supports "Basic" authentication, you
   ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI("tls://<dns-name-or-ip>:9090")
                 .trustStore("/etc/secrets/ca-cert.crt")
-                .credentials(new DefaultCredentials("changeit", "marketinganaylticsapp"))
+                .credentials(new DefaultCredentials("<password>", "<username>"))
                 .build();
   ```
 

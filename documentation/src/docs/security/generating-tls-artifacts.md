@@ -315,7 +315,7 @@ The above steps are described below:
      $ openssl pkcs12 -in server.keystore.p12 -out server-key.key -passin pass:changeit -nodes
      ```
 
-Step 5 concludes this stage and the stage is now set for installing the certificates and other TLS artifacts in Pravega.
+Step 5 concludes this stage and we are now now set for installing the certificates and other TLS artifacts in Pravega.
 
 The table below lists the key output of this stage. 
 
