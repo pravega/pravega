@@ -205,6 +205,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
+        log.info("Reset ReaderGroup {} to {}", getGroupName(), config);
         synchronizer.fetchUpdates();
         while (true) {
             val currentConfig = synchronizer.getState().getConfig();
