@@ -29,6 +29,7 @@ import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import java.time.Duration;
@@ -1033,6 +1034,53 @@ public class ReaderGroupStateManagerTest {
         assertEquals(0, stateSynchronizer.getState().getNumberOfUnassignedSegments());
         AssertExtensions.assertThrows(ReaderNotInReaderGroupException.class,
                                       () -> readerState1.acquireNewSegmentsIfNeeded(0L, new PositionImpl(Collections.emptyMap())));
+    }
+
+    @Test(timeout = 10000)
+    public void testUpdateConfigIfNeeded() {
+        String scope = "scope";
+        String stream = "stream";
+        String stream2 = "stream2";
+        String groupName = "group";
+        String rgStream = NameUtils.getStreamForReaderGroup(groupName);
+        ReaderGroupConfig clientConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build();
+        ReaderGroupConfig controllerConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, stream2))
+                .readerGroupId(clientConfig.getReaderGroupId()).generation(1).build();
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
+        createScopeAndStream(scope, stream2, controller);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+
+
+        // Initialize RG state with updatingConfig as true.
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        createScopeAndStream(scope, rgStream, controller);
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> state = createState(rgStream, clientFactory, config);
+        AtomicLong clock = new AtomicLong();
+        Map<SegmentWithRange, Long> segments = new HashMap<>();
+        segments.put(new SegmentWithRange(new Segment(scope, stream, 0), 0.0, 0.25), 0L);
+        segments.put(new SegmentWithRange(new Segment(scope, stream, 1), 0.25, 0.5), 1L);
+        segments.put(new SegmentWithRange(new Segment(scope, stream, 2), 0.5, 0.75), 2L);
+        segments.put(new SegmentWithRange(new Segment(scope, stream, 3), 0.65, 1.0), 3L);
+        state.initialize(new ReaderGroupState.ReaderGroupStateInit(clientConfig, segments, Collections.emptyMap(), true));
+        controller.createReaderGroup(scope, groupName, controllerConfig);
+
+        ReaderGroupStateManager reader1 = new ReaderGroupStateManager(scope, groupName, "reader1", state, controller, clock::get);
+        reader1.initializeReader(100);
+
+        assertTrue(state.getState().isUpdatingConfig());
+        assertEquals(clientConfig, state.getState().getConfig());
+
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_CONFIG_WINDOW.toNanos());
+        reader1.updateConfigIfNeeded();
+
+        assertFalse(state.getState().isUpdatingConfig());
+        assertEquals(controllerConfig, state.getState().getConfig());
     }
 
     private void createScopeAndStream(String scope, String stream, MockController controller) {
