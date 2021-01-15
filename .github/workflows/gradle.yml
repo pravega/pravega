@@ -26,10 +26,8 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Assemble
-        run: ./gradlew assemble --parallel
-      - name: Static Analysis
-        run: ./gradlew rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
+      - name: Assemble and Static Analysis
+        run: ./gradlew assemble rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
 
   unit_client:
     needs: build
