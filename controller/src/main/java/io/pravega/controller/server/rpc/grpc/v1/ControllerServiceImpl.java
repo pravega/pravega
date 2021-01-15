@@ -148,8 +148,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createReaderGroup",
                 scope, rgName);
         log.info(requestTag.getRequestId(), "createReaderGroup called for ReaderGroup {}/{}.", scope, rgName);
+        AuthHandler.Permissions requiredPermission = this.isRGStreamWritesWithReadPermEnabled ?
+                AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE;
+
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofReaderGroupsInScope(scope), AuthHandler.Permissions.READ_UPDATE),
+                authorizationResource.ofReaderGroupsInScope(scope), requiredPermission),
                 delegationToken -> controllerService.createReaderGroup(scope, rgName,
                         ModelHelper.encode(request), System.currentTimeMillis()),
                 responseObserver, requestTag);
@@ -162,8 +165,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "updateReaderGroup",
                 scope, rgName);
         log.info(requestTag.getRequestId(), "updateReaderGroup called for ReaderGroup {}/{}.", scope, rgName);
+        AuthHandler.Permissions requiredPermission = this.isRGStreamWritesWithReadPermEnabled ?
+                AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE;
+
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofReaderGroupsInScope(scope), AuthHandler.Permissions.READ_UPDATE),
+                authorizationResource.ofReaderGroupsInScope(scope), requiredPermission),
                 delegationToken -> controllerService.updateReaderGroup(scope, rgName, ModelHelper.encode(request)),
                 responseObserver, requestTag);
     }
@@ -190,8 +196,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteReaderGroup",
                 scope, rgName);
         log.info(requestTag.getRequestId(), "deleteReaderGroup called for Reader Group {}/{}.", scope, rgName);
+        AuthHandler.Permissions requiredPermission = this.isRGStreamWritesWithReadPermEnabled ?
+                AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE;
+
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofReaderGroupsInScope(scope), AuthHandler.Permissions.READ),
+                authorizationResource.ofReaderGroupsInScope(scope), requiredPermission),
                 delegationToken -> controllerService.deleteReaderGroup(scope, rgName, rgId, generation),
                 responseObserver, requestTag);
     }
