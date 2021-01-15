@@ -32,27 +32,6 @@ jobs:
       - name: Static Analysis
         run: ./gradlew rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
 
-  snapshot:
-    needs: build
-    runs-on: ubuntu-20.04
-    name: Snapshot
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v1
-      - name: Restore local Gradle & Maven cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            .gradle
-            ~/.gradle
-            ~/.m2
-          key: gradle-m2-java-11
-          restore-keys: |
-            gradle-m2-java-
-            gradle-m2
-      - name: Publish
-        run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=$BINTRAY_USER -PpublishPassword=$BINTRAY_KEY
-
   unit_client:
     needs: build
     runs-on: ubuntu-20.04
