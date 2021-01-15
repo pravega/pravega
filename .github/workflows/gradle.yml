@@ -33,9 +33,12 @@ jobs:
         run: ./gradlew rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
 
   snapshot:
+    needs: build
     runs-on: ubuntu-20.04
     name: Snapshot
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -55,6 +58,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Client Unit Tests
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -76,6 +81,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Controller Unit Tests
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -97,6 +104,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Segment Store Unit Tests
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -120,6 +129,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Segment Store Storage Unit Tests
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -141,6 +152,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: All Other Unit Tests
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -172,6 +185,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Integration Tests on Java 11
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
