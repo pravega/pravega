@@ -30,6 +30,8 @@ jobs:
         run: ./gradlew assemble --parallel
       - name: Static Analysis
         run: ./gradlew rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
+      - name: Codecov
+        uses: codecov/codecov-action@v1.0.15
 
   unit_client:
     needs: build
@@ -50,6 +52,8 @@ jobs:
             gradle-m2
       - name: Unit tests
         run: ./gradlew client:test
+      - name: Codecov
+        uses: codecov/codecov-action@v1.0.15
 
   unit_controller:
     needs: build
@@ -70,6 +74,8 @@ jobs:
             gradle-m2
       - name: Controller Unit tests
         run: ./gradlew controller:test
+      - name: Codecov
+        uses: codecov/codecov-action@v1.0.15
 
   unit_segment_store:
     needs: build
@@ -94,6 +100,8 @@ jobs:
         run: ./gradlew segmentstore:server:host:test
       - name: Segment Store Storage Unit tests
         run: ./gradlew segmentstore:storage:test
+      - name: Codecov
+        uses: codecov/codecov-action@v1.0.15
 
   unit_segment_store_storage:
     needs: build
@@ -116,6 +124,8 @@ jobs:
         run: ./gradlew segmentstore:storage:impl:test
       - name: Segment Store LTS Bindings Unit tests
         run: ./gradlew bindings:test
+      - name: Codecov
+        uses: codecov/codecov-action@v1.0.15
 
   unit_other:
     needs: build
@@ -145,24 +155,6 @@ jobs:
           -x segmentstore:storage:test
           -x segmentstore:server:host:test
           -x segmentstore:server:test
-
-  codecov:
-    needs: [unit_other, unit_client, unit_controller, unit_segment_store, unit_segment_store_storage]
-    runs-on: ubuntu-20.04
-    name: Code Coverage
-    steps:
-      - uses: actions/checkout@v1
-      - name: Restore local Gradle & Maven cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            .gradle
-            ~/.gradle
-            ~/.m2
-          key: gradle-m2-java-11
-          restore-keys: |
-            gradle-m2-java-
-            gradle-m2
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
