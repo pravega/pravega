@@ -356,15 +356,26 @@ public class ContainerRecoveryUtils {
                     log.info("Segment Name: {} Attributes Updates: {}", properties.getName(), attributeUpdates);
 
                     // Update attributes for the current segment
-                    futures.add(Futures.exceptionallyExpecting(
+                    futures.add(Futures.exceptionallyComposeExpecting(
                             container.updateAttributes(properties.getName(), attributeUpdates, timeout),
-                            ex -> ex instanceof StreamSegmentNotExistsException, null));
+                            ex -> ex instanceof StreamSegmentNotExistsException, () -> createSegmentAndUpdateAttributes(container,
+                                    properties, timeout)));
                 }
             }, executorService).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
             // Waiting for update attributes for all segments in each back up metadata segment.
             Futures.allOf(futures).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         }
+    }
+
+    private static CompletableFuture<Void> createSegmentAndUpdateAttributes(DebugStreamSegmentContainer container,
+                                                                            SegmentProperties segment, Duration timeout) {
+        // Get the attributes for the current segment
+        List<AttributeUpdate> attributeUpdates = segment.getAttributes().entrySet().stream()
+                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
+                .collect(Collectors.toList());
+        return container.registerSegment(segment.getName(), segment.getLength(), segment.isSealed())
+                .thenAccept(x -> container.updateAttributes(segment.getName(), attributeUpdates, timeout));
     }
 
     /**
