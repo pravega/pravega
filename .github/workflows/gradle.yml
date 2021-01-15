@@ -98,7 +98,7 @@ jobs:
   unit_segment_store_storage:
     needs: build
     runs-on: ubuntu-20.04
-    name: Segment Store Unit Tests
+    name: Segment Store Storage Unit Tests
     steps:
       - uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
