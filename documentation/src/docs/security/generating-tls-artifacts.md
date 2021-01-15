@@ -103,14 +103,16 @@ Later, we'll use this CA certificate/key bundle to sign the servers' certificate
 
    Example:
    ```bash
+   # In MinGW/MSYS, the same -subj argument will be:
+   # "//C=US\ST=Washington\L=Seattle\O=Pravega\OU=CA\CN=Pravega-Stack-CA"
    $ openssl req -new -x509 -keyout ca-key.key -out ca-cert.crt -days 365 \
             -subj "/C=US/ST=Washington/L=Seattle/O=Pravega/OU=CA/CN=Pravega-Stack-CA" \
             -passout pass:changeit
    ```
   
    The command above will generate the following two PEM-encoded files: 
-   * A file containing the encrypted private key.
-   * A file containing the CA certificate.
+   * A file `ca-key.key` containing the encrypted private key.
+   * A file `ca-cert.crt` containing the CA certificate.
    
 2. Optionally, create a Java truststore containing the CA's certificate. This may be used by client applications if 
    they configure the truststore using the `javax.net.ssl.trustStore` Java option. 
@@ -138,8 +140,8 @@ At this point, the following CA and truststore artifacts should be ready:
 
 | File | Description | Example command for inspecting the file's Contents |
 |:-----:|:--------|:--------------|
-| `ca-cert.crt` | PEM-encoded X.509 certificate of the CA | `$ openssl x509 -in ca-cert.crt -text -noout` |
-| `ca-key.key` | PEM-encoded file containing the CA's encrypted private key  | `$ openssl pkcs8 -inform PEM -in ca-key.key -topk8` |
+| `ca-cert.crt` | A PEM-encoded file containing the X.509 certificate of the CA | `$ openssl x509 -in ca-cert.crt -text -noout` |
+| `ca-key.key` | A PEM-encoded file containing the CA's encrypted private key  | `$ openssl pkcs8 -inform PEM -in ca-key.key -topk8` |
 | `client.truststore.jks` | A password-protected truststore file containing the CA's certificate | `$ keytool -list -v -keystore client.truststore.jks -storepass changeit` |
 
 ## Generate TLS Certificates and Other TLS Artifacts for the Server
@@ -176,13 +178,13 @@ The above steps are described below:
            -ext SAN=dns:<hostname1>,dns:<hostname2>,ip:<ipaddress1>
    ```
    
-   Example:
+   Example: 
    ```bash
    $ keytool -storetype JKS -keystore server_unsigned.keystore.jks -storepass changeit\
               -genkey -keyalg RSA -keysize 2048 -keypass changeit\
               -alias server -validity 365\
-              -dname "CN=server.pravega.io, OU=Unknown, O=Unknown, L=Unknown, ST=Unknown, C=Unknown"\
-              -ext SAN=dns:server.abc.com,ip:127.0.0.1
+              -dname "CN=server.pravega.io, OU=analytics, O=pravega, L=Seattle, ST=Washington, C=US"\
+              -ext SAN=dns:server1.pravega.io,dns:server2.pravega.io,ip:127.0.0.1
    
    # Optionally, verify the contents of the generated file
    $ keytool -list -v -storetype JKS -keystore server_unsigned.keystore.jks -storepass changeit
@@ -206,7 +208,7 @@ The above steps are described below:
    ```bash
    $ keytool -keystore server_unsigned.keystore.jks -storepass changeit -alias server \ 
              -certreq -file server.csr \
-             -ext SAN=dns:server.abc.com,ip:127.0.0.1
+             -ext SAN=dns:server1.pravega.io,dns:server2.pravega.io,ip:127.0.0.1
    ```
 
 3. Submit the CSR to a CA and obtain a signed certificate.
@@ -228,12 +230,12 @@ The above steps are described below:
    subjectAltName = @alt_names
    
    [alt_names]
-   DNS.1 = server.abc.com
-   DNS.2 = server.pravega.io
+   DNS.1 = server1.pravega.io
+   DNS.2 = server2.pravega.io
    IP.1 = 127.0.0.1
    ```
    
-   Now, have the CA to sign the certificate:
+   Now, have the CA sign the certificate:
 
    ```bash
    $ openssl x509 -req -CA <ca-cert-file-path> -CAkey <ca-private-key-file-path> \ 
@@ -319,6 +321,6 @@ The table below lists the key output of this stage.
 
 | File | Description| Command for Inspecting the Contents |
 |:-----:| :---:|:--------|
-| `server-cert.crt` | PEM-encoded CA-signed server certificate file | `openssl x509 -in server-cert.crt -text -noout`|
-| `server-key.key` | PEM-encoded file containing the server's encrypted private key |  `openssl pkcs8 -inform PEM -in server-key.key -topk8` |
-| `server.keystore.jks` | The server keystore file in .jks format | `keytool -list -v -keystore server.keystore.jks -storepass 1111_aaaa` |
+| `server-cert.crt` | A PEM-encoded file containing the CA-signed X.509 server certificate | `openssl x509 -in server-cert.crt -text -noout`|
+| `server-key.key` | A PEM-encoded file containing the server's encrypted private key |  `openssl pkcs8 -inform PEM -in server-key.key -topk8` |
+| `server.keystore.jks` | A password-protected server keystore file in .jks format | `keytool -list -v -keystore server.keystore.jks -storepass changeit` |
