@@ -118,7 +118,6 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
                         data.setDbObject(this);
                         Preconditions.checkState(!data.isPinned(), "Pinned data should not be stored");
                         backingStore.put(key, data);
-                        data.setPersisted(true);
                     }
                 } finally {
                     entryTracker.set(false);

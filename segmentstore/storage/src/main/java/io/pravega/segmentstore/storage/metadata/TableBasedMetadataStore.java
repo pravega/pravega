@@ -158,7 +158,6 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                                 int i = 0;
                                 for (TableEntry tableEntry : toUpdate) {
                                     entryToTxnDataMap.get(tableEntry).setDbObject(ret.get(i));
-                                    entryToTxnDataMap.get(tableEntry).setPersisted(true);
                                     i++;
                                 }
                                 return null;
@@ -167,13 +166,9 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                                 // Delete deleted keys.
                                 return this.tableStore.remove(tableName, keysToDelete, timeout)
                                         .handleAsync((v1, ex) -> {
-                                            deletedKeyToTxnDataMap.values().stream().forEach(txnData -> {
-                                                if (ex == null) {
-                                                    txnData.setDbObject(TableKey.NOT_EXISTS);
-                                                } else {
-                                                    txnData.setPersisted(false);
-                                                }
-                                            });
+                                            if (ex == null) {
+                                                deletedKeyToTxnDataMap.values().stream().forEach(txnData -> txnData.setDbObject(TableKey.NOT_EXISTS));
+                                            }
                                             return null;
                                         }, getExecutor());
                             }, getExecutor())
