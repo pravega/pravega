@@ -41,13 +41,19 @@ Here are a few strategies for determining the sets of TLS artifacts required for
    
    In this case, each certificate is assigned to all the respective nodes (Controllers or Segment Stores) by specifying 
    the nodes' DNS names and/or IP addresses in the certificate's 
-   [Subject Alternative Name (SAN)](https://en.wikipedia.org/wiki/Subject_Alternative_Name) field. 
+   [Subject Alternative Name (SAN)](https://en.wikipedia.org/wiki/Subject_Alternative_Name) field. Also, the server 
+   certificates might need to be recreated to add DNS names and/or IP addresses of the new servers whenever the 
+   Controllers or the Segment stores are scaled up.
    
    Kubernetes and other forms of containerized deployments supports this configuration. 
+
 3. _Use the same set for all Controllers and Segment Store services_. 
    
-   In this case, the certificate must contain the network identity of all the Controller and Segment Store services. This is 
-   the least secure option. All deployment options support this configuration.  
+   In this case, the certificate must contain the DNS names and/or IP addresses of all the Controller and Segment Store 
+   services. This is the least secure option. Also, the server certificate might need to be recreated to add DNS names 
+   and/or IP addresses of the new servers whenever the Controllers or the Segment stores are scaled up.
+
+   All deployment options support this configuration.
    
 The chosen configuration determines the number of TLS artifacts sets required for a 
 Pravega cluster. Each set can be prepared using the process described later in this document under
