@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.Storage;
@@ -17,16 +18,14 @@ import io.pravega.segmentstore.storage.StorageFactoryInfo;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.any;
 
 /**
  * Unit tests for {@link InMemorySimpleStorageFactory}.
@@ -35,6 +34,9 @@ public class InMemorySimpleStorageFactoryTests {
     @Test
     public void testInMemorySimpleStorageFactoryCreator() {
         StorageFactoryCreator factoryCreator = new InMemoryStorageFactoryCreator();
+
+        @Cleanup("shutdownNow")
+        val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
 
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
@@ -55,16 +57,17 @@ public class InMemorySimpleStorageFactoryTests {
         ConfigSetup configSetup1 = mock(ConfigSetup.class);
         val config = new Object();
         when(configSetup1.getConfig(any())).thenReturn(config);
-        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, new ScheduledThreadPoolExecutor(1));
+        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executor);
         Assert.assertTrue(factory1 instanceof InMemorySimpleStorageFactory);
 
-        Storage storage1 = ((InMemorySimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
+        @Cleanup
+        Storage storage1 = ((InMemorySimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(executor));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
         ConfigSetup configSetup2 = mock(ConfigSetup.class);
         when(configSetup2.getConfig(any())).thenReturn(config);
-        val factory2 = factoryCreator.createFactory(expected[1], configSetup2, new ScheduledThreadPoolExecutor(1));
+        val factory2 = factoryCreator.createFactory(expected[1], configSetup2, executor);
 
         Assert.assertTrue(factory2 instanceof InMemoryStorageFactory);
         Storage storage2 = factory2.createStorageAdapter();
@@ -76,20 +79,28 @@ public class InMemorySimpleStorageFactoryTests {
 
     @Test
     public void testReuse() {
-        val factory = new InMemorySimpleStorageFactory(new ScheduledThreadPoolExecutor(1), true);
+        @Cleanup("shutdownNow")
+        val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+        val factory = new InMemorySimpleStorageFactory(executor, true);
 
-        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
-        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
+        @Cleanup
+        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(executor));
+        @Cleanup
+        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(executor));
 
         Assert.assertEquals(s1.getChunkStorage(), s2.getChunkStorage());
     }
 
     @Test
     public void testNoReuse() {
-        val factory = new InMemorySimpleStorageFactory(new ScheduledThreadPoolExecutor(1), false);
+        @Cleanup("shutdownNow")
+        val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+        val factory = new InMemorySimpleStorageFactory(executor, false);
 
-        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
-        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(Executors.newSingleThreadExecutor()));
+        @Cleanup
+        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(executor));
+        @Cleanup
+        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(executor));
 
         Assert.assertNotEquals(s1.getChunkStorage(), s2.getChunkStorage());
     }

@@ -19,6 +19,7 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -28,7 +29,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -50,6 +50,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -72,6 +73,7 @@ public class ReadWriteTest {
     private AtomicLong eventReadCount;
     private AtomicBoolean stopReadFlag;
     private ConcurrentLinkedQueue<Long> eventsReadFromPravega;
+    private ServiceBuilder serviceBuilder;
     private TestingServer zkTestServer = null;
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
@@ -91,7 +93,7 @@ public class ReadWriteTest {
         this.zkTestServer = new TestingServerStarter().start();
 
         // 2. Start Pravega SegmentStore service.
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
@@ -115,13 +117,31 @@ public class ReadWriteTest {
             this.controllerWrapper.close();
             this.controllerWrapper = null;
         }
+        if (this.controller != null) {
+            this.controller.close();
+            this.controller = null;
+        }
         if (this.server != null) {
             this.server.close();
             this.server = null;
         }
+        if (this.serviceBuilder != null) {
+            this.serviceBuilder.close();
+            this.serviceBuilder = null;
+        }
         if (this.zkTestServer != null) {
             this.zkTestServer.close();
             this.zkTestServer = null;
+        }
+
+        if (this.writerPool != null) {
+            ExecutorServiceHelpers.shutdown(this.writerPool);
+            this.writerPool = null;
+        }
+
+        if (this.readerPool != null) {
+            ExecutorServiceHelpers.shutdown(this.readerPool);
+            this.readerPool = null;
         }
     }
 
@@ -216,6 +236,7 @@ public class ReadWriteTest {
     private CompletableFuture<Void> startNewWriter(final AtomicLong data,
                                                    final EventStreamClientFactory clientFactory) {
         return CompletableFuture.runAsync(() -> {
+            @Cleanup
             final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
                     EventWriterConfig.builder().build());
@@ -235,6 +256,7 @@ public class ReadWriteTest {
             readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
                                                    AtomicLong readCount, final  AtomicBoolean exitFlag) {
         return CompletableFuture.runAsync(() -> {
+            @Cleanup
             final EventStreamReader<Long> reader = clientFactory.createReader(id,
                     readerGroupName,
                     new JavaSerializer<Long>(),

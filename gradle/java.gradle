@@ -83,6 +83,7 @@ plugins.withId('java') {
 
     tasks.withType(Test) {
         systemProperties 'logback.configurationFile' : new File(buildDir,'resources/test/logback.xml').absolutePath
+        systemProperties 'ThreadLeakDetectionLevel' : 'Aggressive' // Catch all ThreadPool Leaks and stop the build if any are found.
         testLogging.showStandardStreams = false
         testLogging.exceptionFormat = "FULL"
         testLogging.showCauses = true

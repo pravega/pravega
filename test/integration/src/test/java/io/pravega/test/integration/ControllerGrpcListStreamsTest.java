@@ -14,7 +14,7 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.test.integration.auth.customplugin.TestAuthHandler;
 import io.pravega.test.integration.demo.ClusterWrapper;
@@ -57,7 +57,7 @@ public class ControllerGrpcListStreamsTest {
         // Arrange
         @Cleanup
         ClusterWrapper cluster = ClusterWrapper.builder().build();
-        cluster.initialize();
+        cluster.start();
         String scopeName = "test-scope";
 
         ClientConfig clientConfig = ClientConfig.builder()
@@ -80,7 +80,7 @@ public class ControllerGrpcListStreamsTest {
                 .authEnabled(true)
                 .tokenTtlInSeconds(600)
                 .build();
-        cluster.initialize();
+        cluster.start();
         String scopeName = "test-scope";
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
@@ -108,7 +108,7 @@ public class ControllerGrpcListStreamsTest {
                 .passwordAuthHandlerEntries(this.preparePasswordInputFileEntries(passwordInputFileEntries))
                 .build();
 
-        cluster.initialize();
+        cluster.start();
         String scopeName = "scope1";
 
         this.createStreams(ClientConfig.builder()
@@ -134,7 +134,7 @@ public class ControllerGrpcListStreamsTest {
         try {
             // Arrange
             cluster = ClusterWrapper.builder().authEnabled(true).build();
-            cluster.initialize();
+            cluster.start();
             String scopeName = "test-scope";
             this.createStreams(ClientConfig.builder()
                                 .controllerURI(URI.create(cluster.controllerUri()))

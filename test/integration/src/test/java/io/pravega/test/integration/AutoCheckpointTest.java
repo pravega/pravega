@@ -57,6 +57,7 @@ public class AutoCheckpointTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .automaticCheckpointIntervalMillis(10000)
@@ -109,6 +110,7 @@ public class AutoCheckpointTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .automaticCheckpointIntervalMillis(1000)

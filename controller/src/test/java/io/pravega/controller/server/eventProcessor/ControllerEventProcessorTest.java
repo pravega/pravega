@@ -61,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -97,7 +96,7 @@ public abstract class ControllerEventProcessorTest {
 
     @Before
     public void setUp() throws Exception {
-        executor = Executors.newScheduledThreadPool(10);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
@@ -294,7 +293,7 @@ public abstract class ControllerEventProcessorTest {
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
-                null, null, null, null, streamStore, executor);
+                null, null, null, null, null, null, null, streamStore, executor);
 
         // set some processor name so that the processing gets postponed
         streamStore.createWaitingRequestIfAbsent(SCOPE, STREAM, "test", null, executor).join();

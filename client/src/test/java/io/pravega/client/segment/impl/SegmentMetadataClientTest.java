@@ -29,7 +29,6 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -194,7 +193,6 @@ public class SegmentMetadataClientTest {
 
     @Test(timeout = 10000)
     public void testGetProperty() throws Exception {
-        UUID attributeId = SegmentAttribute.RevisionStreamClientMark.getValue();
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup
@@ -222,10 +220,11 @@ public class SegmentMetadataClientTest {
 
     @Test(timeout = 10000)
     public void compareAndSetAttribute() throws ConnectionFailedException {
-        UUID attributeId = SegmentAttribute.RevisionStreamClientMark.getValue();
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);

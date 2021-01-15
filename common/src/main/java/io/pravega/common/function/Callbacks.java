@@ -60,6 +60,24 @@ public final class Callbacks {
     }
 
     /**
+     * Invokes the given {@link RunnableWithException} and catches any exceptions that it may throw.
+     *
+     * @param runnable       The {@link RunnableWithException} to invoke.
+     * @param failureHandler An optional callback to invoke if the {@link RunnableWithException} threw any exceptions.
+     */
+    public static void invokeSafely(RunnableWithException runnable, Consumer<Throwable> failureHandler) {
+        Preconditions.checkNotNull(runnable, "runnable");
+
+        try {
+            runnable.run();
+        } catch (Exception ex) {
+            if (failureHandler != null) {
+                invokeSafely(failureHandler, ex, null);
+            }
+        }
+    }
+
+    /**
      * Invokes the given Consumer with the given argument, and catches any exceptions that it may throw.
      *
      * @param consumer       The consumer to invoke.

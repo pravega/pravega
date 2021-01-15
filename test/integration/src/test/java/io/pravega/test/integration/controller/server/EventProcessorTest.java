@@ -52,15 +52,14 @@ import io.pravega.shared.controller.event.ControllerEventSerializer;
 import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -83,7 +82,7 @@ import static org.junit.Assert.assertTrue;
  * End-to-end tests for event processor.
  */
 @Slf4j
-public class EventProcessorTest {
+public class EventProcessorTest extends ThreadPooledTestSuite {
     final String host = "host";
 
     TestingServer zkTestServer;
@@ -94,8 +93,12 @@ public class EventProcessorTest {
     private ServiceBuilder serviceBuilder;
     private StreamSegmentStore store;
     private TableStore tableStore;
-    private ScheduledExecutorService executor;
-    
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
+
     public static class TestEventProcessor extends EventProcessor<TestEvent> {
         long sum;
         CompletableFuture<Long> result;
@@ -199,15 +202,14 @@ public class EventProcessorTest {
                 4);
         controllerWrapper.awaitRunning();
         controller = controllerWrapper.getController();
-        executor = Executors.newSingleThreadScheduledExecutor();
     }
 
     @After
     public void tearDown() throws Exception {
+        serviceBuilder.close();
         controllerWrapper.close();
         server.close();
         zkTestServer.stop();
-        executor.shutdownNow();
     }
     
     @Test(timeout = 60000)
@@ -246,7 +248,7 @@ public class EventProcessorTest {
         producer.flush();
 
         EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope,
-                new ClientFactoryImpl(scope, controller, connectionFactory),
+                clientFactory,
                 new ReaderGroupManagerImpl(scope, controller, clientFactory));
 
         CheckpointConfig.CheckpointPeriod period =
@@ -278,7 +280,7 @@ public class EventProcessorTest {
                 .build();
         @Cleanup
         EventProcessorGroup<TestEvent> eventProcessorGroup =
-                system.createEventProcessorGroup(eventProcessorConfig, CheckpointStoreFactory.createInMemoryStore(), executor);
+                system.createEventProcessorGroup(eventProcessorConfig, CheckpointStoreFactory.createInMemoryStore(), executorService());
         
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
@@ -314,7 +316,7 @@ public class EventProcessorTest {
         producer.flush();
 
         EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope,
-                new ClientFactoryImpl(scope, controller, connectionFactory),
+                clientFactory,
                 new ReaderGroupManagerImpl(scope, controller, clientFactory));
         
         CheckpointConfig checkpointConfig =
@@ -350,7 +352,7 @@ public class EventProcessorTest {
                 .build();
         @Cleanup
         EventProcessorGroup<TestEvent> eventProcessorGroup =
-                system.createEventProcessorGroup(eventProcessorConfig, CheckpointStoreFactory.createInMemoryStore(), executor);
+                system.createEventProcessorGroup(eventProcessorConfig, CheckpointStoreFactory.createInMemoryStore(), executorService());
 
         eventProcessorGroup.awaitRunning();
         // wait until both events are read
@@ -371,7 +373,7 @@ public class EventProcessorTest {
         ClientFactoryImpl clientFactory2 = new ClientFactoryImpl(scope, controller, connectionFactory2);
 
         system = new EventProcessorSystemImpl("Controller2", host, scope,
-                new ClientFactoryImpl(scope, controller, connectionFactory2),
+                clientFactory2,
                 new ReaderGroupManagerImpl(scope, controller, clientFactory2));
 
         EventProcessorConfig<TestEvent> eventProcessorConfig2 = EventProcessorConfig.<TestEvent>builder()
@@ -393,7 +395,7 @@ public class EventProcessorTest {
 
         @Cleanup
         EventProcessorGroup<TestEvent> eventProcessorGroup2 =
-                system.createEventProcessorGroup(eventProcessorConfig2, CheckpointStoreFactory.createInMemoryStore(), executor);
+                system.createEventProcessorGroup(eventProcessorConfig2, CheckpointStoreFactory.createInMemoryStore(), executorService());
         eventProcessorGroup2.awaitRunning();
 
         // verify that both events are read again
@@ -459,12 +461,12 @@ public class EventProcessorTest {
 
         // create a group and verify that all events can be written and read by readers in this group.
         EventProcessorSystem system1 = new EventProcessorSystemImpl("Controller", "process1", scope,
-                new ClientFactoryImpl(scope, controller, connectionFactory),
+                clientFactory,
                 new ReaderGroupManagerImpl(scope, controller, clientFactory));
 
         @Cleanup
         EventProcessorGroup<TestEvent> eventProcessorGroup1 =
-                system1.createEventProcessorGroup(eventProcessorConfig1, CheckpointStoreFactory.createInMemoryStore(), executor);
+                system1.createEventProcessorGroup(eventProcessorConfig1, CheckpointStoreFactory.createInMemoryStore(), executorService());
 
         eventProcessorGroup1.awaitRunning();
 
@@ -505,12 +507,12 @@ public class EventProcessorTest {
 
         // add another system and event processor group (effectively add a new set of readers to the readergroup) 
         EventProcessorSystem system2 = new EventProcessorSystemImpl("Controller", "process2", scope,
-                new ClientFactoryImpl(scope, controller, connectionFactory),
+                clientFactory,
                 new ReaderGroupManagerImpl(scope, controller, clientFactory));
 
         @Cleanup
         EventProcessorGroup<TestEvent> eventProcessorGroup2 =
-                system2.createEventProcessorGroup(eventProcessorConfig2, CheckpointStoreFactory.createInMemoryStore(), executor);
+                system2.createEventProcessorGroup(eventProcessorConfig2, CheckpointStoreFactory.createInMemoryStore(), executorService());
 
         eventProcessorGroup2.awaitRunning();
 
@@ -526,11 +528,11 @@ public class EventProcessorTest {
         ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 
         AtomicBoolean allAssigned = new AtomicBoolean(false);
-        Futures.loop(() -> !allAssigned.get(), () -> Futures.delayedFuture(Duration.ofMillis(100), executor).thenAccept(v -> {
+        Futures.loop(() -> !allAssigned.get(), () -> Futures.delayedFuture(Duration.ofMillis(100), executorService()).thenAccept(v -> {
             ReaderSegmentDistribution distribution = readerGroup.getReaderSegmentDistribution();
             int numberOfReaders = distribution.getReaderSegmentDistribution().size();
             allAssigned.set(numberOfReaders == 2 && distribution.getReaderSegmentDistribution().values().stream().noneMatch(x -> x == 0));
-        }), executor).join();
+        }), executorService()).join();
 
         // write 10 new events
         for (int val : input) {

@@ -1,3 +1,4 @@
+
 /**
  * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
@@ -52,10 +53,12 @@ service ControllerService {
     rpc getCurrentSegmentsKeyValueTable(KeyValueTableInfo) returns (SegmentRanges);
     rpc listKeyValueTablesInScope(KVTablesInScopeRequest) returns (KVTablesInScopeResponse);
     rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
-    rpc addSubscriber(StreamSubscriberInfo) returns (AddSubscriberStatus);
-    rpc deleteSubscriber(StreamSubscriberInfo) returns (DeleteSubscriberStatus);
     rpc listSubscribers(StreamInfo) returns (SubscribersResponse);
     rpc updateSubscriberStreamCut(SubscriberStreamCut) returns (UpdateSubscriberStatus);
+    rpc createReaderGroup(ReaderGroupConfiguration) returns (CreateReaderGroupStatus);
+    rpc getReaderGroupConfig(ReaderGroupInfo) returns (ReaderGroupConfigResponse);
+    rpc deleteReaderGroup(ReaderGroupInfo) returns (DeleteReaderGroupStatus);
+    rpc updateReaderGroup(ReaderGroupConfiguration) returns (UpdateReaderGroupResponse);
 }
 
 message ServerRequest {
@@ -63,6 +66,71 @@ message ServerRequest {
 
 message ServerResponse {
     repeated NodeUri nodeURI = 1;
+}
+
+message ReaderGroupConfiguration {
+    enum RetentionType {
+        NONE = 0;
+        MANUAL = 1;
+        AUTOMATIC = 2;
+    }
+    string scope = 1;
+    string readerGroupName = 2;
+    int64 groupRefreshTimeMillis = 3;
+    int64 automaticCheckpointIntervalMillis = 4;
+    int32 maxOutstandingCheckpointRequest = 5;
+    int32 retentionType = 6;
+    int64 generation = 7;
+    string readerGroupId = 8;
+    repeated StreamCut startingStreamCuts = 9;
+    repeated StreamCut endingStreamCuts = 10;
+}
+
+message ReaderGroupConfigResponse {
+    ReaderGroupConfiguration config = 1;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        RG_NOT_FOUND = 2;
+    }
+    Status status = 2;
+}
+
+message ReaderGroupInfo {
+    string scope = 1;
+    string readerGroup = 2;
+    string readerGroupId = 3;
+    int64 generation = 4;
+}
+
+message CreateReaderGroupStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        SCOPE_NOT_FOUND = 2;
+        INVALID_RG_NAME = 3;
+    }
+    Status status = 1;
+}
+
+message DeleteReaderGroupStatus {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        RG_NOT_FOUND = 2;
+    }
+    Status status = 1;
+}
+
+message UpdateReaderGroupResponse {
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        RG_NOT_FOUND = 2;
+        INVALID_CONFIG = 3;
+    }
+    Status status = 1;
+    int64 generation = 2;
 }
 
 message CreateKeyValueTableStatus {
@@ -133,31 +201,14 @@ message UpdateStreamStatus {
     Status status = 1;
 }
 
-message AddSubscriberStatus {
-    enum Status {
-        SUCCESS = 0;
-        FAILURE = 1;
-        STREAM_NOT_FOUND = 2;
-    }
-    Status status = 1;
-}
-
-message DeleteSubscriberStatus {
-    enum Status {
-        SUCCESS = 0;
-        FAILURE = 1;
-        STREAM_NOT_FOUND = 2;
-    }
-    Status status = 1;
-}
-
 message UpdateSubscriberStatus {
     enum Status {
         SUCCESS = 0;
         FAILURE = 1;
         STREAM_NOT_FOUND = 2;
         SUBSCRIBER_NOT_FOUND = 3;
-        STREAMCUT_NOT_VALID = 4;
+        STREAM_CUT_NOT_VALID = 4;
+        GENERATION_MISMATCH = 5;
     }
     Status status = 1;
 }
@@ -171,7 +222,9 @@ message StreamSubscriberInfo {
 
 message SubscriberStreamCut {
     string subscriber = 1;
-    StreamCut streamCut = 2;
+    int64 generation = 2;
+    string readerGroupId = 3;
+    StreamCut streamCut = 4;
 }
 
 message SubscribersResponse {
