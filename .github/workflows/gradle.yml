@@ -16,7 +16,10 @@ jobs:
     steps:
       - name: Cancel previous workflow actions
         uses: styfle/cancel-workflow-action@0.6.0
-      - uses: actions/checkout@v1
+        with:
+          access_token: ${{ github.token }}
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
