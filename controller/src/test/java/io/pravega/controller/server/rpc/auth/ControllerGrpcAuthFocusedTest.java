@@ -146,7 +146,9 @@ public class ControllerGrpcAuthFocusedTest {
     private TableMetadataTasks kvtMetadataTasks;
     private KVTableMetadataStore kvtStore;
     private Server grpcServer;
+    private Server grpcServerStrict;
     private ManagedChannel inProcessChannel;
+    private ManagedChannel inProcessChannelStrict;
 
     @AfterClass
     public static void classTearDown() {
@@ -206,10 +208,20 @@ public class ControllerGrpcAuthFocusedTest {
                                       mockCluster),
                 authHelper, requestTracker, true, true, 2);
 
+        ControllerServiceGrpc.ControllerServiceImplBase controllerServiceImplBaseStrict = new ControllerServiceImpl(
+                new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore,
+                        streamMetadataTasks,
+                        streamTransactionMetadataTasks,
+                        segmentHelper,
+                        EXECUTOR,
+                        mockCluster),
+                authHelper, requestTracker, true, false, 2);
+
         PasswordAuthHandler authHandler = new PasswordAuthHandler();
         authHandler.initialize(AUTH_FILE.getAbsolutePath());
 
         String uniqueServerName = String.format("Test server name: %s", getClass());
+        String uniqueServerNameStrict = String.format("Test server name: %sStrict", getClass());
 
         // Using a builder that creates a server for servicing in-process requests.
         // Also, using a direct executor which executes app code directly in transport thread. See
@@ -220,7 +232,14 @@ public class ControllerGrpcAuthFocusedTest {
                 .directExecutor()
                 .build()
                 .start();
+        grpcServerStrict = InProcessServerBuilder.forName(uniqueServerNameStrict)
+                .addService(ServerInterceptors.intercept(controllerServiceImplBaseStrict,
+                        new AuthInterceptor(authHandler)))
+                .directExecutor()
+                .build()
+                .start();
         inProcessChannel = InProcessChannelBuilder.forName(uniqueServerName).directExecutor().build();
+        inProcessChannelStrict = InProcessChannelBuilder.forName(uniqueServerNameStrict).directExecutor().build();
     }
 
     @After
@@ -232,7 +251,9 @@ public class ControllerGrpcAuthFocusedTest {
             streamTransactionMetadataTasks.close();
         }
         inProcessChannel.shutdownNow();
+        inProcessChannelStrict.shutdownNow();
         grpcServer.shutdownNow();
+        grpcServerStrict.shutdownNow();
         StreamMetrics.reset();
         TransactionMetrics.reset();
     }
@@ -279,13 +300,13 @@ public class ControllerGrpcAuthFocusedTest {
     }
 
     @Test
-    public void createReaderGroupSucceedsForPrivilegedUser() {
+    public void createReaderGroupSucceedsForPrivilegedUserInStrictCase() {
         //Arrange
-        String scope = "test";
+        String scope = "scope1";
         String stream = "test";
-        createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        createScopeAndStreamStrict(scope, stream, prepareFromFixedScaleTypePolicy(2));
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
-                prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+                prepareBlockingCallStubStrict(UserNames.ADMIN, DEFAULT_PASSWORD);
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
 
         //Act
@@ -293,6 +314,41 @@ public class ControllerGrpcAuthFocusedTest {
 
         //Verify
         assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, status.getStatus());
+    }
+
+    @Test
+    public void createReaderGroupSucceedsForLowerPrivilegedUser() {
+        //Arrange
+        String scope = "scope1";
+        String stream = "test";
+        createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStub(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
+
+        //Act
+        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+
+        //Verify
+        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, status.getStatus());
+    }
+
+    @Test
+    public void createReaderGroupFailsForLowerPrivilegedUserInStrictCase() {
+        //Arrange
+        String scope = "scope1";
+        String stream = "test";
+        createScopeAndStreamStrict(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStubStrict(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
+
+        //Verify
+        thrown.expect(StatusRuntimeException.class);
+        thrown.expectMessage("PERMISSION_DENIED");
+
+        //Act
+        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
     }
 
     @Test
@@ -332,16 +388,16 @@ public class ControllerGrpcAuthFocusedTest {
     }
 
     @Test
-    public void deleteReaderGroupSucceedsForPrivilegedUser() {
+    public void deleteReaderGroupSucceedsForPrivilegedUserInStrictCase() {
         //Arrange
-        String scope = "test";
+        String scope = "scope1";
         String stream = "test";
         String readerGroup = "group";
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build();
-        createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
-        createReaderGroup(scope, readerGroup, config);
+        createScopeAndStreamStrict(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        createReaderGroupStrict(scope, readerGroup, config);
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
-                prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+                prepareBlockingCallStubStrict(UserNames.ADMIN, DEFAULT_PASSWORD);
 
         //Act
         Controller.DeleteReaderGroupStatus status = blockingStub.deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope,
@@ -349,6 +405,44 @@ public class ControllerGrpcAuthFocusedTest {
 
         //Verify
         assertEquals(Controller.DeleteReaderGroupStatus.Status.SUCCESS, status.getStatus());
+    }
+
+    @Test
+    public void deleteReaderGroupSucceedsForLowerPrivilegedUser() {
+        //Arrange
+        String scope = "scope1";
+        String stream = "test";
+        String readerGroup = "group";
+        ReaderGroupConfig config = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build();
+        createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        createReaderGroup(scope, readerGroup, config);
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStub(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
+
+        //Act
+        Controller.DeleteReaderGroupStatus status = blockingStub.deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope,
+                readerGroup, config.getReaderGroupId().toString(), 0));
+
+        //Verify
+        assertEquals(Controller.DeleteReaderGroupStatus.Status.SUCCESS, status.getStatus());
+    }
+
+    @Test
+    public void deleteReaderGroupFailsForLowerPrivilegedUserInStrictCase() {
+        //Arrange
+        String scope = "scope1";
+        String stream = "test";
+        createScopeAndStreamStrict(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStubStrict(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
+
+        //Verify
+        thrown.expect(StatusRuntimeException.class);
+        thrown.expectMessage("PERMISSION_DENIED");
+
+        //Act
+        Controller.DeleteReaderGroupStatus status = blockingStub.deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope,
+                "group", UUID.randomUUID().toString(), 0));
     }
 
     @Test
@@ -388,17 +482,17 @@ public class ControllerGrpcAuthFocusedTest {
     }
 
     @Test
-    public void updateReaderGroupSucceedsForPrivilegedUser() {
+    public void updateReaderGroupSucceedsForPrivilegedUserInStrictCase() {
         //Arrange
-        String scope = "test";
+        String scope = "scope1";
         String stream1 = "test1";
         String stream2 = "test2";
         String readerGroup = "group";
         ReaderGroupConfig oldConfig = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream1)).build();
-        createScopeAndStreams(scope, Arrays.asList(stream1, stream2), prepareFromFixedScaleTypePolicy(2));
-        createReaderGroup(scope, readerGroup, oldConfig);
+        createScopeAndStreamsStrict(scope, Arrays.asList(stream1, stream2), prepareFromFixedScaleTypePolicy(2));
+        createReaderGroupStrict(scope, readerGroup, oldConfig);
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
-                prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+                prepareBlockingCallStubStrict(UserNames.ADMIN, DEFAULT_PASSWORD);
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup, ReaderGroupConfig.builder()
                 .stream(NameUtils.getScopedStreamName(scope, stream2)).readerGroupId(oldConfig.getReaderGroupId()).build());
 
@@ -407,6 +501,47 @@ public class ControllerGrpcAuthFocusedTest {
 
         //Verify
         assertEquals(Controller.UpdateReaderGroupResponse.Status.SUCCESS, status.getStatus());
+    }
+
+    @Test
+    public void updateReaderGroupSucceedsForLowerPrivilegedUser() {
+        //Arrange
+        String scope = "scope1";
+        String stream1 = "test1";
+        String stream2 = "test2";
+        String readerGroup = "group";
+        ReaderGroupConfig oldConfig = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream1)).build();
+        createScopeAndStreams(scope, Arrays.asList(stream1, stream2), prepareFromFixedScaleTypePolicy(2));
+        createReaderGroup(scope, readerGroup, oldConfig);
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStub(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup, ReaderGroupConfig.builder()
+                .stream(NameUtils.getScopedStreamName(scope, stream2)).readerGroupId(oldConfig.getReaderGroupId()).build());
+
+        //Act
+        Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
+
+        //Verify
+        assertEquals(Controller.UpdateReaderGroupResponse.Status.SUCCESS, status.getStatus());
+    }
+
+    @Test
+    public void updateReaderGroupFailsForLowerPrivilegedUserInStrictCase() {
+        //Arrange
+        String scope = "scope1";
+        String stream = "test";
+        createScopeAndStreamStrict(scope, stream, prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
+                prepareBlockingCallStubStrict(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group",
+                ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
+
+        //Verify
+        thrown.expect(StatusRuntimeException.class);
+        thrown.expectMessage("PERMISSION_DENIED");
+
+        //Act
+        Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
     }
 
     @Test
@@ -785,6 +920,22 @@ public class ControllerGrpcAuthFocusedTest {
                 .build();
     }
 
+    private ControllerServiceBlockingStub prepareBlockingCallStubStrict(String username, String password) {
+        Exceptions.checkNotNullOrEmpty(username, "username");
+        Exceptions.checkNotNullOrEmpty(password, "password");
+
+        ControllerServiceBlockingStub stub =
+                ControllerServiceGrpc.newBlockingStub(inProcessChannelStrict);
+
+        // Set call credentials
+        Credentials credentials = new DefaultCredentials(password, username);
+        if (credentials != null) {
+            PravegaCredentialsWrapper wrapper = new PravegaCredentialsWrapper(credentials);
+            stub = stub.withCallCredentials(MoreCallCredentials.from(wrapper));
+        }
+        return stub;
+    }
+
     private ControllerServiceBlockingStub prepareBlockingCallStubWithNoCredentials() {
         return ControllerServiceGrpc.newBlockingStub(inProcessChannel);
     }
@@ -833,6 +984,23 @@ public class ControllerGrpcAuthFocusedTest {
         createScopeAndStreams(scopeName, Arrays.asList(streamName), scalingPolicy);
     }
 
+    private void createScopeAndStreamStrict(String scopeName, String streamName, ScalingPolicy scalingPolicy) {
+        createScopeAndStreamsStrict(scopeName, Arrays.asList(streamName), scalingPolicy);
+    }
+
+    private void createScopeAndStreamsStrict(String scopeName, List<String> streamNames, ScalingPolicy scalingPolicy) {
+        Exceptions.checkNotNullOrEmpty(scopeName, "scope");
+        Preconditions.checkNotNull(streamNames, "stream");
+        Preconditions.checkArgument(streamNames.size() > 0);
+        Preconditions.checkNotNull(scalingPolicy, "scalingPolicy");
+
+        ControllerServiceBlockingStub stub =
+                prepareBlockingCallStubStrict(UserNames.ADMIN, DEFAULT_PASSWORD);
+        createScope(stub, scopeName);
+
+        streamNames.stream().forEach(n -> createStream(stub, scopeName, n, scalingPolicy));
+    }
+
     private void createScopeAndStreams(String scopeName, List<String> streamNames, ScalingPolicy scalingPolicy) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scope");
         Preconditions.checkNotNull(streamNames, "stream");
@@ -875,6 +1043,19 @@ public class ControllerGrpcAuthFocusedTest {
         Preconditions.checkNotNull(config, "ReaderGroupConfig");
         ControllerServiceBlockingStub stub =
                 prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+
+        Controller.CreateReaderGroupStatus status = stub.createReaderGroup(ModelHelper.decode(scope, group, config));
+        if (!status.getStatus().equals(Controller.CreateReaderGroupStatus.Status.SUCCESS)) {
+            throw new RuntimeException("Failed to create reader-group");
+        }
+    }
+
+    private void createReaderGroupStrict(String scope, String group, ReaderGroupConfig config) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(group, "group name");
+        Preconditions.checkNotNull(config, "ReaderGroupConfig");
+        ControllerServiceBlockingStub stub =
+                prepareBlockingCallStubStrict(UserNames.ADMIN, DEFAULT_PASSWORD);
 
         Controller.CreateReaderGroupStatus status = stub.createReaderGroup(ModelHelper.decode(scope, group, config));
         if (!status.getStatus().equals(Controller.CreateReaderGroupStatus.Status.SUCCESS)) {
