@@ -50,7 +50,7 @@ import static io.pravega.shared.NameUtils.getMetadataSegmentName;
  */
 @Slf4j
 public class ContainerRecoveryUtils {
-    private static final int BUFFER_SIZE = 8 * 1024 * 1024;
+    private static final int BUFFER_SIZE = 8 * 1024 * 1024 * 1024;
 
     /**
      * Recovers Segments from the given Storage instance. This is done by:
@@ -400,6 +400,47 @@ public class ContainerRecoveryUtils {
                     }, executor);
                 }, executor);
             }, executor);
+    }
+
+    private static CompletableFuture<Void> readSegment(Storage storage, String segmentName, ExecutorService executor, Duration timeout) {
+        return storage.getStreamSegmentInfo(segmentName, timeout).thenComposeAsync(info -> {
+                return storage.openRead(segmentName).thenComposeAsync(sourceHandle -> {
+                    AtomicInteger offset = new AtomicInteger(0);
+                    AtomicInteger bytesToRead = new AtomicInteger((int) info.getLength());
+                    byte[] buffer = new byte[(int) info.getLength()];
+                    return Futures.loop(
+                            () -> bytesToRead.get() > 0,
+                            () -> {
+                                return storage.read(sourceHandle, offset.get(), buffer, offset.get(), Math.min(BUFFER_SIZE, bytesToRead.get()), timeout)
+                                        .thenAcceptAsync(size -> {
+                                                        bytesToRead.addAndGet(-size);
+                                                        offset.addAndGet(size);
+                                                    }, executor);
+                                        }, executor);
+                            }, executor);
+                }, executor);
+    }
+
+    public static void readAllSegmentsFromStorage(Storage storage, ExecutorService executorService, Duration timeout) throws Exception {
+        Preconditions.checkNotNull(storage);
+        Preconditions.checkNotNull(executorService);
+
+        Iterator<SegmentProperties> segmentIterator = storage.listSegments();
+        Preconditions.checkNotNull(segmentIterator);
+
+        // Iterate through all segments. Create each one of their using their respective debugSegmentContainer instance.
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+        while (segmentIterator.hasNext()) {
+            val currentSegment = segmentIterator.next();
+            String currentSegmentName = currentSegment.getName();
+            // skip recovery if the segment is an attribute segment or metadata segment.
+            if (NameUtils.isAttributeSegment(currentSegmentName)) {
+                continue;
+            }
+
+            futures.add(readSegment(storage, currentSegmentName, executorService, timeout));
+        }
+        Futures.allOf(futures).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     /**
