@@ -941,8 +941,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     // region ReaderGroup
     @Override
-    public CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName,
-                                                    final RGOperationContext context, final Executor executor) {
+    public CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName) {
         return getScope(scopeName).getReaderGroupId(rgName);
     }
 
