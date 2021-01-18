@@ -1973,8 +1973,8 @@ public abstract class StreamMetadataStoreTest {
         final RGOperationContext rgContext = store.createRGContext(scopeRGTest, rgName);
         store.addReaderGroupToScope(scopeRGTest, rgName, rgConfig.getReaderGroupId()).join();
         store.createReaderGroup(scopeRGTest, rgName, rgConfig, System.currentTimeMillis(), rgContext, executor).join();
-        UUID readerId = store.getReaderGroupId(scopeRGTest,rgName).get();
-        assertEquals(rgId, readerId);
+        UUID readerGroupId = store.getReaderGroupId(scopeRGTest, rgName).get();
+        assertEquals(rgId, readerGroupId);
         ReaderGroupConfigRecord cfgRecord = store.getReaderGroupConfigRecord(scopeRGTest, rgName, rgContext, executor).join().getObject();
         assertEquals(false, cfgRecord.isUpdating());
         assertEquals(rgConfig.getGeneration(), cfgRecord.getGeneration());
