@@ -62,6 +62,7 @@ import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP_FAILED;
 
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
+import static io.pravega.shared.MetricsTags.readerGroupTags;
 
 /**
  * Class to encapsulate the logic to report Controller service metrics for Streams.
@@ -325,12 +326,12 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * and reports the latency.
      *
      * @param scope         Scope.
-     * @param streamName    Name of the Stream.
+     * @param rgName        Name of the Reader Group.
      * @param latency       Latency of the addSubscriber operation.
      */
-    public void createReaderGroup(String scope, String streamName, Duration latency) {
+    public void createReaderGroup(String scope, String rgName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_READER_GROUP), 1);
-        DYNAMIC_LOGGER.incCounterValue(CREATE_READER_GROUP, 1, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.incCounterValue(CREATE_READER_GROUP, 1, readerGroupTags(scope, rgName));
         addReaderGroupLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -338,11 +339,11 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * This method increments the counter for failed addSubscriber operation attempts on a Stream.
      *
      * @param scope         Scope Name.
-     * @param streamName    Stream Name.
+     * @param rgName        Reader Group Name.
      */
-    public void createReaderGroupFailed(String scope, String streamName) {
+    public void createReaderGroupFailed(String scope, String rgName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_READER_GROUP_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(CREATE_READER_GROUP_FAILED, 1, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.incCounterValue(CREATE_READER_GROUP_FAILED, 1, readerGroupTags(scope, rgName));
     }
 
     /**
@@ -355,7 +356,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      */
     public void updateReaderGroup(String scope, String rgName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(UPDATE_READER_GROUP), 1);
-        DYNAMIC_LOGGER.incCounterValue(UPDATE_READER_GROUP, 1, streamTags(scope, rgName));
+        DYNAMIC_LOGGER.incCounterValue(UPDATE_READER_GROUP, 1, readerGroupTags(scope, rgName));
         updateReaderGroupLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -367,7 +368,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      */
     public void updateReaderGroupFailed(String scope, String rgName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(UPDATE_READER_GROUP_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(UPDATE_READER_GROUP_FAILED, 1, streamTags(scope, rgName));
+        DYNAMIC_LOGGER.incCounterValue(UPDATE_READER_GROUP_FAILED, 1, readerGroupTags(scope, rgName));
     }
 
     /**
@@ -380,7 +381,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      */
     public void deleteReaderGroup(String scope, String rgName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_READER_GROUP), 1);
-        DYNAMIC_LOGGER.incCounterValue(DELETE_READER_GROUP, 1, streamTags(scope, rgName));
+        DYNAMIC_LOGGER.incCounterValue(DELETE_READER_GROUP, 1, readerGroupTags(scope, rgName));
         deleteReaderGroupLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -392,7 +393,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      */
     public void deleteReaderGroupFailed(String scope, String rgName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_READER_GROUP_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(DELETE_READER_GROUP_FAILED, 1, streamTags(scope, rgName));
+        DYNAMIC_LOGGER.incCounterValue(DELETE_READER_GROUP_FAILED, 1, readerGroupTags(scope, rgName));
     }
 
     /**
@@ -400,12 +401,12 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * and reports the latency.
      *
      * @param scope         Scope.
-     * @param streamName    Name of the Stream.
+     * @param rgName        Name of the Reader Group.
      * @param latency       Latency of the updateTruncationStreamCut operation.
      */
-    public void updateTruncationSC(String scope, String streamName, Duration latency) {
+    public void updateTruncationSC(String scope, String rgName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(UPDATE_SUBSCRIBER), 1);
-        DYNAMIC_LOGGER.incCounterValue(UPDATE_SUBSCRIBER, 1, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.incCounterValue(UPDATE_SUBSCRIBER, 1, readerGroupTags(scope, rgName));
         updateSubscriberLatency.reportSuccessValue(latency.toMillis());
     }
 

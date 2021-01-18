@@ -35,6 +35,7 @@ import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricRegistryUtils;
@@ -162,24 +163,11 @@ public class StreamMetricsTest {
         String scopeName = "scopeBasic";
         String streamName = "streamBasic";
 
-        Segment seg0 = new Segment(scopeName, streamName, 0L);
-        Segment seg1 = new Segment(scopeName, streamName, 1L);
-        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
-        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(scopeName, streamName),
-                new StreamCutImpl(Stream.of(scopeName, streamName), startStreamCut));
-        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
-        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(scopeName, streamName),
-                new StreamCutImpl(Stream.of(scopeName, streamName), endStreamCut));
-        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
-                .automaticCheckpointIntervalMillis(30000L)
-                .groupRefreshTimeMillis(20000L)
-                .maxOutstandingCheckpointRequest(2)
+        String streamScopedName = NameUtils.getScopedStreamName(scopeName, streamName);
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(streamScopedName).generation(0L)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
-                .startingStreamCuts(startSC)
-                .endingStreamCuts(endSC).build();
-
+                .build();
         // Here, the system scope and streams are already created.
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
         assertEquals(8, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
@@ -198,7 +186,8 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
 
         final String subscriber = "subscriber1";
-        controllerWrapper.getControllerService().createReaderGroup(scopeName, subscriber, rgConfig, System.currentTimeMillis()).get();
+        CreateReaderGroupStatus createRGStatus = controllerWrapper.getControllerService().createReaderGroup(scopeName, subscriber, rgConfig, System.currentTimeMillis()).get();
+        assertEquals(CreateReaderGroupStatus.Status.SUCCESS, createRGStatus.getStatus());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_READER_GROUP).count());
 
         final String subscriberScopedName = NameUtils.getScopedReaderGroupName(scopeName, subscriber);
