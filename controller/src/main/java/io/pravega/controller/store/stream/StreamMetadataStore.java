@@ -1473,6 +1473,5 @@ public interface StreamMetadataStore extends AutoCloseable {
      */
     CompletableFuture<Boolean> checkReaderGroupExists(final String scope, final String rgName);
 
-    CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName,
-                                                    final RGOperationContext context, final Executor executor);
+    CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName);
 }
