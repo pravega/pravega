@@ -50,6 +50,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.Synchronized;
@@ -69,6 +70,16 @@ import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
  */
 @Slf4j
 public class StreamTransactionMetadataTasks implements AutoCloseable {
+    /**
+     * We derive the maximum execution timeout from the lease time. We assume
+     * a maximum number of renewals for the txn and compute the maximum execution
+     * time by multiplying the lease timeout by the maximum number of renewals. This
+     * multiplier is currently hardcoded because we do not expect applications to change
+     * it. The maximum execution timeout is only a safety mechanism for application that
+     * should rarely be triggered.
+     */
+    private static final int MAX_EXECUTION_TIME_MULTIPLIER = 1000;
+
     protected final String hostId;
     protected final ScheduledExecutorService executor;
     protected final ScheduledExecutorService eventExecutor;
@@ -84,6 +95,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private final CountDownLatch readyLatch;
     private final CompletableFuture<EventStreamWriter<CommitEvent>> commitWriterFuture;
     private final CompletableFuture<EventStreamWriter<AbortEvent>> abortWriterFuture;
+    private final AtomicLong maxTransactionExecutionTimeBound;
 
     @VisibleForTesting
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
@@ -104,6 +116,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         readyLatch = new CountDownLatch(1);
         this.commitWriterFuture = new CompletableFuture<>();
         this.abortWriterFuture = new CompletableFuture<>();
+        this.maxTransactionExecutionTimeBound = new AtomicLong(Duration.ofDays(Config.MAX_TXN_EXECUTION_TIMEBOUND_DAYS).toMillis());
     }
 
     @VisibleForTesting
@@ -313,14 +326,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                    final OperationContext ctx) {
         // Step 1. Validate parameters.
         CompletableFuture<Void> validate = validate(lease);
-        
-        // We derive the maximum execution timeout from the lease time. We assume
-        // a maximum number of renewals for the txn and compute the maximum execution
-        // time by multiplying the lease timeout by the maximum number of renewals. This
-        // multiplier is currently hardcoded because we do not expect applications to change
-        // it. The maximum execution timeout is only a safety mechanism for application that
-        // should rarely be triggered.
-        long maxExecutionPeriod = Math.min(Config.MAX_TXN_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
+        long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, maxTransactionExecutionTimeBound.get());
 
         // 1. get latest epoch from history
         // 2. generateNewTransactionId.. this step can throw WriteConflictException
@@ -741,5 +747,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         } else {
             abortWriterFuture.cancel(true);
         }
+    }
+    
+    @VisibleForTesting
+    void setMaxExecutionTime(long timeInMillis) {
+        maxTransactionExecutionTimeBound.set(timeInMillis);
     }
 }

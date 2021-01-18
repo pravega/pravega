@@ -170,11 +170,11 @@ public final class Config {
     public static final Property<Long> PROPERTY_TXN_MAX_LEASE = Property.named(
             "transaction.lease.count.max", 120000L, "transaction.maxLeaseValue");
 
+    public static final Property<Integer> PROPERTY_TXN_MAX_EXECUTION_TIMEBOUND_DAYS = Property.named(
+            "transaction.execution.timeBound.days", 1);
+
     public static final Property<Integer> PROPERTY_TXN_TTL_HOURS = Property.named(
             "transaction.ttl.hours", 24, "transaction.ttlHours");
-    
-    public static final Property<Integer> PROPERTY_TXN_MAX_EXECUTION_TIME_MULTIPLIER = Property.named(
-            "transaction.maxExecutionTimeMultiplier", 1000);
 
     public static final Property<Integer> PROPERTY_WATERMARKING_FREQUENCY_SECONDS = Property.named(
             "watermarking.frequency.seconds", 10, "watermarking.frequencySeconds");
@@ -250,7 +250,7 @@ public final class Config {
     //Transaction configuration
     public static final long MIN_LEASE_VALUE;
     public static final long MAX_LEASE_VALUE;
-    public static final int MAX_TXN_EXECUTION_TIME_MULTIPLIER;
+    public static final int MAX_TXN_EXECUTION_TIMEBOUND_DAYS;
 
     // Completed Transaction TTL
     public static final int COMPLETED_TRANSACTION_TTL_IN_HOURS;
@@ -332,7 +332,7 @@ public final class Config {
 
         MIN_LEASE_VALUE = p.getInt(PROPERTY_TXN_MIN_LEASE);
         MAX_LEASE_VALUE = p.getLong(PROPERTY_TXN_MAX_LEASE);
-        MAX_TXN_EXECUTION_TIME_MULTIPLIER = p.getInt(PROPERTY_TXN_MAX_EXECUTION_TIME_MULTIPLIER);
+        MAX_TXN_EXECUTION_TIMEBOUND_DAYS = p.getInt(PROPERTY_TXN_MAX_EXECUTION_TIMEBOUND_DAYS);
         COMPLETED_TRANSACTION_TTL_IN_HOURS = p.getInt(PROPERTY_TXN_TTL_HOURS);
         MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = p.getInt(PROPERTY_RETENTION_FREQUENCY_MINUTES);
         RETENTION_BUCKET_COUNT = p.getInt(PROPERTY_RETENTION_BUCKET_COUNT);
