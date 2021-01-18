@@ -167,14 +167,11 @@ public class ReadTest extends LeakDetectorTestSuite {
             actual.writeBytes(result.getData());
             if (actual.writerIndex() < actual.capacity()) {
                 assertFalse(result.isAtTail());
-            } else {
-                assertTrue(result.isAtTail());
-            }
-
-            if (actual.writerIndex() < actual.capacity()) {
                 // Prevent entering a tight loop by giving the store a bit of time to process al the appends internally
                 // before trying again.
                 Thread.sleep(10);
+            } else {
+                assertTrue(result.isAtTail());
             }
         }
 
