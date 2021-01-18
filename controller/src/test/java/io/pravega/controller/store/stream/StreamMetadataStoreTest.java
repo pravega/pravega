@@ -1981,7 +1981,8 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(rgConfig.getAutomaticCheckpointIntervalMillis(), cfgRecord.getAutomaticCheckpointIntervalMillis());
         assertEquals(rgConfig.getGroupRefreshTimeMillis(), cfgRecord.getGroupRefreshTimeMillis());
         assertEquals(rgConfig.getStartingStreamCuts().size(), cfgRecord.getStartingStreamCuts().size());
-        assertEquals(ReaderGroupState.ACTIVE, store.getReaderGroupState(scopeRGTest, rgName, true, rgContext, executor).get());
+        VersionedMetadata<ReaderGroupState> rgState = store.getVersionedReaderGroupState(scopeRGTest, rgName, true, rgContext, executor).get();
+        assertEquals(ReaderGroupState.CREATING, rgState.getObject());
     }
     
     private void createAndScaleStream(StreamMetadataStore store, String scope, String stream, int times) {
