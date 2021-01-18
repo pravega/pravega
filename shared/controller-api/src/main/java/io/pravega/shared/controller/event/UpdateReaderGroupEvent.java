@@ -34,6 +34,7 @@ public class UpdateReaderGroupEvent implements ControllerEvent {
     private final long requestId;
     private UUID readerGroupId;
     private long generation;
+    private boolean isTransitionToFromSubscriber;
     private ImmutableSet<String> removeStreams;
 
     @Override
@@ -72,6 +73,7 @@ public class UpdateReaderGroupEvent implements ControllerEvent {
             target.writeLong(e.requestId);
             target.writeUUID(e.readerGroupId);
             target.writeLong(e.generation);
+            target.writeBoolean(e.isTransitionToFromSubscriber);
             target.writeCollection(e.removeStreams, DataOutput::writeUTF);
         }
 
@@ -81,6 +83,7 @@ public class UpdateReaderGroupEvent implements ControllerEvent {
             eb.requestId(source.readLong());
             eb.readerGroupId(source.readUUID());
             eb.generation(source.readLong());
+            eb.isTransitionToFromSubscriber(source.readBoolean());
             ImmutableSet.Builder<String> builder = ImmutableSet.builder();
             source.readCollection(DataInput::readUTF, builder);
             eb.removeStreams(builder.build());

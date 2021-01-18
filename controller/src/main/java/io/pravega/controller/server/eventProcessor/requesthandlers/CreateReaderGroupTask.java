@@ -10,19 +10,14 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
-
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
-
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.retryable.RetryableException;
-import io.pravega.controller.store.stream.RGOperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.CreateReaderGroupEvent;
@@ -61,8 +56,7 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         String readerGroup = request.getRgName();
         UUID readerGroupId = request.getReaderGroupId();
         ReaderGroupConfig config = getConfigFromEvent(request);
-        final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup)
                 .thenCompose(rgId -> {
                     if (!rgId.equals(readerGroupId)) {
                         log.warn("Skipping processing of CreateReaderGroupEvent with stale UUID.");
@@ -72,7 +66,7 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                             .thenCompose(complete -> {
                                 if (!complete) {
                                     return Futures.toVoid(streamMetadataTasks.createReaderGroupTasks(scope, readerGroup,
-                                            config, System.currentTimeMillis()));
+                                            config, request.getCreateTimeStamp()));
                                 }
                                 return CompletableFuture.completedFuture(null);
                             });
@@ -81,17 +75,15 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
 
     private ReaderGroupConfig getConfigFromEvent(CreateReaderGroupEvent request) {
         Map<Stream, StreamCut> startStreamCut = request.getStartingStreamCuts().entrySet()
-                                                .stream().collect(Collectors.toMap(e -> Stream.of(e.getKey()),
-                                                e -> new StreamCutImpl(Stream.of(e.getKey()),
-                                                        ModelHelper.getSegmentOffsetMap(Stream.of(e.getKey()).getScope(),
-                                                                Stream.of(e.getKey()).getStreamName(),
-                                                                e.getValue().getStreamCut()))));
+                .stream().collect(Collectors.toMap(e -> Stream.of(e.getKey()),
+                        e -> ModelHelper.generateStreamCut(Stream.of(e.getKey()).getScope(),
+                                Stream.of(e.getKey()).getStreamName(),
+                                e.getValue().getStreamCut())));
         Map<Stream, StreamCut> endStreamCut = request.getEndingStreamCuts().entrySet()
                 .stream().collect(Collectors.toMap(e -> Stream.of(e.getKey()),
-                        e -> new StreamCutImpl(Stream.of(e.getKey()),
-                                ModelHelper.getSegmentOffsetMap(Stream.of(e.getKey()).getScope(),
-                                                                Stream.of(e.getKey()).getStreamName(),
-                                                                e.getValue().getStreamCut()))));
+                        e -> ModelHelper.generateStreamCut(Stream.of(e.getKey()).getScope(),
+                                Stream.of(e.getKey()).getStreamName(),
+                                e.getValue().getStreamCut())));
         return ReaderGroupConfig.builder().readerGroupId(request.getReaderGroupId())
                 .groupRefreshTimeMillis(request.getGroupRefreshTimeMillis())
                 .automaticCheckpointIntervalMillis(request.getAutomaticCheckpointIntervalMillis())

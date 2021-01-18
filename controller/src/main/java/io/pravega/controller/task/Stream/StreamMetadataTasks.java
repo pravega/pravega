@@ -280,7 +280,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     .setStatus(ReaderGroupConfigResponse.Status.RG_NOT_FOUND).build());
                }
                final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
-               return streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
+               return streamMetadataStore.getReaderGroupId(scope, rgName)
                     .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, context, executor)
                             .thenApply(configRecord -> ReaderGroupConfigResponse.newBuilder()
                                 .setConfig(getRGConfigurationFromRecord(scope, rgName, configRecord.getObject(), rgId.toString()))
@@ -345,7 +345,7 @@ public class StreamMetadataTasks extends TaskBase {
                          CreateReaderGroupEvent event = new CreateReaderGroupEvent(requestId, scope, rgName, config.getGroupRefreshTimeMillis(),
                                  config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
                                  config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
-                                 startStreamCuts, endStreamCuts);
+                                 startStreamCuts, endStreamCuts, createTimestamp);
 
                          //3. Create Reader Group Metadata and submit event
                          return eventHelper.addIndexAndSubmitTask(event,
@@ -407,7 +407,8 @@ public class StreamMetadataTasks extends TaskBase {
         });
     }
 
-    public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroupInternal(String scope, String rgName, ReaderGroupConfig config, final long createTimestamp) {
+    public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroupInternal(String scope, String rgName,
+                                                                                       ReaderGroupConfig config, final long createTimestamp) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
         Preconditions.checkNotNull(config, "ReaderGroup config is null");
@@ -418,7 +419,6 @@ public class StreamMetadataTasks extends TaskBase {
             log.warn("Create ReaderGroup failed due to invalid name {}", rgName);
             return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.INVALID_RG_NAME);
         }
-
         return RetryHelper.withRetriesAsync(() -> {
             // 1. check if scope with this name exists...
             return streamMetadataStore.checkScopeExists(scope)
@@ -431,7 +431,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(complete -> {
                                     if (!complete) {
                                         return streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId())
-                                                .thenCompose(x -> createReaderGroupTasks(scope, rgName, config, System.currentTimeMillis()))
+                                                .thenCompose(x -> createReaderGroupTasks(scope, rgName, config, createTimestamp))
                                                 .thenApply(y -> CreateReaderGroupStatus.Status.SUCCESS);
                                     }
                                     return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
@@ -483,7 +483,7 @@ public class StreamMetadataTasks extends TaskBase {
                             return CompletableFuture.completedFuture(response);
                         }
                         if (!rgConfigRecord.getObject().isUpdating()) {
-                          return streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
+                          return streamMetadataStore.getReaderGroupId(scope, rgName)
                              .thenCompose(rgId -> {
                              if (!config.getReaderGroupId().equals(rgId)) {
                                  UpdateReaderGroupResponse response = UpdateReaderGroupResponse.newBuilder()
@@ -491,10 +491,10 @@ public class StreamMetadataTasks extends TaskBase {
                                          .setGeneration(config.getGeneration()).build();
                                  return CompletableFuture.completedFuture(response);
                              }
-                             ImmutableSet<String> removeStreams = getStreamsToBeUnsubscribed(rgConfigRecord.getObject().getStartingStreamCuts().keySet(),
-                             config.getStartingStreamCuts().keySet().stream().map(s -> s.getScopedName()).collect(Collectors.toSet()));
+                             ImmutableSet<String> removeStreams = getStreamsToBeUnsubscribed(rgConfigRecord.getObject(), config);
+                             boolean isTransition = isTransitionToOrFromSubscriber(rgConfigRecord.getObject(), config);
                              UpdateReaderGroupEvent event = new UpdateReaderGroupEvent(scope, rgName, requestId, rgId,
-                                                                 rgConfigRecord.getObject().getGeneration() + 1, removeStreams);
+                                                                 rgConfigRecord.getObject().getGeneration() + 1, isTransition, removeStreams);
                              //3. Create Reader Group Metadata and submit event
                              return eventHelper.addIndexAndSubmitTask(event,
                                     () -> streamMetadataStore.startRGConfigUpdate(scope, rgName, config, null, executor))
@@ -519,17 +519,63 @@ public class StreamMetadataTasks extends TaskBase {
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
-    private ImmutableSet<String> getStreamsToBeUnsubscribed(final Set<String> currentConfigStreams, final Set<String> newConfigStreams) {
-        ImmutableSet.Builder<String> setBuilder = ImmutableSet.builder();
-        currentConfigStreams.stream()
-                .filter(s -> !newConfigStreams.contains(s)).forEach(s -> setBuilder.add(s));
-        return setBuilder.build();
+    private boolean isTransitionToOrFromSubscriber(final ReaderGroupConfigRecord currentConfig,
+                                                   final ReaderGroupConfig newConfig) {
+        if (ReaderGroupConfig.StreamDataRetention.NONE
+                .equals(ReaderGroupConfig.StreamDataRetention.values()[currentConfig.getRetentionTypeOrdinal()])
+                && ReaderGroupConfig.StreamDataRetention.NONE.equals(newConfig.getRetentionType())) {
+            // if both existing and new configs have StreamDataRetention.NONE
+            // we're not transitioning this ReaderGroup from Subscriber to non-Subscriber or vice versa
+            return false;
+        }
+        return true;
+    }
+
+    private ImmutableSet<String> getStreamsToBeUnsubscribed(final ReaderGroupConfigRecord currentConfig,
+                                                            final ReaderGroupConfig newConfig) {
+        if (isNonSubscriberToSubscriberTransition(currentConfig, newConfig)) {
+            // changing from a non-subscriber to subscriber reader group
+            // so we just need to add RG as subscriber to Streams in the new config
+            return ImmutableSet.of();
+        } else if (isSubscriberToNonSubscriberTransition(currentConfig, newConfig)) {
+            // changing from subscriber to non-subscriber
+            // unsubscribe from all streams from current config
+            ImmutableSet.Builder<String> streamsToBeUnsubscribedBuilder = ImmutableSet.builder();
+            currentConfig.getStartingStreamCuts().keySet().forEach(s -> streamsToBeUnsubscribedBuilder.add(s));
+            return streamsToBeUnsubscribedBuilder.build();
+        } else {
+            final Set<String> currentConfigStreams = currentConfig.getStartingStreamCuts().keySet();
+            final Set<String> newConfigStreams = newConfig.getStartingStreamCuts().keySet().stream().map(s -> s.getScopedName()).collect(Collectors.toSet());
+            ImmutableSet.Builder<String> setBuilder = ImmutableSet.builder();
+            currentConfigStreams.stream()
+                    .filter(s -> !newConfigStreams.contains(s)).forEach(s -> setBuilder.add(s));
+            return setBuilder.build();
+        }
+
+    }
+
+    private boolean isNonSubscriberToSubscriberTransition(final ReaderGroupConfigRecord currentConfig, final ReaderGroupConfig newConfig) {
+        if (ReaderGroupConfig.StreamDataRetention.NONE
+                .equals(ReaderGroupConfig.StreamDataRetention.values()[currentConfig.getRetentionTypeOrdinal()])
+                && (!ReaderGroupConfig.StreamDataRetention.NONE.equals(newConfig.getRetentionType()))) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isSubscriberToNonSubscriberTransition(final ReaderGroupConfigRecord currentConfig, final ReaderGroupConfig newConfig) {
+        if (!ReaderGroupConfig.StreamDataRetention.NONE
+                .equals(ReaderGroupConfig.StreamDataRetention.values()[currentConfig.getRetentionTypeOrdinal()])
+                && (ReaderGroupConfig.StreamDataRetention.NONE.equals(newConfig.getRetentionType()))) {
+            return true;
+        }
+        return false;
     }
 
     private CompletableFuture<Boolean> isRGUpdated(String scope, String rgName, Executor executor) {
             return streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
                     .thenCompose(rgConfigRecord -> {
-                        log.debug("ReaderGroup Config is {}", rgConfigRecord.getObject().isUpdating());
+                        log.debug("Is ReaderGroup Config update complete ? {}", rgConfigRecord.getObject().isUpdating());
                         return CompletableFuture.completedFuture(!rgConfigRecord.getObject().isUpdating());
                    });
     }
@@ -556,7 +602,7 @@ public class StreamMetadataTasks extends TaskBase {
                     if (!exists) {
                        return CompletableFuture.completedFuture(DeleteReaderGroupStatus.Status.RG_NOT_FOUND);
                     }
-                    return streamMetadataStore.getReaderGroupId(scope, rgName, context, executor)
+                    return streamMetadataStore.getReaderGroupId(scope, rgName)
                            .thenCompose(rgId -> {
                                if (!rgId.equals(UUID.fromString(readerGroupId))) {
                                    return CompletableFuture.completedFuture(DeleteReaderGroupStatus.Status.RG_NOT_FOUND);
@@ -735,7 +781,7 @@ public class StreamMetadataTasks extends TaskBase {
                            return CompletableFuture.completedFuture(UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND);
                        }
                        final List<String> subscriberScopedName = NameUtils.extractScopedNameTokens(subscriber);
-                       return streamMetadataStore.getReaderGroupId(subscriberScopedName.get(0), subscriberScopedName.get(1), null, executor)
+                       return streamMetadataStore.getReaderGroupId(subscriberScopedName.get(0), subscriberScopedName.get(1))
                                .thenCompose(rgId -> {
                                  // 3. Check if subscriber Id matches
                                  if (!rgId.equals(UUID.fromString(readerGroupId))) {
