@@ -73,13 +73,9 @@ public class DynamicRestApiTest extends AbstractSystemTest {
 
     /**
      * This is used to setup the various services required by the system test framework.
-     *
-     * @throws InterruptedException If interrupted
-     * @throws MarathonException    when error in setup
-     * @throws URISyntaxException   If URI is invalid
      */
     @Environment
-    public static void initialize() throws MarathonException {
+    public static void initialize() {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
         URI controllerUri = ensureControllerRunning(zkUri);
@@ -114,11 +110,7 @@ public class DynamicRestApiTest extends AbstractSystemTest {
         Client client = ClientBuilder.newClient();
         String responseAsString = null;
 
-        ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(controllerGRPCUri)
-                .credentials(new DefaultCredentials(Utils.PRAVEGA_PROPERTIES.get("pravega.client.auth.username"),
-                        Utils.PRAVEGA_PROPERTIES.get("pravega.client.auth.username")))
-                .build();
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerGRPCUri);
         // Create a scope.
         @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);
