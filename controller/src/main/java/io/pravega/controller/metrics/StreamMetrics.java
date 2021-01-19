@@ -322,12 +322,12 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the global and Stream-specific counters for addSubscriber operation on a Stream
+     * This method increments the global and ReaderGroup-specific counters for createReaderGroup operation
      * and reports the latency.
      *
      * @param scope         Scope.
      * @param rgName        Name of the Reader Group.
-     * @param latency       Latency of the addSubscriber operation.
+     * @param latency       Latency of the createReaderGroup operation.
      */
     public void createReaderGroup(String scope, String rgName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_READER_GROUP), 1);
@@ -336,7 +336,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the counter for failed addSubscriber operation attempts on a Stream.
+     * This method increments the counter for failed createReaderGroup operation.
      *
      * @param scope         Scope Name.
      * @param rgName        Reader Group Name.
@@ -361,10 +361,10 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the counter for failed addSubscriber operation attempts on a Stream.
+     * This method increments the counter for failed updateReaderGroup operation.
      *
      * @param scope     Scope Name.
-     * @param rgName    Stream Name.
+     * @param rgName    Reader Group Name.
      */
     public void updateReaderGroupFailed(String scope, String rgName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(UPDATE_READER_GROUP_FAILED), 1);
@@ -372,12 +372,12 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the global and Stream-specific counters for removeSubscriber operation on a Stream
+     * This method increments the global and ReaderGroup-specific counters for deleteReaderGroup operation
      * and reports the latency.
      *
      * @param scope         Scope.
-     * @param rgName    Name of the Stream.
-     * @param latency       Latency of the removeSubscriber operation.
+     * @param rgName        Name of the Reader Group.
+     * @param latency       Latency of the deleteReaderGroup operation.
      */
     public void deleteReaderGroup(String scope, String rgName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_READER_GROUP), 1);
@@ -386,10 +386,10 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the counter for failed removeSubscriber operation attempts on a Stream.
+     * This method increments the counter for failed deleteReaderGroup operation attempts on a Reader Group.
      *
-     * @param scope         Scope Name.
-     * @param rgName    Stream Name.
+     * @param scope     Scope Name.
+     * @param rgName    Reader Group Name.
      */
     public void deleteReaderGroupFailed(String scope, String rgName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_READER_GROUP_FAILED), 1);
@@ -397,7 +397,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the global and Stream-specific counters for updateTruncationSC operation on a Stream
+     * This method increments the global and Stream-specific counters for updateSubscriberStreamCut operation on a Stream
      * and reports the latency.
      *
      * @param scope         Scope.
@@ -411,7 +411,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the counter for failed removeSubscriber operation attempts on a Stream.
+     * This method increments the counter for failed updateSubscriberStreamCut operation attempts on a Stream.
      *
      * @param scope         Scope Name.
      * @param streamName    Stream Name.
