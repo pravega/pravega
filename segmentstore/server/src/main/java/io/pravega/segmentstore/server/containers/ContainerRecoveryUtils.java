@@ -358,7 +358,7 @@ public class ContainerRecoveryUtils {
                     // Update attributes for the current segment
                     futures.add(Futures.exceptionallyComposeExpecting(
                             container.updateAttributes(properties.getName(), attributeUpdates, timeout),
-                            ex -> ex instanceof StreamSegmentNotExistsException, () -> createSegmentAndUpdateAttributes(container,
+                            ex -> ex instanceof StreamSegmentNotExistsException, () -> registerSegmentAndUpdateAttributes(container,
                                     properties, timeout)));
                 }
             }, executorService).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
@@ -368,9 +368,28 @@ public class ContainerRecoveryUtils {
         }
     }
 
-    private static CompletableFuture<Void> createSegmentAndUpdateAttributes(DebugStreamSegmentContainer container,
+    /**
+     * * This method takes a {@link DebugStreamSegmentContainer} instance and a {@link SegmentProperties} object as arguments
+     *      * and takes one of the following actions:
+     *      * 1. If the segment is present in the {@link MetadataStore} of the container and its length or sealed status or both
+     *      * doesn't match with the corresponding details from the given {@link SegmentProperties}, then it is deleted from there
+     *      * and registered using the details from the given {@link SegmentProperties} instance.
+     *      * 2. If the segment is absent in the {@link MetadataStore}, then it is registered using the details from the given
+     *      * {@link SegmentProperties}.
+     *
+     * Registers a segment in the {@link MetadataStore} of the given {@link DebugStreamSegmentContainer} instance using the
+     * details from the given from the given {@link SegmentProperties}, then the core attributes the segment are also updated
+     * using the attributes from the given {@link SegmentProperties}.
+     * @param container     A {@link DebugStreamSegmentContainer} instance for registering the given segment and updating its
+     *                      attributes.
+     * @param segment       A {@link SegmentProperties} instance which has properties of the segment.
+     * @param timeout       Timeout for the operation.
+     * @return              A CompletableFuture which when completed will indicate the operation has completed.
+     *                      If the operation failed, the future will be failed with the causing exception.
+     */
+    protected static CompletableFuture<Void> registerSegmentAndUpdateAttributes(DebugStreamSegmentContainer container,
                                                                             SegmentProperties segment, Duration timeout) {
-        // Get the attributes for the current segment
+        // Get the attributes for the segment
         List<AttributeUpdate> attributeUpdates = segment.getAttributes().entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
                 .collect(Collectors.toList());

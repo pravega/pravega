@@ -14,8 +14,10 @@ import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.OperationLogFactory;
@@ -69,8 +71,10 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.recoverAllSegments;
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.updateCoreAttributes;
@@ -364,6 +368,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                 opFutures.add(container.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
             }
         }
+        Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 3. Instead of waiting for the Writer to move data to Storage, we invoke the flushToStorage to verify that all
         // operations have been applied to Storage.
@@ -465,6 +470,54 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         int bytesRead = s.read(readHandle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
         Assert.assertEquals(String.format("Unexpected number of bytes read."), length, bytesRead);
         AssertExtensions.assertArrayEquals(String.format("Unexpected read result."), writeData, 0, readBuffer, 0, bytesRead);
+    }
+
+    /**
+     * The test creates a segment and then writes some data to it. The method under the test copies the contents of the
+     * segment to a segment with a different name. At the end, it is verified that the new segment has the accurate
+     * contents from the first one.
+     */
+    @Test
+    public void testRegisterSegmentAndUpdateAttributes() throws InterruptedException, ExecutionException, TimeoutException {
+        String segmentName = "segment-" + RANDOM.nextInt();
+        int attributesUpdatesCount = 50;
+        final UUID attributeReplace = UUID.randomUUID();
+        final long expectedAttributeValue = attributesUpdatesCount;
+        int containerId = 0;
+
+        @Cleanup
+        TestContext context = createContext(executorService());
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        @Cleanup
+        MetadataCleanupContainer container = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                context.getDefaultExtensions(), executorService());
+        container.startAsync().awaitRunning();
+
+        val segmentProperties = createSegmentProperty(segmentName, segmentName);
+
+        ContainerRecoveryUtils.registerSegmentAndUpdateAttributes(container, segmentProperties, TIMEOUT).join();
+
+        // Length.
+        val si = container.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+        Assert.assertEquals("Unexpected length for " + segmentName, segmentProperties.getLength(), si.getLength());
+    }
+
+    private SegmentProperties createSegmentProperty(String streamSegmentName, String segmentName) {
+
+        Map<UUID, Long> attributes = new HashMap<>();
+        attributes.put(Attributes.EVENT_COUNT, 10L);
+        attributes.put(Attributes.CREATION_TIME, (long) streamSegmentName.hashCode());
+
+        return StreamSegmentInformation.builder()
+                .name(segmentName)
+                .sealed(true)
+                .deleted(false)
+                .lastModified(null)
+                .startOffset(0)
+                .length(100)
+                .attributes(attributes)
+                .build();
     }
 
     private void populate(byte[] data) {
