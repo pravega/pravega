@@ -697,11 +697,11 @@ public class ControllerService {
         }
     }
 
-    private void reportCreateReaderGroupMetrics(String scope, String streamName, CreateReaderGroupStatus.Status status, Duration latency) {
+    private void reportCreateReaderGroupMetrics(String scope, String rgName, CreateReaderGroupStatus.Status status, Duration latency) {
         if (status.equals(CreateReaderGroupStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().createReaderGroup(scope, streamName, latency);
+            StreamMetrics.getInstance().createReaderGroup(scope, rgName, latency);
         } else if (status.equals(CreateReaderGroupStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().createReaderGroupFailed(scope, streamName);
+            StreamMetrics.getInstance().createReaderGroupFailed(scope, rgName);
         }
     }
 
