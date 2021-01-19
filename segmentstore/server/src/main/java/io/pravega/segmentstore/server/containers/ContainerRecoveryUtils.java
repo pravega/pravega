@@ -25,6 +25,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.io.ByteArrayInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -402,45 +404,28 @@ public class ContainerRecoveryUtils {
             }, executor);
     }
 
-    private static CompletableFuture<Void> readSegment(Storage storage, String segmentName, ExecutorService executor, Duration timeout) {
-        return storage.getStreamSegmentInfo(segmentName, timeout).thenComposeAsync(info -> {
-                return storage.openRead(segmentName).thenComposeAsync(sourceHandle -> {
-                    AtomicInteger offset = new AtomicInteger(0);
-                    AtomicInteger bytesToRead = new AtomicInteger((int) info.getLength());
-                    byte[] buffer = new byte[(int) info.getLength()];
-                    return Futures.loop(
-                            () -> bytesToRead.get() > 0,
-                            () -> {
-                                return storage.read(sourceHandle, offset.get(), buffer, offset.get(), Math.min(BUFFER_SIZE, bytesToRead.get()), timeout)
-                                        .thenAcceptAsync(size -> {
-                                                        bytesToRead.addAndGet(-size);
-                                                        offset.addAndGet(size);
-                                                    }, executor);
-                                        }, executor);
-                            }, executor);
-                }, executor);
-    }
-
-    public static void readAllSegmentsFromStorage(Storage storage, ExecutorService executorService, Duration timeout) throws Exception {
-        Preconditions.checkNotNull(storage);
-        Preconditions.checkNotNull(executorService);
-
-        Iterator<SegmentProperties> segmentIterator = storage.listSegments();
-        Preconditions.checkNotNull(segmentIterator);
-
-        // Iterate through all segments. Create each one of their using their respective debugSegmentContainer instance.
-        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-        while (segmentIterator.hasNext()) {
-            val currentSegment = segmentIterator.next();
-            String currentSegmentName = currentSegment.getName();
-            // skip recovery if the segment is an attribute segment or metadata segment.
-            if (NameUtils.isAttributeSegment(currentSegmentName)) {
-                continue;
-            }
-
-            futures.add(readSegment(storage, currentSegmentName, executorService, timeout));
-        }
-        Futures.allOf(futures).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    public static void readSegment(Storage storage, String segmentName, FileOutputStream fileOutputStream,
+                                                       ExecutorService executor, Duration timeout)
+            throws InterruptedException, ExecutionException, TimeoutException, IOException {
+        val segmentInfo = storage.getStreamSegmentInfo(segmentName, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        AtomicInteger offset = new AtomicInteger(0);
+        AtomicInteger bytesToRead = new AtomicInteger((int) segmentInfo.getLength());
+        val sourceHandle = storage.openRead(segmentName).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.loop(
+                () -> bytesToRead.get() > 0,
+                () -> {
+                    byte[] buffer = new byte[BUFFER_SIZE];
+                    return storage.read(sourceHandle, offset.get(), buffer, 0, Math.min(BUFFER_SIZE, bytesToRead.get()), timeout)
+                                .thenAcceptAsync(size -> {
+                                                try {
+                                                    fileOutputStream.write(buffer, 0, Math.min(BUFFER_SIZE, bytesToRead.get()));
+                                                } catch (IOException e) {
+                                                    e.printStackTrace();
+                                                }
+                                                bytesToRead.addAndGet(-size);
+                                                offset.addAndGet(size);
+                                                }, executor);
+                    }, executor).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     /**
