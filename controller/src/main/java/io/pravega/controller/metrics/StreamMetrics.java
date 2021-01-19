@@ -401,12 +401,12 @@ public final class StreamMetrics extends AbstractControllerMetrics {
      * and reports the latency.
      *
      * @param scope         Scope.
-     * @param rgName        Name of the Reader Group.
-     * @param latency       Latency of the updateTruncationStreamCut operation.
+     * @param streamName    Name of the Stream.
+     * @param latency       Latency of the updateSubscriberStreamCut operation.
      */
-    public void updateTruncationSC(String scope, String rgName, Duration latency) {
+    public void updateTruncationSC(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(UPDATE_SUBSCRIBER), 1);
-        DYNAMIC_LOGGER.incCounterValue(UPDATE_SUBSCRIBER, 1, readerGroupTags(scope, rgName));
+        DYNAMIC_LOGGER.incCounterValue(UPDATE_SUBSCRIBER, 1, streamTags(scope, streamName));
         updateSubscriberLatency.reportSuccessValue(latency.toMillis());
     }
 
