@@ -136,12 +136,13 @@ public interface Controller extends AutoCloseable {
      * API to update a ReaderGroup config.
      * @param scopeName Scope name for Reader Group.
      * @param rgName Stream name.
-     * @param config ReaderGroup confguration.
+     * @param config ReaderGroup configuration.
      * @throws IllegalArgumentException if Stream does not exist.
-     * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     *         indicate that the subscriber was updated in Stream Metadata.
+     * @return A future which will throw if the operation fails, otherwise
+     *         the subscriber was updated in Stream Metadata and a long indicating
+     *         the updated config generation is returned.
      */
-    CompletableFuture<Boolean> updateReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
+    CompletableFuture<Long> updateReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
 
     /**
      * API to get Reader Group Configuration.

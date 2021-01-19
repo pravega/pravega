@@ -20,6 +20,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
 import io.pravega.client.stream.impl.ReaderGroupState.SegmentCompleted;
+import io.pravega.client.stream.impl.ReaderGroupState.UpdatingConfig;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -53,7 +54,7 @@ public class ReaderGroupStateTest {
         Map<SegmentWithRange, Long> offsetMap = new HashMap<>();
         offsetMap.put(new SegmentWithRange(new Segment(SCOPE, "S1", 0), 0, 1), 1L);
         offsetMap.put(new SegmentWithRange(new Segment(SCOPE, "S2", 0), 0, 1), 1L);
-        readerState = new ReaderGroupState("stream", revision, readerConf, offsetMap, Collections.emptyMap());
+        readerState = new ReaderGroupState("stream", revision, readerConf, offsetMap, Collections.emptyMap(), false);
     }
     
 
@@ -213,6 +214,17 @@ public class ReaderGroupStateTest {
         Optional<Map<Stream, StreamCut>> streamCuts = readerState.getStreamCutsForCompletedCheckpoint("chk1");
         assertTrue(streamCuts.isPresent());
         assertEquals(expectedStreamCuts, streamCuts.get());
+    }
+
+    @Test
+    public void testUpdatingConfig() {
+        UpdatingConfig update1 = new UpdatingConfig(true);
+        update1.applyTo(readerState, revision);
+        assertTrue(readerState.isUpdatingConfig());
+
+        UpdatingConfig update2 = new UpdatingConfig(false);
+        update2.applyTo(readerState, revision);
+        assertFalse(readerState.isUpdatingConfig());
     }
 
     private Segment getSegment(String streamName) {
