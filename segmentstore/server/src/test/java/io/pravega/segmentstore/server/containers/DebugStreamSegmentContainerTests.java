@@ -368,7 +368,6 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                 opFutures.add(container.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
             }
         }
-        Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 3. Instead of waiting for the Writer to move data to Storage, we invoke the flushToStorage to verify that all
         // operations have been applied to Storage.
@@ -473,16 +472,11 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * The test creates a segment and then writes some data to it. The method under the test copies the contents of the
-     * segment to a segment with a different name. At the end, it is verified that the new segment has the accurate
-     * contents from the first one.
+     * The test creates a {@link SegmentProperties} instance which random details and tests registerSegmentAndUpdateAttributes.
      */
     @Test
     public void testRegisterSegmentAndUpdateAttributes() throws InterruptedException, ExecutionException, TimeoutException {
         String segmentName = "segment-" + RANDOM.nextInt();
-        int attributesUpdatesCount = 50;
-        final UUID attributeReplace = UUID.randomUUID();
-        final long expectedAttributeValue = attributesUpdatesCount;
         int containerId = 0;
 
         @Cleanup
@@ -506,16 +500,15 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private SegmentProperties createSegmentProperty(String streamSegmentName, String segmentName) {
 
         Map<UUID, Long> attributes = new HashMap<>();
-        attributes.put(Attributes.EVENT_COUNT, 10L);
+        attributes.put(Attributes.EVENT_COUNT,  RANDOM.nextLong());
         attributes.put(Attributes.CREATION_TIME, (long) streamSegmentName.hashCode());
 
         return StreamSegmentInformation.builder()
                 .name(segmentName)
-                .sealed(true)
-                .deleted(false)
-                .lastModified(null)
-                .startOffset(0)
-                .length(100)
+                .sealed(RANDOM.nextBoolean())
+                .deleted(RANDOM.nextBoolean())
+                .startOffset(RANDOM.nextInt())
+                .length(RANDOM.nextInt())
                 .attributes(attributes)
                 .build();
     }
