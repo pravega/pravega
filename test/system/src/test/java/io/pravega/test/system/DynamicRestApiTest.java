@@ -14,7 +14,6 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.shared.security.auth.DefaultCredentials;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,7 +23,6 @@ import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.List;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
@@ -38,7 +36,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-import mesosphere.marathon.client.MarathonException;
 
 import static org.junit.Assert.assertEquals;
 import static javax.ws.rs.core.Response.Status.OK;
