@@ -24,6 +24,7 @@ public final class MetricsTags {
     public static final String TAG_HOST = "host";
     public static final String TAG_SCOPE = "scope";
     public static final String TAG_STREAM = "stream";
+    public static final String TAG_READER_GROUP = "readergroup";
     public static final String TAG_SEGMENT = "segment";
     public static final String TAG_TRANSACTION = "transaction";
     public static final String TAG_EPOCH = "epoch";
@@ -82,6 +83,16 @@ public final class MetricsTags {
      */
     public static String[] streamTags(String scope, String stream) {
         return new String[] {TAG_SCOPE, scope, TAG_STREAM, stream};
+    }
+
+    /**
+     * Generate reader group tags (string array) on the input scope and reader group name to be associated with a metric.
+     * @param scope scope of the stream.
+     * @param rgName Reader Group name.
+     * @return string array as the reader group tag of metric.
+     */
+    public static String[] readerGroupTags(String scope, String rgName) {
+        return new String[] {TAG_SCOPE, scope, TAG_READER_GROUP, rgName};
     }
 
     /**
