@@ -192,7 +192,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         val floorBlock = offset / chunkedSegmentStorage.getConfig().getIndexBlockSize();
         val floorBlockStartOffset = floorBlock * chunkedSegmentStorage.getConfig().getIndexBlockSize();
         CompletableFuture<Void>  f;
-        if (startOffsetForCurrentChunk.get() < floorBlockStartOffset) {
+        if (!segmentMetadata.isStorageSystemSegment() && startOffsetForCurrentChunk.get() < floorBlockStartOffset) {
             f = txn.get(NameUtils.getSegmentReadIndexBlockName(segmentMetadata.getName(), floorBlockStartOffset))
                     .thenAcceptAsync(storageMetadata -> {
                         if (null != storageMetadata) {

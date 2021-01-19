@@ -269,9 +269,11 @@ public class ChunkedSegmentStorage implements Storage {
                                         // Whatever length you see right now is the final "sealed" length of the last chunk.
                                         lastChunk.setLength(chunkInfo.getLength());
                                         segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + lastChunk.getLength());
-                                        addBlockIndexEntries(txn, segmentMetadata.getName(),
-                                                lastChunk.getName(),
-                                                segmentMetadata.getLastChunkStartOffset(), segmentMetadata.getLength());
+                                        if (!segmentMetadata.isStorageSystemSegment()) {
+                                            addBlockIndexEntries(txn, segmentMetadata.getName(),
+                                                    lastChunk.getName(),
+                                                    segmentMetadata.getLastChunkStartOffset(), segmentMetadata.getLength());
+                                        }
                                         txn.update(lastChunk);
                                         log.debug("{} claimOwnership - Length of last chunk adjusted - segment={}, last chunk={}, Length={}.",
                                                 logPrefix,

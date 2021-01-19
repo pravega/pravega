@@ -328,7 +328,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                     currentIndexOffset.addAndGet(metadata.getLength());
                 })
                 .thenRunAsync(() -> {
-                    if (newReadIndexEntries.size() > 0) {
+                    if (!segmentMetadata.isStorageSystemSegment() && newReadIndexEntries.size() > 0) {
                         val start = newReadIndexEntries.get(0).getOffset();
                         val end = currentIndexOffset.get();
                         chunkedSegmentStorage.addBlockIndexEntries(txn, segmentMetadata.getName(), start, end, newReadIndexEntries);

@@ -217,7 +217,9 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     // Check invariants.
                     segmentMetadata.checkInvariants();
                     // Update block index.
-                    chunkedSegmentStorage.addBlockIndexEntries(txn, segmentMetadata.getName(), offset, segmentMetadata.getLength(), newReadIndexEntries);
+                    if (!segmentMetadata.isStorageSystemSegment()) {
+                        chunkedSegmentStorage.addBlockIndexEntries(txn, segmentMetadata.getName(), offset, segmentMetadata.getLength(), newReadIndexEntries);
+                    }
                 }, chunkedSegmentStorage.getExecutor());
     }
 
