@@ -188,20 +188,20 @@ public class StreamMetricsTest {
         final String subscriber = "subscriber1";
         CreateReaderGroupStatus createRGStatus = controllerWrapper.getControllerService().createReaderGroup(scopeName, subscriber, rgConfig, System.currentTimeMillis()).get();
         assertEquals(CreateReaderGroupStatus.Status.SUCCESS, createRGStatus.getStatus());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_READER_GROUP).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.CREATE_READER_GROUP)).count());
 
         final String subscriberScopedName = NameUtils.getScopedReaderGroupName(scopeName, subscriber);
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
         controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, subscriberScopedName,
                 rgConfig.getReaderGroupId().toString(), 0L, streamCut1).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_SUBSCRIBER)).count());
 
         controllerWrapper.getControllerService().updateReaderGroup(scopeName, subscriber, rgConfig).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_READER_GROUP)).count());
 
         controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber,
                 rgConfig.getReaderGroupId().toString(), 1L).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.DELETE_READER_GROUP)).count());
 
         // Seal the Stream.
         controllerWrapper.getControllerService().sealStream(scopeName, streamName).get();
