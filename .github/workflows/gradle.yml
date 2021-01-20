@@ -37,8 +37,16 @@ jobs:
           key: ${{ github.run_id }}
       - name: Compile
         run: ./gradlew jar compileTest --parallel
-      - name: Static Analysis
-        run: ./gradlew jar compileTest rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
+      - name: Debug 1
+        run: bash -c "echo **/build"
+      - name: Debug 2
+        run: bash -c "echo **/**/build"
+      - name: Debug 3
+        run: bash -c "echo **/**/**/build"
+      - name: Debug 5
+        run: bash -c "pwd"
+#      - name: Static Analysis
+#        run: ./gradlew jar compileTest rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
 
   unit_client:
     needs: build
@@ -71,69 +79,69 @@ jobs:
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
-  unit_controller:
-    needs: build
-    runs-on: ubuntu-20.04
-    name: Controller Unit Tests
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v1
-      - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            .gradle
-            ~/.gradle
-            ~/.m2
-          key: gradle-m2-java-11
-          restore-keys: |
-            gradle-m2-java-
-            gradle-m2
-      - name: Build Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            **/build
-            **/**/build
-            **/**/**/build
-          key: ${{ github.run_id }}
-      - name: Controller Unit tests
-        run: ./gradlew controller:test
-      - name: Codecov
-        uses: codecov/codecov-action@v1.0.15
-
-  unit_segment_store:
-    needs: build
-    runs-on: ubuntu-20.04
-    name: Segment Store Unit Tests
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v1
-      - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            .gradle
-            ~/.gradle
-            ~/.m2
-          key: gradle-m2-java-11
-          restore-keys: |
-            gradle-m2-java-
-            gradle-m2
-      - name: Build Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            **/build
-            **/**/build
-            **/**/**/build
-          key: ${{ github.run_id }}
-      - name: Segment Store Unit tests
-        run: ./gradlew segmentstore:server:test
-      - name: Segment Store Host Unit tests
-        run: ./gradlew segmentstore:server:host:test
-      - name: Codecov
-        uses: codecov/codecov-action@v1.0.15
+#  unit_controller:
+#    needs: build
+#    runs-on: ubuntu-20.04
+#    name: Controller Unit Tests
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v1
+#      - name: Gradle & Maven Cache
+#        uses: actions/cache@v2.1.0
+#        with:
+#          path: |
+#            .gradle
+#            ~/.gradle
+#            ~/.m2
+#          key: gradle-m2-java-11
+#          restore-keys: |
+#            gradle-m2-java-
+#            gradle-m2
+#      - name: Build Output Cache
+#        uses: actions/cache@v2.1.0
+#        with:
+#          path: |
+#            **/build
+#            **/**/build
+#            **/**/**/build
+#          key: ${{ github.run_id }}
+#      - name: Controller Unit tests
+#        run: ./gradlew controller:test
+#      - name: Codecov
+#        uses: codecov/codecov-action@v1.0.15
+#
+#  unit_segment_store:
+#    needs: build
+#    runs-on: ubuntu-20.04
+#    name: Segment Store Unit Tests
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v1
+#      - name: Gradle & Maven Cache
+#        uses: actions/cache@v2.1.0
+#        with:
+#          path: |
+#            .gradle
+#            ~/.gradle
+#            ~/.m2
+#          key: gradle-m2-java-11
+#          restore-keys: |
+#            gradle-m2-java-
+#            gradle-m2
+#      - name: Build Output Cache
+#        uses: actions/cache@v2.1.0
+#        with:
+#          path: |
+#            **/build
+#            **/**/build
+#            **/**/**/build
+#          key: ${{ github.run_id }}
+#      - name: Segment Store Unit tests
+#        run: ./gradlew segmentstore:server:test
+#      - name: Segment Store Host Unit tests
+#        run: ./gradlew segmentstore:server:host:test
+#      - name: Codecov
+#        uses: codecov/codecov-action@v1.0.15
 
   unit_segment_store_storage:
     needs: build
@@ -166,112 +174,112 @@ jobs:
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
-  unit_other:
-    needs: build
-    runs-on: ubuntu-20.04
-    name: All Other Unit Tests
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v1
-      - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            .gradle
-            ~/.gradle
-            ~/.m2
-          key: gradle-m2-java-11
-          restore-keys: |
-            gradle-m2-java-
-            gradle-m2
-      - name: Build Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            **/build
-            **/**/build
-            **/**/**/build
-          key: ${{ github.run_id }}
-      - name: Unit tests
-        run: >
-          ./gradlew test
-          -x client:test
-          -x controller:test
-          -x test:integration:test
-          -x bindings:test
-          -x segmentstore:storage:impl:test
-          -x segmentstore:storage:test
-          -x segmentstore:server:host:test
-          -x segmentstore:server:test
-          --parallel
-      - name: Codecov
-        uses: codecov/codecov-action@v1.0.15
-
-  integration:
-    needs: build
-    runs-on: ubuntu-20.04
-    name: Integration Tests
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v1
-      - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            .gradle
-            ~/.gradle
-            ~/.m2
-          key: gradle-m2-java-11
-          restore-keys: |
-            gradle-m2-java-
-            gradle-m2
-      - name: Build Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            **/build
-            **/**/build
-            **/**/**/build
-          key: ${{ github.run_id }}
-      - name: Integration Tests
-        run: ./gradlew test:integration:test
-
-  build_and_test_complete:
-    needs: [build, integration, unit_other, unit_segment_store_storage, unit_segment_store, unit_controller, unit_client]
-    runs-on: ubuntu-20.04
-    name: CI Complete
-    steps:
-      - name: Check Build Status
-        run: echo Build, static analysis, unit and integration tests successful.
-
-  snapshot:
-    # TODO       if: (branch = master OR branch =~ /^r[0-9]+\.[0-9]+/) AND NOT (type = pull_request)
-    needs: [build_and_test_complete]
-    runs-on: ubuntu-20.04
-    name: Artifactory Snapshot
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v1
-      - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            .gradle
-            ~/.gradle
-            ~/.m2
-          key: gradle-m2-java-11
-          restore-keys: |
-            gradle-m2-java-
-            gradle-m2
-      - name: Build Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: |
-            **/build
-            **/**/build
-            **/**/**/build
-          key: ${{ github.run_id }}
-      - name: Assemble
-        run: ./gradlew assemble --parallel
-      - name: Publish Shapshot
-        run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=${{ secrets.BINTRAY_USER }} -PpublishPassword=${{ secrets.BINTRAY_KEY }}
+#  unit_other:
+#    needs: build
+#    runs-on: ubuntu-20.04
+#    name: All Other Unit Tests
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v1
+#      - name: Gradle & Maven Cache
+#        uses: actions/cache@v2.1.0
+#        with:
+#          path: |
+#            .gradle
+#            ~/.gradle
+#            ~/.m2
+#          key: gradle-m2-java-11
+#          restore-keys: |
+#            gradle-m2-java-
+#            gradle-m2
+#      - name: Build Output Cache
+#        uses: actions/cache@v2.1.0
+#        with:
+#          path: |
+#            **/build
+#            **/**/build
+#            **/**/**/build
+#          key: ${{ github.run_id }}
+#      - name: Unit tests
+#        run: >
+#          ./gradlew test
+#          -x client:test
+#          -x controller:test
+#          -x test:integration:test
+#          -x bindings:test
+#          -x segmentstore:storage:impl:test
+#          -x segmentstore:storage:test
+#          -x segmentstore:server:host:test
+#          -x segmentstore:server:test
+#          --parallel
+#      - name: Codecov
+#        uses: codecov/codecov-action@v1.0.15
+#
+#  integration:
+#    needs: build
+#    runs-on: ubuntu-20.04
+#    name: Integration Tests
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v1
+#      - name: Gradle & Maven Cache
+#        uses: actions/cache@v2.1.0
+#        with:
+#          path: |
+#            .gradle
+#            ~/.gradle
+#            ~/.m2
+#          key: gradle-m2-java-11
+#          restore-keys: |
+#            gradle-m2-java-
+#            gradle-m2
+#      - name: Build Output Cache
+#        uses: actions/cache@v2.1.0
+#        with:
+#          path: |
+#            **/build
+#            **/**/build
+#            **/**/**/build
+#          key: ${{ github.run_id }}
+#      - name: Integration Tests
+#        run: ./gradlew test:integration:test
+#
+#  build_and_test_complete:
+#    needs: [build, integration, unit_other, unit_segment_store_storage, unit_segment_store, unit_controller, unit_client]
+#    runs-on: ubuntu-20.04
+#    name: CI Complete
+#    steps:
+#      - name: Check Build Status
+#        run: echo Build, static analysis, unit and integration tests successful.
+#
+#  snapshot:
+#    # TODO       if: (branch = master OR branch =~ /^r[0-9]+\.[0-9]+/) AND NOT (type = pull_request)
+#    needs: [build_and_test_complete]
+#    runs-on: ubuntu-20.04
+#    name: Artifactory Snapshot
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v1
+#      - name: Gradle & Maven Cache
+#        uses: actions/cache@v2.1.0
+#        with:
+#          path: |
+#            .gradle
+#            ~/.gradle
+#            ~/.m2
+#          key: gradle-m2-java-11
+#          restore-keys: |
+#            gradle-m2-java-
+#            gradle-m2
+#      - name: Build Output Cache
+#        uses: actions/cache@v2.1.0
+#        with:
+#          path: |
+#            **/build
+#            **/**/build
+#            **/**/**/build
+#          key: ${{ github.run_id }}
+#      - name: Assemble
+#        run: ./gradlew assemble --parallel
+#      - name: Publish Shapshot
+#        run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=${{ secrets.BINTRAY_USER }} -PpublishPassword=${{ secrets.BINTRAY_KEY }}
