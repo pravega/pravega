@@ -78,7 +78,7 @@ public class StreamCutRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
-    private static class RetentionStreamCutRecordSerializer
+    public static class RetentionStreamCutRecordSerializer
             extends VersionedSerializer.WithBuilder<StreamCutRecord, StreamCutRecordBuilder> {
         @Override
         protected byte getWriteVersion() {

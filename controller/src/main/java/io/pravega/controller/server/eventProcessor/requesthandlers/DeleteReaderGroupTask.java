@@ -55,7 +55,7 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
       UUID readerGroupId = request.getReaderGroupId();
       long generation = request.getGeneration();
       final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
-      return streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
+      return streamMetadataStore.getReaderGroupId(scope, readerGroup)
               .thenCompose(id -> {
                if (!id.equals(readerGroupId)) {
                       log.warn("Skipping processing of Reader Group delete request {} as UUIDs did not match.", requestId);

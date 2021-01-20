@@ -18,7 +18,7 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.integration.demo.ClusterWrapper;
 import io.pravega.test.integration.utils.TestUtils;
@@ -202,7 +202,7 @@ public class ReadWithReadPermissionsTest {
         EventStreamReader<String> reader = readerClientFactory.createReader(
                 "readerId", "testRg",
                 new JavaSerializer<String>(), ReaderConfig.builder().initialAllocationDelay(0).build());
-        String readMessage = reader.readNextEvent(500).getEvent();
+        String readMessage = reader.readNextEvent(5000).getEvent();
 
         assertEquals("test message", readMessage);
     }

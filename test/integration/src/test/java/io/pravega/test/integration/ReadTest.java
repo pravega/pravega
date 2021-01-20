@@ -120,7 +120,7 @@ public class ReadTest extends LeakDetectorTestSuite {
 
         StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
 
-        fillStoreForSegment(segmentName, clientId, data, entries, segmentStore);
+        fillStoreForSegment(segmentName, data, entries, segmentStore);
 
         @Cleanup
         ReadResult result = segmentStore.read(segmentName, 0, entries * data.length, Duration.ZERO).get();
@@ -154,7 +154,7 @@ public class ReadTest extends LeakDetectorTestSuite {
 
         StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
 
-        fillStoreForSegment(segmentName, clientId, data, entries, segmentStore);
+        fillStoreForSegment(segmentName, data, entries, segmentStore);
         @Cleanup
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
 
@@ -163,13 +163,15 @@ public class ReadTest extends LeakDetectorTestSuite {
             SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.writerIndex(), 10000, "", 1L));
             assertEquals(segmentName, result.getSegment());
             assertEquals(result.getOffset(), actual.writerIndex());
-            assertTrue(result.isAtTail());
             assertFalse(result.isEndOfSegment());
             actual.writeBytes(result.getData());
             if (actual.writerIndex() < actual.capacity()) {
+                assertFalse(result.isAtTail());
                 // Prevent entering a tight loop by giving the store a bit of time to process al the appends internally
                 // before trying again.
                 Thread.sleep(10);
+            } else {
+                assertTrue(result.isAtTail());
             }
         }
 
@@ -465,7 +467,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         }
     }
 
-    private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
+    private void fillStoreForSegment(String segmentName, byte[] data, int numEntries,
                                      StreamSegmentStore segmentStore) {
         try {
             segmentStore.createStreamSegment(segmentName, SegmentType.STREAM_SEGMENT, null, Duration.ZERO).get();

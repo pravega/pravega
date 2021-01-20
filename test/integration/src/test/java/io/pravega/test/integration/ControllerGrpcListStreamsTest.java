@@ -14,7 +14,7 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.test.integration.auth.customplugin.TestAuthHandler;
 import io.pravega.test.integration.demo.ClusterWrapper;

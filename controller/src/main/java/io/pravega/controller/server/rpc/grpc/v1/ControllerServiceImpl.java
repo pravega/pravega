@@ -74,7 +74,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
@@ -148,22 +148,28 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createReaderGroup",
                 scope, rgName);
         log.info(requestTag.getRequestId(), "createReaderGroup called for ReaderGroup {}/{}.", scope, rgName);
+        AuthHandler.Permissions requiredPermission = this.isRGStreamWritesWithReadPermEnabled ?
+                AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE;
+
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofReaderGroupsInScope(scope), AuthHandler.Permissions.READ_UPDATE),
+                authorizationResource.ofReaderGroupsInScope(scope), requiredPermission),
                 delegationToken -> controllerService.createReaderGroup(scope, rgName,
                         ModelHelper.encode(request), System.currentTimeMillis()),
                 responseObserver, requestTag);
     }
 
     @Override
-    public void updateReaderGroup(ReaderGroupConfiguration request, StreamObserver<UpdateReaderGroupStatus> responseObserver) {
+    public void updateReaderGroup(ReaderGroupConfiguration request, StreamObserver<UpdateReaderGroupResponse> responseObserver) {
         String scope = request.getScope();
         String rgName = request.getReaderGroupName();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "updateReaderGroup",
                 scope, rgName);
         log.info(requestTag.getRequestId(), "updateReaderGroup called for ReaderGroup {}/{}.", scope, rgName);
+        AuthHandler.Permissions requiredPermission = this.isRGStreamWritesWithReadPermEnabled ?
+                AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE;
+
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofReaderGroupsInScope(scope), AuthHandler.Permissions.READ_UPDATE),
+                authorizationResource.ofReaderGroupsInScope(scope), requiredPermission),
                 delegationToken -> controllerService.updateReaderGroup(scope, rgName, ModelHelper.encode(request)),
                 responseObserver, requestTag);
     }
@@ -190,8 +196,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteReaderGroup",
                 scope, rgName);
         log.info(requestTag.getRequestId(), "deleteReaderGroup called for Reader Group {}/{}.", scope, rgName);
+        AuthHandler.Permissions requiredPermission = this.isRGStreamWritesWithReadPermEnabled ?
+                AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE;
+
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofReaderGroupsInScope(scope), AuthHandler.Permissions.READ),
+                authorizationResource.ofReaderGroupsInScope(scope), requiredPermission),
                 delegationToken -> controllerService.deleteReaderGroup(scope, rgName, rgId, generation),
                 responseObserver, requestTag);
     }

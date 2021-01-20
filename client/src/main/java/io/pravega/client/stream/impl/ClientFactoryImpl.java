@@ -194,7 +194,7 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
                 new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(),
                 new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer(),
                 synchronizerConfig);
-        ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId, sync, controller, nanoTime);
+        ReaderGroupStateManager stateManager = new ReaderGroupStateManager(scope, readerGroup, readerId, sync, controller, nanoTime);
         stateManager.initializeReader(config.getInitialAllocationDelay());
         Builder<Stream, WatermarkReaderImpl> watermarkReaders = ImmutableMap.builder();
         if (!config.isDisableTimeWindows()) {

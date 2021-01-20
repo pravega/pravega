@@ -10,7 +10,6 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
@@ -34,6 +33,7 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.AsyncIterator;
@@ -59,8 +59,11 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
+@Slf4j
 public class LocalController implements Controller {
 
     private static final int PAGE_LIMIT = 1000;
@@ -187,10 +190,11 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
-        final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
-        return this.controller.createReaderGroup(scopeName, rgName, config, System.currentTimeMillis())
+        StreamMetadataTasks streamMetadataTasks = controller.getStreamMetadataTasks();
+        return streamMetadataTasks.createReaderGroupInternal(scopeName, rgName, config, System.currentTimeMillis())
                 .thenApply(x -> {
-            switch (x.getStatus()) {
+            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
+            switch (x) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
                 case INVALID_RG_NAME:
@@ -201,24 +205,24 @@ public class LocalController implements Controller {
                     return true;
                 default:
                     throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
-                            + " " + x.getStatus());
+                            + " " + x);
             }
         });
     }
 
     @Override
-    public CompletableFuture<Boolean> updateReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+    public CompletableFuture<Long> updateReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
         return this.controller.updateReaderGroup(scopeName, rgName, config).thenApply(x -> {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
                 case INVALID_CONFIG:
-                    throw new IllegalArgumentException("Illegal ReaderGroup name: " + rgName);
+                    throw new IllegalArgumentException("Invalid Reader Group Config: " + scopedRGName);
                 case RG_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + scopeName);
+                    throw new IllegalArgumentException("Scope does not exist: " + scopedRGName);
                 case SUCCESS:
-                    return true;
+                    return x.getGeneration();
                 default:
                     throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
                             + " " + x.getStatus());
@@ -282,7 +286,8 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber,
                                                                 final UUID readerGroupId, final long generation, final StreamCut streamCut) {
-        return this.controller.updateSubscriberStreamCut(scope, streamName, subscriber, readerGroupId.toString(), generation, getStreamCutAsImmutableMap(streamCut)).thenApply(x -> {
+        return this.controller.updateSubscriberStreamCut(scope, streamName, subscriber, readerGroupId.toString(), generation,
+                ModelHelper.getStreamCutMap(streamCut)).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to update streamcut: " + scope + "/" + streamName);
@@ -574,11 +579,6 @@ public class LocalController implements Controller {
         }
         return streamCut.asImpl().getPositions().entrySet()
                 .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
-    }
-
-    private ImmutableMap<Long, Long> getStreamCutAsImmutableMap(StreamCut streamCut) {
-        return ImmutableMap.copyOf(streamCut.asImpl().getPositions().entrySet()
-                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue)));
     }
 
     @Override

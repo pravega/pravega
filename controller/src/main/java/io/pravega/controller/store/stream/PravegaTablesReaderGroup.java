@@ -48,7 +48,7 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
 
     private final PravegaTablesStoreHelper storeHelper;
     private final Supplier<CompletableFuture<String>> readerGroupsInScopeTableNameSupplier;
-    private final AtomicReference<String> idRef;
+    private AtomicReference<String> idRef;
     private final ScheduledExecutorService executor;
 
     @VisibleForTesting
@@ -68,8 +68,8 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
             return CompletableFuture.completedFuture(id);
         } else {
             return readerGroupsInScopeTableNameSupplier.get()
-                    .thenCompose(streamsInScopeTable ->
-                            storeHelper.getEntry(streamsInScopeTable, getName(),
+                    .thenCompose(readerGroupsInScopeTable ->
+                            storeHelper.getEntry(readerGroupsInScopeTable, getName(),
                                     x -> BitConverter.readUUID(x, 0)))
                     .thenComposeAsync(data -> {
                         idRef.compareAndSet(null, data.getObject().toString());
@@ -156,7 +156,11 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
 
     @Override
     public CompletableFuture<Void> delete() {
-        return getId().thenCompose(id -> Futures.toVoid(storeHelper.deleteTable(getMetadataTableName(id), false)));
+        return getId().thenCompose(id -> storeHelper.deleteTable(getMetadataTableName(id), false)
+        .thenCompose(v -> {
+            this.idRef.set(null);
+            return CompletableFuture.completedFuture(null);
+        }));
     }
 
     @Override
@@ -172,5 +176,6 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
 
     @Override
     public void refresh() {
+        idRef.set(null);
     }
 }

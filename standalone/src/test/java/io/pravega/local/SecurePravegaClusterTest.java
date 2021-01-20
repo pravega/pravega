@@ -10,7 +10,7 @@
 package io.pravega.local;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import java.net.URI;
 
 import io.pravega.test.common.SecurityConfigDefaults;
