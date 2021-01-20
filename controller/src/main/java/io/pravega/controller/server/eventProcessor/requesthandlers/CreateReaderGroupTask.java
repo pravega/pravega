@@ -17,7 +17,6 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.retryable.RetryableException;
-import io.pravega.controller.store.stream.RGOperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
@@ -57,8 +56,7 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         String readerGroup = request.getRgName();
         UUID readerGroupId = request.getReaderGroupId();
         ReaderGroupConfig config = getConfigFromEvent(request);
-        final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup)
                 .thenCompose(rgId -> {
                     if (!rgId.equals(readerGroupId)) {
                         log.warn("Skipping processing of CreateReaderGroupEvent with stale UUID.");
