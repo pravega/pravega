@@ -1,14 +1,25 @@
-# This workflow will build a Java project with Gradle
-# For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-gradle
-
+#
+# Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
 name: build
 
+# Set up when this workflow will run.
 on:
   push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+    branches:
+      - master                 # On every push to the master branch.
+      - `r*.*1`                # On every push to a release branch.
+  pull_request:                # On every pull request, regardless of source/target branch.
+  release:
+    types: [published]         # On every published release.
 
+# Define a few constants that are shared across all the jobs.
 env:
   GLOBAL_CACHE_PATH: |
     .gradle
@@ -20,10 +31,19 @@ env:
     gradle-m2
   BUILD_CACHE_PATH: ./*
 
+# The workflow begins with a compilation and static analysis job that also caches the build output and source code,
+# followed by a number of parallel test jobs (which make use of that cached artifacts).
+#
+# Once the build job and all the test jobs complete successfully, a final (no-op) job ("build_and_test_complete") will
+# automatically complete. This job must NOT be renamed as the GitHub Pravega Repository gates merges into master on
+# this step passing.
+#
+# Finally, a "snapshot" job is triggered only for pushes (commits) to master and release branches, which publishes all
+# artifacts to a public repository.
 jobs:
   build:
-    runs-on: ubuntu-20.04
     name: Build
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
         uses: actions/checkout@v1
@@ -42,9 +62,9 @@ jobs:
         run: ./gradlew jar compileTest rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
 
   unit_client:
+    name: Client Unit Tests
     needs: build
     runs-on: ubuntu-20.04
-    name: Client Unit Tests
     steps:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
@@ -63,9 +83,9 @@ jobs:
         uses: codecov/codecov-action@v1.0.15
 
   unit_controller:
+    name: Controller Unit Tests
     needs: build
     runs-on: ubuntu-20.04
-    name: Controller Unit Tests
     steps:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
@@ -84,9 +104,9 @@ jobs:
         uses: codecov/codecov-action@v1.0.15
 
   unit_segment_store:
+    name: Segment Store Unit Tests
     needs: build
     runs-on: ubuntu-20.04
-    name: Segment Store Unit Tests
     steps:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
@@ -112,9 +132,9 @@ jobs:
         uses: codecov/codecov-action@v1.0.15
 
   unit_other:
+    name: All Other Unit Tests
     needs: build
     runs-on: ubuntu-20.04
-    name: All Other Unit Tests
     steps:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
@@ -143,9 +163,9 @@ jobs:
         uses: codecov/codecov-action@v1.0.15
 
   integration:
+    name: Integration Tests
     needs: build
     runs-on: ubuntu-20.04
-    name: Integration Tests
     steps:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
@@ -161,37 +181,34 @@ jobs:
       - name: Integration Tests
         run: ./gradlew test:integration:test
 
+  # DO NOT RENAME THIS JOB. Mergers to master branch are gated on this completing successfully.
   build_and_test_complete:
+    name: CI Complete
     needs: [build, integration, unit_other, unit_segment_store, unit_controller, unit_client]
     runs-on: ubuntu-20.04
-    name: CI Complete
     steps:
       - name: Check Build Status
         run: echo Build, static analysis, unit and integration tests successful.
 
-#  snapshot:
-#    # TODO       if: (branch = master OR branch =~ /^r[0-9]+\.[0-9]+/) AND NOT (type = pull_request)
-#    needs: [build_and_test_complete]
-#    runs-on: ubuntu-20.04
-#    name: Artifactory Snapshot
-#    steps:
-#      - name: Gradle & Maven Cache
-#        uses: actions/cache@v2.1.0
-#        with:
-#          path: |
-#            .gradle
-#            ~/.gradle
-#            ~/.m2
-#          key: gradle-m2-java-11
-#          restore-keys: |
-#            gradle-m2-java-
-#            gradle-m2
-#      - name: Build Output Cache
-#        uses: actions/cache@v2.1.0
-#        with:
-#          path: *
-#          key: ${{ github.run_id }}
-#      - name: Assemble
-#        run: ./gradlew assemble --parallel
-#      - name: Publish Shapshot
-#        run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=${{ secrets.BINTRAY_USER }} -PpublishPassword=${{ secrets.BINTRAY_KEY }}
+  snapshot:
+    name: Artifactory Snapshot
+    needs: [build_and_test_complete]
+    # Only run this on PUSH (no pull requests) and only on the master branch and release branches.
+    if: ${{github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/head/r0.') || startsWith(github.ref, 'refs/head/r1.'))}}
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Gradle & Maven Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+      - name: Build Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
+      - name: Assemble
+        run: ./gradlew assemble --parallel
+      - name: Publish Shapshot
+        run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=${{secrets.BINTRAY_USER}} -PpublishPassword=${{secrets.BINTRAY_KEY}}
