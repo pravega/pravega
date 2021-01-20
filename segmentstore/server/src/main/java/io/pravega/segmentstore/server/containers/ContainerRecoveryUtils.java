@@ -404,17 +404,35 @@ public class ContainerRecoveryUtils {
             }, executor);
     }
 
-    public static void readSegment(Storage storage, String segmentName, FileOutputStream fileOutputStream,
-                                                       ExecutorService executor, Duration timeout)
+    /**
+     *
+     * @param storage
+     * @param segmentName
+     * @param fileOutputStream
+     * @param executor
+     * @param timeout
+     * @throws InterruptedException
+     * @throws ExecutionException
+     * @throws TimeoutException
+     * @throws IOException
+     * @return
+     */
+    public static CompletableFuture<Void> readSegment(Storage storage, String segmentName, FileOutputStream fileOutputStream,
+                                                      ExecutorService executor, Duration timeout)
             throws InterruptedException, ExecutionException, TimeoutException, IOException {
-        val segmentInfo = storage.getStreamSegmentInfo(segmentName, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        int offset = 0;
-        int bytesToRead = (int) segmentInfo.getLength();
-        val sourceHandle = storage.openRead(segmentName).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        byte[] buffer = new byte[bytesToRead];
-        storage.read(sourceHandle, 0, buffer, 0, bytesToRead, timeout)
-                .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        fileOutputStream.write(buffer, 0, bytesToRead);
+        return storage.getStreamSegmentInfo(segmentName, timeout).thenComposeAsync(info -> {
+            return storage.openRead(segmentName).thenComposeAsync(sourceHandle -> {
+                byte[] buffer = new byte[(int) info.getLength()];
+                return storage.read(sourceHandle, 0, buffer, 0, (int) info.getLength(), timeout)
+                        .thenAcceptAsync(size -> {
+                            try {
+                                fileOutputStream.write(buffer, 0, (int) info.getLength());
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            }, executor);
+                }, executor);
+            }, executor);
     }
 
     /**
