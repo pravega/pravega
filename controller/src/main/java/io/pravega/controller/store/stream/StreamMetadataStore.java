@@ -334,6 +334,18 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<ReaderGroupState> getReaderGroupState(final String scope, final String name, final boolean ignoreCached, final RGOperationContext context, final Executor executor);
 
     /**
+     * Add ReaderGroup to scope.
+     *
+     * @param scopeName       scope name
+     * @param rgName          Reader Group name
+     * @param readerGroupId   Reader Group Identifier
+     * @return boolean indicating whether the stream was created
+     */
+    CompletableFuture<Void> addReaderGroupToScope(final String scopeName,
+                                              final String rgName,
+                                              final UUID readerGroupId);
+
+    /**
      * Creates a new stream with the given name and configuration.
      *
      * @param scopeName       scope name
@@ -1461,6 +1473,5 @@ public interface StreamMetadataStore extends AutoCloseable {
      */
     CompletableFuture<Boolean> checkReaderGroupExists(final String scope, final String rgName);
 
-    CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName,
-                                                    final RGOperationContext context, final Executor executor);
+    CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName);
 }

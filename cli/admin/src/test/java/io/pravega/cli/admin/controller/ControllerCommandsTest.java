@@ -22,7 +22,7 @@ import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.server.SegmentHelper;

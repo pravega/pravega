@@ -37,6 +37,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
+import io.pravega.client.stream.impl.ReaderGroupState.UpdatingConfig;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import io.pravega.client.stream.notifications.EndOfDataNotification;
 import io.pravega.client.stream.notifications.NotificationSystem;
@@ -103,11 +104,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts) {
+        synchronizer.fetchUpdates();
         if (synchronizer.getState().getConfig().getRetentionType()
                 .equals(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)) {
-            streamCuts.forEach((stream, cut) ->
-                    getThrowingException(controller
-                            .updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(), groupName,
+            streamCuts.forEach((stream, cut) -> getThrowingException(controller
+                            .updateSubscriberStreamCut(stream.getScope(), stream.getStreamName(),
+                                    NameUtils.getScopedReaderGroupName(scope, groupName),
                                     synchronizer.getState().getConfig().getReaderGroupId(),
                                     synchronizer.getState().getConfig().getGeneration(), cut)));
 
@@ -203,8 +205,40 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public void resetReaderGroup(ReaderGroupConfig config) {
-        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
-        synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+        log.info("Reset ReaderGroup {} to {}", getGroupName(), config);
+        synchronizer.fetchUpdates();
+        while (true) {
+            val currentConfig = synchronizer.getState().getConfig();
+            // We only move into the block if the state transition has happened successfully.
+            if (stateTransition(currentConfig, new UpdatingConfig(true))) {
+                // Use the latest generation and reader group Id.
+                ReaderGroupConfig newConfig = config.toBuilder()
+                        .readerGroupId(currentConfig.getReaderGroupId())
+                        .generation(currentConfig.getGeneration()).build();
+                long newGen = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, newConfig));
+                Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
+                synchronizer.updateState((s, updates) -> {
+                    updates.add(new ReaderGroupStateInit(newConfig.toBuilder().generation(newGen).build(), segments, getEndSegmentsForStreams(newConfig), false));
+                });
+                return;
+            }
+        }
+    }
+
+    private boolean stateTransition(ReaderGroupConfig config, ReaderGroupState.ReaderGroupStateUpdate update) {
+        // This boolean will help know if the update actually succeeds or not.
+        AtomicBoolean successfullyUpdated = new AtomicBoolean(true);
+        synchronizer.updateState((state, updates) -> {
+            // If successfullyUpdated is false then that means the current state where this update should
+            // take place (i.e. state with updatingConfig as false) is not the state we are in so we do not
+            // make the update.
+            boolean updated = state.getConfig().equals(config);
+            successfullyUpdated.set(updated);
+            if (updated) {
+                updates.add(update);
+            }
+        });
+        return successfullyUpdated.get();
     }
 
     @Override
