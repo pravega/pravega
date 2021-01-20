@@ -31,7 +31,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.$GLOBAL_CACHE_KEY}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
@@ -50,7 +50,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.$GLOBAL_CACHE_KEY}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
@@ -71,7 +71,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.$GLOBAL_CACHE_KEY}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
@@ -92,7 +92,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.$GLOBAL_CACHE_KEY}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
@@ -120,7 +120,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.$GLOBAL_CACHE_KEY}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
@@ -151,7 +151,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.$GLOBAL_CACHE_KEY}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
           restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
