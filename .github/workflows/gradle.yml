@@ -30,14 +30,14 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: $GLOBAL_CACHE_PATH
-          key: $GLOBAL_CACHE_KEY
-          restore-keys: $GLOBAL_CACHE_RESTORE_KEYS
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.$GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: $BUILD_CACHE_PATH
-          key: ${{ github.run_id }}
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
       - name: Compile & Static Analysis
         run: ./gradlew jar compileTest rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
 
@@ -49,14 +49,14 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: $GLOBAL_CACHE_PATH
-          key: $GLOBAL_CACHE_KEY
-          restore-keys: $GLOBAL_CACHE_RESTORE_KEYS
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.$GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: $BUILD_CACHE_PATH
-          key: ${{ github.run_id }}
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
       - name: Unit tests
         run: ./gradlew client:test
       - name: Codecov
@@ -70,14 +70,14 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: $GLOBAL_CACHE_PATH
-          key: $GLOBAL_CACHE_KEY
-          restore-keys: $GLOBAL_CACHE_RESTORE_KEYS
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.$GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: $BUILD_CACHE_PATH
-          key: ${{ github.run_id }}
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
       - name: Controller Unit tests
         run: ./gradlew controller:test
       - name: Codecov
@@ -91,14 +91,14 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: $GLOBAL_CACHE_PATH
-          key: $GLOBAL_CACHE_KEY
-          restore-keys: $GLOBAL_CACHE_RESTORE_KEYS
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.$GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: $BUILD_CACHE_PATH
-          key: ${{ github.run_id }}
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
       - name: Segment Store Unit tests
         run: >
           ./gradlew
@@ -119,14 +119,14 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: $GLOBAL_CACHE_PATH
-          key: $GLOBAL_CACHE_KEY
-          restore-keys: $GLOBAL_CACHE_RESTORE_KEYS
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.$GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: $BUILD_CACHE_PATH
-          key: ${{ github.run_id }}
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
       - name: Unit tests
         run: >
           ./gradlew test
@@ -150,14 +150,14 @@ jobs:
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
-          path: $GLOBAL_CACHE_PATH
-          key: $GLOBAL_CACHE_KEY
-          restore-keys: $GLOBAL_CACHE_RESTORE_KEYS
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.$GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: $BUILD_CACHE_PATH
-          key: ${{ github.run_id }}
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
       - name: Integration Tests
         run: ./gradlew test:integration:test
 
