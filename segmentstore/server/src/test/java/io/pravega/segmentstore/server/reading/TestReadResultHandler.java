@@ -45,7 +45,9 @@ public class TestReadResultHandler implements AsyncReadResultHandler {
     public boolean processEntry(ReadResultEntry e) {
         BufferView c = e.getContent().join();
         try {
-            c.copyTo(readContents);
+            synchronized (this.readContents) {
+                c.copyTo(readContents);
+            }
             return true;
         } catch (Exception ex) {
             processError(ex);

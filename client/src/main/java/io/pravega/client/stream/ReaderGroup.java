@@ -47,7 +47,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * @return Reader group name
      */
     String getGroupName();
-    
+
     /**
      * Initiate a checkpoint. This causes all readers in the group to receive a special
      * {@link EventRead} that contains the provided checkpoint name. This can be used to provide an
@@ -171,7 +171,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
 
     /**
      * Update Retention Stream-Cut for Streams in this Reader Group.
-     * See {#link ReaderGroupConfig.StreamDataRetention#CONSUMPTION_BASED_USER_STREAMCUT}
+     * See {@link ReaderGroupConfig.StreamDataRetention#MANUAL_RELEASE_AT_USER_STREAMCUT}
      * @param streamCuts A Map with a Stream-Cut for each Stream.
      *                   StreamCut indicates position in the Stream till which data has been consumed and can be deleted.
      */

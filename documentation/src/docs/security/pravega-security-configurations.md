@@ -267,7 +267,7 @@ their Transport Layer Security (TLS) and auth (short for authentication and auth
    |Sample value:| `/path/to/client/zookeeper.truststore.pwd`   |
    |Old name:|`pravegaservice.zkTrustStorePasswordPath` (deprecated) | 
   
-* __<ins>bookkeeper.connect.security.enable</ins>__
+* __<ins>pravegaservice.bookkeeper.connect.security.enable</ins>__
 
    |Property| Value | 
    |---:|:----|
