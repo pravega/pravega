@@ -30,7 +30,7 @@ jobs:
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: *
+          path: ./*
           key: ${{ github.run_id }}
       - name: Compile & Static Analysis
         run: ./gradlew jar compileTest rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
@@ -54,7 +54,7 @@ jobs:
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: *
+          path: ./*
           key: ${{ github.run_id }}
       - name: Unit tests
         run: ./gradlew client:test
@@ -80,7 +80,7 @@ jobs:
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: *
+          path: ./*
           key: ${{ github.run_id }}
       - name: Controller Unit tests
         run: ./gradlew controller:test
@@ -106,7 +106,7 @@ jobs:
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: *
+          path: ./*
           key: ${{ github.run_id }}
       - name: Segment Store Unit tests
         run: >
@@ -139,7 +139,7 @@ jobs:
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: *
+          path: ./*
           key: ${{ github.run_id }}
       - name: Unit tests
         run: >
@@ -175,7 +175,7 @@ jobs:
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: *
+          path: ./*
           key: ${{ github.run_id }}
       - name: Integration Tests
         run: ./gradlew test:integration:test
