@@ -101,7 +101,7 @@ public class SegmentReader extends DataRecoveryCommand{
         createFileAndDirectory();
 
         outputInfo("Writing segment's content to the file...");
-        ContainerRecoveryUtils.readSegment(storage, this.segmentName, this.fileOutputStream, scheduledExecutorService, TIMEOUT);
+        ContainerRecoveryUtils.readSegment(storage, this.segmentName, this.fileOutputStream, scheduledExecutorService, TIMEOUT).join();
 
         outputInfo("Closing the file...");
         this.fileOutputStream.close();
