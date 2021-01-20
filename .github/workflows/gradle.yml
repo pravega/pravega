@@ -31,6 +31,18 @@ jobs:
         run: ./gradlew assemble --parallel
       - name: Static Analysis
         run: ./gradlew rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
+      - name: Store Build Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: build-output
+          path: |
+            **/build/**
+      - name: Store Snapshots
+        uses: actions/upload-artifact@v2
+        with:
+          name: build-snapshot
+          path: |
+            build
 
   unit_client:
     needs: build
@@ -50,6 +62,10 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: build-output
       - name: Unit tests
         run: ./gradlew client:test
       - name: Codecov
@@ -73,6 +89,10 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: build-output
       - name: Controller Unit tests
         run: ./gradlew controller:test
       - name: Codecov
@@ -96,6 +116,10 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: build-output
       - name: Segment Store Unit tests
         run: ./gradlew segmentstore:server:test
       - name: Segment Store Host Unit tests
@@ -121,6 +145,10 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: build-output
       - name: Storage Impl Unit tests
         run: ./gradlew segmentstore:storage:test segmentstore:storage:impl:test bindings:test --parallel
       - name: Codecov
@@ -144,6 +172,10 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: build-output
       - name: Unit tests
         run: >
           ./gradlew test
@@ -162,7 +194,7 @@ jobs:
   integration:
     needs: build
     runs-on: ubuntu-20.04
-    name: Integration Tests on Java 11
+    name: Integration Tests
     steps:
       - name: Checkout
         uses: actions/checkout@v1
@@ -177,7 +209,11 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Integration tests with Gradle
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: build-output
+      - name: Integration Tests
         run: ./gradlew test:integration:test
 
   build_and_test_complete:
@@ -207,5 +243,9 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
+      - name: Download Snapshots
+        uses: actions/download-artifact@v2
+        with:
+          name: build-snapshot
       - name: Publish Shapshot
-        run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=$BINTRAY_USER -PpublishPassword=$BINTRAY_KEY
+        run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=${{ secrets.BINTRAY_USER }} -PpublishPassword=${{ secrets.BINTRAY_KEY }}
