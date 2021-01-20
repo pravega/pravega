@@ -184,3 +184,6 @@ jobs:
     needs: [build, integration, unit_other, unit_segment_store_storage, unit_segment_store, unit_controller, unit_client]
     runs-on: ubuntu-20.04
     name: Success
+    steps:
+      - name: All done
+      - run: echo All done.
