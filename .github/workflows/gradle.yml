@@ -31,10 +31,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ./
-            !.gradle
-            !~/.gradle
-            !~/.m2
+            ~/**/build/**
+            ~/**/**/build/**
+            ~/**/**/**/build/**
           key: ${{ github.run_id }}
       - name: Compile and Static Analysis
         run: ./gradlew jar compileTest rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
@@ -44,6 +43,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Client Unit Tests
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -59,10 +60,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ./
-            !.gradle
-            !~/.gradle
-            !~/.m2
+            ~/**/build/**
+            ~/**/**/build/**
+            ~/**/**/**/build/**
           key: ${{ github.run_id }}
       - name: Unit tests
         run: ./gradlew client:test
@@ -74,6 +74,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Controller Unit Tests
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -89,10 +91,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ./
-            !.gradle
-            !~/.gradle
-            !~/.m2
+            ~/**/build/**
+            ~/**/**/build/**
+            ~/**/**/**/build/**
           key: ${{ github.run_id }}
       - name: Controller Unit tests
         run: ./gradlew controller:test
@@ -104,6 +105,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Segment Store Unit Tests
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -119,10 +122,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ./
-            !.gradle
-            !~/.gradle
-            !~/.m2
+            ~/**/build/**
+            ~/**/**/build/**
+            ~/**/**/**/build/**
           key: ${{ github.run_id }}
       - name: Segment Store Unit tests
         run: ./gradlew segmentstore:server:test
@@ -136,6 +138,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Segment Store Storage Unit Tests
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -151,10 +155,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ./
-            !.gradle
-            !~/.gradle
-            !~/.m2
+            ~/**/build/**
+            ~/**/**/build/**
+            ~/**/**/**/build/**
           key: ${{ github.run_id }}
       - name: Storage Impl Unit tests
         run: ./gradlew segmentstore:storage:test segmentstore:storage:impl:test bindings:test --parallel
@@ -166,6 +169,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: All Other Unit Tests
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -181,10 +186,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ./
-            !.gradle
-            !~/.gradle
-            !~/.m2
+            ~/**/build/**
+            ~/**/**/build/**
+            ~/**/**/**/build/**
           key: ${{ github.run_id }}
       - name: Unit tests
         run: >
@@ -206,6 +210,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Integration Tests
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -221,10 +227,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ./
-            !.gradle
-            !~/.gradle
-            !~/.m2
+            ~/**/build/**
+            ~/**/**/build/**
+            ~/**/**/**/build/**
           key: ${{ github.run_id }}
       - name: Integration Tests
         run: ./gradlew test:integration:test
@@ -243,6 +248,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Artifactory Snapshot
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -258,10 +265,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ./
-            !.gradle
-            !~/.gradle
-            !~/.m2
+            ~/**/build/**
+            ~/**/**/build/**
+            ~/**/**/**/build/**
           key: ${{ github.run_id }}
       - name: Assemble
         run: ./gradlew assemble --parallel
