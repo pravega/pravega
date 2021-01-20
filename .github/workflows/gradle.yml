@@ -30,8 +30,7 @@ jobs:
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: |
-            *
+          path: *
           key: ${{ github.run_id }}
       - name: Compile & Static Analysis
         run: ./gradlew jar compileTest rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
@@ -55,8 +54,7 @@ jobs:
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: |
-            *
+          path: *
           key: ${{ github.run_id }}
       - name: Unit tests
         run: ./gradlew client:test
@@ -82,8 +80,7 @@ jobs:
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: |
-            *
+          path: *
           key: ${{ github.run_id }}
       - name: Controller Unit tests
         run: ./gradlew controller:test
@@ -109,8 +106,7 @@ jobs:
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: |
-            *
+          path: *
           key: ${{ github.run_id }}
       - name: Segment Store Unit tests
         run: >
@@ -143,8 +139,7 @@ jobs:
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: |
-            *
+          path: *
           key: ${{ github.run_id }}
       - name: Unit tests
         run: >
@@ -180,8 +175,7 @@ jobs:
       - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
-          path: |
-            *
+          path: *
           key: ${{ github.run_id }}
       - name: Integration Tests
         run: ./gradlew test:integration:test
@@ -193,35 +187,30 @@ jobs:
     steps:
       - name: Check Build Status
         run: echo Build, static analysis, unit and integration tests successful.
-#
-#  snapshot:
-#    # TODO       if: (branch = master OR branch =~ /^r[0-9]+\.[0-9]+/) AND NOT (type = pull_request)
-#    needs: [build_and_test_complete]
-#    runs-on: ubuntu-20.04
-#    name: Artifactory Snapshot
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v1
-#      - name: Gradle & Maven Cache
-#        uses: actions/cache@v2.1.0
-#        with:
-#          path: |
-#            .gradle
-#            ~/.gradle
-#            ~/.m2
-#          key: gradle-m2-java-11
-#          restore-keys: |
-#            gradle-m2-java-
-#            gradle-m2
-#      - name: Build Output Cache
-#        uses: actions/cache@v2.1.0
-#        with:
-#          path: |
-#            **/build
-#            **/**/build
-#            **/**/**/build
-#          key: ${{ github.run_id }}
-#      - name: Assemble
-#        run: ./gradlew assemble --parallel
-#      - name: Publish Shapshot
-#        run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=${{ secrets.BINTRAY_USER }} -PpublishPassword=${{ secrets.BINTRAY_KEY }}
+
+  snapshot:
+    # TODO       if: (branch = master OR branch =~ /^r[0-9]+\.[0-9]+/) AND NOT (type = pull_request)
+    needs: [build_and_test_complete]
+    runs-on: ubuntu-20.04
+    name: Artifactory Snapshot
+    steps:
+      - name: Gradle & Maven Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: |
+            .gradle
+            ~/.gradle
+            ~/.m2
+          key: gradle-m2-java-11
+          restore-keys: |
+            gradle-m2-java-
+            gradle-m2
+      - name: Build Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: *
+          key: ${{ github.run_id }}
+      - name: Assemble
+        run: ./gradlew assemble --parallel
+      - name: Publish Shapshot
+        run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=${{ secrets.BINTRAY_USER }} -PpublishPassword=${{ secrets.BINTRAY_KEY }}
