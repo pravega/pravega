@@ -1971,14 +1971,18 @@ public abstract class StreamMetadataStoreTest {
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
         final RGOperationContext rgContext = store.createRGContext(scopeRGTest, rgName);
-        store.addReaderGroupToScope(scopeRGTest, rgName, rgConfig.getReaderGroupId());
+        store.addReaderGroupToScope(scopeRGTest, rgName, rgConfig.getReaderGroupId()).join();
         store.createReaderGroup(scopeRGTest, rgName, rgConfig, System.currentTimeMillis(), rgContext, executor).join();
+        UUID readerGroupId = store.getReaderGroupId(scopeRGTest, rgName).get();
+        assertEquals(rgId, readerGroupId);
         ReaderGroupConfigRecord cfgRecord = store.getReaderGroupConfigRecord(scopeRGTest, rgName, rgContext, executor).join().getObject();
         assertEquals(false, cfgRecord.isUpdating());
         assertEquals(rgConfig.getGeneration(), cfgRecord.getGeneration());
         assertEquals(rgConfig.getAutomaticCheckpointIntervalMillis(), cfgRecord.getAutomaticCheckpointIntervalMillis());
         assertEquals(rgConfig.getGroupRefreshTimeMillis(), cfgRecord.getGroupRefreshTimeMillis());
         assertEquals(rgConfig.getStartingStreamCuts().size(), cfgRecord.getStartingStreamCuts().size());
+        VersionedMetadata<ReaderGroupState> rgState = store.getVersionedReaderGroupState(scopeRGTest, rgName, true, rgContext, executor).get();
+        assertEquals(ReaderGroupState.CREATING, rgState.getObject());
     }
     
     private void createAndScaleStream(StreamMetadataStore store, String scope, String stream, int times) {

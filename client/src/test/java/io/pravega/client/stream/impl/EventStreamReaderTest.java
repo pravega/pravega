@@ -852,6 +852,7 @@ public class EventStreamReaderTest {
     public void testReaderClose() throws SegmentSealedException {
         String scope = "scope";
         String stream = "stream";
+        String groupName = "readerGroup";
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
@@ -876,11 +877,11 @@ public class EventStreamReaderTest {
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizerForReaderGroup(connectionFactory, controller,
                                                                                          segmentStreamFactory,
                                                                                          Stream.of(scope, stream),
-                                                                                         "reader1", clock, 2);
+                                                                                         "reader1", clock, 2, groupName);
         @Cleanup
-        EventStreamReaderImpl<byte[]> reader1 = createReader(controller, segmentStreamFactory, "reader1", sync, clock);
+        EventStreamReaderImpl<byte[]> reader1 = createReader(controller, segmentStreamFactory, "reader1", sync, clock, scope, groupName);
         @Cleanup
-        EventStreamReaderImpl<byte[]> reader2 = createReader(controller, segmentStreamFactory, "reader2", sync, clock);
+        EventStreamReaderImpl<byte[]> reader2 = createReader(controller, segmentStreamFactory, "reader2", sync, clock, scope, groupName);
         
         assertEquals(1, readInt(reader1.readNextEvent(0)));
         assertEquals(2, readInt(reader2.readNextEvent(0)));
@@ -896,6 +897,7 @@ public class EventStreamReaderTest {
     public void testPositionsContainSealedSegments() throws SegmentSealedException {
         String scope = "scope";
         String stream = "stream";
+        String groupName = "readerGroup";
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
@@ -919,9 +921,9 @@ public class EventStreamReaderTest {
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizerForReaderGroup(connectionFactory, controller,
                                                                                          segmentStreamFactory,
                                                                                          Stream.of(scope, stream),
-                                                                                         "reader1", clock, 2);
+                                                                                         "reader1", clock, 2, groupName);
         @Cleanup
-        EventStreamReaderImpl<byte[]> reader = createReader(controller, segmentStreamFactory, "reader1", sync, clock);
+        EventStreamReaderImpl<byte[]> reader = createReader(controller, segmentStreamFactory, "reader1", sync, clock, scope, groupName);
         EventRead<byte[]> event = reader.readNextEvent(100);
         assertEquals(2, readInt(event));
         assertEquals(ImmutableSet.of(), event.getPosition().asImpl().getCompletedSegments());
@@ -953,7 +955,8 @@ public class EventStreamReaderTest {
         String scope = "scope";
         String streamName = "stream";
         Stream stream = Stream.of(scope, streamName);
-        String readerGroupStream = NameUtils.getStreamForReaderGroup("readerGroup");
+        String groupName = "readerGroup";
+        String readerGroupStream = NameUtils.getStreamForReaderGroup(groupName);
         String markStream = NameUtils.getMarkStreamForStream(streamName);
         
         //Create factories
@@ -990,7 +993,7 @@ public class EventStreamReaderTest {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config,
                                                                   segments,
-                                                                  getEndSegmentsForStreams(config)));
+                                                                  getEndSegmentsForStreams(config), false));
         //Data segment writers
         Segment segment1 = new Segment(scope, streamName, 0);
         Segment segment2 = new Segment(scope, streamName, 1);
@@ -1016,7 +1019,7 @@ public class EventStreamReaderTest {
         
         //Create reader
         AtomicLong clock = new AtomicLong();
-        ReaderGroupStateManager groupState = new ReaderGroupStateManager("reader1", sync, controller, clock::get);
+        ReaderGroupStateManager groupState = new ReaderGroupStateManager(scope, groupName, "reader1", sync, controller, clock::get);
         groupState.initializeReader(0);
         @Cleanup
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
@@ -1069,8 +1072,9 @@ public class EventStreamReaderTest {
 
     private EventStreamReaderImpl<byte[]> createReader(MockController controller,
                                                        MockSegmentStreamFactory segmentStreamFactory, String readerId,
-                                                       StateSynchronizer<ReaderGroupState> sync, AtomicLong clock) {
-        ReaderGroupStateManager groupState = new ReaderGroupStateManager(readerId, sync, controller, clock::get);
+                                                       StateSynchronizer<ReaderGroupState> sync, AtomicLong clock,
+                                                       String scope, String groupName) {
+        ReaderGroupStateManager groupState = new ReaderGroupStateManager(scope, groupName, readerId, sync, controller, clock::get);
         groupState.initializeReader(0);
         return new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory, new ByteArraySerializer(),
                                            groupState, new Orderer(), clock::get, ReaderConfig.builder().build(),
@@ -1083,8 +1087,9 @@ public class EventStreamReaderTest {
                                                                                       MockSegmentStreamFactory streamFactory,
                                                                                       Stream stream, String readerId,
                                                                                       AtomicLong clock,
-                                                                                      int numSegments) {
-        String readerGroupStream = NameUtils.getStreamForReaderGroup("readerGroup");
+                                                                                      int numSegments,
+                                                                                      String groupName) {
+        String readerGroupStream = NameUtils.getStreamForReaderGroup(groupName);
         StreamConfiguration streamConfig = StreamConfiguration.builder()
                                                               .scalingPolicy(ScalingPolicy.fixed(numSegments))
                                                               .build();
@@ -1106,7 +1111,7 @@ public class EventStreamReaderTest {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config,
                                                                   segments,
-                                                                  getEndSegmentsForStreams(config)));
+                                                                  getEndSegmentsForStreams(config), false));
         return sync;
     }
     
