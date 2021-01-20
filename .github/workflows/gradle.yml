@@ -35,7 +35,9 @@ jobs:
             **/**/build/**
             **/**/**/build/**
           key: ${{ github.run_id }}
-      - name: Compile and Static Analysis
+      - name: Compile
+        run: ./gradlew jar compileTest --parallel
+      - name: Static Analysis
         run: ./gradlew jar compileTest rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
 
   unit_client:
@@ -65,7 +67,7 @@ jobs:
             **/**/**/build/**
           key: ${{ github.run_id }}
       - name: Unit tests
-        run: ./gradlew client:test
+        run: ./gradlew client:test --info
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
@@ -160,7 +162,7 @@ jobs:
             **/**/**/build/**
           key: ${{ github.run_id }}
       - name: Storage Impl Unit tests
-        run: ./gradlew segmentstore:storage:test segmentstore:storage:impl:test bindings:test --parallel
+        run: ./gradlew segmentstore:storage:test segmentstore:storage:impl:test bindings:test --parallel  --info
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
