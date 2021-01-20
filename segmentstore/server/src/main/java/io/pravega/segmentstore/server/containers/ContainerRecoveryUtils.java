@@ -411,17 +411,10 @@ public class ContainerRecoveryUtils {
         int offset = 0;
         int bytesToRead = (int) segmentInfo.getLength();
         val sourceHandle = storage.openRead(segmentName).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        byte[] buffer = new byte[BUFFER_SIZE];
-        while (bytesToRead > 0) {
-            int size = storage.read(sourceHandle, offset, buffer, 0, Math.min(BUFFER_SIZE, bytesToRead), timeout)
-                    .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            log.info("Read size: {}", size);
-            if (size > 0) {
-                fileOutputStream.write(buffer, 0, Math.min(BUFFER_SIZE, bytesToRead));
-                bytesToRead -= size;
-                offset += size;
-            }
-        }
+        byte[] buffer = new byte[bytesToRead];
+        storage.read(sourceHandle, 0, buffer, 0, bytesToRead, timeout)
+                .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        fileOutputStream.write(buffer, 0, bytesToRead);
     }
 
     /**
