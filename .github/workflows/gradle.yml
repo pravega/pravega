@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v1
-      - name: Restore local Gradle & Maven cache
+      - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
@@ -27,26 +27,24 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Cache Build Output
+      - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/
+            ./
             !.gradle
             !~/.gradle
             !~/.m2
           key: ${{ github.run_id }}
-      - name: Compile
-        run: ./gradlew jar compileTest
-      - name: Static Analysis
-        run: ./gradlew rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
+      - name: Compile and Static Analysis
+        run: ./gradlew jar compileTest rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
 
   unit_client:
     needs: build
     runs-on: ubuntu-20.04
     name: Client Unit Tests
     steps:
-      - name: Restore local Gradle & Maven cache
+      - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
@@ -57,11 +55,11 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Cache Build Output
+      - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/
+            ./
             !.gradle
             !~/.gradle
             !~/.m2
@@ -76,7 +74,7 @@ jobs:
     runs-on: ubuntu-20.04
     name: Controller Unit Tests
     steps:
-      - name: Restore local Gradle & Maven cache
+      - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
@@ -87,11 +85,11 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Cache Build Output
+      - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/
+            ./
             !.gradle
             !~/.gradle
             !~/.m2
@@ -106,7 +104,7 @@ jobs:
     runs-on: ubuntu-20.04
     name: Segment Store Unit Tests
     steps:
-      - name: Restore local Gradle & Maven cache
+      - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
@@ -117,11 +115,11 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Cache Build Output
+      - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/
+            ./
             !.gradle
             !~/.gradle
             !~/.m2
@@ -138,7 +136,7 @@ jobs:
     runs-on: ubuntu-20.04
     name: Segment Store Storage Unit Tests
     steps:
-      - name: Restore local Gradle & Maven cache
+      - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
@@ -149,11 +147,11 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Cache Build Output
+      - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/
+            ./
             !.gradle
             !~/.gradle
             !~/.m2
@@ -168,7 +166,7 @@ jobs:
     runs-on: ubuntu-20.04
     name: All Other Unit Tests
     steps:
-      - name: Restore local Gradle & Maven cache
+      - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
@@ -179,11 +177,11 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Cache Build Output
+      - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/
+            ./
             !.gradle
             !~/.gradle
             !~/.m2
@@ -208,7 +206,7 @@ jobs:
     runs-on: ubuntu-20.04
     name: Integration Tests
     steps:
-      - name: Restore local Gradle & Maven cache
+      - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
@@ -219,11 +217,11 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Cache Build Output
+      - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/
+            ./
             !.gradle
             !~/.gradle
             !~/.m2
@@ -245,7 +243,7 @@ jobs:
     runs-on: ubuntu-20.04
     name: Artifactory Snapshot
     steps:
-      - name: Restore local Gradle & Maven cache
+      - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
@@ -256,11 +254,11 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Cache Build Output
+      - name: Build Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/
+            ./
             !.gradle
             !~/.gradle
             !~/.m2
