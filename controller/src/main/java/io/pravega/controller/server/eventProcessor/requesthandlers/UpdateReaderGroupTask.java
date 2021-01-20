@@ -61,7 +61,7 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
         ImmutableSet<String> streamsToBeUnsubscribed = request.getRemoveStreams();
         final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
 
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup)
                 .thenCompose(id -> {
                 if (!id.equals(readerGroupId)) {
                         log.warn("Skipping processing of Reader Group update request {} as UUID did not match.", requestId);
