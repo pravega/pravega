@@ -37,7 +37,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.stream.Collectors.summarizingLong;
 
 @Data
-@Builder
+@Builder(toBuilder = true)
 public class ReaderGroupConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;

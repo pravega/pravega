@@ -424,7 +424,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
                         .setStatus(Controller.UpdateReaderGroupResponse.Status.SUCCESS).setGeneration(1L).build()));
-        Assert.assertTrue(this.testController.updateReaderGroup("scope", "subscriber", config).join());
+        Assert.assertNotNull(this.testController.updateReaderGroup("scope", "subscriber", config).join());
 
         when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
