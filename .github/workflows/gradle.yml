@@ -14,10 +14,11 @@ on:
   push:
     branches:
       - master                 # On every push to the master branch.
-      - `r*.*1`                # On every push to a release branch.
+      - 'r*.*1'                # On every push to a release branch.
   pull_request:                # On every pull request, regardless of source/target branch.
   release:
-    types: [published]         # On every published release.
+    types:
+      - published              # On every published release.
 
 # Define a few constants that are shared across all the jobs.
 env:
