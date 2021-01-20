@@ -38,6 +38,7 @@ import io.pravega.client.stream.impl.ReaderGroupState.RemoveReader;
 import io.pravega.client.stream.impl.ReaderGroupState.SegmentCompleted;
 import io.pravega.client.stream.impl.ReaderGroupState.UpdateDistanceToTail;
 import io.pravega.client.stream.impl.ReaderGroupState.UpdateDistanceToTail.UpdateDistanceToTailSerializer;
+import io.pravega.client.stream.impl.ReaderGroupState.UpdatingConfig;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -247,7 +248,7 @@ public class SerializationTest {
                                                     .groupRefreshTimeMillis(r.nextInt(1000))
                                                     .stream(createSegment().getStream())
                                                     .build();
-        verify(initSerializer, new ReaderGroupStateInit(config, createSegmentRangeMap(), createSegmentToLongMap()));
+        verify(initSerializer, new ReaderGroupStateInit(config, createSegmentRangeMap(), createSegmentToLongMap(), false));
         CompactReaderGroupStateBuilder builder = new CompactReaderGroupState.CompactReaderGroupStateBuilder();
         builder.assignedSegments(createMap(this::createString, this::createSegmentRangeMap));
         builder.checkpointState(new CheckpointState.CheckpointStateBuilder().checkpoints(createList(this::createString))
@@ -272,7 +273,7 @@ public class SerializationTest {
                 version(0).revision(0,  this::write00, this::read00);
             }
         };
-        ReaderGroupStateInit init = new ReaderGroupStateInit(config, createSegmentRangeMap(), createSegmentToLongMap());
+        ReaderGroupStateInit init = new ReaderGroupStateInit(config, createSegmentRangeMap(), createSegmentToLongMap(), false);
         ReaderGroupStateInit oldFormat = newSerializer.deserialize(oldSerializer.serialize(init));
         assertEquals(init.getStartingSegments()
                          .keySet().stream().map(s -> s.getSegment()).collect(Collectors.toSet()),
@@ -295,6 +296,7 @@ public class SerializationTest {
         verify(serializer, new CheckpointReader(createString(), createString(), createSegmentToLongMap()));
         verify(serializer, new CreateCheckpoint(createString()));
         verify(serializer, new ClearCheckpointsBefore(createString()));
+        verify(serializer, new UpdatingConfig(r.nextBoolean()));
     }
     
     @Test
@@ -319,7 +321,7 @@ public class SerializationTest {
         // Change the state to reflect the update
         val segmentToOffsets = ImmutableMap.of(new SegmentWithRange(new Segment("scope", "stream", 0), 0.0, 1.0), 0L);
         ReaderGroupState state = new ReaderGroupState("_RGTest", mock(Revision.class), mock(ReaderGroupConfig.class),
-                                                      segmentToOffsets, mock(Map.class));
+                                                      segmentToOffsets, mock(Map.class), false);
         oldStyleUpdate.update(state); // ensure no exceptions are thrown.
 
     }
