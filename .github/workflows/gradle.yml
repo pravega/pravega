@@ -27,30 +27,25 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Assemble
-        run: ./gradlew assemble --parallel
+      - name: Cache Build Output
+        uses: actions/cache@v2.1.0
+        with:
+          path: |
+            ~/
+            !.gradle
+            !~/.gradle
+            !~/.m2
+          key: ${{ github.run_id }}
+      - name: Compile
+        run: ./gradlew jar compileTest
       - name: Static Analysis
         run: ./gradlew rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
-      - name: Store Build Artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          name: build-output
-          path: |
-            **/build/**
-      - name: Store Snapshots
-        uses: actions/upload-artifact@v2
-        with:
-          name: build-snapshot
-          path: |
-            build
 
   unit_client:
     needs: build
     runs-on: ubuntu-20.04
     name: Client Unit Tests
     steps:
-      - name: Checkout
-        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -62,10 +57,15 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v2
+      - name: Cache Build Output
+        uses: actions/cache@v2.1.0
         with:
-          name: build-output
+          path: |
+            ~/
+            !.gradle
+            !~/.gradle
+            !~/.m2
+          key: ${{ github.run_id }}
       - name: Unit tests
         run: ./gradlew client:test
       - name: Codecov
@@ -76,8 +76,6 @@ jobs:
     runs-on: ubuntu-20.04
     name: Controller Unit Tests
     steps:
-      - name: Checkout
-        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -89,10 +87,15 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v2
+      - name: Cache Build Output
+        uses: actions/cache@v2.1.0
         with:
-          name: build-output
+          path: |
+            ~/
+            !.gradle
+            !~/.gradle
+            !~/.m2
+          key: ${{ github.run_id }}
       - name: Controller Unit tests
         run: ./gradlew controller:test
       - name: Codecov
@@ -103,8 +106,6 @@ jobs:
     runs-on: ubuntu-20.04
     name: Segment Store Unit Tests
     steps:
-      - name: Checkout
-        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -116,10 +117,15 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v2
+      - name: Cache Build Output
+        uses: actions/cache@v2.1.0
         with:
-          name: build-output
+          path: |
+            ~/
+            !.gradle
+            !~/.gradle
+            !~/.m2
+          key: ${{ github.run_id }}
       - name: Segment Store Unit tests
         run: ./gradlew segmentstore:server:test
       - name: Segment Store Host Unit tests
@@ -132,8 +138,6 @@ jobs:
     runs-on: ubuntu-20.04
     name: Segment Store Storage Unit Tests
     steps:
-      - name: Checkout
-        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -145,10 +149,15 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v2
+      - name: Cache Build Output
+        uses: actions/cache@v2.1.0
         with:
-          name: build-output
+          path: |
+            ~/
+            !.gradle
+            !~/.gradle
+            !~/.m2
+          key: ${{ github.run_id }}
       - name: Storage Impl Unit tests
         run: ./gradlew segmentstore:storage:test segmentstore:storage:impl:test bindings:test --parallel
       - name: Codecov
@@ -159,8 +168,6 @@ jobs:
     runs-on: ubuntu-20.04
     name: All Other Unit Tests
     steps:
-      - name: Checkout
-        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -172,10 +179,15 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v2
+      - name: Cache Build Output
+        uses: actions/cache@v2.1.0
         with:
-          name: build-output
+          path: |
+            ~/
+            !.gradle
+            !~/.gradle
+            !~/.m2
+          key: ${{ github.run_id }}
       - name: Unit tests
         run: >
           ./gradlew test
@@ -196,8 +208,6 @@ jobs:
     runs-on: ubuntu-20.04
     name: Integration Tests
     steps:
-      - name: Checkout
-        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -209,10 +219,15 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v2
+      - name: Cache Build Output
+        uses: actions/cache@v2.1.0
         with:
-          name: build-output
+          path: |
+            ~/
+            !.gradle
+            !~/.gradle
+            !~/.m2
+          key: ${{ github.run_id }}
       - name: Integration Tests
         run: ./gradlew test:integration:test
 
@@ -230,8 +245,6 @@ jobs:
     runs-on: ubuntu-20.04
     name: Artifactory Snapshot
     steps:
-      - name: Checkout
-        uses: actions/checkout@v1
       - name: Restore local Gradle & Maven cache
         uses: actions/cache@v2.1.0
         with:
@@ -243,9 +256,16 @@ jobs:
           restore-keys: |
             gradle-m2-java-
             gradle-m2
-      - name: Download Snapshots
-        uses: actions/download-artifact@v2
+      - name: Cache Build Output
+        uses: actions/cache@v2.1.0
         with:
-          name: build-snapshot
+          path: |
+            ~/
+            !.gradle
+            !~/.gradle
+            !~/.m2
+          key: ${{ github.run_id }}
+      - name: Assemble
+        run: ./gradlew assemble --parallel
       - name: Publish Shapshot
         run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=${{ secrets.BINTRAY_USER }} -PpublishPassword=${{ secrets.BINTRAY_KEY }}
