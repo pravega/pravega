@@ -405,21 +405,19 @@ public class ContainerRecoveryUtils {
     }
 
     /**
-     *
-     * @param storage
-     * @param segmentName
-     * @param fileOutputStream
-     * @param executor
-     * @param timeout
-     * @throws InterruptedException
-     * @throws ExecutionException
-     * @throws TimeoutException
-     * @throws IOException
-     * @return
+     * Reads the contents of a given segment.
+     * @param storage                   A storage instance to read the segment's contents.
+     * @param segmentName               The name of the segment.
+     * @param fileOutputStream          A  instance of the {@link FileOutputStream} to write the contents.
+     * @param executor                  A thread pool for the execution.
+     * @param timeout                   A timeout for the operation.
+     * @throws Exception                If an exception occurred.
+     * @return                          A CompletableFuture that, when completed normally, will indicate the operation
+     * completed. If the operation failed, the future will be failed with the causing exception.
      */
     public static CompletableFuture<Void> readSegment(Storage storage, String segmentName, FileOutputStream fileOutputStream,
                                                       ExecutorService executor, Duration timeout)
-            throws InterruptedException, ExecutionException, TimeoutException, IOException {
+            throws Exception {
         return storage.getStreamSegmentInfo(segmentName, timeout).thenComposeAsync(info -> {
             return storage.openRead(segmentName).thenComposeAsync(sourceHandle -> {
                 byte[] buffer = new byte[(int) info.getLength()];
