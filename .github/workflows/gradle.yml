@@ -14,7 +14,7 @@ on:
   push:
     branches:
       - master                 # On every push to the master branch.
-      - 'r*.*1'                # On every push to a release branch.
+      - 'r*.*'                 # On every push to a release branch.
   pull_request:                # On every pull request, regardless of source/target branch.
   release:
     types:
@@ -195,7 +195,9 @@ jobs:
     name: Artifactory Snapshot
     needs: [build_and_test_complete]
     # Only run this on PUSH (no pull requests) and only on the master branch and release branches.
-    if: ${{github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/head/r0.') || startsWith(github.ref, 'refs/head/r1.'))}}
+    # TODO revert after validating this works correctly
+    #if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/head/r0.') || startsWith(github.ref, 'refs/head/r1.')) }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/issue-5524-gha' || startsWith(github.ref, 'refs/head/r0.') || startsWith(github.ref, 'refs/head/r1.')) }}
     runs-on: ubuntu-20.04
     steps:
       - name: Gradle & Maven Cache
