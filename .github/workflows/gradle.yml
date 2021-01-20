@@ -31,9 +31,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/**/build/**
-            ~/**/**/build/**
-            ~/**/**/**/build/**
+            **/build/**
+            **/**/build/**
+            **/**/**/build/**
           key: ${{ github.run_id }}
       - name: Compile and Static Analysis
         run: ./gradlew jar compileTest rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel
@@ -60,9 +60,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/**/build/**
-            ~/**/**/build/**
-            ~/**/**/**/build/**
+            **/build/**
+            **/**/build/**
+            **/**/**/build/**
           key: ${{ github.run_id }}
       - name: Unit tests
         run: ./gradlew client:test
@@ -91,9 +91,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/**/build/**
-            ~/**/**/build/**
-            ~/**/**/**/build/**
+            **/build/**
+            **/**/build/**
+            **/**/**/build/**
           key: ${{ github.run_id }}
       - name: Controller Unit tests
         run: ./gradlew controller:test
@@ -122,9 +122,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/**/build/**
-            ~/**/**/build/**
-            ~/**/**/**/build/**
+            **/build/**
+            **/**/build/**
+            **/**/**/build/**
           key: ${{ github.run_id }}
       - name: Segment Store Unit tests
         run: ./gradlew segmentstore:server:test
@@ -155,9 +155,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/**/build/**
-            ~/**/**/build/**
-            ~/**/**/**/build/**
+            **/build/**
+            **/**/build/**
+            **/**/**/build/**
           key: ${{ github.run_id }}
       - name: Storage Impl Unit tests
         run: ./gradlew segmentstore:storage:test segmentstore:storage:impl:test bindings:test --parallel
@@ -186,9 +186,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/**/build/**
-            ~/**/**/build/**
-            ~/**/**/**/build/**
+            **/build/**
+            **/**/build/**
+            **/**/**/build/**
           key: ${{ github.run_id }}
       - name: Unit tests
         run: >
@@ -227,9 +227,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/**/build/**
-            ~/**/**/build/**
-            ~/**/**/**/build/**
+            **/build/**
+            **/**/build/**
+            **/**/**/build/**
           key: ${{ github.run_id }}
       - name: Integration Tests
         run: ./gradlew test:integration:test
@@ -265,9 +265,9 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            ~/**/build/**
-            ~/**/**/build/**
-            ~/**/**/**/build/**
+            **/build/**
+            **/**/build/**
+            **/**/**/build/**
           key: ${{ github.run_id }}
       - name: Assemble
         run: ./gradlew assemble --parallel
