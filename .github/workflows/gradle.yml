@@ -31,9 +31,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            **/build
-            **/**/build
-            **/**/**/build
+            *
           key: ${{ github.run_id }}
       - name: Compile
         run: ./gradlew jar compileTest --parallel
@@ -53,8 +51,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Client Unit Tests
     steps:
-      - name: Checkout
-        uses: actions/checkout@v1
+#      - name: Checkout
+#        uses: actions/checkout@v1
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -70,9 +68,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            **/build
-            **/**/build
-            **/**/**/build
+            *
           key: ${{ github.run_id }}
       - name: Unit tests
         run: ./gradlew client:test --info
@@ -148,8 +144,8 @@ jobs:
     runs-on: ubuntu-20.04
     name: Segment Store Storage Unit Tests
     steps:
-      - name: Checkout
-        uses: actions/checkout@v1
+#      - name: Checkout
+#        uses: actions/checkout@v1
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -165,9 +161,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: |
-            **/build
-            **/**/build
-            **/**/**/build
+            *
           key: ${{ github.run_id }}
       - name: Storage Impl Unit tests
         run: ./gradlew segmentstore:storage:test segmentstore:storage:impl:test bindings:test --parallel  --info
