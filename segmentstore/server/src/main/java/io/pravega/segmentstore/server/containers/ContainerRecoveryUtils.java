@@ -404,30 +404,24 @@ public class ContainerRecoveryUtils {
             }, executor);
     }
 
-    public static CompletableFuture<Void> readSegment(Storage storage, String segmentName, FileOutputStream fileOutputStream,
-                                                      ExecutorService executor, Duration timeout)
+    public static void readSegment(Storage storage, String segmentName, FileOutputStream fileOutputStream,
+                                                       ExecutorService executor, Duration timeout)
             throws InterruptedException, ExecutionException, TimeoutException, IOException {
+        val segmentInfo = storage.getStreamSegmentInfo(segmentName, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        int offset = 0;
+        int bytesToRead = (int) segmentInfo.getLength();
+        val sourceHandle = storage.openRead(segmentName).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         byte[] buffer = new byte[BUFFER_SIZE];
-        return storage.getStreamSegmentInfo(segmentName, timeout).thenComposeAsync(info -> {
-            return storage.openRead(segmentName).thenComposeAsync(sourceHandle -> {
-                AtomicInteger offset = new AtomicInteger(0);
-                AtomicInteger bytesToRead = new AtomicInteger((int) info.getLength());
-                return Futures.loop(
-                        () -> bytesToRead.get() > 0,
-                        () -> {
-                            return storage.read(sourceHandle, offset.get(), buffer, 0, Math.min(BUFFER_SIZE, bytesToRead.get()), timeout)
-                                    .thenAcceptAsync(size -> {
-                                        try {
-                                            fileOutputStream.write(buffer, 0, Math.min(BUFFER_SIZE, bytesToRead.get()));
-                                        } catch (IOException e) {
-                                            e.printStackTrace();
-                                        }
-                                        bytesToRead.addAndGet(-size);
-                                        offset.addAndGet(size);
-                                    }, executor);
-                        }, executor);
-            }, executor);
-        }, executor);
+        while (bytesToRead > 0) {
+            int size = storage.read(sourceHandle, offset, buffer, 0, Math.min(BUFFER_SIZE, bytesToRead), timeout)
+                    .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            log.info("Read size: {}", size);
+            if (size > 0) {
+                fileOutputStream.write(buffer, 0, Math.min(BUFFER_SIZE, bytesToRead));
+                bytesToRead -= size;
+                offset += size;
+            }
+        }
     }
 
     /**
