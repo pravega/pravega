@@ -83,7 +83,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.action}}
+          key: ${{github.run_id}}-${{github.job}}
       - name: Unit tests
         run: ./gradlew client:test
       - name: Codecov
@@ -109,7 +109,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.action}}
+          key: ${{github.run_id}}-${{github.job}}
       - name: Controller Unit tests
         run: ./gradlew controller:test
       - name: Codecov
@@ -135,7 +135,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.action}}
+          key: ${{github.run_id}}-${{github.job}}
       - name: Segment Store Unit tests
         run: >
           ./gradlew
@@ -167,7 +167,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.action}}
+          key: ${{github.run_id}}-${{github.job}}
       - name: Storage Bindings Unit tests
         run: >
           ./gradlew
@@ -197,7 +197,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.action}}
+          key: ${{github.run_id}}-${{github.job}}
       - name: Unit tests
         run: >
           ./gradlew test
@@ -233,7 +233,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.action}}
+          key: ${{github.run_id}}-${{github.job}}
       - name: Integration Tests
         run: ./gradlew test:integration:test
 
