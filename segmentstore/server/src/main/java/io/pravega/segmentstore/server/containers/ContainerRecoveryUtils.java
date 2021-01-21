@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -52,7 +53,7 @@ import static io.pravega.shared.NameUtils.getMetadataSegmentName;
  */
 @Slf4j
 public class ContainerRecoveryUtils {
-    private static final int BUFFER_SIZE = 8 * 1024 * 1024 * 1024;
+    private static final int BUFFER_SIZE = 8 * 1024 * 1024;
 
     /**
      * Recovers Segments from the given Storage instance. This is done by:
@@ -418,19 +419,28 @@ public class ContainerRecoveryUtils {
     public static CompletableFuture<Void> readSegment(Storage storage, String segmentName, FileOutputStream fileOutputStream,
                                                       ExecutorService executor, Duration timeout)
             throws Exception {
+        byte[] buffer = new byte[BUFFER_SIZE];
         return storage.getStreamSegmentInfo(segmentName, timeout).thenComposeAsync(info -> {
             return storage.openRead(segmentName).thenComposeAsync(sourceHandle -> {
-                byte[] buffer = new byte[(int) info.getLength()];
-                return storage.read(sourceHandle, 0, buffer, 0, (int) info.getLength(), timeout)
-                        .thenAcceptAsync(size -> {
-                            try {
-                                fileOutputStream.write(buffer, 0, (int) info.getLength());
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                            }, executor);
-                }, executor);
+                AtomicInteger offset = new AtomicInteger(0);
+                AtomicInteger bytesToRead = new AtomicInteger((int) info.getLength());
+                return Futures.loop(
+                        () -> bytesToRead.get() > 0,
+                        () -> {
+                            int readBytes = Math.min(BUFFER_SIZE, bytesToRead.get());
+                            return storage.read(sourceHandle, offset.get(), buffer, 0, readBytes, timeout)
+                                    .thenAcceptAsync(size -> {
+                                        try {
+                                            fileOutputStream.write(buffer, 0, readBytes);
+                                        } catch (IOException e) {
+                                            throw new CompletionException(e);
+                                        }
+                                        bytesToRead.addAndGet(-size);
+                                        offset.addAndGet(size);
+                                    }, executor);
+                        }, executor);
             }, executor);
+        }, executor);
     }
 
     /**
