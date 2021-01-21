@@ -11,7 +11,12 @@ package io.pravega.client.connection.impl;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.pravega.shared.protocol.netty.*;
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
+import io.pravega.shared.protocol.netty.InvalidMessageException;
+import io.pravega.shared.protocol.netty.FailingReplyProcessor;
+import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
@@ -367,7 +372,7 @@ public class CommandEncoderTest {
     }
 
     @Test
-    public void testShutDown() throws IOException {
+    public void testShutdown() throws IOException {
         AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
         DecodingOutputStream output = new DecodingOutputStream();
         AtomicInteger counter = new AtomicInteger(0);
