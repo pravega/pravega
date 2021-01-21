@@ -32,6 +32,7 @@ import javax.ws.rs.core.Response;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -49,13 +50,13 @@ public class DynamicRestApiTest extends AbstractSystemTest {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(5 * 60);
 
-    private final Client client;
+    private Client client;
     private WebTarget webTarget;
     private String restServerURI;
     private String resourceURl;
 
-    public DynamicRestApiTest() {
-
+    @Before
+    public void setup() {
         org.glassfish.jersey.client.ClientConfig clientConfig = new org.glassfish.jersey.client.ClientConfig();
         clientConfig.register(JacksonJsonProvider.class);
         clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
