@@ -923,58 +923,58 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         };
 
         if (u instanceof StreamSegmentExistsException) {
-            log.info(requestId, "Segment '{}' already exists and cannot perform operation '{}'.",
-                     segment, operation);
+            log.info(requestId, "Segment '{}' already exists and cannot perform operation '{}'. Exception : {}",
+                     segment, operation, u);
             invokeSafely(connection::send, new SegmentAlreadyExists(requestId, segment, clientReplyStackTrace), failureHandler);
 
         } else if (u instanceof StreamSegmentNotExistsException) {
-            log.warn(requestId, "Segment '{}' does not exist and cannot perform operation '{}'.",
-                     segment, operation);
+            log.warn(requestId, "Segment '{}' does not exist and cannot perform operation '{}'. Exception : {}",
+                     segment, operation, u);
             invokeSafely(connection::send, new NoSuchSegment(requestId, segment, clientReplyStackTrace, offset), failureHandler);
         } else if (u instanceof StreamSegmentSealedException) {
-            log.info(requestId, "Segment '{}' is sealed and cannot perform operation '{}'.",
-                     segment, operation);
+            log.info(requestId, "Segment '{}' is sealed and cannot perform operation '{}'. Exception : {}",
+                     segment, operation, u);
             invokeSafely(connection::send, new SegmentIsSealed(requestId, segment, clientReplyStackTrace, offset), failureHandler);
         } else if (u instanceof ContainerNotFoundException) {
             int containerId = ((ContainerNotFoundException) u).getContainerId();
-            log.warn(requestId, "Wrong host. Segment = '{}' (Container {}) is not owned. Operation = '{}').",
-                     segment, containerId, operation);
+            log.warn(requestId, "Wrong host. Segment = '{}' (Container {}) is not owned. Operation = '{}'). Exception : {}",
+                     segment, containerId, operation, u);
             invokeSafely(connection::send, new WrongHost(requestId, segment, "", clientReplyStackTrace), failureHandler);
         } else if (u instanceof ReadCancellationException) {
-            log.info(requestId, "Sending empty response on connection {} while reading segment {} due to CancellationException.",
-                    connection, segment);
+            log.info(requestId, "Sending empty response on connection {} while reading segment {} due to CancellationException. Exception : {}",
+                    connection, segment, u);
             invokeSafely(connection::send, new SegmentRead(segment, offset, true, false, EMPTY_BUFFER, requestId), failureHandler);
         } else if (u instanceof CancellationException) {
-            log.info(requestId, "Closing connection {} while performing {} due to {}.",
-                    connection, operation, u.toString());
+            log.info(requestId, "Closing connection {} while performing {} due to {}. Exception : {}",
+                    connection, operation, u.toString(), u);
             connection.close();
         } else if (u instanceof TokenExpiredException) {
-            log.warn(requestId, "Expired token during operation {}", operation);
+            log.warn(requestId, "Expired token during operation {}. Exception : {}", operation, u);
             invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace,
                     AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED), failureHandler);
         } else if (u instanceof TokenException) {
-            log.warn(requestId, "Token exception encountered during operation {}.", operation, u);
+            log.warn(requestId, "Token exception encountered during operation {}. Exception : {}", operation, u);
             invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace,
                     AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED), failureHandler);
         } else if (u instanceof UnsupportedOperationException) {
-            log.warn(requestId, "Unsupported Operation '{}'.", operation, u);
+            log.warn(requestId, "Unsupported Operation '{}'. Exception : {}", operation, u);
             invokeSafely(connection::send, new OperationUnsupported(requestId, operation, clientReplyStackTrace), failureHandler);
         } else if (u instanceof BadOffsetException) {
             BadOffsetException badOffset = (BadOffsetException) u;
-            log.info(requestId, "Segment '{}' is truncated and cannot perform operation '{}' at offset '{}'", segment, operation, offset);
+            log.info(requestId, "Segment '{}' is truncated and cannot perform operation '{}' at offset '{}'. Exception : {}", segment, operation, offset, u);
             invokeSafely(connection::send, new SegmentIsTruncated(requestId, segment, badOffset.getExpectedOffset(),
                                                                   clientReplyStackTrace, offset), failureHandler);
         } else if (u instanceof TableSegmentNotEmptyException) {
-            log.warn(requestId, "Table segment '{}' is not empty to perform '{}'.", segment, operation);
+            log.warn(requestId, "Table segment '{}' is not empty to perform '{}'. Exception : {}", segment, operation, u);
             invokeSafely(connection::send, new TableSegmentNotEmpty(requestId, segment, clientReplyStackTrace), failureHandler);
         } else if (u instanceof KeyNotExistsException) {
-            log.warn(requestId, "Conditional update on Table segment '{}' failed as the key does not exist.", segment);
+            log.warn(requestId, "Conditional update on Table segment '{}' failed as the key does not exist. Exception : {}", segment, u);
             invokeSafely(connection::send, new WireCommands.TableKeyDoesNotExist(requestId, segment, clientReplyStackTrace), failureHandler);
         } else if (u instanceof BadKeyVersionException) {
-            log.warn(requestId, "Conditional update on Table segment '{}' failed due to bad key version.", segment);
+            log.warn(requestId, "Conditional update on Table segment '{}' failed due to bad key version. Exception : {}", segment, u);
             invokeSafely(connection::send, new WireCommands.TableKeyBadVersion(requestId, segment, clientReplyStackTrace), failureHandler);
         } else if (errorCodeExists(u)) {
-            log.warn(requestId, "Operation on segment '{}' failed due to a {}.", segment, u.getClass());
+            log.warn(requestId, "Operation {} on segment '{}' failed. Exception : {}", operation, segment, u);
             invokeSafely(connection::send,
                     new WireCommands.ErrorMessage(requestId, segment, u.getMessage(), WireCommands.ErrorMessage.ErrorCode.valueOf(u.getClass())),
                     failureHandler);
