@@ -197,7 +197,7 @@ public class TcpClientConnection implements ClientConnection {
                 AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
                 ConnectionReader reader = new ConnectionReader(location.toString(), inputStream, callback, batchSizeTracker);
                 reader.start();
-                CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, socket.getOutputStream());
+                CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, socket.getOutputStream(), callback);
                 return new TcpClientConnection(socket, encoder, reader, location, onClose, executor);
             } catch (Exception e) {
                 closeQuietly(socket, log, "Failed to close socket while failing.");

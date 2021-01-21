@@ -15,11 +15,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.Unpooled;
 import io.pravega.shared.metrics.MetricNotifier;
-import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
-import io.pravega.shared.protocol.netty.InvalidMessageException;
-import io.pravega.shared.protocol.netty.WireCommand;
-import io.pravega.shared.protocol.netty.WireCommandType;
+import io.pravega.shared.protocol.netty.*;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
@@ -33,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
@@ -56,7 +53,9 @@ public class CommandEncoder {
     static final int MAX_QUEUED_EVENTS = 500;
     @VisibleForTesting
     static final int MAX_QUEUED_SIZE = 1024 * 1024; // 1MB
-    
+    @VisibleForTesting
+    static final int MAX_SETUP_SEGMENTS_SIZE = 2000;
+
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
     private final Function<Long, AppendBatchSizeTracker> appendTracker;
     private final MetricNotifier metricNotifier;
@@ -76,6 +75,9 @@ public class CommandEncoder {
 
     private final OutputStream output;
     private final ByteBuf buffer = Unpooled.buffer(1024 * 1024);
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final ReplyProcessor callback;
 
     @RequiredArgsConstructor
     @VisibleForTesting
@@ -177,9 +179,18 @@ public class CommandEncoder {
     
     @Synchronized
     public void write(WireCommand msg) throws IOException {
+        checkIfClosed();
         if (msg instanceof SetupAppend) {
             breakCurrentAppend();
             flushAllToBuffer();
+            if (setupSegments.size() >= MAX_SETUP_SEGMENTS_SIZE) {
+                flushBuffer();
+                closed.compareAndSet(false, true);
+                if (callback != null) {
+                    callback.connectionDropped();
+                }
+                throw new IOException("CommandEncoder closed");
+            }
             writeMessage((SetupAppend) msg, buffer);
             SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(new SimpleImmutableEntry<>(setup.getSegment(), setup.getWriterId()),
@@ -200,6 +211,7 @@ public class CommandEncoder {
     
     @Synchronized
     public void write(Append append) throws IOException {
+        checkIfClosed();
         Session session = setupSegments.get(new SimpleImmutableEntry<>(append.getSegment(), append.getWriterId()));
         validateAppend(append, session);
         final ByteBuf data = append.getData().slice();
@@ -422,5 +434,11 @@ public class CommandEncoder {
             closeQuietly(output, log, "Closing output failed");
         }
         return result;
-    }    
+    }
+
+    private void checkIfClosed() throws IOException {
+        if (closed.get()) {
+            throw new IOException("CommandEncoder already closed");
+        }
+    }
 }
