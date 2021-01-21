@@ -475,7 +475,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
      * The test creates a {@link SegmentProperties} instance which random details and tests registerSegmentAndUpdateAttributes.
      */
     @Test
-    public void testRegisterSegmentAndUpdateAttributes() throws InterruptedException, ExecutionException, TimeoutException {
+    public void testRegisterSegmentAndUpdateAttributes() {
         String segmentName = "segment-" + RANDOM.nextInt();
         int containerId = 0;
 
@@ -500,15 +500,15 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     private SegmentProperties createSegmentProperty(String streamSegmentName, String segmentName) {
 
         Map<UUID, Long> attributes = new HashMap<>();
-        attributes.put(Attributes.EVENT_COUNT,  RANDOM.nextLong());
+        attributes.put(Attributes.EVENT_COUNT,  10L);
         attributes.put(Attributes.CREATION_TIME, (long) streamSegmentName.hashCode());
 
         return StreamSegmentInformation.builder()
                 .name(segmentName)
                 .sealed(RANDOM.nextBoolean())
                 .deleted(RANDOM.nextBoolean())
-                .startOffset(RANDOM.nextInt())
-                .length(RANDOM.nextInt())
+                .startOffset(0)
+                .length(RANDOM.nextInt(10000))
                 .attributes(attributes)
                 .build();
     }
