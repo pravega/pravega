@@ -34,7 +34,7 @@ env:
   BUILD_CACHE_PATH: ./*
   # We cache test execution (including history) and reports (code coverage) per test job. This helps speed up workflow re-runs.
   TEST_OUTPUT_CACHE_PATH: |
-    .gradle
+    .gradle/**/executionHistory
     **/build/test-results
     **/**/build/test-results
     **/**/build/test-results
