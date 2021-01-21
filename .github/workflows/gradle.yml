@@ -31,6 +31,7 @@ env:
     gradle-m2-java-
     gradle-m2
   BUILD_CACHE_PATH: ./*
+  TEST_OUTPUT_CACHE_PATH: '**/build/test-results/** **/**/build/test-results/** **/**/build/test-results/**'
 
 # The workflow begins with a compilation and static analysis job that also caches the build output and source code,
 # followed by a number of parallel test jobs (which make use of that cached artifacts).
@@ -78,6 +79,11 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.run_id}}
+      - name: Test Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
+          key: ${{github.run_id}}-${{github.action}}
       - name: Unit tests
         run: ./gradlew client:test
       - name: Codecov
@@ -99,6 +105,11 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.run_id}}
+      - name: Test Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
+          key: ${{github.run_id}}-${{github.action}}
       - name: Controller Unit tests
         run: ./gradlew controller:test
       - name: Codecov
@@ -120,6 +131,11 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.run_id}}
+      - name: Test Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
+          key: ${{github.run_id}}-${{github.action}}
       - name: Segment Store Unit tests
         run: >
           ./gradlew
@@ -147,6 +163,11 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.run_id}}
+      - name: Test Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
+          key: ${{github.run_id}}-${{github.action}}
       - name: Storage Bindings Unit tests
         run: >
           ./gradlew
@@ -172,6 +193,11 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.run_id}}
+      - name: Test Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
+          key: ${{github.run_id}}-${{github.action}}
       - name: Unit tests
         run: >
           ./gradlew test
@@ -203,6 +229,11 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.run_id}}
+      - name: Test Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
+          key: ${{github.run_id}}-${{github.action}}
       - name: Integration Tests
         run: ./gradlew test:integration:test
 
@@ -214,6 +245,8 @@ jobs:
     steps:
       - name: Check Build Status
         run: echo Build, static analysis, unit and integration tests successful.
+      - name: Debug # TODO remove
+        run: echo ${{ github.event_name }},${{ github.ref }}
 
   snapshot:
     name: Artifactory Snapshot
