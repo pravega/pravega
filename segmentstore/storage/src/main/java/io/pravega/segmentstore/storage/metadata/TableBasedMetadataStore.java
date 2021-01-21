@@ -153,27 +153,22 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                 .thenComposeAsync(v -> {
                     // Now put uploaded keys.
                     return this.tableStore.put(tableName, toUpdate, timeout)
-                            .thenApplyAsync(ret -> {
+                            .thenComposeAsync(ret -> {
                                 // Update versions.
                                 int i = 0;
                                 for (TableEntry tableEntry : toUpdate) {
                                     entryToTxnDataMap.get(tableEntry).setDbObject(ret.get(i));
                                     i++;
                                 }
-                                return null;
-                            }, getExecutor())
-                            .thenComposeAsync(v2 -> {
                                 // Delete deleted keys.
                                 return this.tableStore.remove(tableName, keysToDelete, timeout)
                                         .handleAsync((v1, ex) -> {
                                             if (ex == null) {
                                                 deletedKeyToTxnDataMap.values().stream().forEach(txnData -> txnData.setDbObject(TableKey.NOT_EXISTS));
                                             }
-                                            return null;
+                                            TABLE_WRITE_LATENCY.reportSuccessEvent(t.getElapsed());
+                                            return v1;
                                         }, getExecutor());
-                            }, getExecutor())
-                            .thenRunAsync(() -> {
-                                TABLE_WRITE_LATENCY.reportSuccessEvent(t.getElapsed());
                             }, getExecutor());
                 }, getExecutor())
                 .exceptionally(e -> {
