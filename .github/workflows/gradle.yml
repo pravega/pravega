@@ -158,9 +158,13 @@ jobs:
           ./gradlew
           segmentstore:server:test
           segmentstore:storage:test
-          segmentstore:server:host:test
           segmentstore:storage:impl:test
           bindings:test
+          --parallel ${{env.GRADLE_OPTS}}
+      - name: Segment Store Host Tests      # Run this separately since it conflicts with segmentstore:storage:impl:test.
+        run: >
+          ./gradlew
+          segmentstore:server:host:test
           --parallel ${{env.GRADLE_OPTS}}
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
