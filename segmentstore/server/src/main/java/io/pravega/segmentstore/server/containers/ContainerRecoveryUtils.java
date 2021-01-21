@@ -406,8 +406,8 @@ public class ContainerRecoveryUtils {
     }
 
     /**
-     * Reads the contents of a given segment.
-     * @param storage                   A storage instance to read the segment's contents.
+     * Reads the contents of a given segment and writes it to the {@link FileOutputStream} instance.
+     * @param storage                   A storage instance to read the segment and its contents.
      * @param segmentName               The name of the segment.
      * @param fileOutputStream          A  instance of the {@link FileOutputStream} to write the contents.
      * @param executor                  A thread pool for the execution.

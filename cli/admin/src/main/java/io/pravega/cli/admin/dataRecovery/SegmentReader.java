@@ -48,8 +48,7 @@ public class SegmentReader extends DataRecoveryCommand {
     }
 
     /**
-     * Creates a csv file for each container. All segments belonging to a containerId have their details written to the
-     * csv file for that container.
+     * Creates a file for writing segment's contents.
      *
      * @throws Exception   When failed to create/delete file(s).
      */
@@ -110,7 +109,7 @@ public class SegmentReader extends DataRecoveryCommand {
         this.fileOutputStream.close();
 
         outputInfo("The segment's contents have been written to the file.");
-        outputInfo("Path to the csv files: '%s'", this.filePath);
+        outputInfo("Path to the file '%s'", this.filePath);
         outputInfo("Done!");
     }
 
