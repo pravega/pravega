@@ -34,13 +34,16 @@ env:
   BUILD_CACHE_PATH: ./*
   # We cache test execution (including history) and reports (code coverage) per test job. This helps speed up workflow re-runs.
   TEST_OUTPUT_CACHE_PATH: |
-    .gradle/**/executionHistory
+    .gradle
     **/build/test-results
     **/**/build/test-results
-    **/**/build/test-results
-    **/build/reports/jacoco
-    **/**/build/reports/jacoco
-    **/**/**/build/reports/jacoco
+    **/**/**/build/test-results
+    **/build/jacoco
+    **/**/build/jacoco
+    **/**/**/build/jacoco
+    **/build/reports
+    **/**/build/reports
+    **/**/**/build/reports
 
 # The workflow begins with a compilation and static analysis job that also caches the build output and source code,
 # followed by a number of parallel test jobs (which make use of that cached artifacts).
