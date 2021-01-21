@@ -129,6 +129,7 @@ import org.junit.rules.Timeout;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -1557,7 +1558,7 @@ public class ControllerImplTest {
 
     @Test
     public void testUpdateReaderGroup() throws Exception {
-        CompletableFuture<Boolean> updateRGStatus;
+        CompletableFuture<Long> updateRGStatus;
         final Segment seg0 = new Segment("scope1", "stream1", 0L);
         final Segment seg1 = new Segment("scope1", "stream1", 1L);
         ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
@@ -1576,7 +1577,7 @@ public class ControllerImplTest {
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
         updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg1", config);
-        assertTrue(updateRGStatus.get());
+        assertNotNull(updateRGStatus.get());
 
         updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg2", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",

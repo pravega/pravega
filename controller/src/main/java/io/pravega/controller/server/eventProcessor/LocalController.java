@@ -10,7 +10,6 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
@@ -212,7 +211,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> updateReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+    public CompletableFuture<Long> updateReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
         return this.controller.updateReaderGroup(scopeName, rgName, config).thenApply(x -> {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
@@ -223,7 +222,7 @@ public class LocalController implements Controller {
                 case RG_NOT_FOUND:
                     throw new IllegalArgumentException("Scope does not exist: " + scopedRGName);
                 case SUCCESS:
-                    return true;
+                    return x.getGeneration();
                 default:
                     throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
                             + " " + x.getStatus());
@@ -287,7 +286,8 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber,
                                                                 final UUID readerGroupId, final long generation, final StreamCut streamCut) {
-        return this.controller.updateSubscriberStreamCut(scope, streamName, subscriber, readerGroupId.toString(), generation, getStreamCutAsImmutableMap(streamCut)).thenApply(x -> {
+        return this.controller.updateSubscriberStreamCut(scope, streamName, subscriber, readerGroupId.toString(), generation,
+                ModelHelper.getStreamCutMap(streamCut)).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to update streamcut: " + scope + "/" + streamName);
@@ -579,11 +579,6 @@ public class LocalController implements Controller {
         }
         return streamCut.asImpl().getPositions().entrySet()
                 .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
-    }
-
-    private ImmutableMap<Long, Long> getStreamCutAsImmutableMap(StreamCut streamCut) {
-        return ImmutableMap.copyOf(streamCut.asImpl().getPositions().entrySet()
-                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue)));
     }
 
     @Override
