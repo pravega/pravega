@@ -387,28 +387,27 @@ public class CommandEncoderTest {
 
             }
         });
-        // write max setup segments to internal map
+
+        // maximum setup requests
         for (int i = 0; i < CommandEncoder.MAX_SETUP_SEGMENTS_SIZE; i++) {
             UUID writerId = UUID.randomUUID();
             WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId, "seg", "");
             commandEncoder.write(setupAppend);
         }
 
-        // another further setup should throw IOException
+        // further setup request should throw IOException
         for (int i = 0; i < 5; i++) {
             UUID writerId = UUID.randomUUID();
             WireCommand setupAppend = new WireCommands.SetupAppend(0, writerId, "seg", "");
             assertThrows(IOException.class, () -> commandEncoder.write(setupAppend));
         }
 
-        // Append should also throw IOException
         UUID writerId = UUID.randomUUID();
         ByteBuf data = Unpooled.wrappedBuffer(new byte[40]);
         WireCommands.Event event = new WireCommands.Event(data);
         Append append = new Append("", writerId, 1, event, 1);
         assertThrows(IOException.class, () -> commandEncoder.write(append));
 
-        // Callback should be called only once
         assertEquals(counter.get(), 1);
     }
 }
