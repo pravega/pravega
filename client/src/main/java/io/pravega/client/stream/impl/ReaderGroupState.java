@@ -45,6 +45,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -53,9 +54,10 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.Synchronized;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
@@ -90,9 +92,12 @@ public class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<SegmentWithRange, Long> lastReadPosition;
     private final Map<Segment, Long> endSegments;
+    @Getter
+    @Setter(AccessLevel.PRIVATE)
+    private boolean updatingConfig;
     
     ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<SegmentWithRange, Long> segmentsToOffsets,
-                     Map<Segment, Long> endSegments) {
+                     Map<Segment, Long> endSegments, boolean updatingConfig) {
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);
         Preconditions.checkNotNull(config);
@@ -107,6 +112,7 @@ public class ReaderGroupState implements Revisioned {
         this.unassignedSegments = new LinkedHashMap<>(segmentsToOffsets);
         this.lastReadPosition = new HashMap<>(segmentsToOffsets);
         this.endSegments = ImmutableMap.copyOf(endSegments);
+        this.updatingConfig = updatingConfig;
     }
     
     /**
@@ -333,10 +339,11 @@ public class ReaderGroupState implements Revisioned {
         private final ReaderGroupConfig config;
         private final Map<SegmentWithRange, Long> startingSegments;
         private final Map<Segment, Long> endSegments;
+        private final boolean updatingConfig;
         
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
-            return new ReaderGroupState(scopedStreamName, revision, config, startingSegments, endSegments);
+            return new ReaderGroupState(scopedStreamName, revision, config, startingSegments, endSegments, updatingConfig);
         }
         
         @VisibleForTesting
@@ -357,7 +364,8 @@ public class ReaderGroupState implements Revisioned {
             @Override
             protected void declareVersions() {
                 version(0).revision(0, this::write00, this::read00)
-                          .revision(1, this::write01, this::read01);
+                          .revision(1, this::write01, this::read01)
+                          .revision(2, this::write02, this::read02);
             }
 
             @VisibleForTesting
@@ -379,6 +387,10 @@ public class ReaderGroupState implements Revisioned {
                                                                    RevisionDataInput::readLong));
             }
 
+            private void read02(RevisionDataInput revisionDataInput, ReaderGroupStateInitBuilder builder) throws IOException {
+                builder.updatingConfig(revisionDataInput.readBoolean());
+            }
+
             @VisibleForTesting
             void write00(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
                 revisionDataOutput.writeBuffer(new ByteArraySegment(state.config.toBytes()));
@@ -394,6 +406,10 @@ public class ReaderGroupState implements Revisioned {
                     writeRange(out, s.getRange());
                 };
                 revisionDataOutput.writeMap(state.startingSegments, segmentWithRangeSerializer, RevisionDataOutput::writeLong);
+            }
+
+            private void write02(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
+                revisionDataOutput.writeBoolean(state.updatingConfig);
             }
         }
         
@@ -418,6 +434,7 @@ public class ReaderGroupState implements Revisioned {
         private final Map<SegmentWithRange, Long> lastReadPosition;
         @NonNull
         private final Map<Segment, Long> endSegments;
+        private final boolean updatingConfig;
         
         CompactReaderGroupState(ReaderGroupState state) {
             synchronized (state.$lock) {
@@ -435,13 +452,14 @@ public class ReaderGroupState implements Revisioned {
                 unassignedSegments = new LinkedHashMap<>(state.unassignedSegments);
                 lastReadPosition = new HashMap<>(state.lastReadPosition);
                 endSegments = state.endSegments;
+                updatingConfig = state.updatingConfig;
             }
         }
 
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
             return new ReaderGroupState(scopedStreamName, config, revision, checkpointState, distanceToTail,
-                                        futureSegments, assignedSegments, unassignedSegments, lastReadPosition, endSegments);
+                                        futureSegments, assignedSegments, unassignedSegments, lastReadPosition, endSegments, updatingConfig);
         }
 
         @VisibleForTesting
@@ -463,7 +481,8 @@ public class ReaderGroupState implements Revisioned {
             @Override
             protected void declareVersions() {
                 version(0).revision(0, this::write00, this::read00)
-                          .revision(1, this::write01, this::read01);
+                          .revision(1, this::write01, this::read01)
+                          .revision(2, this::write02, this::read02);
             }
 
             private void read00(RevisionDataInput revisionDataInput,
@@ -521,6 +540,11 @@ public class ReaderGroupState implements Revisioned {
                                                                               e -> e.getValue())));
             }
 
+            private void read02(RevisionDataInput revisionDataInput,
+                                CompactReaderGroupStateBuilder builder) throws IOException {
+                builder.updatingConfig(revisionDataInput.readBoolean());
+            }
+
             private void write00(CompactReaderGroupState object, RevisionDataOutput revisionDataOutput) throws IOException {
                 ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
                 ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
@@ -559,6 +583,10 @@ public class ReaderGroupState implements Revisioned {
                                             RevisionDataOutput::writeLong);
                 ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
                 revisionDataOutput.writeMap(ranges, segmentSerializer, ReaderGroupState::writeRange);
+            }
+
+            private void write02(CompactReaderGroupState object, RevisionDataOutput revisionDataOutput) throws IOException {
+                revisionDataOutput.writeBoolean(object.updatingConfig);
             }
         }
     }
@@ -1239,6 +1267,51 @@ public class ReaderGroupState implements Revisioned {
         }
     }
 
+    @Builder
+    @Data
+    @EqualsAndHashCode(callSuper = false)
+    static class UpdatingConfig extends ReaderGroupStateUpdate {
+        private final boolean updatingConfig;
+
+        /**
+         * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
+         */
+        @Override
+        void update(ReaderGroupState state) {
+            state.setUpdatingConfig(updatingConfig);
+        }
+
+        private static class UpdatingConfigBuilder implements ObjectBuilder<UpdatingConfig> {
+
+        }
+
+        private static class UpdatingConfigSerializer extends
+                VersionedSerializer.WithBuilder<UpdatingConfig, UpdatingConfigBuilder> {
+            @Override
+            protected UpdatingConfigBuilder newBuilder() {
+                return builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void read00(RevisionDataInput in, UpdatingConfigBuilder builder) throws IOException {
+                builder.updatingConfig(in.readBoolean());
+            }
+
+            private void write00(UpdatingConfig object, RevisionDataOutput out) throws IOException {
+                out.writeBoolean(object.updatingConfig);
+            }
+        }
+    }
+
     public static class ReaderGroupInitSerializer
             extends VersionedSerializer.MultiType<InitialUpdate<ReaderGroupState>> {
         @Override
@@ -1264,7 +1337,8 @@ public class ReaderGroupState implements Revisioned {
              .serializer(CheckpointReader.class, 8, new CheckpointReader.CheckpointReaderSerializer())
              .serializer(CreateCheckpoint.class, 9, new CreateCheckpoint.CreateCheckpointSerializer())
              .serializer(ClearCheckpointsBefore.class, 10, new ClearCheckpointsBefore.ClearCheckpointsBeforeSerializer())
-             .serializer(UpdateCheckpointPublished.class, 11, new UpdateCheckpointPublished.UpdateCheckpointPublishedSerializer());
+             .serializer(UpdateCheckpointPublished.class, 11, new UpdateCheckpointPublished.UpdateCheckpointPublishedSerializer())
+             .serializer(UpdatingConfig.class, 12, new UpdatingConfig.UpdatingConfigSerializer());
         }
     }
     
