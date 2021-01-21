@@ -24,18 +24,21 @@ import java.time.Duration;
 import java.util.Date;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class SegmentReader extends DataRecoveryCommand{
+/**
+ * Reads the content's of a given segment.
+ */
+public class SegmentReader extends DataRecoveryCommand {
 
+    private static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
     private static final int CONTAINER_EPOCH = 1;
     private final ScheduledExecutorService scheduledExecutorService = getCommandArgs().getState().getExecutor();
     private final StorageFactory storageFactory;
     private FileOutputStream fileOutputStream;
     private String filePath;
     private String segmentName;
-    private static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
 
     /**
-     * Creates an instance of StorageListSegmentsCommand class.
+     * Creates an instance of SegmentReader class.
      *
      * @param args The arguments for the command.
      */
@@ -53,7 +56,7 @@ public class SegmentReader extends DataRecoveryCommand{
     private void createFileAndDirectory() throws Exception {
         String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
 
-        // Set up directory for storing csv files
+        // Set up directory
         this.filePath = System.getProperty("user.dir") + Path.SEPARATOR + descriptor().getName() + "_" + fileSuffix;
 
         // If path given as command args, use it
@@ -66,7 +69,7 @@ public class SegmentReader extends DataRecoveryCommand{
             }
         }
 
-        // Create a directory for storing files.
+        // Create a directory for storing the file.
         File dir = new File(this.filePath);
         if (!dir.exists()) {
             dir.mkdir();
