@@ -71,10 +71,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.recoverAllSegments;
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.updateCoreAttributes;
