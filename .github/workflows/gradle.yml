@@ -33,13 +33,13 @@ env:
   # We cache the source code, resources and build output. This is generated on the build job and reused in dependent jobs.
   BUILD_CACHE_PATH: ./*
   # We cache test execution and reports (code coverage) per test job. This helps speed up workflow re-runs.
-  TEST_OUTPUT_CACHE_PATH: >
+  TEST_OUTPUT_CACHE_PATH: |
     **/build/test-results
     **/**/build/test-results
     **/**/build/test-results
-    **/build/reports
-    **/**/build/reports
-    **/**/**/build/reports
+    **/build/reports/jacoco
+    **/**/build/reports/jacoco
+    **/**/**/build/reports/jacoco
 
 # The workflow begins with a compilation and static analysis job that also caches the build output and source code,
 # followed by a number of parallel test jobs (which make use of that cached artifacts).
@@ -55,6 +55,8 @@ jobs:
     name: Build
     runs-on: ubuntu-20.04
     steps:
+      - name: Build Information
+        run: echo Building a '${{ github.event_name }}' for target '${{ github.ref }}'.
       - name: Checkout
         uses: actions/checkout@v1
       - name: Gradle & Maven Cache
@@ -76,8 +78,6 @@ jobs:
     needs: build
     runs-on: ubuntu-20.04
     steps:
-      - name: Build Information
-        run: echo Building a '${{ github.event_name }}' for target '${{ github.ref }}'.
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -98,10 +98,6 @@ jobs:
         run: ./gradlew client:test
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
-      - name: Debug
-        run: |
-          pwd
-          ls ${{env.TEST_OUTPUT_CACHE_PATH}}
 
   unit_controller:
     name: Controller Unit Tests
