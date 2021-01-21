@@ -159,35 +159,6 @@ jobs:
           segmentstore:server:test
           segmentstore:storage:test
           segmentstore:server:host:test
-          --parallel ${{env.GRADLE_OPTS}}
-      - name: Codecov
-        uses: codecov/codecov-action@v1.0.15
-
-  # Bindings should be separate from segmentstore:server:host because of BK and ZK conflicts.
-  unit_bindings:
-    name: Storage Bindings Unit Tests
-    needs: build
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Gradle & Maven Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.GLOBAL_CACHE_PATH}}
-          key: ${{env.GLOBAL_CACHE_KEY}}
-          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
-      - name: Build Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
-      - name: Test Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.job}}
-      - name: Storage Bindings Unit tests
-        run: >
-          ./gradlew
           segmentstore:storage:impl:test
           bindings:test
           --parallel ${{env.GRADLE_OPTS}}
@@ -257,7 +228,7 @@ jobs:
   # DO NOT RENAME THIS JOB. Mergers to master branch are gated on this completing successfully.
   build_and_test_complete:
     name: CI Complete
-    needs: [build, integration, unit_other, unit_segment_store, unit_bindings, unit_controller, unit_client]
+    needs: [build, integration, unit_other, unit_segment_store, unit_controller, unit_client]
     runs-on: ubuntu-20.04
     steps:
       - name: Check Build Status
