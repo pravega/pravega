@@ -58,7 +58,7 @@ public class DynamicRestApiTest extends AbstractSystemTest {
 
         org.glassfish.jersey.client.ClientConfig clientConfig = new org.glassfish.jersey.client.ClientConfig();
         clientConfig.register(JacksonJsonProvider.class);
-
+        clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
         if (Utils.AUTH_ENABLED) {
             HttpAuthenticationFeature feature = HttpAuthenticationFeature.basic(Utils.PRAVEGA_PROPERTIES.get("pravega.client.auth.username"),
                     Utils.PRAVEGA_PROPERTIES.get("pravega.client.auth.password"));
@@ -104,7 +104,6 @@ public class DynamicRestApiTest extends AbstractSystemTest {
         final String scope1 = RandomStringUtils.randomAlphanumeric(10);
         final String stream1 = RandomStringUtils.randomAlphanumeric(10);
 
-        Client client = ClientBuilder.newClient();
         String responseAsString = null;
 
         ClientConfig clientConfig = Utils.buildClientConfig(controllerGRPCUri);
