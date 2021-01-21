@@ -144,6 +144,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
         return connection.getFlowHandler().thenApply(h -> h.createConnectionWithFlowDisabled(rp));
     }
 
+    @Override
+    public void getClientConnection(Flow flow, PravegaNodeUri location, ReplyProcessor rp, CompletableFuture<ClientConnection> connection) {
+        getClientConnection(flow, location, rp).thenApply(connection::complete);
+    }
+
     private static boolean isUnused(Connection connection) {
         return Futures.isSuccessful(connection.getFlowHandler()) && connection.getFlowCount() == 0;
     }

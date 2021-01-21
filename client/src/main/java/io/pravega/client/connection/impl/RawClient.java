@@ -98,23 +98,25 @@ public class RawClient implements AutoCloseable {
 
     public RawClient(PravegaNodeUri uri, ConnectionPool connectionPool) {
         this.segmentId = null;
-        this.connection = connectionPool.getClientConnection(flow, uri, responseProcessor)
-        .exceptionally(e -> {
+        this.connection = new CompletableFuture<>();
+        connectionPool.getClientConnection(flow, uri, responseProcessor, this.connection);
+        this.connection.exceptionally(e -> {
             log.warn("Exception observed while attempting to obtain a connection to segment store {}", uri, e);
             throw new CompletionException(new ConnectionFailedException(e));
         });
-        Futures.exceptionListener(connection, e -> closeConnection(e));
+        Futures.exceptionListener(connection, this::closeConnection);
     }
 
     public RawClient(Controller controller, ConnectionPool connectionPool, Segment segmentId) {
         this.segmentId = segmentId;
-        this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
-                                    .thenCompose((PravegaNodeUri uri) -> connectionPool.getClientConnection(flow, uri, responseProcessor))
+        this.connection = new CompletableFuture<>();
+        controller.getEndpointForSegment(segmentId.getScopedName())
+                                    .thenAccept((PravegaNodeUri uri) -> connectionPool.getClientConnection(flow, uri, responseProcessor, this.connection))
                                     .exceptionally(e -> {
                                         log.warn("Exception observed while attempting to obtain a connection to segment {}", segmentId, e);
                                         throw new CompletionException(new ConnectionFailedException(e));
                                     });
-        Futures.exceptionListener(connection, e -> closeConnection(e));
+        Futures.exceptionListener(connection, this::closeConnection);
     }
 
     private void reply(Reply reply) {
@@ -135,12 +137,6 @@ public class RawClient implements AutoCloseable {
             log.warn("Closing connection to segment {} with exception", segmentId, exceptionToInflightRequests);
         }
         if (closed.compareAndSet(false, true)) {
-            if (connection == null) {
-                // This is caused by the shutdown of the underlying TCP connection
-                // during initialization of RawClient.
-                log.info("Connection is not initialized when closing");
-                return;
-            }
             connection.thenAccept(c -> {
                 try {
                     c.close();
