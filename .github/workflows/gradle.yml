@@ -32,8 +32,9 @@ env:
     gradle-m2
   # We cache the source code, resources and build output. This is generated on the build job and reused in dependent jobs.
   BUILD_CACHE_PATH: ./*
-  # We cache test execution and reports (code coverage) per test job. This helps speed up workflow re-runs.
+  # We cache test execution (including history) and reports (code coverage) per test job. This helps speed up workflow re-runs.
   TEST_OUTPUT_CACHE_PATH: |
+    .gradle
     **/build/test-results
     **/**/build/test-results
     **/**/build/test-results
