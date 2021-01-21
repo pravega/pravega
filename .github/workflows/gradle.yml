@@ -31,7 +31,10 @@ env:
     gradle-m2-java-
     gradle-m2
   BUILD_CACHE_PATH: ./*
-  TEST_OUTPUT_CACHE_PATH: '**/build/test-results/** **/**/build/test-results/** **/**/build/test-results/**'
+  TEST_OUTPUT_CACHE_PATH: >
+    **/build/test-results
+    **/**/build/test-results
+    **/**/build/test-results
 
 # The workflow begins with a compilation and static analysis job that also caches the build output and source code,
 # followed by a number of parallel test jobs (which make use of that cached artifacts).
