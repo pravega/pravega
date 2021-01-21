@@ -23,8 +23,8 @@ jobs:
     # Travis CI build has been deprecated in favor of GitHub Actions.
     - stage: build
       if: type IN (push, pull_request)
-      install: echo "Travis task disabled.
-      script: echo "Travis task disabled.
+      install: echo "Travis task disabled."
+      script: echo "Travis task disabled."
 
 sudo: required
 
