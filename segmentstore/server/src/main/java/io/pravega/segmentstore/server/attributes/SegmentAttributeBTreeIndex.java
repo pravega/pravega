@@ -474,6 +474,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
     }
 
     private CompletableFuture<BTreeIndex.IndexInfo> getLength(Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         SegmentHandle handle = this.handle.get();
         if (handle == null) {
             return CompletableFuture.completedFuture(BTreeIndex.IndexInfo.EMPTY);
@@ -629,6 +630,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return createAttributeSegmentIfNecessary(() -> writeToSegment(streams, writeOffset, length.get(), timer), timer.getRemaining())
                 .thenComposeAsync(v -> {
+                    Exceptions.checkNotClosed(this.closed.get(), this);
                     if (this.storage.supportsTruncation() && truncateOffset >= 0) {
                         return this.storage.truncate(this.handle.get(), truncateOffset, timer.getRemaining());
                     } else {
@@ -672,12 +674,15 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
 
     private void storeInCache(long offset, byte[] data) {
         synchronized (this.cacheEntries) {
+            Exceptions.checkNotClosed(this.closed.get(), this);
             storeInCache(offset, new ByteArraySegment(data));
         }
     }
 
     private void storeInCache(List<Map.Entry<Long, ByteArraySegment>> toAdd, Collection<Long> obsoleteOffsets) {
         synchronized (this.cacheEntries) {
+            Exceptions.checkNotClosed(this.closed.get(), this);
+
             // Remove obsolete pages.
             obsoleteOffsets.stream()
                            .map(this.cacheEntries::get)
@@ -744,6 +749,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
     }
 
     private void ensureInitialized() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.index.isInitialized(), "SegmentAttributeIndex is not initialized.");
     }
 
@@ -859,6 +865,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         }
 
         private CompletableFuture<List<PageEntry>> getNextPageEntries() {
+            Exceptions.checkNotClosed(SegmentAttributeBTreeIndex.this.closed.get(), SegmentAttributeBTreeIndex.this);
             return this.pageEntryIterator
                     .get().getNext()
                     .exceptionally(ex -> {
@@ -872,6 +879,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
             // If this is the first invocation then we need to treat the lastProcessedId as "inclusive" in the iterator, since it
             // was the first value we wanted our iterator to begin at. For any other cases, we need to treat it as exclusive,
             // since it stores the last id we have ever returned, so we want to begin with the following one.
+            Exceptions.checkNotClosed(SegmentAttributeBTreeIndex.this.closed.get(), SegmentAttributeBTreeIndex.this);
             this.pageEntryIterator.set(this.getPageEntryIterator.apply(this.lastProcessedId.get(), this.firstInvocation.get()));
         }
     }
