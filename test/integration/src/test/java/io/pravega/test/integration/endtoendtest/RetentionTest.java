@@ -55,7 +55,7 @@ public class RetentionTest {
     private final String serviceHost = "localhost";
     private final int containerCount = 4;
     private int controllerPort;
-    private URI controllerURI; 
+    private URI controllerURI;
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
@@ -94,7 +94,7 @@ public class RetentionTest {
         serviceBuilder.close();
         zkTestServer.close();
     }
-    
+
     @Test(timeout = 30000)
     public void testRetentionTime() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
@@ -120,12 +120,12 @@ public class RetentionTest {
         assertTrue(x.values().stream().allMatch(a -> a == 0));
         AtomicBoolean continueLoop = new AtomicBoolean(true);
         Futures.loop(continueLoop::get, () -> writer.writeEvent("a"), executor);
-        
+
         AssertExtensions.assertEventuallyEquals(true, () -> controller
                 .getSegmentsAtTime(stream, 0L).join().values().stream().anyMatch(a -> a > 0), 30 * 1000L);
         continueLoop.set(false);
     }
-    
+
     @Test(timeout = 30000)
     public void testRetentionSize() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
@@ -151,7 +151,7 @@ public class RetentionTest {
         assertTrue(x.values().stream().allMatch(a -> a == 0));
         AtomicBoolean continueLoop = new AtomicBoolean(true);
         Futures.loop(continueLoop::get, () -> writer.writeEvent("a"), executor);
-        
+
         AssertExtensions.assertEventuallyEquals(true, () -> controller
                 .getSegmentsAtTime(stream, 0L).join().values().stream().anyMatch(a -> a > 0), 30 * 1000L);
         continueLoop.set(false);
