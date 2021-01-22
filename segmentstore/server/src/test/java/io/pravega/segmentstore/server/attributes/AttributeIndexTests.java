@@ -14,6 +14,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -37,6 +38,7 @@ import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -56,6 +58,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -302,7 +305,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      * whatever operation triggered it and it should not affect ongoing operations on the index.
      */
     @Test
-    public void testCacheWriteFailure() {
+    public void testCacheWriteFailure() throws Exception {
         val exceptionMakers = Arrays.<Supplier<RuntimeException>>asList(
                 IntentionalException::new, () -> new CacheFullException("intentional"));
         val attributeId = UUID.randomUUID();
@@ -318,7 +321,6 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
             // Populate the index with some initial value.
             val pointer1 = idx.update(Collections.singletonMap(attributeId, initialValue), TIMEOUT).join();
-            val info1 = context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join();
 
             // For the next insertion, simulate some cache exception.
             val insertInvoked = new AtomicBoolean(false);
@@ -329,11 +331,10 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
             // Update the value. The cache insertion should fail because of the exception above.
             val pointer2 = idx.update(Collections.singletonMap(attributeId, finalValue), TIMEOUT).join();
-            val info2 = context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join();
+            TestUtils.await(() -> context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join().getStartOffset() > pointer1, 5, TIMEOUT.toMillis());
 
             Assert.assertTrue(insertInvoked.get());
             AssertExtensions.assertGreaterThan("", pointer1, pointer2);
-            AssertExtensions.assertGreaterThan("", pointer1, info2.getStartOffset());
 
             // If the cache insertion would have actually failed, then the following read call would fail (it would try
             // to read from the truncated portion (that's why we have the asserts above).
@@ -881,7 +882,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      * be attempted to be read from Storage without providing hints to where to start reading from.
      */
     @Test
-    public void testTruncatedRootPointer() {
+    public void testTruncatedRootPointer() throws Exception {
         val attributeSegmentName = NameUtils.getAttributeSegmentName(SEGMENT_NAME);
         val config = AttributeIndexConfig
                 .builder()
@@ -906,7 +907,12 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             expectedValues.put(attributeId, value);
             val updateBatch = Collections.singletonMap(attributeId, value);
 
+            // Inject a callback to knwo when we finished truncating, as it is an async task.
+            @Cleanup("release")
+            val truncated = new ReusableLatch();
+            context.storage.truncateCallback = (s, o) -> truncated.release();
             val rootPointer = idx.update(updateBatch, TIMEOUT).join();
+            truncated.await(TIMEOUT.toMillis());
             val startOffset = context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join().getStartOffset();
             if (previousRootPointer >= 0) {
                 // We always set the Root Pointer to be one "value behind". Since we truncate the Attribute Segment with
@@ -1104,6 +1110,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             private WriteInterceptor writeInterceptor;
             private SealInterceptor sealInterceptor;
             private ReadInterceptor readInterceptor;
+            private BiConsumer<String, Long> truncateCallback;
             private boolean supportsAtomicWrites;
             private boolean supportsTruncation;
 
@@ -1133,7 +1140,13 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 // to that offset. In addition, the ChunkedSegmentStorage also returns the correct StartOffset as part of
                 // getStreamSegmentInfo while RollingStorage does not.
                 return super.truncate(handle, offset, timeout)
-                        .thenRun(() -> this.startOffsets.put(handle.getSegmentName(), offset));
+                        .thenRun(() -> {
+                            this.startOffsets.put(handle.getSegmentName(), offset);
+                            BiConsumer<String, Long> c = this.truncateCallback;
+                            if (c != null) {
+                                c.accept(handle.getSegmentName(), offset);
+                            }
+                        });
             }
 
             @Override

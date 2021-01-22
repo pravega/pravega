@@ -629,17 +629,12 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         // Create the Attribute Segment in Storage (if needed), then write the new data to it and truncate if necessary.
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return createAttributeSegmentIfNecessary(() -> writeToSegment(streams, writeOffset, length.get(), timer), timer.getRemaining())
-                .thenComposeAsync(v -> {
-                    Exceptions.checkNotClosed(this.closed.get(), this);
-                    if (this.storage.supportsTruncation() && truncateOffset >= 0) {
-                        return this.storage.truncate(this.handle.get(), truncateOffset, timer.getRemaining());
-                    } else {
-                        log.debug("{}: Not truncating attribute segment. SupportsTruncation = {}, TruncateOffset = {}.",
-                                this.traceObjectId, this.storage.supportsTruncation(), truncateOffset);
-                        return CompletableFuture.completedFuture(null);
-                    }
-                }, this.executor)
                 .thenApplyAsync(v -> {
+                    Exceptions.checkNotClosed(this.closed.get(), this);
+
+                    // Trigger an async truncation. There is no need to wait for it.
+                    truncateAsync(truncateOffset, timer.getRemaining());
+
                     // Store data in cache and remove obsolete pages.
                     storeInCache(pages, obsoleteOffsets);
 
@@ -652,6 +647,24 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         // Stitch the collected Input Streams and write them to Storage.
         val toWrite = new SequenceInputStream(Collections.enumeration(streams));
         return this.storage.write(this.handle.get(), writeOffset, toWrite, length, timer.getRemaining());
+    }
+
+    /**
+     * Initiates a segment truncation at the given offset, but does not wait for it. An exception listener is attached
+     * which will log any errors.
+     *
+     * Truncation is only useful for compaction so it is not a big deal if it doesn't complete or fails. A subsequent
+     * attempt (via another update) will include this one as well.
+     */
+    private void truncateAsync(long truncateOffset, Duration timeout) {
+        if (this.storage.supportsTruncation() && truncateOffset >= 0) {
+            log.debug("{}: Truncating attribute segment at offset {}.", this.traceObjectId, truncateOffset);
+            Futures.exceptionListener(this.storage.truncate(this.handle.get(), truncateOffset, timeout),
+                    ex -> log.warn("{}: Error while performing async truncation at offset {}.", this.traceObjectId, truncateOffset, ex));
+        } else {
+            log.debug("{}: Not truncating attribute segment. SupportsTruncation = {}, TruncateOffset = {}.",
+                    this.traceObjectId, this.storage.supportsTruncation(), truncateOffset);
+        }
     }
 
     private byte[] getFromCache(long offset, int length) {
