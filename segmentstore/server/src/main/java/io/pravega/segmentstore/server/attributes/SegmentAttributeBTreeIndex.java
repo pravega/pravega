@@ -36,6 +36,7 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.cache.CacheFullException;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.shared.NameUtils;
 import java.io.InputStream;
@@ -59,6 +60,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -249,7 +251,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         // Remove those entries that have a generation below the oldest permissible one.
-        boolean anyRemoved = false;
+        boolean anyRemoved;
         synchronized (this.cacheEntries) {
             this.currentCacheGeneration = currentGeneration;
             ArrayList<CacheEntry> toRemove = new ArrayList<>();
@@ -670,15 +672,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
 
     private void storeInCache(long offset, byte[] data) {
         synchronized (this.cacheEntries) {
-            CacheEntry entry = this.cacheEntries.getOrDefault(offset, null);
-            if (entry == null || entry.getSize() != data.length) {
-                // If the entry does not exist or has the wrong length, we need to re-insert it.
-                entry = new CacheEntry(offset, data.length, this.currentCacheGeneration);
-                this.cacheEntries.put(offset, entry);
-            }
-
-            // Update the entry's data.
-            storeInCache(entry, new ByteArraySegment(data));
+            storeInCache(offset, new ByteArraySegment(data));
         }
     }
 
@@ -692,29 +686,47 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
 
             // Add new ones.
             for (val e : toAdd) {
-                long offset = e.getKey();
-                ByteArraySegment data = e.getValue();
-                CacheEntry entry = this.cacheEntries.getOrDefault(offset, null);
-                if (entry == null || entry.getSize() != data.getLength()) {
-                    entry = new CacheEntry(offset, data.getLength(), this.currentCacheGeneration);
-                    this.cacheEntries.put(offset, entry);
-                }
-
-                storeInCache(entry, data);
+                storeInCache(e.getKey(), e.getValue());
             }
         }
     }
 
     @GuardedBy("cacheEntries")
-    private void storeInCache(CacheEntry entry, ByteArraySegment data) {
-        int newAddress;
-        if (entry.isStored()) {
-            newAddress = this.cacheStorage.replace(entry.getCacheAddress(), data);
-        } else {
-            newAddress = this.cacheStorage.insert(data);
+    private void storeInCache(long entryOffset, ByteArraySegment data) {
+        CacheEntry entry = this.cacheEntries.getOrDefault(entryOffset, null);
+        if (entry != null && entry.getSize() == data.getLength()) {
+            // Already cached.
+            return;
         }
 
-        entry.setCacheAddress(newAddress);
+        // Insert/Update the cache. There is a chance this won't go through, so be able to handle that. It's not the end
+        // of the world if we can't update the cache (as we always have the data in the attribute segment). If we are
+        // having trouble, log the error and move on.
+        int entryAddress = entry == null ? CacheEntry.NO_ADDRESS : entry.getCacheAddress();
+        try {
+            if (entry != null && entry.isStored()) {
+                // Entry exists. Replace it.
+                entryAddress = this.cacheStorage.replace(entry.getCacheAddress(), data);
+            } else {
+                // Entry does not exist. Insert it.
+                entryAddress = this.cacheStorage.insert(data);
+            }
+        } catch (CacheFullException cfe) {
+            log.warn("{}: Cache update failed for offset {}, length {} (existing entry={}). Cache full.",
+                    this.traceObjectId, entryOffset, data.getLength(), entry);
+        } catch (Throwable ex) {
+            log.error("{}: Cache update failed for offset {}, length {} (existing entry={}).",
+                    this.traceObjectId, entryOffset, data.getLength(), entry, ex);
+        }
+
+        // Create a new entry wrapper.
+        entry = new CacheEntry(entryOffset, data.getLength(), this.currentCacheGeneration, entryAddress);
+        if (entry.isStored()) {
+            this.cacheEntries.put(entryOffset, entry);
+        } else {
+            // If we were unable to store this entry, remove it from the index.
+            this.cacheEntries.remove(entry.getOffset());
+        }
     }
 
     private void removeFromCache(Collection<CacheEntry> entries) {
@@ -725,7 +737,9 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
 
     @GuardedBy("cacheEntries")
     private void removeFromCache(CacheEntry e) {
-        this.cacheStorage.delete(e.getCacheAddress());
+        if (e.isStored()) {
+            this.cacheStorage.delete(e.getCacheAddress());
+        }
         this.cacheEntries.remove(e.getOffset());
     }
 
@@ -752,7 +766,9 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
     /**
      * An entry in the Cache to which one or more Attributes are mapped.
      */
-    private class CacheEntry {
+    @AllArgsConstructor
+    private static class CacheEntry {
+        static final int NO_ADDRESS = -1;
         /**
          * Id of the entry. This is used to lookup cached data in the Cache.
          */
@@ -762,35 +778,17 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         private final int size;
         @GuardedBy("this")
         private int generation;
-        @GuardedBy("this")
-        private int cacheAddress;
-
-        CacheEntry(long offset, int size, int currentGeneration) {
-            this.offset = offset;
-            this.size = size;
-            this.generation = currentGeneration;
-            this.cacheAddress = -1;
-        }
+        /**
+         * The {@link CacheStorage} address for this Cache Entry's data.
+         */
+        @Getter
+        private final int cacheAddress;
 
         /**
          * Gets a value representing the current Generation of this Cache Entry.
          */
         synchronized int getGeneration() {
             return this.generation;
-        }
-
-        /**
-         * Gets a value representing the {@link CacheStorage} address for this Cache Entry's data.
-         */
-        synchronized int getCacheAddress() {
-            return this.cacheAddress;
-        }
-
-        /**
-         * Updates the {@link CacheStorage} address for this Cache Entry's data.
-         */
-        synchronized void setCacheAddress(int newAddress) {
-            this.cacheAddress = newAddress;
         }
 
         /**
@@ -807,6 +805,11 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
          */
         synchronized void setGeneration(int value) {
             this.generation = value;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Offset = %s, Length = %s", this.offset, this.size);
         }
     }
 
