@@ -113,7 +113,7 @@ public class TcpClientConnection implements ClientConnection {
                     WireCommand command = readCommand(in, buffer);
                     if (command instanceof WireCommands.DataAppended) {
                         WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
-                        flowToBatchSizeTracker.getAppendBatchSizeTrackerByFlowId(dataAppended.getRequestId()).recordAck(dataAppended.getEventNumber());
+                        flowToBatchSizeTracker.getAppendBatchSizeTrackerByFlowId(Flow.toFlowID(dataAppended.getRequestId())).recordAck(dataAppended.getEventNumber());
                     }
                     try {
                         callback.process((Reply) command);

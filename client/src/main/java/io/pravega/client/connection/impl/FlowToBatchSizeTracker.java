@@ -33,7 +33,7 @@ public class FlowToBatchSizeTracker {
     /**
      * Maximum time that the want to keep an inactive flow entry in the cache.
      */
-    private static final Duration TRACKER_CACHE_EXPIRATION_TIME = Duration.ofSeconds(60);
+    private static final Duration TRACKER_CACHE_EXPIRATION_TIME = Duration.ofSeconds(TcpClientConnection.CONNECTION_TIMEOUT);
     /**
      * Maximum number of active flow entries in the cache.
      */
