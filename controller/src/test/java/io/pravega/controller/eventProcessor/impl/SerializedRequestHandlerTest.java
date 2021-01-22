@@ -288,7 +288,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testCancellation() {
+    public void testCancellation() throws Exception {
         final ConcurrentHashMap<String, List<Integer>> orderOfProcessing = new ConcurrentHashMap<>();
 
         SerializedRequestHandler<TestEvent> requestHandler = new SerializedRequestHandler<TestEvent>(executorService()) {
@@ -319,7 +319,9 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         CompletableFuture<Void> p3 = requestHandler.process(e3, stop::get);
 
         queue = requestHandler.getEventQueueForKey(getKeyForStream(scope, stream));
-        assertTrue(queue.size() >= 2);
+        // ensure that e1 is picked for processing
+        AssertExtensions.assertEventuallyEquals(2, () -> requestHandler.getEventQueueForKey(getKeyForStream(scope, stream)).size(),
+                10000L);
         assertTrue(queue.stream().noneMatch(x -> x.getRight().isDone()));
         List<Integer> collect = queue.stream().map(x -> x.getLeft().getNumber()).collect(Collectors.toList());
         assertTrue(collect.indexOf(2) < collect.indexOf(3));
@@ -329,7 +331,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         
         // verify that until p1 completes nothing else will be processed. 
         queue = requestHandler.getEventQueueForKey(getKeyForStream(scope, stream));
-        assertTrue(queue.size() >= 2);
+        assertEquals(2, queue.size());
         assertTrue(queue.stream().noneMatch(x -> x.getRight().isDone()));
         
         // now complete processing for event 1. All subsequent events for the stream will be cancelled.
