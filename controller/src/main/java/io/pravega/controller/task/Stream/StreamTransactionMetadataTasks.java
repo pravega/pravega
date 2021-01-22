@@ -50,6 +50,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.Synchronized;
@@ -94,6 +95,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private final CountDownLatch readyLatch;
     private final CompletableFuture<EventStreamWriter<CommitEvent>> commitWriterFuture;
     private final CompletableFuture<EventStreamWriter<AbortEvent>> abortWriterFuture;
+    private final AtomicLong maxTransactionExecutionTimeBound;
 
     @VisibleForTesting
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
@@ -114,6 +116,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         readyLatch = new CountDownLatch(1);
         this.commitWriterFuture = new CompletableFuture<>();
         this.abortWriterFuture = new CompletableFuture<>();
+        this.maxTransactionExecutionTimeBound = new AtomicLong(Duration.ofDays(Config.MAX_TXN_EXECUTION_TIMEBOUND_DAYS).toMillis());
     }
 
     @VisibleForTesting
@@ -323,7 +326,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                    final OperationContext ctx) {
         // Step 1. Validate parameters.
         CompletableFuture<Void> validate = validate(lease);
-        long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
+        long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, maxTransactionExecutionTimeBound.get());
 
         // 1. get latest epoch from history
         // 2. generateNewTransactionId.. this step can throw WriteConflictException
@@ -744,5 +747,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         } else {
             abortWriterFuture.cancel(true);
         }
+    }
+    
+    @VisibleForTesting
+    void setMaxExecutionTime(long timeInMillis) {
+        maxTransactionExecutionTimeBound.set(timeInMillis);
     }
 }
