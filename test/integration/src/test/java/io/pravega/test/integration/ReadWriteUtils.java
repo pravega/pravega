@@ -22,6 +22,8 @@ import io.pravega.common.util.RetriesExhaustedException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Predicate;
+
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +55,11 @@ public final class ReadWriteUtils {
 
     @SneakyThrows
     public static <T> int readEvents(EventStreamReader<T> reader, int limit,  final int interReadWait) {
+        return readEventsUntil(reader, eventRead -> eventRead.getEvent() != null || eventRead.isCheckpoint(), limit, interReadWait);
+    }
+
+    @SneakyThrows
+    public static <T> int readEventsUntil(EventStreamReader<T> reader, Predicate<EventRead<T>> condition, int limit, final int interReadWait) {
         final int timeout = 1000;
         EventRead<T> event;
         int validEvents = 0;
@@ -63,7 +70,7 @@ public final class ReadWriteUtils {
                 if (event.getEvent() != null) {
                     validEvents++;
                 }
-            } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
+            } while ((condition.test(event)) && validEvents < limit);
         } catch (TruncatedDataException e) {
             throw new TruncatedDataException(e.getCause());
         } catch (RuntimeException e) {

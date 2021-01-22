@@ -7,7 +7,7 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-# Pravega [![Build Status](https://travis-ci.org/pravega/pravega.svg?branch=master)](https://travis-ci.org/pravega/pravega/builds) [![codecov](https://codecov.io/gh/pravega/pravega/branch/master/graph/badge.svg?token=6xOvaR0sIa)](https://codecov.io/gh/pravega/pravega) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0) [![Version](https://img.shields.io/github/release/pravega/pravega.svg)](https://github.com/pravega/pravega/releases)
+# Pravega [![Build Status](https://github.com/pravega/pravega/workflows/build/badge.svg?branch=master)](https://github.com/pravega/pravega/actions?query=branch%3Amaster) [![codecov](https://codecov.io/gh/pravega/pravega/branch/master/graph/badge.svg?token=6xOvaR0sIa)](https://codecov.io/gh/pravega/pravega) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0) [![Version](https://img.shields.io/github/release/pravega/pravega.svg)](https://github.com/pravega/pravega/releases) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4178/badge)](https://bestpractices.coreinfrastructure.org/projects/4178)
 
 Pravega is an open source distributed storage service implementing **Streams**. It offers Stream as the main primitive for the foundation of reliable storage systems: a *high-performance, durable, elastic, and unlimited append-only byte stream with strict ordering and consistency*.
 
