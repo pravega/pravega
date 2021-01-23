@@ -204,8 +204,9 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                         chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
                                         handle.getSegmentName(), currentChunkName, startOffsetForCurrentChunk.get(), offset);
                             } else {
-                                log.warn("Block enetry offset must be floor to requested offset. segment={} block={}", blockMetadata);
-                                Preconditions.checkState(false);
+                                log.warn("{} read - block entry offset must be floor to requested offset. op={} segment={} offset={} length={} block={}",
+                                        chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
+                                        segmentMetadata, offset, length, blockMetadata);
                             }
                         }
                     });
