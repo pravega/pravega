@@ -115,8 +115,8 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     private volatile ChunkMetadata next = null;
 
     private final AtomicLong  writeAtOffset = new AtomicLong();
-    private final AtomicInteger readAtOffset = new AtomicInteger();
-    private final AtomicInteger bytesToRead = new AtomicInteger();
+    private final AtomicLong readAtOffset = new AtomicLong();
+    private final AtomicLong bytesToRead = new AtomicLong();
     private final AtomicInteger currentArgIndex = new AtomicInteger();
 
     DefragmentOperation(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, SegmentMetadata segmentMetadata, String startChunkName, String lastChunkName, ArrayList<String> chunksToDelete) {
@@ -280,7 +280,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                 () -> {
                     readAtOffset.set(0);
                     val arg = concatArgs[currentArgIndex.get()];
-                    bytesToRead.set(Math.toIntExact(arg.getLength()));
+                    bytesToRead.set(arg.getLength());
 
                     return copyBytes(writeHandle, arg)
                             .thenRunAsync(currentArgIndex::incrementAndGet, chunkedSegmentStorage.getExecutor());
@@ -293,7 +293,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
         return Futures.loop(
                 () -> bytesToRead.get() > 0,
                 () -> {
-                    val buffer = new byte[Math.min(chunkedSegmentStorage.getConfig().getMaxBufferSizeForChunkDataTransfer(), bytesToRead.get())];
+                    val buffer = new byte[Math.toIntExact(Math.min(chunkedSegmentStorage.getConfig().getMaxBufferSizeForChunkDataTransfer(), bytesToRead.get()))];
                     return chunkedSegmentStorage.getChunkStorage().read(ChunkHandle.readHandle(arg.getName()), readAtOffset.get(), buffer.length, buffer, 0)
                             .thenComposeAsync(size -> {
                                 bytesToRead.addAndGet(-size);

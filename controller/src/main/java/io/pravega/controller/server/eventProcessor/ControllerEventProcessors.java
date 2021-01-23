@@ -353,15 +353,18 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                           if (e != null) {
                                               log.warn("Submission for truncation for stream {} failed. Will be retried in next iteration.",
                                                       streamName);
-                                          } else {
+                                          } else if (r) {
                                               log.debug("truncation for stream {} at streamcut {} submitted.", streamName, streamcut);
+                                          } else {
+                                              log.debug("truncation for stream {} at streamcut {} rejected.", streamName, streamcut);
                                           }
                                           return null;
                                       });
         } catch (Exception e) {
             // we will catch and log all exceptions and return a completed future so that the truncation is attempted in the
             // next iteration
-            log.warn("Encountered exception attempting to truncate stream. {}", Exceptions.unwrap(e).getMessage());
+            Throwable unwrap = Exceptions.unwrap(e);
+            log.warn("Encountered exception attempting to truncate stream {}. {}: {}", streamName, unwrap.getClass().getName(), unwrap.getMessage());
             return CompletableFuture.completedFuture(null);
         }
     }
