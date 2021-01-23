@@ -200,6 +200,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     return openChunkToWrite(txn)
                             .thenComposeAsync(v -> {
                                 // Calculate the data that needs to be written.
+                                val oldOffset = currentOffset.get();
                                 val offsetToWriteAt = currentOffset.get() - segmentMetadata.getLastChunkStartOffset();
                                 val writeSize = (int) Math.min(bytesRemaining.get(), segmentMetadata.getMaxRollinglength() - offsetToWriteAt);
 
@@ -210,16 +211,23 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                         chunkHandle,
                                         lastChunkMetadata.get(),
                                         offsetToWriteAt,
-                                        writeSize);
+                                        writeSize)
+                                .thenRunAsync(() -> {
+                                    // Update block index.
+                                    if (!segmentMetadata.isStorageSystemSegment()) {
+                                        chunkedSegmentStorage.addBlockIndexEntriesForChunk(txn,
+                                                segmentMetadata.getName(),
+                                                chunkHandle.getChunkName(),
+                                                segmentMetadata.getLastChunkStartOffset(),
+                                                oldOffset,
+                                                segmentMetadata.getLength());
+                                    }
+                                }, chunkedSegmentStorage.getExecutor());
                             }, chunkedSegmentStorage.getExecutor());
                 }, chunkedSegmentStorage.getExecutor())
                 .thenRunAsync(() -> {
                     // Check invariants.
                     segmentMetadata.checkInvariants();
-                    // Update block index.
-                    if (!segmentMetadata.isStorageSystemSegment()) {
-                        chunkedSegmentStorage.addBlockIndexEntries(txn, segmentMetadata.getName(), offset, segmentMetadata.getLength(), newReadIndexEntries);
-                    }
                 }, chunkedSegmentStorage.getExecutor());
     }
 

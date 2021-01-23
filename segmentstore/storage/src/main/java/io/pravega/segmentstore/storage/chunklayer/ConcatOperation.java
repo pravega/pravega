@@ -171,7 +171,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
                                 targetSegmentMetadata.setChunkCount(targetSegmentMetadata.getChunkCount() + sourceSegmentMetadata.getChunkCount());
 
                                 // Delete read index block entries for source.
-                                chunkedSegmentStorage.deleteBlockIndexEntries(txn, sourceSegment, sourceSegmentMetadata.getStartOffset(), sourceSegmentMetadata.getLength());
+                                chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, sourceSegment, sourceSegmentMetadata.getStartOffset(), sourceSegmentMetadata.getLength());
 
                                 txn.update(targetSegmentMetadata);
                                 txn.delete(sourceSegment);

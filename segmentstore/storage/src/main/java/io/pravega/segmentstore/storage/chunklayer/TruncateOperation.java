@@ -87,7 +87,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                                 segmentMetadata.checkInvariants();
 
                                                 // Remove read index block entries.
-                                                chunkedSegmentStorage.deleteBlockIndexEntries(txn, streamSegmentName, oldStartOffset, segmentMetadata.getStartOffset());
+                                                chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, streamSegmentName, oldStartOffset, segmentMetadata.getStartOffset());
 
                                                 // Finally commit.
                                                 return commit(txn)

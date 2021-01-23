@@ -197,12 +197,16 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                     .thenAcceptAsync(storageMetadata -> {
                         if (null != storageMetadata) {
                             ReadIndexBlockMetadata blockMetadata = (ReadIndexBlockMetadata) storageMetadata;
-                            startOffsetForCurrentChunk.set(blockMetadata.getStartOffset());
-                            currentChunkName = blockMetadata.getChunkName();
-                            log.debug("{} read - found block index to start scanning - op={}, segment={}, chunk={}, startOffset={}, offset={}.",
-                                    chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
-                                    handle.getSegmentName(), currentChunkName, startOffsetForCurrentChunk.get(), offset);
-
+                            if (blockMetadata.getStartOffset() <= offset) {
+                                startOffsetForCurrentChunk.set(blockMetadata.getStartOffset());
+                                currentChunkName = blockMetadata.getChunkName();
+                                log.debug("{} read - found block index to start scanning - op={}, segment={}, chunk={}, startOffset={}, offset={}.",
+                                        chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
+                                        handle.getSegmentName(), currentChunkName, startOffsetForCurrentChunk.get(), offset);
+                            } else {
+                                log.warn("Block enetry offset must be floor to requested offset. segment={} block={}", blockMetadata);
+                                Preconditions.checkState(false);
+                            }
                         }
                     });
         } else {

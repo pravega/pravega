@@ -150,11 +150,14 @@ public class TestUtils {
             }
 
             long blockStartOffset;
-            for (blockStartOffset = 0; blockStartOffset < startOffset; blockStartOffset +=  blockSize) {
-                Assert.assertNull("for offset:" + blockStartOffset, txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, blockStartOffset)).get());
-            }
-            for (; blockStartOffset < endOffset; blockStartOffset +=  blockSize) {
-                if (segmentMetadata.getStartOffset() < blockStartOffset) {
+            for (blockStartOffset = 0; blockStartOffset < segmentMetadata.getLength(); blockStartOffset +=  blockSize) {
+                // For all offsets below start offset, there should not be any index entries.
+                if (segmentMetadata.getStartOffset() > blockStartOffset) {
+                    Assert.assertNull("for offset:" + blockStartOffset, txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, blockStartOffset)).get());
+                }
+
+                // For all valid offsets, there should be index entries.
+                if (segmentMetadata.getStartOffset() <= blockStartOffset) {
                     val blockIndexEntry = (ReadIndexBlockMetadata) txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, blockStartOffset)).get();
                     Assert.assertNotNull("for offset:" + blockStartOffset, blockIndexEntry);
                     Assert.assertNotNull("for offset:" + blockStartOffset, txn.get(blockIndexEntry.getChunkName()));
@@ -163,6 +166,11 @@ public class TestUtils {
                     Assert.assertEquals("for offset:" + blockStartOffset, mappedChunk.getValue(), blockIndexEntry.getChunkName());
                 }
             }
+            // For all offsets after end of the segment, there should not be any index entries
+            Assert.assertNull("for offset:" + segmentMetadata.getLength(),
+                    txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, segmentMetadata.getLength())).get());
+            Assert.assertNull("for offset:" + segmentMetadata.getLength() + blockSize,
+                    txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, segmentMetadata.getLength() + blockSize)).get());
         }
     }
 
