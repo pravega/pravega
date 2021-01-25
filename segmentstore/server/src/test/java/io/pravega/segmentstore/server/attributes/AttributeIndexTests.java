@@ -907,7 +907,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             expectedValues.put(attributeId, value);
             val updateBatch = Collections.singletonMap(attributeId, value);
 
-            // Inject a callback to knwo when we finished truncating, as it is an async task.
+            // Inject a callback to know when we finished truncating, as it is an async task.
             @Cleanup("release")
             val truncated = new ReusableLatch();
             context.storage.truncateCallback = (s, o) -> truncated.release();
