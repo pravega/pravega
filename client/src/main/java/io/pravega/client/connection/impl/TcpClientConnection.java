@@ -332,4 +332,9 @@ public class TcpClientConnection implements ClientConnection {
         return "TcpClientConnection [location=" + location + ", isClosed=" + closed.get() + "]";
     }
 
+    @VisibleForTesting
+    FlowToBatchSizeTracker getConnectionReaderFlowToBatchSizeTracker() {
+        return this.reader.flowToBatchSizeTracker;
+    }
+
 }
