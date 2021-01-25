@@ -58,7 +58,7 @@ public class CommandEncoder {
     static final int MAX_QUEUED_SIZE = 1024 * 1024; // 1MB
     
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
-    private final Function<Integer, AppendBatchSizeTracker> appendTracker;
+    private final Function<Long, AppendBatchSizeTracker> appendTracker;
     private final MetricNotifier metricNotifier;
     @GuardedBy("$lock")
     private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
@@ -200,7 +200,7 @@ public class CommandEncoder {
         validateAppend(append, session);
         final ByteBuf data = append.getData().slice();
         final AppendBatchSizeTracker blockSizeSupplier = (appendTracker == null) ? null :
-                appendTracker.apply(Flow.toFlowID(append.getFlowId()));
+                appendTracker.apply(append.getFlowId());
 
         if (blockSizeSupplier != null) {
             blockSizeSupplier.recordAppend(append.getEventNumber(), data.readableBytes());
