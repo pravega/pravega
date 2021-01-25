@@ -40,7 +40,7 @@ public class FlowToBatchSizeTrackerTest {
         Duration evictionTime = Duration.ofSeconds(1);
         int cacheMaxSize = 10;
         CompletableFuture<Void> latch = new CompletableFuture<>();
-        BiConsumer<Long, AppendBatchSizeTracker> callback = (flow, tracker) -> latch.complete(null);
+        BiConsumer<Integer, AppendBatchSizeTracker> callback = (flow, tracker) -> latch.complete(null);
         FlowToBatchSizeTracker flowToBatchSizeTracker = new FlowToBatchSizeTracker(cacheMaxSize, evictionTime, callback);
         // First, add one entry in the flow cache.
         AppendBatchSizeTracker tracker = flowToBatchSizeTracker.getAppendBatchSizeTrackerByFlowId(0);

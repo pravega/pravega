@@ -41,15 +41,15 @@ public class FlowToBatchSizeTracker {
 
     @VisibleForTesting
     @Getter(value = AccessLevel.PACKAGE)
-    private final SimpleCache<Long, AppendBatchSizeTracker> flowToBatchSizeTrackerMap;
+    private final SimpleCache<Integer, AppendBatchSizeTracker> flowToBatchSizeTrackerMap;
 
     public FlowToBatchSizeTracker() {
         this.flowToBatchSizeTrackerMap = new SimpleCache<>(TRACKER_CACHE_MAX_SIZE, TRACKER_CACHE_EXPIRATION_TIME,
-                (flow, tracker) -> log.info("Evicting batch tracker for flow: {}", Flow.toFlowID(flow)));
+                (flow, tracker) -> log.info("Evicting batch tracker for flow: {}", flow));
     }
 
     @VisibleForTesting
-    FlowToBatchSizeTracker(int flowCacheMaxSize, Duration flowCacheExpiration, BiConsumer<Long, AppendBatchSizeTracker> callback) {
+    FlowToBatchSizeTracker(int flowCacheMaxSize, Duration flowCacheExpiration, BiConsumer<Integer, AppendBatchSizeTracker> callback) {
         this.flowToBatchSizeTrackerMap = new SimpleCache<>(flowCacheMaxSize, flowCacheExpiration, callback);
     }
 
@@ -60,9 +60,9 @@ public class FlowToBatchSizeTracker {
      * @param flowId    Identifier for the flow.
      * @return The {@link AppendBatchSizeTracker} instance associated to the flow id.
      */
-    public AppendBatchSizeTracker getAppendBatchSizeTrackerByFlowId(long flowId) {
+    public AppendBatchSizeTracker getAppendBatchSizeTrackerByFlowId(int flowId) {
         if (flowToBatchSizeTrackerMap.putIfAbsent(flowId, new AppendBatchSizeTrackerImpl()) == null) {
-            log.info("Instantiating new batch sze tracker for flow: {}", Flow.toFlowID(flowId));
+            log.info("Instantiating new batch sze tracker for flow: {}", flowId);
         }
         return flowToBatchSizeTrackerMap.get(flowId);
     }
