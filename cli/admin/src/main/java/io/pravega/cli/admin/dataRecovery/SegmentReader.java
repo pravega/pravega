@@ -15,14 +15,18 @@ import io.pravega.segmentstore.server.containers.ContainerRecoveryUtils;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import lombok.Cleanup;
+import lombok.val;
 import org.apache.hadoop.fs.Path;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Reads the content's of a given segment.
@@ -103,7 +107,7 @@ public class SegmentReader extends DataRecoveryCommand {
         createFileAndDirectory();
 
         outputInfo("Writing segment's content to the file...");
-        int countEvents = ContainerRecoveryUtils.readSegment(storage, this.segmentName, TIMEOUT);
+        int countEvents = readSegment(storage, this.segmentName, TIMEOUT);
         outputInfo("Number of events found = %d", countEvents);
 
         outputInfo("Closing the file...");
@@ -112,6 +116,33 @@ public class SegmentReader extends DataRecoveryCommand {
         outputInfo("The segment's contents have been written to the file.");
         outputInfo("Path to the file '%s'", this.filePath);
         outputInfo("Done!");
+    }
+
+    public int readSegment(Storage storage, String segmentName, Duration timeout)
+            throws Exception {
+
+        val segmentInfo = storage.getStreamSegmentInfo(segmentName, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        int bytesToRead = (int) segmentInfo.getLength();
+        val sourceHandle = storage.openRead(segmentName).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        byte[] buffer = new byte[bytesToRead];
+        storage.read(sourceHandle, 0, buffer, 0, bytesToRead, timeout)
+                .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        int countEvents = 0;
+        int offset = 0;
+        while (offset < bytesToRead) {
+            outputInfo("Offset = %d", offset);
+            byte[] header = Arrays.copyOfRange(buffer, offset, offset + 8);
+            long length = convertByteArrayToLong(header);
+            offset += length + 8;
+            countEvents++;
+        }
+        return countEvents;
+    }
+
+    private long convertByteArrayToLong(byte[] longBytes){
+        ByteBuffer byteBuffer = ByteBuffer.wrap(longBytes);
+        byteBuffer.flip();
+        return byteBuffer.getLong();
     }
 
     public static AdminCommand.CommandDescriptor descriptor() {
