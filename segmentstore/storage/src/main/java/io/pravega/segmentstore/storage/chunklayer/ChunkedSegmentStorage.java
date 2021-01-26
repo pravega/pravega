@@ -258,9 +258,10 @@ public class ChunkedSegmentStorage implements Storage {
                                     Preconditions.checkState(chunkInfo != null, "chunkInfo for last chunk must not be null.");
                                     Preconditions.checkState(lastChunk != null, "last chunk metadata must not be null.");
                                     // Adjust its length;
-                                    if (chunkInfo.getLength() != lastChunk.getLength()) {
+                                    if (shouldAppend() && chunkInfo.getLength() != lastChunk.getLength()) {
                                         Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength(),
-                                                "Length of last chunk on LTS must be greater than what is in metadata.");
+                                                "Length of last chunk on LTS must be greater than what is in metadata. Chunk={} length={}",
+                                                lastChunk, chunkInfo.getLength());
                                         // Whatever length you see right now is the final "sealed" length of the last chunk.
                                         lastChunk.setLength(chunkInfo.getLength());
                                         segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + lastChunk.getLength());
