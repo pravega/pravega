@@ -27,9 +27,11 @@ import lombok.val;
 import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -409,38 +411,36 @@ public class ContainerRecoveryUtils {
      * Reads the contents of a given segment and writes it to the {@link FileOutputStream} instance.
      * @param storage                   A storage instance to read the segment and its contents.
      * @param segmentName               The name of the segment.
-     * @param fileOutputStream          A  instance of the {@link FileOutputStream} to write the contents.
-     * @param executor                  A thread pool for the execution.
      * @param timeout                   A timeout for the operation.
      * @throws Exception                If an exception occurred.
      * @return                          A CompletableFuture that, when completed normally, will indicate the operation
      * completed. If the operation failed, the future will be failed with the causing exception.
      */
-    public static CompletableFuture<Void> readSegment(Storage storage, String segmentName, FileOutputStream fileOutputStream,
-                                                      ExecutorService executor, Duration timeout)
+    public static int readSegment(Storage storage, String segmentName, Duration timeout)
             throws Exception {
-        byte[] buffer = new byte[BUFFER_SIZE];
-        return storage.getStreamSegmentInfo(segmentName, timeout).thenComposeAsync(info -> {
-            return storage.openRead(segmentName).thenComposeAsync(sourceHandle -> {
-                AtomicInteger offset = new AtomicInteger(0);
-                AtomicInteger bytesToRead = new AtomicInteger((int) info.getLength());
-                return Futures.loop(
-                        () -> bytesToRead.get() > 0,
-                        () -> {
-                            int readBytes = Math.min(BUFFER_SIZE, bytesToRead.get());
-                            return storage.read(sourceHandle, offset.get(), buffer, 0, readBytes, timeout)
-                                    .thenAcceptAsync(size -> {
-                                        try {
-                                            fileOutputStream.write(buffer, 0, readBytes);
-                                        } catch (IOException e) {
-                                            throw new CompletionException(e);
-                                        }
-                                        bytesToRead.addAndGet(-size);
-                                        offset.addAndGet(size);
-                                    }, executor);
-                        }, executor);
-            }, executor);
-        }, executor);
+
+        val segmentInfo = storage.getStreamSegmentInfo(segmentName, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        int offset = 0;
+        int bytesToRead = (int) segmentInfo.getLength();
+        val sourceHandle = storage.openRead(segmentName).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        byte[] buffer = new byte[bytesToRead];
+        storage.read(sourceHandle, 0, buffer, 0, bytesToRead, timeout)
+                .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        int countEvents = 0;
+        offset = 0;
+        while (offset < bytesToRead) {
+            byte[] header = Arrays.copyOfRange(buffer, offset, offset + 8);
+            long length = convertByteArrayToLong(header);
+            offset += length + 8;
+            countEvents++;
+        }
+        return countEvents;
+    }
+
+    private static long convertByteArrayToLong(byte[] longBytes){
+        ByteBuffer byteBuffer = ByteBuffer.wrap(longBytes);
+        byteBuffer.flip();
+        return byteBuffer.getLong();
     }
 
     /**
