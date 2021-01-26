@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.storage;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -173,7 +172,20 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
     boolean supportsTruncation();
 
     /**
+     * Determines whether this Storage implementation supports atomic writes. Supporting atomic writes means that calls
+     * to {@link #write} will either make all the payload available for reading (via {@link #getStreamSegmentInfo} and
+     * {@link #read}) or none, regardless of whether the underlying Storage binding supports that (e.g., FileSystem does not).
+     *
+     * If this returns true, then even a system crash or other failure will guarantee that, upon a recovery, the payload
+     * will either be visible in its entirety or none at all.
+     *
+     * @return True if atomic writes are supported, false otherwise.
+     */
+    boolean supportsAtomicWrites();
+
+    /**
      * Lists all the segments stored on the storage device.
+     *
      * @return Iterator that can be used to enumerate and retrieve properties of all the segments.
      * @throws IOException if exception occurred while listing segments.
      */
