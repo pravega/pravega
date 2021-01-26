@@ -223,7 +223,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         synchronized (this.lock) {
             // If we are told that only essential cache entries must be inserted, then we need to disable Storage read
             // cache inserts (as we can always re-read that data from Storage).
-            // TODO reenable this and fix unit tests   this.storageCacheDisabled = essentialOnly;
+            this.storageCacheDisabled = essentialOnly;
             this.indexEntries.forEach(entry -> {
                 // We can only evict if both these conditions are met:
                 // 1. The entry is a Cache Entry (Redirect entries cannot be removed).

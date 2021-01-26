@@ -205,6 +205,16 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     //region Helpers
 
+    /**
+     * Gets a value indicating whether the CacheManager has entered "Essential-only" mode.
+     *
+     * @return True if essential-only, false otherwise.
+     */
+    @VisibleForTesting
+    public boolean isEssentialEntriesOnly() {
+        return this.essentialEntriesOnly.get();
+    }
+
     private boolean cacheFullCallback() {
         log.info("{}: Cache full. Forcing cache policy.", TRACE_OBJECT_ID);
         return applyCachePolicy();

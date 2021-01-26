@@ -278,6 +278,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         val nonEssentialCount = new AtomicInteger(0);
         client.setUpdateGenerationsImpl((current, oldest, essential) -> {
             essentialOnly.set(essential);
+            Assert.assertEquals("Essential flag passed to client is different from actual state.", essential, cm.isEssentialEntriesOnly());
             if (essential) {
                 essentialCount.incrementAndGet();
             } else {
@@ -302,6 +303,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
             cm.applyCachePolicy();
             currentGeneration.incrementAndGet();
             Assert.assertEquals("Unexpected value for essentialOnly for StoredBytes = " + size, isExpected.get(), essentialOnly.get());
+            Assert.assertEquals("Unexpected value for isEssentialEntriesOnly for StoredBytes = " + size, isExpected.get(), cm.isEssentialEntriesOnly());
         }
 
         // Then decrease size.
@@ -311,6 +313,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
             cm.applyCachePolicy();
             currentGeneration.incrementAndGet();
             Assert.assertEquals("Unexpected value for essentialOnly for StoredBytes = " + size, isExpected.get(), essentialOnly.get());
+            Assert.assertEquals("Unexpected value for isEssentialEntriesOnly for StoredBytes = " + size, isExpected.get(), cm.isEssentialEntriesOnly());
         }
 
         AssertExtensions.assertGreaterThan("", 0, essentialCount.get());
