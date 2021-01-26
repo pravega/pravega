@@ -181,6 +181,31 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         assertEquals(NO_COUNTER_VALUE, getCounterValue(MetricsNames.SEGMENT_READ_BYTES, segmentName));
     }
 
+    @Test(timeout = 10000)
+    public void testTransactionMetrics() throws InterruptedException {
+        val segmentName = getStreamSegmentName();
+
+        long dataLength = 321;
+        int interval = 500;
+        val duration = Duration.ofMillis(2 * interval);
+        @Cleanup
+        val context = new TestContext(segmentName, duration, false);
+
+        context.statsRecorder.createSegment(segmentName, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, Duration.ofSeconds(1));
+        context.statsRecorder.recordAppend(segmentName, dataLength, 5, Duration.ofSeconds(2));
+        val txnName1 = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+        context.statsRecorder.createSegment(txnName1, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, Duration.ofSeconds(1));
+        Thread.sleep(duration.toMillis() / 2);
+        // Update the lastAccessTime of the SimpleCache for this entry.
+        context.statsRecorder.createSegment(segmentName, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, Duration.ofSeconds(1));
+        Thread.sleep(duration.toMillis() / 2 + 1);
+        // Try to update an entry after it has been at least as long as the eviction period.
+        context.statsRecorder.createSegment(txnName1, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, Duration.ofSeconds(1));
+        // Assert that creating a transaction segment cannot result in affecting the metric of a parent segment.
+        assertEquals(dataLength, getCounterValue(SEGMENT_WRITE_BYTES, segmentName));
+    }
+
+
     private long getCounterValue(String counter, String segment) {
         val c = MetricRegistryUtils.getCounter(counter, segment == null ? new String[0] : segmentTags(segment));
         return c == null ? NO_COUNTER_VALUE : (long) c.count();
