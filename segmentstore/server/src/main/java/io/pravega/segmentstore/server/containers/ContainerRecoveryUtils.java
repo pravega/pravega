@@ -420,14 +420,13 @@ public class ContainerRecoveryUtils {
             throws Exception {
 
         val segmentInfo = storage.getStreamSegmentInfo(segmentName, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        int offset = 0;
         int bytesToRead = (int) segmentInfo.getLength();
         val sourceHandle = storage.openRead(segmentName).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         byte[] buffer = new byte[bytesToRead];
         storage.read(sourceHandle, 0, buffer, 0, bytesToRead, timeout)
                 .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         int countEvents = 0;
-        offset = 0;
+        int offset = 0;
         while (offset < bytesToRead) {
             byte[] header = Arrays.copyOfRange(buffer, offset, offset + 8);
             long length = convertByteArrayToLong(header);
