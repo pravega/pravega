@@ -74,6 +74,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private final ScheduledExecutorService executor;
     private SegmentMetadata metadata;
     private final AtomicLong lastAppendedOffset;
+    private volatile boolean storageCacheDisabled; // True (Disabled): No Storage inserts; False (Enabled): all cache inserts.
     private boolean recoveryMode;
     private boolean closed;
     private boolean merged;
@@ -116,6 +117,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         this.executor = executor;
         this.summary = new ReadIndexSummary();
         this.storageReadAlignment = alignToCacheBlockSize(this.config.getStorageReadAlignment());
+        this.storageCacheDisabled = false;
     }
 
     private int alignToCacheBlockSize(int value) {
@@ -210,7 +212,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     }
 
     @Override
-    public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
+    public boolean updateGenerations(int currentGeneration, int oldestGeneration, boolean essentialOnly) {
         Exceptions.checkNotClosed(this.closed, this);
 
         // Update the current generation with the provided info.
@@ -219,6 +221,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Identify & collect those entries that can be removed, then remove them from the index.
         ArrayList<ReadIndexEntry> toRemove = new ArrayList<>();
         synchronized (this.lock) {
+            // If we are told that only essential cache entries must be inserted, then we need to disable Storage read
+            // cache inserts (as we can always re-read that data from Storage).
+            // TODO reenable this and fix unit tests   this.storageCacheDisabled = essentialOnly;
             this.indexEntries.forEach(entry -> {
                 // We can only evict if both these conditions are met:
                 // 1. The entry is a Cache Entry (Redirect entries cannot be removed).
@@ -501,6 +506,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     }
 
     private void insert(long offset, ByteArraySegment data) {
+        if (this.storageCacheDisabled) {
+            log.debug("{}: Not inserting (Offset = {}, Length = {}) due to Storage Cache disabled.", this.traceObjectId, offset, data.getLength());
+            return;
+        }
+
         log.debug("{}: Insert (Offset = {}, Length = {}).", this.traceObjectId, offset, data.getLength());
 
         // There is a very small chance we might be adding data twice, if we get two concurrent requests that slipped past
