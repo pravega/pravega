@@ -537,7 +537,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private void stopDebugSegmentContainersPostFlush(int containerCount, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap)
             throws Exception {
         for (int containerId = 0; containerId < containerCount; containerId++) {
-            debugStreamSegmentContainerMap.get(containerId).flushToStorage(TIMEOUT).join();
             debugStreamSegmentContainerMap.get(containerId).close();
         }
     }
