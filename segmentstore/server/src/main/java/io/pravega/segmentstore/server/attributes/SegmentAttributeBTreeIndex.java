@@ -363,6 +363,13 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         return this.handle.get();
     }
 
+    @VisibleForTesting
+    int getPendingReadCount() {
+        synchronized (this.pendingReads) {
+            return this.pendingReads.size();
+        }
+    }
+
     @Override
     public String toString() {
         return this.traceObjectId;

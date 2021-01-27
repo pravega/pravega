@@ -682,7 +682,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      * when it receives different values for the "essentialOnly" arg.
      */
     @Test
-    public void testNonEssentialCache() {
+    public void testNonEssentialCache() throws Exception {
         val attributeId = UUID.randomUUID();
         val config = AttributeIndexConfig
                 .builder()
@@ -718,6 +718,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         checkIndex(idx, expectedValues);
         checkIndex(idx, expectedValues);
         Assert.assertEquals("Not expecting caching to be disabled yet.", 1, readCount.get());
+        TestUtils.await(() -> idx.getPendingReadCount() == 0, 5, TIMEOUT.toMillis()); // Let the pending read index clear before proceeding.
 
         // Set the non-essential-only flag.
         anythingRemoved = idx.updateGenerations(newGen, newGen, true);
@@ -733,7 +734,8 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         // Disable the non-essential-only flag.
         anythingRemoved = idx.updateGenerations(newGen, newGen, false);
-        Assert.assertFalse("Not expecting anything to be evicted (essential=true).", anythingRemoved);
+        TestUtils.await(() -> idx.getPendingReadCount() == 0, 5, TIMEOUT.toMillis()); // Let the pending read index clear before proceeding.
+        Assert.assertFalse("Not expecting anything to be evicted (essential=false).", anythingRemoved);
         checkIndex(idx, expectedValues);
         checkIndex(idx, expectedValues); // Do it twice to check that the cache has been properly re-enabled.
         Assert.assertEquals("Expected a single storage read (essential=false).", 3, readCount.get());
