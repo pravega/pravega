@@ -132,8 +132,12 @@ public class SegmentReader extends DataRecoveryCommand {
         while (offset < bytesToRead) {
             outputInfo("Offset = %d", offset);
             byte[] header = Arrays.copyOfRange(buffer, offset, offset + 8);
-            long length = convertByteArrayToLong(header);
-            offset += length + 8;
+            try {
+                long length = convertByteArrayToLong(header);
+                offset += length + 8;
+            } catch (Exception e) {
+                break;
+            }
             countEvents++;
         }
         return countEvents;
