@@ -307,7 +307,6 @@ public class ContainerRecoveryUtils {
                                             ExecutorService executorService,
                                             Duration timeout) throws InterruptedException, ExecutionException,
             TimeoutException {
-        Preconditions.checkNotNull(backUpMetadataSegments, "Back up metadata segments");
         Preconditions.checkState(backUpMetadataSegments.size() <= containersMap.size(), "The number of " +
                 "back-up metadata segments should be less or equal to the number of debug segment containers.");
 
