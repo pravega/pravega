@@ -195,10 +195,10 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         context.statsRecorder.recordAppend(segmentName, dataLength, 5, Duration.ofSeconds(2));
         val txnName1 = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
         context.statsRecorder.createSegment(txnName1, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, Duration.ofSeconds(1));
-        Thread.sleep(duration.toMillis() / 2);
+        Thread.sleep(interval);
         // Update the lastAccessTime of the SimpleCache for this entry.
         context.statsRecorder.createSegment(segmentName, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, Duration.ofSeconds(1));
-        Thread.sleep(duration.toMillis() / 2 + 1);
+        Thread.sleep(interval + 1);
         // Try to update an entry after it has been at least as long as the eviction period.
         context.statsRecorder.createSegment(txnName1, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, Duration.ofSeconds(1));
         // Assert that creating a transaction segment cannot result in affecting the metric of a parent segment.
