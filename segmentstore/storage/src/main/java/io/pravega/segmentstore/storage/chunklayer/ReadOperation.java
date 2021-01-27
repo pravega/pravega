@@ -124,7 +124,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                 () -> bytesRemaining.get() > 0 && null != currentChunkName,
                 () -> {
                     Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null");
-                    bytesToRead = Math.min(bytesRemaining.get(), Math.toIntExact(chunkToReadFrom.getLength() - (currentOffset.get() - startOffsetForCurrentChunk.get())));
+                    bytesToRead = Math.toIntExact(Math.min(bytesRemaining.get(), chunkToReadFrom.getLength() - (currentOffset.get() - startOffsetForCurrentChunk.get())));
                     if (currentOffset.get() >= startOffsetForCurrentChunk.get() + chunkToReadFrom.getLength()) {
                         // The current chunk is over. Move to the next one.
                         currentChunkName = chunkToReadFrom.getNextChunk();
