@@ -28,7 +28,7 @@ import java.util.function.BiConsumer;
  * batching information would be lost and the flow will start operating with the batching algorithm defaults.
  */
 @Slf4j
-public class FlowToBatchSizeTracker {
+class FlowToBatchSizeTracker {
 
     /**
      * Maximum time that the want to keep an inactive flow entry in the cache.
@@ -60,7 +60,7 @@ public class FlowToBatchSizeTracker {
      * @param flowId    Identifier for the flow.
      * @return The {@link AppendBatchSizeTracker} instance associated to the flow id.
      */
-    public AppendBatchSizeTracker getAppendBatchSizeTrackerByFlowId(int flowId) {
+    AppendBatchSizeTracker getAppendBatchSizeTrackerByFlowId(int flowId) {
         if (flowToBatchSizeTrackerMap.putIfAbsent(flowId, new AppendBatchSizeTrackerImpl()) == null) {
             log.debug("Instantiating new batch sze tracker for flow: {}", flowId);
         }
