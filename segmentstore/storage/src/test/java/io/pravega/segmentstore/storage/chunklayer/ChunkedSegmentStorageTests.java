@@ -97,9 +97,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Test capabilities.
-     *
-     * @throws Exception
+     * Test {@link ChunkedSegmentStorage#supportsTruncation()}.
      */
     @Test
     public void testSupportsTruncate() throws Exception {
@@ -110,6 +108,20 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         @Cleanup
         val chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         Assert.assertTrue(chunkedSegmentStorage.supportsTruncation());
+    }
+
+    /**
+     * Tests {@link ChunkedSegmentStorage#supportsAtomicWrites()}
+     */
+    @Test
+    public void testSupportsAtomicWrites() throws Exception {
+        @Cleanup
+        val chunkStorage = createChunkStorage();
+        @Cleanup
+        val metadataStore = createMetadataStore();
+        @Cleanup
+        val chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        Assert.assertTrue(chunkedSegmentStorage.supportsAtomicWrites());
     }
 
     /**
@@ -1119,7 +1131,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void testBaseConcat(TestContext testContext, int maxRollingLength, long[] targetLayout, long[] sourceLayout, long[] resultLayout) throws Exception {
+    private void testBaseConcat(TestContext testContext, long maxRollingLength, long[] targetLayout, long[] sourceLayout, long[] resultLayout) throws Exception {
         val source = testContext.insertMetadata("source", maxRollingLength, 1, sourceLayout);
         val target = testContext.insertMetadata("target", maxRollingLength, 1, targetLayout);
 
@@ -2239,6 +2251,43 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         CompletableFuture.allOf(futures).join();
     }
 
+    @Test
+    public void testReadHugeChunks() throws Exception {
+        String testSegmentName = "foo";
+        @Cleanup
+        TestContext testContext = getTestContext();
+        // Setup a segment with 5 chunks with given lengths.
+        val segment = testContext.insertMetadata(testSegmentName, 10L * Integer.MAX_VALUE, 1,
+                new long[]{
+                        Integer.MAX_VALUE + 1L,
+                        Integer.MAX_VALUE + 2L,
+                        Integer.MAX_VALUE + 3L,
+                        Integer.MAX_VALUE + 4L,
+                        Integer.MAX_VALUE + 5L});
+
+        val h = testContext.chunkedSegmentStorage.openRead(testSegmentName).get();
+
+        byte[] output = new byte[10];
+        // Read bytes
+        for (long i = 0; i < 5; i++) {
+            val bytesRead = testContext.chunkedSegmentStorage.read(h, i * Integer.MAX_VALUE, output, 0, 10, null).get();
+            Assert.assertEquals(10, bytesRead.intValue());
+        }
+    }
+
+    @Test
+    public void testConcatHugeChunks() throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .minSizeLimitForConcat(10L * Integer.MAX_VALUE)
+                .maxSizeLimitForConcat(100L * Integer.MAX_VALUE)
+                .build());
+        testBaseConcat(testContext, 10L * Integer.MAX_VALUE,
+                new long[]{Integer.MAX_VALUE + 1L},
+                new long[]{Integer.MAX_VALUE + 1L, Integer.MAX_VALUE + 1L},
+                new long[]{3L * Integer.MAX_VALUE + 3L});
+    }
+
     private void checkDataRead(String testSegmentName, TestContext testContext, long offset, long length) throws InterruptedException, java.util.concurrent.ExecutionException {
         checkDataRead(testSegmentName, testContext, offset, length, null);
     }
@@ -2418,6 +2467,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          * Creates and inserts metadata for a test segment.
          */
         public SegmentMetadata insertMetadata(String testSegmentName, int maxRollingLength, int ownerEpoch) throws Exception {
+            Preconditions.checkArgument(maxRollingLength > 0, "maxRollingLength");
+            Preconditions.checkArgument(ownerEpoch > 0, "ownerEpoch");
             try (val txn = metadataStore.beginTransaction(false, new String[]{testSegmentName})) {
                 SegmentMetadata segmentMetadata = SegmentMetadata.builder()
                         .maxRollinglength(maxRollingLength)
@@ -2435,6 +2486,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          * Creates and inserts metadata for a test segment.
          */
         public SegmentMetadata insertMetadata(String testSegmentName, long maxRollingLength, int ownerEpoch, long[] chunkLengths) throws Exception {
+            Preconditions.checkArgument(maxRollingLength > 0, "maxRollingLength");
+            Preconditions.checkArgument(ownerEpoch > 0, "ownerEpoch");
             try (val txn = metadataStore.beginTransaction(false, new String[]{testSegmentName})) {
                 String firstChunk = null;
                 String lastChunk = null;

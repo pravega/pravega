@@ -9,9 +9,12 @@
  */
 package io.pravega.segmentstore.server.attributes;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -28,18 +31,20 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.CacheFullException;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.AbstractMap;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,8 +58,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
@@ -261,7 +269,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the case when Snapshots fail due to a Storage failure. This should prevent whatever operation triggered it
+     * Tests the case when updates fail due to a Storage failure. This should prevent whatever operation triggered it
      * to completely fail and not record the data.
      */
     @Test
@@ -290,6 +298,56 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 "seal() worked with Storage failure.",
                 () -> idx.seal(TIMEOUT),
                 ex -> ex instanceof IntentionalException);
+    }
+
+    /**
+     * Tests the case when updates/reads fail due to a Cache failure (i.e., Cache Full). This should not interfere with
+     * whatever operation triggered it and it should not affect ongoing operations on the index.
+     */
+    @Test
+    public void testCacheWriteFailure() throws Exception {
+        val exceptionMakers = Arrays.<Supplier<RuntimeException>>asList(
+                IntentionalException::new, () -> new CacheFullException("intentional"));
+        val attributeId = UUID.randomUUID();
+        val attributeSegmentName = NameUtils.getAttributeSegmentName(SEGMENT_NAME);
+        val initialValue = 0L;
+        val finalValue = 1L;
+
+        for (val exceptionMaker : exceptionMakers) {
+            @Cleanup
+            val context = new TestContext(DEFAULT_CONFIG);
+            populateSegments(context);
+            val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+
+            // Populate the index with some initial value.
+            val pointer1 = idx.update(Collections.singletonMap(attributeId, initialValue), TIMEOUT).join();
+
+            // For the next insertion, simulate some cache exception.
+            val insertInvoked = new AtomicBoolean(false);
+            context.cacheStorage.beforeInsert = buffer -> {
+                insertInvoked.set(true);
+                throw exceptionMaker.get();
+            };
+
+            // Update the value. The cache insertion should fail because of the exception above.
+            val pointer2 = idx.update(Collections.singletonMap(attributeId, finalValue), TIMEOUT).join();
+            TestUtils.await(() -> context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join().getStartOffset() > pointer1, 5, TIMEOUT.toMillis());
+
+            Assert.assertTrue(insertInvoked.get());
+            AssertExtensions.assertGreaterThan("", pointer1, pointer2);
+
+            // If the cache insertion would have actually failed, then the following read call would fail (it would try
+            // to read from the truncated portion (that's why we have the asserts above).
+            // First, setup a read interceptor to ensure we actually want to read from Storage.
+            val readCount = new AtomicInteger(0);
+            context.storage.readInterceptor = (segment, offset, length, wrappedStorage) -> {
+                readCount.incrementAndGet();
+                return CompletableFuture.completedFuture(null);
+            };
+            val value = idx.get(Collections.singletonList(attributeId), TIMEOUT).join();
+            Assert.assertEquals(finalValue, (long) value.get(attributeId));
+            AssertExtensions.assertGreaterThan("Expected Storage reads.", 0, readCount.get());
+        }
     }
 
     /**
@@ -673,17 +731,105 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the AttributeIndex recovery when the underlying Storage adapter supports atomic writes. It is expected that
+     * any metadata-stored Root Pointer is ignored in this case.
+     */
+    @Test
+    public void testRecoveryWithAtomicStorageWrites() {
+        val attribute = UUID.randomUUID();
+        val value1 = 1L;
+        val value2 = 2L;
+        val noRollingConfig = AttributeIndexConfig.builder().build(); // So we don't trip over rollovers.
+
+        @Cleanup
+        val context = new TestContext(noRollingConfig);
+        context.storage.supportsTruncation = false; // So we don't trip over truncations or rollovers.
+        context.storage.supportsAtomicWrites = true;
+        populateSegments(context);
+
+        // 1. Populate the index with first value
+        val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        val rootPointer1 = idx.update(Collections.singletonMap(attribute, value1), TIMEOUT).join();
+        AssertExtensions.assertGreaterThan("Expected a valid Root pointer after update #2.", 0, rootPointer1);
+
+        val rootPointer2 = idx.update(Collections.singletonMap(attribute, value2), TIMEOUT).join();
+        AssertExtensions.assertGreaterThan("Expected a valid Root pointer after update #2.", rootPointer1, rootPointer2);
+
+        // 2. Update the Container Metadata with the first root pointer.
+        context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID)
+                .updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, rootPointer1));
+
+        // 3. Reload index and verify it ignores the metadata-stored root pointer (and uses the actual index).
+        context.index.cleanup(null);
+        val storageRead = new AtomicBoolean();
+        context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true));
+
+        val idx2 = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        val actualValue = idx2.get(Collections.singleton(attribute), TIMEOUT).join();
+        Assert.assertEquals("Unexpected value read.", value2, (long) actualValue.get(attribute));
+        Assert.assertTrue("Expecting storage reads after reload.", storageRead.get());
+    }
+
+    /**
+     * Tests the behavior of the Attribute Index when it is told that the underlying Storage adapter supports atomic
+     * writes but in fact it does not. It is expected to fail with corrupted data.
+     */
+    @Test
+    public void testRecoveryAfterIncompleteUpdateWithNoRootPointer() {
+        val attribute = UUID.randomUUID();
+        @Cleanup
+        val context = new TestContext(DEFAULT_CONFIG);
+        // Lie to the SegmentAttributeBTreeIndex. Tell it that the Storage adapter does support atomic writes, but it
+        // reality it does not.
+        context.storage.supportsAtomicWrites = true;
+        populateSegments(context);
+
+        // 1. Populate the index.
+        val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        val rootPointer = idx.update(Collections.singletonMap(attribute, 0L), TIMEOUT).join();
+        AssertExtensions.assertGreaterThan("Expected a valid Root pointer after update.", 0, rootPointer);
+
+        // 2. Write some garbage data at the end of the segment. This simulates a partial (incomplete update) that did not
+        // fully write the BTree pages to the end of the segment.
+        String attributeSegmentName = NameUtils.getAttributeSegmentName(SEGMENT_NAME);
+        val partialUpdate = new byte[1234];
+        context.storage.openWrite(attributeSegmentName)
+                .thenCompose(handle -> context.storage.write(
+                        handle,
+                        context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join().getLength(),
+                        new ByteArrayInputStream(partialUpdate),
+                        partialUpdate.length, TIMEOUT))
+                .join();
+
+        // 3. Reload index and verify it fails to initialize.
+        context.index.cleanup(null);
+        val storageRead = new AtomicBoolean();
+        context.storage.readInterceptor = (name, offset, length, storage) -> CompletableFuture.runAsync(() -> storageRead.set(true));
+
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected index initialization/read to fail.",
+                () -> context.index.forSegment(SEGMENT_ID, TIMEOUT)
+                        .thenCompose(idx2 -> idx2.get(Collections.singleton(attribute), TIMEOUT)),
+                ex -> ex instanceof Exception);
+        Assert.assertTrue("Expecting storage reads after reload.", storageRead.get());
+    }
+
+    /**
      * Tests the ability of the Attribute Index to recover correctly after a partial update has been written to Storage.
      * This simulates how it should be used by a caller: after every update, the {@link Attributes#ATTRIBUTE_SEGMENT_ROOT_POINTER}
      * attribute of the segment should be set to the return value from {@link AttributeIndex#update} in order to perform
      * a correct recovery.
      */
     @Test
-    public void testRecoveryAfterIncompleteUpdate() {
+    public void testRecoveryAfterIncompleteUpdateWithRootPointer() {
         final int attributeCount = 1000;
         val attributes = IntStream.range(0, attributeCount).mapToObj(i -> new UUID(i, i)).collect(Collectors.toList());
         @Cleanup
         val context = new TestContext(DEFAULT_CONFIG);
+        // Root pointers are read from Segment's Metadata if Storage does not support atomic writes. This test validates
+        // that case: a partial write with the help of metadata-stored Root Pointers (if the Root Pointers were not stored
+        // in the metadata, then the recovery would fail).
+        context.storage.supportsAtomicWrites = false;
         populateSegments(context);
 
         // 1. Populate and verify first index.
@@ -736,7 +882,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      * be attempted to be read from Storage without providing hints to where to start reading from.
      */
     @Test
-    public void testTruncatedRootPointer() {
+    public void testTruncatedRootPointer() throws Exception {
         val attributeSegmentName = NameUtils.getAttributeSegmentName(SEGMENT_NAME);
         val config = AttributeIndexConfig
                 .builder()
@@ -761,7 +907,12 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             expectedValues.put(attributeId, value);
             val updateBatch = Collections.singletonMap(attributeId, value);
 
+            // Inject a callback to know when we finished truncating, as it is an async task.
+            @Cleanup("release")
+            val truncated = new ReusableLatch();
+            context.storage.truncateCallback = (s, o) -> truncated.release();
             val rootPointer = idx.update(updateBatch, TIMEOUT).join();
+            truncated.await(TIMEOUT.toMillis());
             val startOffset = context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join().getStartOffset();
             if (previousRootPointer >= 0) {
                 // We always set the Root Pointer to be one "value behind". Since we truncate the Attribute Segment with
@@ -906,7 +1057,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         final TestContext.TestStorage storage;
         final UpdateableContainerMetadata containerMetadata;
         final ContainerAttributeIndexImpl index;
-        final CacheStorage cacheStorage;
+        final TestCache cacheStorage;
         final TestCacheManager cacheManager;
 
         TestContext(AttributeIndexConfig config) {
@@ -918,7 +1069,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             this.memoryStorage.initialize(1);
             this.storage = new TestContext.TestStorage(new RollingStorage(this.memoryStorage, config.getAttributeSegmentRollingPolicy()), executorService());
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+            this.cacheStorage = new TestCache(Integer.MAX_VALUE);
             this.cacheManager = new TestCacheManager(cachePolicy, this.cacheStorage, executorService());
             val factory = new ContainerAttributeIndexFactoryImpl(config, this.cacheManager, executorService());
             this.index = factory.createContainerAttributeIndex(this.containerMetadata, this.storage);
@@ -936,28 +1087,66 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             this.cacheStorage.close();
         }
 
+        private class TestCache extends DirectMemoryCache {
+            volatile Consumer<BufferView> beforeInsert;
+
+            TestCache(long maxSizeBytes) {
+                super(maxSizeBytes);
+            }
+
+            @Override
+            public int insert(BufferView data) {
+                val c = this.beforeInsert;
+                if (c != null) {
+                    c.accept(data);
+                }
+                return super.insert(data);
+            }
+        }
+
         private class TestStorage extends AsyncStorageWrapper {
             private final SyncStorage wrappedStorage;
             private final Map<String, Long> startOffsets;
             private WriteInterceptor writeInterceptor;
             private SealInterceptor sealInterceptor;
             private ReadInterceptor readInterceptor;
+            private BiConsumer<String, Long> truncateCallback;
+            private boolean supportsAtomicWrites;
+            private boolean supportsTruncation;
 
             TestStorage(SyncStorage syncStorage, Executor executor) {
                 super(syncStorage, executor);
                 this.wrappedStorage = syncStorage;
                 this.startOffsets = new ConcurrentHashMap<>();
+                this.supportsTruncation = true;
+            }
+
+            @Override
+            public boolean supportsTruncation() {
+                return this.supportsTruncation;
+            }
+
+            @Override
+            public boolean supportsAtomicWrites() {
+                return this.supportsAtomicWrites;
             }
 
             @Override
             public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
+                Preconditions.checkState(supportsTruncation(), "Truncations not enabled");
                 // We need to simulate the ChunkedSegmentStorage (correct) behavior for truncating segments. While the
                 // legacy RollingStorage would approximate a StartOffset to an offset at most equal to the requested
                 // Truncation Offset, the ChunkedSegmentStorage is very strict about that, so it will deny any read prior
                 // to that offset. In addition, the ChunkedSegmentStorage also returns the correct StartOffset as part of
                 // getStreamSegmentInfo while RollingStorage does not.
                 return super.truncate(handle, offset, timeout)
-                        .thenRun(() -> this.startOffsets.put(handle.getSegmentName(), offset));
+                        .thenRun(() -> {
+                            this.startOffsets.put(handle.getSegmentName(), offset);
+                            BiConsumer<String, Long> c = this.truncateCallback;
+                            if (c != null) {
+                                c.accept(handle.getSegmentName(), offset);
+                            }
+                        });
             }
 
             @Override
