@@ -119,7 +119,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         // verify truncation happens at the retention max.
         AssertExtensions.assertEventuallyEquals(true, () -> {
             Map<Segment, Long> segments = controller.getSegmentsAtTime(new StreamImpl(SCOPE, STREAM), 0L).join();
-            System.out.println("The segments none1: " + segments);
+            log.debug("The segments none1: " + segments);
             return segments.values().stream().anyMatch(off -> off > 0);
         }, 120 * 1000L);
 
@@ -133,7 +133,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         // verify truncation happens at the retention max as no stream-cut is published.
         AssertExtensions.assertEventuallyEquals(true, () -> {
             Map<Segment, Long> segments = controller.getSegmentsAtTime(new StreamImpl(SCOPE, STREAM), 0L).join();
-            System.out.println("The segments none2: " + segments);
+            log.debug("The segments none2: " + segments);
             return segments.values().stream().anyMatch(off -> off > 0);
         }, 120 * 1000L);
 
@@ -149,7 +149,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         // verify truncation happens at the provided stream-cut.
         AssertExtensions.assertEventuallyEquals(true, () -> {
             Map<Segment, Long> segments = controller.getSegmentsAtTime(new StreamImpl(SCOPE, STREAM), 0L).join();
-            System.out.println("The segments none3: " + segments);
+            log.debug("The segments none3: " + segments);
             return segments.values().stream().anyMatch(off -> off > 0);
         }, 120 * 1000L);
 
@@ -168,7 +168,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         // verify truncation happens at the checkpoint.
         AssertExtensions.assertEventuallyEquals(true, () -> {
             Map<Segment, Long> segments = controller.getSegmentsAtTime(new StreamImpl(SCOPE, STREAM), 0L).join();
-            System.out.println("The segments none4: " + segments);
+            log.debug("The segments none4: " + segments);
             return segments.values().stream().anyMatch(off -> off > 0);
         }, 120 * 1000L);
     }
