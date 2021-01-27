@@ -145,7 +145,7 @@ public class SegmentReader extends DataRecoveryCommand {
 
     private long convertByteArrayToLong(byte[] longBytes){
         ByteBuffer byteBuffer = ByteBuffer.wrap(longBytes);
-        byteBuffer.flip();
+        //byteBuffer.flip();
         return byteBuffer.getLong();
     }
 
