@@ -25,13 +25,9 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.io.ByteArrayInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -405,41 +400,6 @@ public class ContainerRecoveryUtils {
                     }, executor);
                 }, executor);
             }, executor);
-    }
-
-    /**
-     * Reads the contents of a given segment and writes it to the {@link FileOutputStream} instance.
-     * @param storage                   A storage instance to read the segment and its contents.
-     * @param segmentName               The name of the segment.
-     * @param timeout                   A timeout for the operation.
-     * @throws Exception                If an exception occurred.
-     * @return                          A CompletableFuture that, when completed normally, will indicate the operation
-     * completed. If the operation failed, the future will be failed with the causing exception.
-     */
-    public static int readSegment(Storage storage, String segmentName, Duration timeout)
-            throws Exception {
-
-        val segmentInfo = storage.getStreamSegmentInfo(segmentName, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        int bytesToRead = (int) segmentInfo.getLength();
-        val sourceHandle = storage.openRead(segmentName).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        byte[] buffer = new byte[bytesToRead];
-        storage.read(sourceHandle, 0, buffer, 0, bytesToRead, timeout)
-                .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        int countEvents = 0;
-        int offset = 0;
-        while (offset < bytesToRead) {
-            byte[] header = Arrays.copyOfRange(buffer, offset, offset + 8);
-            long length = convertByteArrayToLong(header);
-            offset += length + 8;
-            countEvents++;
-        }
-        return countEvents;
-    }
-
-    private static long convertByteArrayToLong(byte[] longBytes){
-        ByteBuffer byteBuffer = ByteBuffer.wrap(longBytes);
-        byteBuffer.flip();
-        return byteBuffer.getLong();
     }
 
     /**
