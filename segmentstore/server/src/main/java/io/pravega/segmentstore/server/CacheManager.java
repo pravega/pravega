@@ -215,6 +215,11 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         return this.essentialEntriesOnly.get();
     }
 
+    @VisibleForTesting
+    public int getCurrentGeneration() {
+        return this.currentGeneration.get();
+    }
+
     private boolean cacheFullCallback() {
         log.info("{}: Cache full. Forcing cache policy.", TRACE_OBJECT_ID);
         return applyCachePolicy();

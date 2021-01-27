@@ -2243,6 +2243,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         context.cacheStorage.insertCallback = address -> insertCount.incrementAndGet();
         context.storage.setReadInterceptor((segment, wrappedStorage) -> storageReadCount.incrementAndGet());
 
+        // Helper for reading a segment part.
         BiConsumer<Long, BufferView> readPart = (partOffset, partContents) -> {
             try {
                 @Cleanup
@@ -2257,7 +2258,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Read parts 1 and 2 (separately). They should be cached as individual entries.
         readPart.accept(0L, part1);
         Assert.assertEquals(1, storageReadCount.get());
-        AssertExtensions.assertEventuallyEquals(1, insertCount::get, TIMEOUT.toMillis()); // This one is done asynchronously.
+
+        // Cache insertion is done async. Need to wait until we write
+        AssertExtensions.assertEventuallyEquals(1, insertCount::get, TIMEOUT.toMillis());
+        AssertExtensions.assertEventuallyEquals(1, context.readIndex.getIndex(segmentId).getSummary()::size, TIMEOUT.toMillis());
 
         boolean evicted = context.cacheManager.applyCachePolicy(); // No eviction, but increase generation.
         Assert.assertFalse("Not expected an eviction now.", evicted);
@@ -2267,6 +2271,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // We expect 2 storage reads and also 2 cache inserts.
         Assert.assertEquals(2, storageReadCount.get());
         AssertExtensions.assertEventuallyEquals(2, insertCount::get, TIMEOUT.toMillis()); // This one is done asynchronously.
+        AssertExtensions.assertEventuallyEquals(2, context.readIndex.getIndex(segmentId).getSummary()::size, TIMEOUT.toMillis());
 
         evicted = context.cacheManager.applyCachePolicy(); // No eviction, but increase generation.
         Assert.assertFalse("Not expected an eviction now.", evicted);

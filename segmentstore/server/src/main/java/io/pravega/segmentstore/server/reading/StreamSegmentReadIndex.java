@@ -43,6 +43,8 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -70,6 +72,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     @GuardedBy("lock")
     private final HashMap<Long, PendingMerge> pendingMergers; //Key = Source Segment Id, Value = Pending Merge Info.
     private final StorageReadManager storageReadManager;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final ReadIndexSummary summary;
     private final ScheduledExecutorService executor;
     private SegmentMetadata metadata;
