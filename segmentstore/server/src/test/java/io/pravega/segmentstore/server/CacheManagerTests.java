@@ -273,9 +273,12 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
 
         TestClient client = new TestClient();
         cm.register(client);
+        client.setCacheStatus(0, 0);
         val essentialOnly = new AtomicBoolean(false);
         val essentialCount = new AtomicInteger(0);
         val nonEssentialCount = new AtomicInteger(0);
+        val changeNewGen = new AtomicBoolean();
+        val changeOldGen = new AtomicBoolean();
         client.setUpdateGenerationsImpl((current, oldest, essential) -> {
             essentialOnly.set(essential);
             Assert.assertEquals("Essential flag passed to client is different from actual state.", essential, cm.isEssentialEntriesOnly());
@@ -285,7 +288,17 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                 nonEssentialCount.incrementAndGet();
             }
 
-            return true;
+            // Change the client's old gen and new gen alternatively.
+            if (changeNewGen.get()) {
+                int og = client.getCacheStatus().getOldestGeneration();
+                if (changeOldGen.get()) {
+                    og++;
+                }
+                changeOldGen.set(!changeOldGen.get());
+                client.setCacheStatus(og, current);
+            }
+            changeNewGen.set(!changeNewGen.get());
+            return !changeNewGen.get();
         });
 
         val isExpected = new Supplier<Boolean>() {
@@ -298,7 +311,6 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         // First increase size.
         AtomicInteger currentGeneration = new AtomicInteger();
         for (long size = cache.getStoredBytes(); size < maxSize; size++) {
-            client.setCacheStatus(0, currentGeneration.get());
             cache.setUsedBytes(size);
             cm.applyCachePolicy();
             currentGeneration.incrementAndGet();
@@ -308,7 +320,6 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
 
         // Then decrease size.
         for (long size = cache.getUsedBytes(); size >= 0; size--) {
-            client.setCacheStatus(0, currentGeneration.get());
             cache.setUsedBytes(size);
             cm.applyCachePolicy();
             currentGeneration.incrementAndGet();
