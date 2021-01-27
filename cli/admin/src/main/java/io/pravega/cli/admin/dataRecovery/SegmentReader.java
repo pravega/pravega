@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class SegmentReader extends DataRecoveryCommand {
 
-    private static final Duration TIMEOUT = Duration.ofMillis(100 * 1000);
+    private static final Duration TIMEOUT = Duration.ofMillis(240 * 1000);
     private static final int CONTAINER_EPOCH = 1;
     private final ScheduledExecutorService scheduledExecutorService = getCommandArgs().getState().getExecutor();
     private final StorageFactory storageFactory;
