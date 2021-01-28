@@ -120,7 +120,6 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
     @Test(timeout = 10000)
     public void testMetrics() {
         val segmentName = getStreamSegmentName();
-        val segmentTags = segmentTags(segmentName);
         @Cleanup
         val context = new TestContext(segmentName, Duration.ofSeconds(10), false);
         val elapsed = Duration.ofSeconds(1);
@@ -180,6 +179,28 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         assertEquals(NO_COUNTER_VALUE, getCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, segmentName));
         assertEquals(NO_COUNTER_VALUE, getCounterValue(MetricsNames.SEGMENT_READ_BYTES, segmentName));
     }
+
+    @Test(timeout = 10000)
+    public void testTransactionMetrics() {
+        val segmentName = getStreamSegmentName();
+
+        long dataLength = 321;
+        val duration = Duration.ofMinutes(1);
+        @Cleanup
+        val context = new TestContext(segmentName, duration, false);
+
+        context.statsRecorder.createSegment(segmentName, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, Duration.ofSeconds(1));
+        context.statsRecorder.recordAppend(segmentName, dataLength, 5, Duration.ofSeconds(2));
+        val txnName1 = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+        context.statsRecorder.createSegment(txnName1, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, Duration.ofSeconds(1));
+        // Make sure deletions do not cause side effects.
+        context.statsRecorder.deleteSegment(txnName1);
+        assertEquals(dataLength, getCounterValue(SEGMENT_WRITE_BYTES, segmentName));
+        // All closures of metrics happen through the SimpleCache. Asserting that an entry for `txnName1` does not exist
+        // ensures that there is guaranteed to be a one-one mapping of entries to metric counters.
+        assertNull(context.statsRecorder.getSegmentAggregates(txnName1));
+    }
+
 
     private long getCounterValue(String counter, String segment) {
         val c = MetricRegistryUtils.getCounter(counter, segment == null ? new String[0] : segmentTags(segment));
