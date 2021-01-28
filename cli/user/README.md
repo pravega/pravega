@@ -66,6 +66,7 @@ Initial configuration:
 
 Type "help" for list of commands, or "exit" to exit.
 ```
+The values can be changed at the properties file, or use `config set property=...` to change the value. Make sure to update `controller-uri:<pravega-cluster-name>-pravega-controller.<namespace>:9090`
 
 From that point onwards, you can check the available commands typing `help`:
 ```
@@ -92,6 +93,12 @@ All available commands:
 	stream delete scoped-stream-names: Deletes one or more Streams.
 	stream list scope-name: Lists all Streams in a Scope.
 	stream read scoped-stream-name [group-similar] [timeout-in-seconds]: Reads all Events from a Stream and then tails the Stream.
+```
+
+You can try out commands such as:
+```
+> scope create example
+Scope 'example' created successfully.
 ```
 
 For more info on how the Pravega User CLI works, please visit [this page](https://github.com/pravega/pravega/wiki/Pravega-User-CLI).

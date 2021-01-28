@@ -52,7 +52,7 @@ You can run the Pravega Admin CLI as follows:
 ```
 ./bin/pravega-admin
 ```
-You will se an output related to the default configuration parameters available at `conf/config.properties`
+You will se an output related to the default configuration parameters available at `conf/config.properties`. The values can be changed at the properties file, or use `config set property=...` to change the value.
 (you may want to change this file according to your setting):
 ```
 Pravega Admin CLI.
