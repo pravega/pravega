@@ -200,6 +200,11 @@ public class TestStorage implements Storage {
     }
 
     @Override
+    public boolean supportsAtomicWrites() {
+        return this.wrappedStorage.supportsAtomicWrites();
+    }
+
+    @Override
     public Iterator<SegmentProperties> listSegments() {
         return null;
     }

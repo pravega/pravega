@@ -286,6 +286,14 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val recoveredIndex = defaultBuilder(ds).build();
         recoveredIndex.initialize(TIMEOUT).join();
         check("after recovery", recoveredIndex, entries, 0);
+
+        // Now verify how it would behave if we had no root pointer. An exception should be thrown.
+        ds.rootPointer.set(-1L);
+        val corruptedIndex = defaultBuilder(ds).build();
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected corrupted index to fail initialization.",
+                () -> corruptedIndex.initialize(TIMEOUT),
+                ex -> ex instanceof IllegalArgumentException); // Captures IllegalDataFormatException as well.
     }
 
     /**

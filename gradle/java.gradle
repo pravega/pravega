@@ -89,13 +89,32 @@ plugins.withId('java') {
         testLogging.showCauses = true
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
-        testLogging.events = ["PASSED", "FAILED"]
+        testLogging.events = ["FAILED"]
         maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
         minHeapSize = "128m"
         maxHeapSize = "512m"
         def jvmArgsCopy = jvmArgs
         jvmArgsCopy.add("-XX:MaxDirectMemorySize=4g")
         jvmArgs = jvmArgsCopy
+        def outputCache = new LinkedList<String>()
+
+        beforeTest { descriptor ->
+            logger.lifecycle("\nRunning test: " + descriptor.getClassName() + " > " + descriptor.getDisplayName());
+            outputCache.clear()
+        }
+
+        onOutput { descriptor, event ->
+            outputCache.add(event.getMessage())
+            while (outputCache.size() > 300) outputCache.remove()
+        }
+
+        afterTest { descriptor, result ->
+            if (result.resultType == TestResult.ResultType.FAILURE && outputCache.size() > 0) {
+                println()
+                println("Output of ${descriptor.getClassName()}.${descriptor.getDisplayName()} (Last 300 lines):")
+                outputCache.each { print(" > $it") }
+            }
+        }
     }
 
     dependencies {

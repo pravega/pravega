@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.metrics.MetricNotifier;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -30,9 +29,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-
-import static io.pravega.shared.NameUtils.writerTags;
-import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_OUTSTANDING_APPEND_COUNT;
 
 @Slf4j
 public class FlowHandler extends FailingReplyProcessor implements AutoCloseable {
@@ -52,7 +48,6 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final ConcurrentHashMap<Integer, ReplyProcessor> flowIdReplyProcessorMap = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Integer, AppendBatchSizeTracker> flowIDBatchSizeTrackerMap = new ConcurrentHashMap<>();
     private final AtomicBoolean disableFlow = new AtomicBoolean(false);
 
     private FlowHandler(PravegaNodeUri location, MetricNotifier updateMetric) {
@@ -88,7 +83,6 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         if (flowIdReplyProcessorMap.put(flowID, rp) != null) {
             throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flowID);
         }
-        createAppendBatchSizeTrackerIfNeeded(flowID);
         return new FlowClientConnection(location.toString(), channel, flowID, this);
     }
 
@@ -103,7 +97,6 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         Preconditions.checkState(!disableFlow.getAndSet(true), "Flows are disabled, incorrect usage pattern.");
         log.info("Creating a new connection with flow disabled for endpoint {}.", location);
         flowIdReplyProcessorMap.put(FLOW_DISABLED, rp);
-        createAppendBatchSizeTrackerIfNeeded(FLOW_DISABLED);
         return new FlowClientConnection(location.toString(), channel, FLOW_DISABLED, this);
     }
 
@@ -115,41 +108,10 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         int flow = clientConnection.getFlowId();
         log.info("Closing Flow {} for endpoint {}", flow, clientConnection.getConnectionName());
         flowIdReplyProcessorMap.remove(flow);
-        flowIDBatchSizeTrackerMap.remove(flow);
         if (flow == FLOW_DISABLED) {
             // close the channel immediately since this connection will not be reused by other flows.
             close();
         }
-    }
-
-    /**
-     * Create a Batch size tracker, ignore if already existing
-     *
-     * @param flowID flow ID.
-     */
-    private void createAppendBatchSizeTrackerIfNeeded(final int  flowID) {
-        if (flowIDBatchSizeTrackerMap.containsKey(flowID)) {
-            log.debug("Reusing Batch size tracker for Flow ID {}.", flowID);
-        } else {
-            log.debug("Creating Batch size tracker for flow ID {}.", flowID);
-            flowIDBatchSizeTrackerMap.put(flowID, new AppendBatchSizeTrackerImpl());
-        }
-    }
-
-    /**
-     * Get a Batch size tracker for requestID.
-     *
-     * @param requestID flow ID.
-     * @return Batch size Tracker object.
-     */
-    public AppendBatchSizeTracker getAppendBatchSizeTracker(final long requestID) {
-        int flowID;
-        if (disableFlow.get()) {
-            flowID = FLOW_DISABLED;
-        } else {
-            flowID = Flow.toFlowID(requestID);
-        }
-        return flowIDBatchSizeTrackerMap.get(flowID);
     }
 
     /**
@@ -185,18 +147,6 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
             return;
         }
 
-        if (cmd instanceof WireCommands.DataAppended) {
-            final WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) cmd;
-            final AppendBatchSizeTracker batchSizeTracker = getAppendBatchSizeTracker(dataAppended.getRequestId());
-            if (batchSizeTracker != null) {
-                long pendingAckCount = batchSizeTracker.recordAck(dataAppended.getEventNumber());
-                // Only publish client side metrics when there is some metrics notifier configured for efficiency.
-                if (!metricNotifier.equals(MetricNotifier.NO_OP_METRIC_NOTIFIER)) {
-                    metricNotifier.updateSuccessMetric(CLIENT_OUTSTANDING_APPEND_COUNT, writerTags(dataAppended.getWriterId().toString()),
-                            pendingAckCount);
-                }
-            }
-        }
         // Obtain ReplyProcessor and process the reply.
         ReplyProcessor processor = getReplyProcessor(cmd);
         if (processor != null) {
@@ -260,10 +210,6 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
                     log.warn("Encountered exception invoking ReplyProcessor for flow id {}", flowId, e);
                 }
             });
-            final int appendTrackerCount = flowIDBatchSizeTrackerMap.size();
-            if (appendTrackerCount != 0) {
-                log.warn("{} AppendBatchSizeTrackers are not closed", appendTrackerCount);
-            }
             channel.close();
         }
     }

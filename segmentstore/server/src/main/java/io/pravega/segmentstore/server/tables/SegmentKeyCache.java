@@ -28,6 +28,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
@@ -43,13 +44,14 @@ import lombok.val;
  *
  * The cache is separated in this manner because the Tail Section is optimized to bear the brunt of all Index Modifications
  * to a Table Segment; all updates and removals will end up modifying this section directly, so it is important that it
- * provides an easily modifiable data structure. The Index Section is designed for less frequent updates but is can handle
+ * provides an easily modifiable data structure. The Index Section is designed for less frequent updates but it can handle
  * a larger amount of data being cached (since it is backed by the process-wide {@link CacheStorage}). The Tail Section, while
  * dynamic, is not expected to grow too large due to the Table Segment being continuously indexed in the background, which
  * causes the Last Indexed Offset to be updated frequently.
  */
 @ThreadSafe
 @RequiredArgsConstructor
+@Slf4j
 class SegmentKeyCache {
     //region Members
     private static final int HASH_GROUP_COUNT = 1024;
@@ -208,6 +210,12 @@ class SegmentKeyCache {
         // Update the cache entry directly.
         entry.update(keyHash, segmentOffset, generation);
         return segmentOffset;
+    }
+
+    private synchronized void entryUpdateFailed(CacheEntry entry, Throwable ex) {
+        log.warn("{}: Cache Entry update failed for {}. Unregistering.", this.segmentId, entry, ex);
+        this.cacheEntries.remove(entry.hashGroup);
+        entry.evict();
     }
 
     /**
@@ -450,9 +458,17 @@ class SegmentKeyCache {
             entryData.setLong(entryOffset, segmentOffset);
 
             // Update the cache and stats.
-            storeInCache(entryData);
-            this.generation = currentGeneration;
-            this.highestOffset = Math.max(this.highestOffset, segmentOffset);
+            try {
+                storeInCache(entryData);
+                this.generation = currentGeneration;
+                this.highestOffset = Math.max(this.highestOffset, segmentOffset);
+            } catch (CacheEntryEvictedException cex) {
+                // Pass-through exception. If this is the case, the entry has already been evicted so not more we can do.
+                throw cex;
+            } catch (Throwable ex) {
+                // There is nothing we can do here. Invoke the general handler to remove this from the cache.
+                entryUpdateFailed(this, ex);
+            }
         }
 
         /**
@@ -525,6 +541,11 @@ class SegmentKeyCache {
         private void serializeHash(ArrayView target, int targetOffset, UUID hash) {
             target.setLong(targetOffset, hash.getMostSignificantBits());
             target.setLong(targetOffset + Long.BYTES, hash.getLeastSignificantBits());
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Key = %s", this.hashGroup);
         }
     }
 
