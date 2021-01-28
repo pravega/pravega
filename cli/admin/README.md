@@ -68,8 +68,20 @@ Initial configuration:
 	cli.security.auth.credentials.username=admin
 	pravegaservice.zk.connect.uri=localhost:2181
 	cli.controller.grpc.uri=tcp://localhost:9090
-
 ```
+
+To modify the configuration file access the beginning of segmentstore logs to get the current configuration.
+```
+kubectl logs pravega-pravega-segment-store-0
+```
+
+The following required config values can be found in the logs:
+- `pravegaservice.container.count`
+- `bookkeeper.ledger.path`
+- `pravegaservice.cluster.name`
+- `controller.uri` for `cli.controller.rest.uri=[controller.uri]:10080` and `cli.controller.grpc.uri=[controller.uri]:9090`
+- `pravegaservice.zk.connect.uri`
+
 From that point onwards, you can check the available commands typing `help`:
 ``` 
 > help
@@ -122,9 +134,18 @@ Initial configuration:
 {"scopes":[{"scopeName":"_system"},{"scopeName":"streamsinscope"}]}
 ```
 
+The admin level pravega-cli needs to be accessed from a pod that has access to the bookkeeper and zookeeper such as the segmentstore pod.
+Then following commands and more will work:
+```
+   bk list
+     {"key": "log_no_metadata)","value": 0},{"key": "log_no_metadata)","value": 1},{"key": "log_no_metadata)","value": 2},{"key": "log_no_metadata)","value": 3},{"key": "log_no_metadata)","value": 4},{"key": "log_no_metadata)",,"value": 5},{"key": "log_no_metadata)","value": 6},{"key": "log_no_metadata)","value": 7}    
+```
+
 Note that if you are using the standalone deployment, Bookkeeper commands (and others) will not be 
 available. For this reason, we encourage you to go a step further and deploy a full Pravega cluster to 
 explore the whole functionality of Pravega Admin CLI.
+
+
 
 ## Support
 If you find any issue or you have any suggestion, please report an issue to [this repository](https://github.com/pravega/pravega/issues).
