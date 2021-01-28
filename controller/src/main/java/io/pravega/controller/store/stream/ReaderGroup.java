@@ -89,4 +89,11 @@ interface ReaderGroup {
      * @param ignoreCached ignore cached value and fetch from store
      */
     CompletableFuture<ReaderGroupState> getState(boolean ignoreCached);
+
+    /**
+     * Refresh the reader group object. Typically to be used to invalidate any caches.
+     * This allows us reuse of reader group object without having to recreate a new object for each new operation
+     */
+    default void refresh() {
+    }
 }

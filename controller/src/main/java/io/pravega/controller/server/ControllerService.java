@@ -55,7 +55,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
@@ -188,16 +188,16 @@ public class ControllerService {
                 }, executor);
     }
 
-    public CompletableFuture<UpdateReaderGroupStatus> updateReaderGroup(String scope, String rgName,
+    public CompletableFuture<UpdateReaderGroupResponse> updateReaderGroup(String scope, String rgName,
                                                                         final ReaderGroupConfig rgConfig) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
         Preconditions.checkNotNull(rgConfig, "ReaderGroup config is null");
         Timer timer = new Timer();
         return streamMetadataTasks.updateReaderGroup(scope, rgName, rgConfig, null)
-                .thenApplyAsync(status -> {
-                    reportUpdateReaderGroupMetrics(scope, rgName, status, timer.getElapsed());
-                    return UpdateReaderGroupStatus.newBuilder().setStatus(status).build();
+                .thenApplyAsync(response -> {
+                            reportUpdateReaderGroupMetrics(scope, rgName, response.getStatus(), timer.getElapsed());
+                            return response;
                 }, executor);
     }
 
@@ -697,18 +697,18 @@ public class ControllerService {
         }
     }
 
-    private void reportCreateReaderGroupMetrics(String scope, String streamName, CreateReaderGroupStatus.Status status, Duration latency) {
+    private void reportCreateReaderGroupMetrics(String scope, String rgName, CreateReaderGroupStatus.Status status, Duration latency) {
         if (status.equals(CreateReaderGroupStatus.Status.SUCCESS)) {
-            StreamMetrics.getInstance().createReaderGroup(scope, streamName, latency);
+            StreamMetrics.getInstance().createReaderGroup(scope, rgName, latency);
         } else if (status.equals(CreateReaderGroupStatus.Status.FAILURE)) {
-            StreamMetrics.getInstance().createReaderGroupFailed(scope, streamName);
+            StreamMetrics.getInstance().createReaderGroupFailed(scope, rgName);
         }
     }
 
-    private void reportUpdateReaderGroupMetrics(String scope, String streamName, UpdateReaderGroupStatus.Status status, Duration latency) {
-        if (status.equals(UpdateReaderGroupStatus.Status.SUCCESS)) {
+    private void reportUpdateReaderGroupMetrics(String scope, String streamName, UpdateReaderGroupResponse.Status status, Duration latency) {
+        if (status.equals(UpdateReaderGroupResponse.Status.SUCCESS)) {
             StreamMetrics.getInstance().updateReaderGroup(scope, streamName, latency);
-        } else if (status.equals(UpdateReaderGroupStatus.Status.FAILURE)) {
+        } else if (status.equals(UpdateReaderGroupResponse.Status.FAILURE)) {
             StreamMetrics.getInstance().updateReaderGroupFailed(scope, streamName);
         }
     }

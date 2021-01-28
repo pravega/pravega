@@ -23,6 +23,7 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -373,13 +374,19 @@ public class ContainerReadIndex implements ReadIndex {
                     throw new StreamSegmentNotExistsException(segmentMetadata.getName());
                 }
 
-                index = new StreamSegmentReadIndex(this.config, segmentMetadata, this.cacheManager.getCacheStorage(), this.storage, this.executor, isRecoveryMode());
+                index = createSegmentIndex(this.config, segmentMetadata, this.cacheManager.getCacheStorage(), this.storage, this.executor, isRecoveryMode());
                 this.cacheManager.register(index);
                 this.readIndices.put(streamSegmentId, index);
             }
         }
 
         return index;
+    }
+
+    @VisibleForTesting
+    StreamSegmentReadIndex createSegmentIndex(ReadIndexConfig config, SegmentMetadata metadata, CacheStorage cacheStorage,
+                                              ReadOnlyStorage storage, ScheduledExecutorService executor, boolean recoveryMode) {
+        return new StreamSegmentReadIndex(config, metadata, cacheStorage, storage, executor, recoveryMode);
     }
 
     @GuardedBy("lock")

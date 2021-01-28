@@ -61,11 +61,14 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
+import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -577,7 +580,7 @@ public class StreamTransactionMetadataTasksTest {
     }
 
     @Test(timeout = 10000)
-    public void txnPingTest() {
+    public void txnPingTest() throws Exception {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
         EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
@@ -632,6 +635,14 @@ public class StreamTransactionMetadataTasksTest {
         // try with a non existent transaction id 
         assertEquals(PingTxnStatus.Status.UNKNOWN, 
                 txnTasks.pingTxn(SCOPE, STREAM, UUID.randomUUID(), 10000L, null).join().getStatus());
+
+        // Verify max execution time.
+        txnTasks.setMaxExecutionTime(1L);
+        txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, null).join();
+        UUID tid = txn.getKey().getId();
+        AssertExtensions.assertEventuallyEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, 
+                () -> txnTasks.pingTxn(SCOPE, STREAM, tid, 10000L, null).join().getStatus(), 10000L);
+        txnTasks.setMaxExecutionTime(Duration.ofDays(Config.MAX_TXN_EXECUTION_TIMEBOUND_DAYS).toMillis());
     }
     
     @Test(timeout = 10000)

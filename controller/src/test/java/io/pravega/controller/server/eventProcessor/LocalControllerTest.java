@@ -31,6 +31,7 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.test.common.ThreadPooledTestSuite;
 
 import java.util.ArrayList;
@@ -279,35 +280,33 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-        when(this.mockControllerService.createReaderGroup(anyString(), any(), any(), anyLong())).thenReturn(
-                CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.newBuilder()
-                        .setStatus(Controller.CreateReaderGroupStatus.Status.SUCCESS).build()));
+        StreamMetadataTasks mockStreamMetaTasks = mock(StreamMetadataTasks.class);
+        when(this.mockControllerService.getStreamMetadataTasks()).thenReturn(mockStreamMetaTasks);
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.Status.SUCCESS));
         Assert.assertTrue(this.testController.createReaderGroup("scope", "subscriber", config).join());
 
-        when(this.mockControllerService.createReaderGroup(anyString(), anyString(), any(), anyLong())).thenReturn(
-                CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.newBuilder()
-                        .setStatus(Controller.CreateReaderGroupStatus.Status.FAILURE).build()));
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.Status.FAILURE));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
                 ex -> ex instanceof ControllerFailureException);
 
-        when(this.mockControllerService.createReaderGroup(anyString(), anyString(), any(), anyLong())).thenReturn(
-                CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.newBuilder()
-                        .setStatus(Controller.CreateReaderGroupStatus.Status.INVALID_RG_NAME).build()));
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.Status.INVALID_RG_NAME));
         assertThrows("Expected IllegalArgumentException",
                 () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.createReaderGroup(anyString(), anyString(), any(), anyLong())).thenReturn(
-                CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.newBuilder()
-                        .setStatus(Controller.CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND).build()));
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND));
         assertThrows("Expected IllegalArgumentException",
                 () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.createReaderGroup(anyString(), anyString(), any(), anyLong())).thenReturn(
-                CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.newBuilder()
-                        .setStatusValue(-1).build()));
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupStatus.newBuilder()
+                        .setStatusValue(-1).build().getStatus()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
                 ex -> ex instanceof ControllerFailureException);
@@ -423,33 +422,33 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
         when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
-                CompletableFuture.completedFuture(Controller.UpdateReaderGroupStatus.newBuilder()
-                        .setStatus(Controller.UpdateReaderGroupStatus.Status.SUCCESS).build()));
-        Assert.assertTrue(this.testController.updateReaderGroup("scope", "subscriber", config).join());
+                CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
+                        .setStatus(Controller.UpdateReaderGroupResponse.Status.SUCCESS).setGeneration(1L).build()));
+        Assert.assertNotNull(this.testController.updateReaderGroup("scope", "subscriber", config).join());
 
         when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
-                CompletableFuture.completedFuture(Controller.UpdateReaderGroupStatus.newBuilder()
-                        .setStatus(Controller.UpdateReaderGroupStatus.Status.FAILURE).build()));
+                CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
+                        .setStatus(Controller.UpdateReaderGroupResponse.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.updateReaderGroup("scope", "subscriber", config).join(),
                 ex -> ex instanceof ControllerFailureException);
 
         when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
-                CompletableFuture.completedFuture(Controller.UpdateReaderGroupStatus.newBuilder()
-                        .setStatus(Controller.UpdateReaderGroupStatus.Status.INVALID_CONFIG).build()));
+                CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
+                        .setStatus(Controller.UpdateReaderGroupResponse.Status.INVALID_CONFIG).build()));
         assertThrows("Expected IllegalArgumentException",
                 () -> this.testController.updateReaderGroup("scope", "subscriber", config).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
         when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
-                CompletableFuture.completedFuture(Controller.UpdateReaderGroupStatus.newBuilder()
-                        .setStatus(Controller.UpdateReaderGroupStatus.Status.RG_NOT_FOUND).build()));
+                CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
+                        .setStatus(Controller.UpdateReaderGroupResponse.Status.RG_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
                 () -> this.testController.updateReaderGroup("scope", "subscriber", config).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
         when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
-                CompletableFuture.completedFuture(Controller.UpdateReaderGroupStatus.newBuilder()
+                CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.updateReaderGroup("scope", "subscriber", config).join(),

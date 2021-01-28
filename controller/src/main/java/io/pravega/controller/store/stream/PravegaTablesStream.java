@@ -290,14 +290,16 @@ class PravegaTablesStream extends PersistentStreamBase {
         return createSubscribersRecordIfAbsent()
                    .thenCompose(y -> getSubscriberSetRecord(true))
                    .thenCompose(subscriberSetRecord -> {
-                       if (!subscriberSetRecord.getObject().getSubscribers().contains(newSubscriber)) {
-                           // update Subscriber generation, if it is greater than current generation
-                           return getMetadataTable()
-                                   .thenCompose(metaTable -> updateAndLoadToContext(metaTable, SUBSCRIBER_SET_KEY,
-                                           Subscribers.add(subscriberSetRecord.getObject(), newSubscriber), Subscribers::toBytes,
-                                           subscriberSetRecord.getVersion()));
-                       }
-                       return CompletableFuture.completedFuture(null);
+                      if (!subscriberSetRecord.getObject().getSubscribers().contains(newSubscriber)) {
+                          // update Subscriber generation, if it is greater than current generation
+                          return getMetadataTable()
+                                  .thenCompose(metaTable -> {
+                                      Subscribers newSubscribers = Subscribers.add(subscriberSetRecord.getObject(), newSubscriber);
+                                      return updateAndLoadToContext(metaTable, SUBSCRIBER_SET_KEY, newSubscribers,
+                                              Subscribers::toBytes, subscriberSetRecord.getVersion());
+                                  });
+                      }
+                      return CompletableFuture.completedFuture(null);
                    })
                     .thenCompose(v -> Futures.exceptionallyExpecting(getSubscriberRecord(newSubscriber),
                             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)

@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -211,6 +212,17 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         }
     }
 
+    @Override
+    public CompletableFuture<Void> addReaderGroupToScope(String scopeName, String rgName, UUID readerGroupId) {
+        if (scopes.containsKey(scopeName)) {
+            scopes.get(scopeName).addReaderGroupToScope(rgName, readerGroupId);
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return Futures.
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
+        }
+    }
+
     // region ReaderGroup
     @Override
     public CompletableFuture<Void> createReaderGroup(final String scope,
@@ -220,17 +232,9 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                                                      final RGOperationContext context,
                                                      final Executor executor) {
         if (scopes.containsKey(scope)) {
-            log.debug("Inside InMemoryStreamMetadataStore::createReaderGroup() is context null {}", context == null);
-            return scopes.get(scope).addReaderGroupToScope(name, configuration.getReaderGroupId())
-            .thenCompose(addedToScope -> {
-                if (addedToScope) {
-                    InMemoryReaderGroup readerGroup = (InMemoryReaderGroup) getReaderGroup(scope, name, context);
-                    log.debug("Inside InMemoryStreamMetadataStore created RG object 1");
-                    readerGroups.put(scopedStreamName(scope, name), readerGroup);
-                    return readerGroup.create(configuration, createTimestamp);
-                }
-                return CompletableFuture.completedFuture(null);
-            });
+           InMemoryReaderGroup readerGroup = (InMemoryReaderGroup) getReaderGroup(scope, name, context);
+           readerGroups.put(scopedStreamName(scope, name), readerGroup);
+           return readerGroup.create(configuration, createTimestamp);
         } else {
             return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scope));

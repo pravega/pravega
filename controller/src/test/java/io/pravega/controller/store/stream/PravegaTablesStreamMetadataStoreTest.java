@@ -28,6 +28,7 @@ import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
@@ -444,7 +445,18 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
                            .thenCompose(tableName -> storeHelper.getKeysPaginated(tableName, token, 10));
         AssertExtensions.assertFutureThrows("Table should not exist", tableCheckSupplier.get(), 
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
-        
+
+        UUID rgId = UUID.randomUUID();
+        String rgName = "rg1";
+        Supplier<CompletableFuture<Version>> rgTableCheckSupplier =
+                () -> scope.getReaderGroupsInScopeTableName()
+                        .thenCompose(tableName -> storeHelper.addNewEntry(tableName, rgName, PravegaTablesStoreHelper.UUID_TO_BYTES_FUNCTION, rgId));
+        AssertExtensions.assertFutureThrows("RG Table should not exist", rgTableCheckSupplier.get(),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        scope.addReaderGroupToScope(rgName, rgId).join();
+        assertEquals(rgId, scope.getReaderGroupId(rgName).join());
+
         status = store.createScope(scopeName).join();
         assertEquals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS, status.getStatus());
         
@@ -463,7 +475,13 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
                 scopeObj.createScope(), 
                 e -> Exceptions.unwrap(e).equals(unknown));
     }
-    
+
+    private byte[] getIdInBytes(UUID id) {
+        byte[] b = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(b), id);
+        return b;
+    }
+
     private Set<Integer> getAllBatches(PravegaTablesStreamMetadataStore testStore) {
         Set<Integer> batches = new ConcurrentSkipListSet<>();
         testStore.getStoreHelper().getAllKeys(COMPLETED_TRANSACTIONS_BATCHES_TABLE)

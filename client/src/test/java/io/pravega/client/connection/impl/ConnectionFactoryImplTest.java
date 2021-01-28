@@ -142,7 +142,10 @@ public class ConnectionFactoryImplTest {
 
     @Test
     public void getActiveChannelTestWithConnectionPooling() throws InterruptedException, ConnectionFailedException {
-        ClientConfig config = ClientConfig.builder().controllerURI(URI.create( "tcp://" + "localhost")).build();
+        ClientConfig config = ClientConfig.builder()
+                .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
+                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                .build();
         @Cleanup
         SocketConnectionFactoryImpl factory = new SocketConnectionFactoryImpl(config);
         @Cleanup
@@ -184,8 +187,10 @@ public class ConnectionFactoryImplTest {
     public void getActiveChannelTestWithoutConnectionPooling() throws InterruptedException, ConnectionFailedException {
         @Cleanup
         SocketConnectionFactoryImpl factory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                                                                              .controllerURI(URI.create("tcp://" + "localhost"))
-                                                                              .build());
+                .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
+                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                .build());
+                
         final FailingReplyProcessor rp = new FailingReplyProcessor() {
 
             @Override

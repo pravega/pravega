@@ -113,9 +113,9 @@ public class PravegaTablesStoreHelper {
      * @param key key to cache
      * @param <T> Type of object to deserialize the response into.
      */
-    private <T> void putInCache(String table, String key, VersionedMetadata<T> value) {
+    private <T> void putInCache(String table, String key, VersionedMetadata<T> value, long time) {
         TableCacheKey<T> cacheKey = new TableCacheKey<>(table, key);
-        cache.put(cacheKey, value);
+        cache.put(cacheKey, value, time);
     }
 
     /**
@@ -203,6 +203,7 @@ public class PravegaTablesStoreHelper {
         List<TableSegmentEntry> entries = Collections.singletonList(
                 TableSegmentEntry.notExists(key.getBytes(Charsets.UTF_8), value));
         Supplier<String> errorMessage = () -> String.format("addNewEntry: key: %s table: %s", key, tableName);
+        long time = System.currentTimeMillis();
         return withRetries(() -> segmentHelper.updateTableEntries(tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 errorMessage, true)
                 .exceptionally(e -> {
@@ -218,7 +219,7 @@ public class PravegaTablesStoreHelper {
                     TableSegmentKeyVersion first = x.get(0);
                     log.trace("entry for key {} added to table {} with version {}", key, tableName, first.getSegmentVersion());
                     Version version = new Version.LongVersion(first.getSegmentVersion());
-                    putInCache(tableName, key, new VersionedMetadata<>(val, version));
+                    putInCache(tableName, key, new VersionedMetadata<>(val, version), time);
                     return version;
                 }, executor)
                 .whenComplete((r, ex) -> releaseEntries(entries));
@@ -289,6 +290,7 @@ public class PravegaTablesStoreHelper {
         long version = ver.asLongVersion().getLongValue();
         log.trace("updateEntry entry called for : {} key : {} version {}", tableName, key, version);
         byte[] value = toBytes.apply(val);
+        long time = System.currentTimeMillis();
         List<TableSegmentEntry> entries = Collections.singletonList(
                 TableSegmentEntry.versioned(key.getBytes(Charsets.UTF_8), value, version));
         return withRetries(() -> segmentHelper.updateTableEntries(tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
@@ -297,7 +299,7 @@ public class PravegaTablesStoreHelper {
                     TableSegmentKeyVersion first = x.get(0);
                     log.trace("entry for key {} updated to table {} with new version {}", key, tableName, first.getSegmentVersion());
                     Version newVersion = new Version.LongVersion(first.getSegmentVersion());
-                    putInCache(tableName, key, new VersionedMetadata<>(val, newVersion));
+                    putInCache(tableName, key, new VersionedMetadata<>(val, newVersion), time);
                     return newVersion;
                 }, executor)
                 .whenComplete((r, ex) -> releaseEntries(entries));
@@ -367,9 +369,10 @@ public class PravegaTablesStoreHelper {
         if (cached != null) {
             return CompletableFuture.completedFuture(getVersionedMetadata(cached));
         } else {
+            long time = System.currentTimeMillis();
             return getEntry(tableName, key, fromBytes)
                     .thenApply(r -> {
-                        putInCache(tableName, key, r);
+                        putInCache(tableName, key, r, time);
                         return r;
                     });
         }
@@ -393,6 +396,8 @@ public class PravegaTablesStoreHelper {
         CompletableFuture<List<VersionedMetadata<T>>> result = new CompletableFuture<>();
 
         String message = "get entry: key: %s table: %s";
+        long time = System.currentTimeMillis();
+
         withRetries(() -> segmentHelper.readTable(tableName, tableKeys, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format(message, keys, tableName))
                 .thenApplyAsync(entries -> {
@@ -405,7 +410,7 @@ public class PravegaTablesStoreHelper {
                             } else {
                                 VersionedMetadata<T> tVersionedMetadata = new VersionedMetadata<>(fromBytes.apply(getArray(entry.getValue())),
                                         new Version.LongVersion(entry.getKey().getVersion().getSegmentVersion()));
-                                putInCache(tableName, keys.get(i), tVersionedMetadata);
+                                putInCache(tableName, keys.get(i), tVersionedMetadata, time);
                                 list.add(tVersionedMetadata);
                             }
                         }
@@ -528,6 +533,7 @@ public class PravegaTablesStoreHelper {
             String tableName, ByteBuf continuationToken, int limit,
             Function<byte[], T> fromBytes) {
         log.trace("get entries paginated called for : {}", tableName);
+        long time = System.currentTimeMillis();
         return withRetries(() -> segmentHelper.readTableEntries(tableName, limit,
                 IteratorStateImpl.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("get entries paginated for table: %s", tableName))
@@ -537,7 +543,7 @@ public class PravegaTablesStoreHelper {
                             String key = new String(getArray(x.getKey().getKey()), Charsets.UTF_8);
                             T deserialized = fromBytes.apply(getArray(x.getValue()));
                             VersionedMetadata<T> value = new VersionedMetadata<>(deserialized, new Version.LongVersion(x.getKey().getVersion().getSegmentVersion()));
-                            putInCache(tableName, key, value);
+                            putInCache(tableName, key, value, time);
                             return new AbstractMap.SimpleEntry<>(key, value);
                         }).collect(Collectors.toList());
                         log.trace("get keys paginated on table {} returned number of items {}", tableName, items.size());

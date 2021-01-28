@@ -197,8 +197,9 @@ public class TableMetadataTasks implements AutoCloseable {
                                                 false, delegationToken, requestId), executor));
     }
 
-    private CompletableFuture<Boolean> isDeleted(String scope, String kvtName, KVTOperationContext context) {
-        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, false, context, executor),
+    @VisibleForTesting
+    CompletableFuture<Boolean> isDeleted(String scope, String kvtName, KVTOperationContext context) {
+        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, context, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                 .thenCompose(state -> {
                     if (state.equals(KVTableState.UNKNOWN)) {

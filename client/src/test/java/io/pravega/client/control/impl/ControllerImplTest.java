@@ -31,7 +31,7 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -82,7 +82,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatu
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
@@ -129,6 +129,7 @@ import org.junit.rules.Timeout;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -372,25 +373,25 @@ public class ControllerImplTest {
 
             @Override
             public void updateReaderGroup(ReaderGroupConfiguration request,
-                                          StreamObserver<UpdateReaderGroupStatus> responseObserver) {
+                                          StreamObserver<UpdateReaderGroupResponse> responseObserver) {
                 if (request.getReaderGroupName().equals("rg1")) {
-                    responseObserver.onNext(UpdateReaderGroupStatus.newBuilder()
-                            .setStatus(UpdateReaderGroupStatus.Status.SUCCESS)
+                    responseObserver.onNext(UpdateReaderGroupResponse.newBuilder()
+                            .setStatus(UpdateReaderGroupResponse.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg2")) {
-                    responseObserver.onNext(UpdateReaderGroupStatus.newBuilder()
-                            .setStatus(UpdateReaderGroupStatus.Status.FAILURE)
+                    responseObserver.onNext(UpdateReaderGroupResponse.newBuilder()
+                            .setStatus(UpdateReaderGroupResponse.Status.FAILURE)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg3")) {
-                    responseObserver.onNext(UpdateReaderGroupStatus.newBuilder()
-                            .setStatus(UpdateReaderGroupStatus.Status.RG_NOT_FOUND)
+                    responseObserver.onNext(UpdateReaderGroupResponse.newBuilder()
+                            .setStatus(UpdateReaderGroupResponse.Status.RG_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg4")) {
-                    responseObserver.onNext(UpdateReaderGroupStatus.newBuilder()
-                            .setStatus(UpdateReaderGroupStatus.Status.INVALID_CONFIG)
+                    responseObserver.onNext(UpdateReaderGroupResponse.newBuilder()
+                            .setStatus(UpdateReaderGroupResponse.Status.INVALID_CONFIG)
                             .build());
                     responseObserver.onCompleted();
                 }
@@ -1557,7 +1558,7 @@ public class ControllerImplTest {
 
     @Test
     public void testUpdateReaderGroup() throws Exception {
-        CompletableFuture<Boolean> updateRGStatus;
+        CompletableFuture<Long> updateRGStatus;
         final Segment seg0 = new Segment("scope1", "stream1", 0L);
         final Segment seg1 = new Segment("scope1", "stream1", 1L);
         ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
@@ -1576,7 +1577,7 @@ public class ControllerImplTest {
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
         updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg1", config);
-        assertTrue(updateRGStatus.get());
+        assertNotNull(updateRGStatus.get());
 
         updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg2", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",

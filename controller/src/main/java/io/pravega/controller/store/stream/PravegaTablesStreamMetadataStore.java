@@ -12,7 +12,6 @@ package io.pravega.controller.store.stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -42,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -308,19 +308,9 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
-    public CompletableFuture<Void> createReaderGroup(final String scope,
-                                                                 final String name,
-                                                                 final ReaderGroupConfig configuration,
-                                                                 final long createTimestamp,
-                                                                 final RGOperationContext context,
-                                                                 final Executor executor) {
-        return Futures.completeOn(((PravegaTablesScope) getScope(scope)).addReaderGroupToScope(name, configuration.getReaderGroupId())
-                .thenCompose(rgAdded -> {
-                   if (rgAdded) {
-                       return super.createReaderGroup(scope, name, configuration, createTimestamp, context, executor);
-                   }
-                   return CompletableFuture.completedFuture(null);
-                }), executor);
+    public CompletableFuture<Void> addReaderGroupToScope(final String scope,
+                                                         final String name, final UUID readerGroupId) {
+        return Futures.completeOn(((PravegaTablesScope) getScope(scope)).addReaderGroupToScope(name, readerGroupId), executor);
     }
 
     @Override

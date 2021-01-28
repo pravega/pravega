@@ -435,7 +435,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     @Override
     public void testReaderGroups() {
         AssertExtensions.assertThrows(UnsupportedOperationException.class,
-                () -> store.getReaderGroupId("scope", "readergroup", null, executor).get());
+                () -> store.getReaderGroupId("scope", "readergroup").get());
         AssertExtensions.assertThrows(UnsupportedOperationException.class,
                 () -> store.checkReaderGroupExists("scope", "readergroup").get());
     }

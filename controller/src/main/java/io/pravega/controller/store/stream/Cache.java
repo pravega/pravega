@@ -56,11 +56,11 @@ public class Cache {
         cache.invalidate(key);
     }
 
-    public void put(CacheKey cacheKey, VersionedMetadata<?> record) {
+    public void put(CacheKey cacheKey, VersionedMetadata<?> record, long time) {
         synchronized (getLock(cacheKey)) {
             Cache.CacheValue existing = cache.getIfPresent(cacheKey);
             if (existing == null || record.getVersion().compareTo(existing.getValue().getVersion()) > 0) {
-                cache.put(cacheKey, new CacheValue(record, System.currentTimeMillis()));
+                cache.put(cacheKey, new CacheValue(record, time));
             }
         }
     }
