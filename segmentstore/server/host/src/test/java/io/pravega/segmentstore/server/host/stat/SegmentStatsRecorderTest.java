@@ -186,8 +186,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         val segmentName = getStreamSegmentName();
 
         long dataLength = 321;
-        int interval = 500;
-        val duration = Duration.ofMillis(2 * interval);
+        val duration = Duration.ofMinutes(1);
         @Cleanup
         val context = new TestContext(segmentName, duration, false);
 
@@ -195,14 +194,12 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         context.statsRecorder.recordAppend(segmentName, dataLength, 5, Duration.ofSeconds(2));
         val txnName1 = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
         context.statsRecorder.createSegment(txnName1, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, Duration.ofSeconds(1));
-        Thread.sleep(interval);
-        // Update the lastAccessTime of the SimpleCache for this entry.
-        context.statsRecorder.createSegment(segmentName, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, Duration.ofSeconds(1));
-        Thread.sleep(interval + 1);
-        // Try to update an entry after it has been at least as long as the eviction period.
-        context.statsRecorder.createSegment(txnName1, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, Duration.ofSeconds(1));
-        // Assert that creating a transaction segment cannot result in affecting the metric of a parent segment.
+        // Make sure deletions do not cause side effects.
+        context.statsRecorder.deleteSegment(txnName1);
         assertEquals(dataLength, getCounterValue(SEGMENT_WRITE_BYTES, segmentName));
+        // All closures of metrics happen through the SimpleCache. Asserting that an entry for `txnName1` does not exist
+        // ensures that there is guaranteed to be a one-one mapping of entries to counters.
+        assertNull(context.statsRecorder.getSimpleCache().get(txnName1));
     }
 
 

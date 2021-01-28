@@ -352,6 +352,11 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         return context == null ? null : context.getSegmentAggregates();
     }
 
+    @VisibleForTesting
+    protected SimpleCache<String, SegmentWriteContext> getSimpleCache() {
+        return this.cache;
+    }
+
     private static class SegmentWrite {
         long bytes = 0;
         int events = 0;
