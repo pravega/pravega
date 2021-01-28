@@ -545,7 +545,13 @@ public class ExtendedS3Storage implements SyncStorage {
 
     @Override
     public void close() {
-        this.closed.set(true);
+        if (!this.closed.getAndSet(true)) {
+            try {
+                this.client.destroy();
+            } catch (Exception e) {
+                log.warn("Could not destroy the S3Client.", e);
+            }
+        }
     }
 
     //endregion
