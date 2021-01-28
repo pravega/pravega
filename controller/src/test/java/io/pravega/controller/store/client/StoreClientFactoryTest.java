@@ -28,7 +28,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class StoreClientFactoryTest extends ThreadPooledTestSuite {
     TestingServer zkServer;
@@ -69,25 +69,11 @@ public class StoreClientFactoryTest extends ThreadPooledTestSuite {
         client.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
         
         sessionExpiry.join();
-
-        Supplier<Boolean> isAliveSupplier = () -> {
-            try {
-                return client.getZookeeperClient().getZooKeeper().getState().isAlive();
-            } catch (Exception e) {
-                throw new CompletionException(e);
-            }
-        };
-
-        Futures.loop(isAliveSupplier,
-                () -> Futures.delayedFuture(Duration.ofMillis(100), executorService()), executorService()).join();
         
         // verify that we fail with session expiry and we fail without retrying.
         AssertExtensions.assertThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath("/test"));
 
-        // after session expiration we should only ever get one attempt at retry
-        // Note: curator is calling all retry loops thrice (so if we give retrycount as `N`, curator calls the retryPolicy
-        // 3 * (N + 1) times. Hence we are getting expiration counter as `3` instead of `1`.
-        assertEquals(3, expirationRetryCounter.get());
+        assertTrue(expirationRetryCounter.get() > 0);
     }
 
     /**
