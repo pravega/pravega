@@ -120,7 +120,6 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
     @Test(timeout = 10000)
     public void testMetrics() {
         val segmentName = getStreamSegmentName();
-        val segmentTags = segmentTags(segmentName);
         @Cleanup
         val context = new TestContext(segmentName, Duration.ofSeconds(10), false);
         val elapsed = Duration.ofSeconds(1);
@@ -182,7 +181,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testTransactionMetrics() throws InterruptedException {
+    public void testTransactionMetrics() {
         val segmentName = getStreamSegmentName();
 
         long dataLength = 321;
@@ -198,8 +197,8 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         context.statsRecorder.deleteSegment(txnName1);
         assertEquals(dataLength, getCounterValue(SEGMENT_WRITE_BYTES, segmentName));
         // All closures of metrics happen through the SimpleCache. Asserting that an entry for `txnName1` does not exist
-        // ensures that there is guaranteed to be a one-one mapping of entries to counters.
-        assertNull(context.statsRecorder.getSimpleCache().get(txnName1));
+        // ensures that there is guaranteed to be a one-one mapping of entries to metric counters.
+        assertNull(context.statsRecorder.getSegmentAggregates(txnName1));
     }
 
 
