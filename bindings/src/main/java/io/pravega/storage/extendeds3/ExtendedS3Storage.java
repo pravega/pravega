@@ -92,6 +92,7 @@ public class ExtendedS3Storage implements SyncStorage {
 
     private final ExtendedS3StorageConfig config;
     private final S3Client client;
+    private final boolean shouldClose;
     private final AtomicBoolean closed;
 
     //endregion
@@ -99,10 +100,14 @@ public class ExtendedS3Storage implements SyncStorage {
     //region constructor
 
     public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config) {
+        this(client, config, false);
+    }
+
+    ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config, boolean shouldClose) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.client = Preconditions.checkNotNull(client, "client");
         this.closed = new AtomicBoolean(false);
-
+        this.shouldClose = shouldClose;
     }
 
     //endregion
@@ -547,7 +552,9 @@ public class ExtendedS3Storage implements SyncStorage {
     public void close() {
         if (!this.closed.getAndSet(true)) {
             try {
-                this.client.destroy();
+                if (shouldClose) {
+                    this.client.destroy();
+                }
             } catch (Exception e) {
                 log.warn("Could not destroy the S3Client.", e);
             }
