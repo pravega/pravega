@@ -131,7 +131,6 @@ public class SegmentReader extends DataRecoveryCommand {
         while ( (offset + 8) < bytesToRead) {
             storage.read(sourceHandle, offset, header, 0, 8, timeout)
                     .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            outputInfo("Offset = %d", offset);
             long length = 0;
             try {
                 length = convertByteArrayToLong(header);
@@ -158,5 +157,4 @@ public class SegmentReader extends DataRecoveryCommand {
     public static AdminCommand.CommandDescriptor descriptor() {
         return new AdminCommand.CommandDescriptor(COMPONENT, "write-segment", "Writes the contents of the segment to a file.");
     }
-
 }
