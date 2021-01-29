@@ -173,6 +173,6 @@ public class SegmentReader extends DataRecoveryCommand {
     }
 
     public static AdminCommand.CommandDescriptor descriptor() {
-        return new AdminCommand.CommandDescriptor(COMPONENT, "write-segment", "Writes the contents of the segment to a file.");
+        return new AdminCommand.CommandDescriptor(COMPONENT, "read-segment", "Writes the contents of the segment to a file.");
     }
 }
