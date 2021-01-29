@@ -124,20 +124,27 @@ public class SegmentReader extends DataRecoveryCommand {
         val segmentInfo = storage.getStreamSegmentInfo(segmentName, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         int bytesToRead = (int) segmentInfo.getLength();
         val sourceHandle = storage.openRead(segmentName).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        byte[] buffer = new byte[bytesToRead];
-        storage.read(sourceHandle, 0, buffer, 0, bytesToRead, timeout)
-                .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        byte[] header = new byte[8];
+
         int countEvents = 0;
         int offset = 0;
-        while (offset < bytesToRead) {
+        while ( (offset + 8) < bytesToRead) {
+            storage.read(sourceHandle, offset, header, 0, 8, timeout)
+                    .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             outputInfo("Offset = %d", offset);
-            byte[] header = Arrays.copyOfRange(buffer, offset, offset + 8);
+            long length = 0;
             try {
-                long length = convertByteArrayToLong(header);
-                offset += length + 8;
+                length = convertByteArrayToLong(header);
             } catch (Exception e) {
                 break;
             }
+            if (length != 0) {
+                byte[] data = new byte[(int)length];
+                storage.read(sourceHandle, offset + 8, data, 0, (int) length, timeout)
+                        .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+                this.fileOutputStream.write(data, 0, (int) length);
+            }
+            offset += length + 8;
             countEvents++;
         }
         return countEvents;
