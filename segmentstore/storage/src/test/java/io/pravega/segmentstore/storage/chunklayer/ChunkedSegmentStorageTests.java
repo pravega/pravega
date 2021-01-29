@@ -97,16 +97,31 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Test capabilities.
-     *
-     * @throws Exception
+     * Test {@link ChunkedSegmentStorage#supportsTruncation()}.
      */
     @Test
     public void testSupportsTruncate() throws Exception {
+        @Cleanup
         val chunkStorage = createChunkStorage();
+        @Cleanup
         val metadataStore = createMetadataStore();
+        @Cleanup
         val chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         Assert.assertTrue(chunkedSegmentStorage.supportsTruncation());
+    }
+
+    /**
+     * Tests {@link ChunkedSegmentStorage#supportsAtomicWrites()}
+     */
+    @Test
+    public void testSupportsAtomicWrites() throws Exception {
+        @Cleanup
+        val chunkStorage = createChunkStorage();
+        @Cleanup
+        val metadataStore = createMetadataStore();
+        @Cleanup
+        val chunkedSegmentStorage = new ChunkedSegmentStorage(42, chunkStorage, metadataStore, executorService(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+        Assert.assertTrue(chunkedSegmentStorage.supportsAtomicWrites());
     }
 
     /**
@@ -116,10 +131,13 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testInitialization() throws Exception {
+        @Cleanup
         val chunkStorage = createChunkStorage();
+        @Cleanup
         val metadataStore = createMetadataStore();
         val policy = SegmentRollingPolicy.NO_ROLLING;
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
+        @Cleanup
         val chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), config);
         val systemJournal = new SystemJournal(CONTAINER_ID, chunkStorage, metadataStore, config);
 
@@ -1113,7 +1131,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void testBaseConcat(TestContext testContext, int maxRollingLength, long[] targetLayout, long[] sourceLayout, long[] resultLayout) throws Exception {
+    private void testBaseConcat(TestContext testContext, long maxRollingLength, long[] targetLayout, long[] sourceLayout, long[] resultLayout) throws Exception {
         val source = testContext.insertMetadata("source", maxRollingLength, 1, sourceLayout);
         val target = testContext.insertMetadata("target", maxRollingLength, 1, targetLayout);
 
@@ -1937,10 +1955,11 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         @Cleanup
         CleanupHelper cleanupHelper = new CleanupHelper();
         String testSegmentName = "foo";
-        @Cleanup
-        TestContext testContext = getTestContext();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .garbageCollectionDelay(Duration.ZERO)
+                .build();
+        TestContext testContext = getTestContext(config);
         cleanupHelper.add(testContext);
-
         // Create
         testContext.chunkedSegmentStorage.create(testSegmentName, null).get();
 
@@ -1968,6 +1987,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         // Make sure to open segment with new instance before writing garbage to old instance.
         hWrite = newTestContext.chunkedSegmentStorage.openWrite(testSegmentName).get();
         newTestContext.chunkedSegmentStorage.truncate(hWrite, offset, null).get();
+        newTestContext.chunkedSegmentStorage.getGarbageCollector().setSuspended(true);
+        newTestContext.chunkedSegmentStorage.getGarbageCollector().deleteGarbage(false, 100).get();
         //checkDataRead(testSegmentName, testContext, offset, 0);
         TestUtils.checkSegmentBounds(newTestContext.metadataStore, testSegmentName, offset, offset);
 
@@ -1977,6 +1998,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         AssertExtensions.assertFutureThrows("openRead() allowed after fencing",
                 oldTestCotext.chunkedSegmentStorage.openRead(testSegmentName),
                 ex -> ex instanceof StorageNotPrimaryException);
+
     }
 
     // Very useful test, but takes couple seconds.
@@ -2229,6 +2251,43 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         CompletableFuture.allOf(futures).join();
     }
 
+    @Test
+    public void testReadHugeChunks() throws Exception {
+        String testSegmentName = "foo";
+        @Cleanup
+        TestContext testContext = getTestContext();
+        // Setup a segment with 5 chunks with given lengths.
+        val segment = testContext.insertMetadata(testSegmentName, 10L * Integer.MAX_VALUE, 1,
+                new long[]{
+                        Integer.MAX_VALUE + 1L,
+                        Integer.MAX_VALUE + 2L,
+                        Integer.MAX_VALUE + 3L,
+                        Integer.MAX_VALUE + 4L,
+                        Integer.MAX_VALUE + 5L});
+
+        val h = testContext.chunkedSegmentStorage.openRead(testSegmentName).get();
+
+        byte[] output = new byte[10];
+        // Read bytes
+        for (long i = 0; i < 5; i++) {
+            val bytesRead = testContext.chunkedSegmentStorage.read(h, i * Integer.MAX_VALUE, output, 0, 10, null).get();
+            Assert.assertEquals(10, bytesRead.intValue());
+        }
+    }
+
+    @Test
+    public void testConcatHugeChunks() throws Exception {
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .minSizeLimitForConcat(10L * Integer.MAX_VALUE)
+                .maxSizeLimitForConcat(100L * Integer.MAX_VALUE)
+                .build());
+        testBaseConcat(testContext, 10L * Integer.MAX_VALUE,
+                new long[]{Integer.MAX_VALUE + 1L},
+                new long[]{Integer.MAX_VALUE + 1L, Integer.MAX_VALUE + 1L},
+                new long[]{3L * Integer.MAX_VALUE + 3L});
+    }
+
     private void checkDataRead(String testSegmentName, TestContext testContext, long offset, long length) throws InterruptedException, java.util.concurrent.ExecutionException {
         checkDataRead(testSegmentName, testContext, offset, length, null);
     }
@@ -2408,6 +2467,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          * Creates and inserts metadata for a test segment.
          */
         public SegmentMetadata insertMetadata(String testSegmentName, int maxRollingLength, int ownerEpoch) throws Exception {
+            Preconditions.checkArgument(maxRollingLength > 0, "maxRollingLength");
+            Preconditions.checkArgument(ownerEpoch > 0, "ownerEpoch");
             try (val txn = metadataStore.beginTransaction(false, new String[]{testSegmentName})) {
                 SegmentMetadata segmentMetadata = SegmentMetadata.builder()
                         .maxRollinglength(maxRollingLength)
@@ -2425,6 +2486,8 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          * Creates and inserts metadata for a test segment.
          */
         public SegmentMetadata insertMetadata(String testSegmentName, long maxRollingLength, int ownerEpoch, long[] chunkLengths) throws Exception {
+            Preconditions.checkArgument(maxRollingLength > 0, "maxRollingLength");
+            Preconditions.checkArgument(ownerEpoch > 0, "ownerEpoch");
             try (val txn = metadataStore.beginTransaction(false, new String[]{testSegmentName})) {
                 String firstChunk = null;
                 String lastChunk = null;
@@ -2440,6 +2503,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                             .length(chunkLengths[i])
                             .nextChunk(i == chunkLengths.length - 1 ? null : testSegmentName + "_chunk_" + Integer.toString(i + 1))
                             .build();
+                    chunkMetadata.setActive(true);
                     length += chunkLengths[i];
                     txn.create(chunkMetadata);
 

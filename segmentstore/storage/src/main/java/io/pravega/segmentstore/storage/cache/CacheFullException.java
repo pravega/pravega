@@ -9,13 +9,15 @@
  */
 package io.pravega.segmentstore.storage.cache;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.segmentstore.storage.CacheException;
 
 /**
  * {@link CacheException} thrown whenever the {@link CacheStorage} is full and cannot accept any extra data.
  */
 public class CacheFullException extends CacheException {
-    CacheFullException(String message) {
+    @VisibleForTesting
+    public CacheFullException(String message) {
         super(message);
     }
 }

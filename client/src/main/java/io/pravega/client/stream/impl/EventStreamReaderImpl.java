@@ -258,6 +258,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
      */
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
+        groupState.updateConfigIfNeeded();
         PositionInternal position = null;
         if (atCheckpoint != null) {
             // process the checkpoint we're at

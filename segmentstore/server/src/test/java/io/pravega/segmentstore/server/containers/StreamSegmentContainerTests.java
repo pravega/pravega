@@ -1649,31 +1649,36 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testWriteFenceOut() throws Exception {
+        final String segmentName = "SegmentName";
         final Duration shutdownTimeout = Duration.ofSeconds(5);
         @Cleanup
         TestContext context = createContext();
         val container1 = context.container;
         container1.startAsync().awaitRunning();
-        val segmentNames = createSegments(context);
+        container1.createStreamSegment(segmentName, getSegmentType(segmentName), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Workaround for pre-SLTS (RollingStorage) known problem when a zombie (fenced-out) instance can still write
+        // a header file while shutting down and concurrently with the new instance. This additional step can be retired
+        // once RollingStorage is retired.
+        waitForSegmentsInStorage(Collections.singleton(NameUtils.getMetadataSegmentName(CONTAINER_ID)), context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
         @Cleanup
         val container2 = context.containerFactory.createStreamSegmentContainer(CONTAINER_ID);
         container2.startAsync().awaitRunning();
 
         AssertExtensions.assertSuppliedFutureThrows(
                 "Original container did not reject an append operation after being fenced out.",
-                () -> container1.append(segmentNames.get(0), new ByteArraySegment(new byte[1]), null, TIMEOUT),
+                () -> container1.append(segmentName, new ByteArraySegment(new byte[1]), null, TIMEOUT),
                 ex -> ex instanceof DataLogWriterNotPrimaryException      // Write fenced.
                         || ex instanceof ObjectClosedException            // Write accepted, but OperationProcessor shuts down while processing it.
                         || ex instanceof IllegalContainerStateException); // Write rejected due to Container not running.
 
         // Verify we can still write to the second container.
-        container2.append(segmentNames.get(0), 0, new ByteArraySegment(new byte[1]), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        container2.append(segmentName, 0, new ByteArraySegment(new byte[1]), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Verify container1 is shutting down (give it some time to complete) and that it ends up in a Failed state.
         ServiceListeners.awaitShutdown(container1, shutdownTimeout, false);
         Assert.assertEquals("Container1 is not in a failed state after fence-out detected.", Service.State.FAILED, container1.state());
-        Assert.assertTrue("Container1 did not fail with the correct exception.",
-                Exceptions.unwrap(container1.failureCause()) instanceof DataLogWriterNotPrimaryException);
     }
 
     /**

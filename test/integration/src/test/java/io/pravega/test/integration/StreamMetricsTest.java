@@ -17,6 +17,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -31,7 +32,9 @@ import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
 import io.pravega.shared.MetricsNames;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -156,6 +159,11 @@ public class StreamMetricsTest {
         String scopeName = "scopeBasic";
         String streamName = "streamBasic";
 
+        String streamScopedName = NameUtils.getScopedStreamName(scopeName, streamName);
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream(streamScopedName).generation(0L)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .build();
         // Here, the system scope and streams are already created.
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
         assertEquals(8, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
@@ -173,17 +181,27 @@ public class StreamMetricsTest {
         controllerWrapper.getControllerService().updateStream(scopeName, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build()).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
 
+        final String subscriber = "subscriber1";
+        CreateReaderGroupStatus createRGStatus = controllerWrapper.getControllerService().createReaderGroup(scopeName, subscriber, rgConfig, System.currentTimeMillis()).get();
+        assertEquals(CreateReaderGroupStatus.Status.SUCCESS, createRGStatus.getStatus());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.CREATE_READER_GROUP)).count());
+
+        final String subscriberScopedName = NameUtils.getScopedReaderGroupName(scopeName, subscriber);
+        ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
+        controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, subscriberScopedName,
+                rgConfig.getReaderGroupId().toString(), 0L, streamCut1).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_SUBSCRIBER)).count());
+
+        controllerWrapper.getControllerService().updateReaderGroup(scopeName, subscriber, rgConfig).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_READER_GROUP)).count());
+
+        controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber,
+                rgConfig.getReaderGroupId().toString(), 1L).get();
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.DELETE_READER_GROUP)).count());
+
         // Seal the Stream.
         controllerWrapper.getControllerService().sealStream(scopeName, streamName).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
-
-        controllerWrapper.getControllerService().addSubscriber(scopeName, streamName, "subscriber1", 0L).get();
-        ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
-        controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, "subscriber1", streamCut1).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.ADD_SUBSCRIBER).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER).count());
-        controllerWrapper.getControllerService().deleteSubscriber(scopeName, streamName, "subscriber1", 1L).get();
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.REMOVE_SUBSCRIBER).count());
 
         // Delete the Stream and Scope and check for the respective metrics.
         controllerWrapper.getControllerService().deleteStream(scopeName, streamName).get();
@@ -199,9 +217,10 @@ public class StreamMetricsTest {
         StreamMetrics.getInstance().updateStreamFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().truncateStreamFailed("failedScope", "failedStream");
         StreamMetrics.getInstance().sealStreamFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().addSubscriberFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().deleteSubscriberFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().updateTruncationSCFailed("failedScope", "failedStream");
+        StreamMetrics.getInstance().createReaderGroupFailed("failedRG", "failedRG");
+        StreamMetrics.getInstance().deleteReaderGroupFailed("failedRG", "failedRG");
+        StreamMetrics.getInstance().updateReaderGroupFailed("failedRG", "failedRG");
+        StreamMetrics.getInstance().updateTruncationSCFailed("failedRG", "failedRG");
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM_FAILED).count());
@@ -209,7 +228,10 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_STREAM_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.TRUNCATE_STREAM_FAILED).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.ADD_SUBSCRIBER_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_READER_GROUP_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP_FAILED).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER_FAILED).count());
     }
 
     @Test(timeout = 30000)

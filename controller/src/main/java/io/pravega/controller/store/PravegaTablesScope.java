@@ -45,6 +45,7 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
 public class PravegaTablesScope implements Scope {
     private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "streamsInScope" + SEPARATOR + "%s";
     private static final String KVTABLES_IN_SCOPE_TABLE_FORMAT = "kvTablesInScope" + SEPARATOR + "%s";
+    private static final String READER_GROUPS_IN_SCOPE_TABLE_FORMAT = "readerGroupsInScope" + SEPARATOR + "%s";
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;
     private final AtomicReference<UUID> idRef;
@@ -92,7 +93,16 @@ public class PravegaTablesScope implements Scope {
                                     if (e != null) {
                                         throw new CompletionException(e);
                                     }
-                                })));
+                                })),
+                        getReaderGroupsInScopeTableName()
+                        .thenCompose(rgTableName -> storeHelper.createTable(rgTableName)
+                                .thenAccept(v -> {
+                                    log.debug("table for reader groups created {}", rgTableName);
+                                    if (e != null) {
+                                          throw new CompletionException(e);
+                                    }
+                                }))
+                        );
             } else {
                 throw new CompletionException(e);
             }
@@ -107,6 +117,11 @@ public class PravegaTablesScope implements Scope {
     public CompletableFuture<String> getKVTablesInScopeTableName() {
         return getId().thenApply(id ->
                 getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(KVTABLES_IN_SCOPE_TABLE_FORMAT, id.toString())));
+    }
+
+    public CompletableFuture<String> getReaderGroupsInScopeTableName() {
+        return getId().thenApply(id ->
+                getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(READER_GROUPS_IN_SCOPE_TABLE_FORMAT, id.toString())));
     }
 
     CompletableFuture<UUID> getId() {
@@ -185,6 +200,12 @@ public class PravegaTablesScope implements Scope {
                         storeHelper.getEntry(tableName, kvt, x -> x).thenApply(v -> true), false));
     }
 
+    public CompletableFuture<Boolean> checkReaderGroupExistsInScope(String readerGroupName) {
+        return getReaderGroupsInScopeTableName()
+                .thenCompose(tableName -> storeHelper.expectingDataNotFound(
+                        storeHelper.getEntry(tableName, readerGroupName, x -> x).thenApply(v -> true), false));
+    }
+
     public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
         return getKVTablesInScopeTableName()
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, kvt, id)));
@@ -193,6 +214,26 @@ public class PravegaTablesScope implements Scope {
     public CompletableFuture<Void> removeKVTableFromScope(String kvt) {
         return getKVTablesInScopeTableName()
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, kvt)));
+    }
+
+    public CompletableFuture<Void> addReaderGroupToScope(String readerGroupName, UUID readerGroupId) {
+        return getReaderGroupsInScopeTableName()
+                .thenCompose(tableName -> Futures.toVoid(Futures.exceptionallyComposeExpecting(
+                        storeHelper.addNewEntry(tableName, readerGroupName, getIdInBytes(readerGroupId)),
+                        e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException,
+                        () -> storeHelper.createTable(tableName)
+                                .thenCompose(v -> storeHelper.addNewEntry(tableName, readerGroupName, getIdInBytes(readerGroupId))))));
+    }
+
+    public CompletableFuture<Void> removeReaderGroupFromScope(String readerGroup) {
+        return getReaderGroupsInScopeTableName()
+                .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, readerGroup)));
+    }
+
+    public CompletableFuture<UUID> getReaderGroupId(String readerGroupName) {
+        return getReaderGroupsInScopeTableName()
+                .thenCompose(tableName -> storeHelper.getEntry(tableName, readerGroupName, id -> BitConverter.readUUID(id, 0))
+                        .thenApply(versionedUUID -> versionedUUID.getObject()));
     }
 
     @Override
@@ -214,5 +255,4 @@ public class PravegaTablesScope implements Scope {
                             return new ImmutablePair<>(taken, token.get());
                         }));
     }
-
 }

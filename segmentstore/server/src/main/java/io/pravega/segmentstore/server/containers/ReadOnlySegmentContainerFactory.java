@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.server.DebugSegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -40,5 +41,10 @@ public class ReadOnlySegmentContainerFactory implements SegmentContainerFactory 
         Preconditions.checkArgument(containerId == READONLY_CONTAINER_ID,
                 "ReadOnly Containers can only have Id %s.", READONLY_CONTAINER_ID);
         return new ReadOnlySegmentContainer(this.storageFactory, this.executor);
+    }
+
+    @Override
+    public DebugSegmentContainer createDebugStreamSegmentContainer(int containerId) {
+        throw new UnsupportedOperationException("DebugSegmentContainer not supported in ReadOnly mode.");
     }
 }

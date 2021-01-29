@@ -22,4 +22,9 @@ public class ControllerServiceWithZKStreamTest extends ControllerServiceWithStre
     StreamMetadataStore getStore() {
         return StreamStoreFactory.createZKStore(zkClient, executor);
     }
+
+    @Override
+    public void createReaderGroupTest() throws Exception {
+        // do nothing...
+    }
 }

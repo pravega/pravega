@@ -122,6 +122,12 @@ public class AsyncStorageWrapper implements Storage {
     }
 
     @Override
+    public boolean supportsAtomicWrites() {
+        // RollingStorage (non-Chunked Storage) does not support atomic writes if the underlying Storage implementation does not.
+        return false;
+    }
+
+    @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
         return supplyAsync(() -> this.syncStorage.openRead(streamSegmentName), streamSegmentName);
     }
