@@ -11,7 +11,6 @@ package io.pravega.cli.admin.dataRecovery;
 
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.segmentstore.server.containers.ContainerRecoveryUtils;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import lombok.Cleanup;
@@ -119,39 +118,44 @@ public class SegmentReader extends DataRecoveryCommand {
         outputInfo("Done!");
     }
 
-    public int readSegment(Storage storage, String segmentName, Duration timeout)
+    /**
+     * Reads the contents of a given segment.
+     * @param storage                   A storage instance to read the segment's contents.
+     * @param segmentName               The name of the segment.
+     * @param timeout                   A timeout for the operation.
+     * @throws Exception                If an exception occurred.
+     * @return                          Number of events found.
+     */
+    private int readSegment(Storage storage, String segmentName, Duration timeout)
             throws Exception {
 
         val segmentInfo = storage.getStreamSegmentInfo(segmentName, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         int bytesToRead = (int) segmentInfo.getLength();
         val sourceHandle = storage.openRead(segmentName).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        byte[] header = new byte[8];
 
-        int countEvents = 0;
-        int offset = 0;
+        byte[] header; // stores header
+        byte[] data; // stores data
+
+        int countEvents = 0; // Keeps count of events
+        int offset = 0;     // Moves the offset to read a new chunk less then equal to BUFFER_SIZE
 
         byte[] buffer = new byte[BUFFER_SIZE];
         int runnerOffset;
-        while (offset < bytesToRead) {
+        while (offset < bytesToRead) { // read till offset reaches the end
             int size = storage.read(sourceHandle, offset, buffer, 0, Math.min(BUFFER_SIZE, bytesToRead - offset), timeout)
                     .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             outputInfo("Read size: %d", size);
 
-            runnerOffset = 0;
+            runnerOffset = 0; // to read the current buffer
             while ( (runnerOffset + 8) < size) { // It should be less, unless there can be 0 bytes event
                 header = Arrays.copyOfRange(buffer, runnerOffset, runnerOffset + 8);
 
-                long length = 0;
-                try {
-                    length = convertByteArrayToLong(header);
-                } catch (Exception e) {
+                long length = convertByteArrayToLong(header);
+                if (runnerOffset + 8 + length > size) { // if data range exceeds the buffer size, break
                     break;
                 }
-                if (runnerOffset + 8 + length > size) {
-                    break;
-                }
-                if (length != 0) {
-                    byte[] data = Arrays.copyOfRange(buffer, runnerOffset + 8, runnerOffset + 8 + (int) length);
+                if (length != 0) { // If there is something to read
+                    data = Arrays.copyOfRange(buffer, runnerOffset + 8, runnerOffset + 8 + (int) length);
                     this.fileOutputStream.write(data, 0, (int) length);
                     countEvents++;
                 }
@@ -163,7 +167,7 @@ public class SegmentReader extends DataRecoveryCommand {
         return countEvents;
     }
 
-    private long convertByteArrayToLong(byte[] longBytes){
+    private long convertByteArrayToLong(byte[] longBytes) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(longBytes);
         return byteBuffer.getLong();
     }
