@@ -132,18 +132,13 @@ public class SegmentReader extends DataRecoveryCommand {
 
         byte[] buffer = new byte[BUFFER_SIZE];
         int runnerOffset;
-        while (bytesToRead > 0) {
-            int size = storage.read(sourceHandle, offset, buffer, 0, Math.min(BUFFER_SIZE, bytesToRead), timeout)
+        while (offset < bytesToRead) {
+            int size = storage.read(sourceHandle, offset, buffer, 0, Math.min(BUFFER_SIZE, bytesToRead - offset), timeout)
                     .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             outputInfo("Read size: %d", size);
-            if (size > 0) {
-                bytesToRead -= size;
-            } else {
-                break;
-            }
 
             runnerOffset = 0;
-            while ( (runnerOffset + 8) < size) {
+            while ( (runnerOffset + 8) < size) { // It should be less, unless there can be 0 bytes event
                 header = Arrays.copyOfRange(buffer, runnerOffset, runnerOffset + 8);
 
                 long length = 0;
