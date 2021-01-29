@@ -35,6 +35,7 @@ public class SegmentReader extends DataRecoveryCommand {
 
     private static final Duration TIMEOUT = Duration.ofMillis(240 * 1000);
     private static final int CONTAINER_EPOCH = 1;
+    private static final int BUFFER_SIZE = 1 * 1024 * 1024;
     private final ScheduledExecutorService scheduledExecutorService = getCommandArgs().getState().getExecutor();
     private final StorageFactory storageFactory;
     private FileOutputStream fileOutputStream;
@@ -128,23 +129,38 @@ public class SegmentReader extends DataRecoveryCommand {
 
         int countEvents = 0;
         int offset = 0;
-        while ( (offset + 8) < bytesToRead) {
-            storage.read(sourceHandle, offset, header, 0, 8, timeout)
+
+        byte[] buffer = new byte[BUFFER_SIZE];
+        int runnerOffset;
+        while (bytesToRead > 0) {
+            int size = storage.read(sourceHandle, offset, buffer, 0, Math.min(BUFFER_SIZE, bytesToRead), timeout)
                     .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            long length = 0;
-            try {
-                length = convertByteArrayToLong(header);
-            } catch (Exception e) {
+            outputInfo("Read size: %d", size);
+            if (size > 0) {
+                bytesToRead -= size;
+            } else {
                 break;
             }
-            if (length != 0) {
-                byte[] data = new byte[(int)length];
-                storage.read(sourceHandle, offset + 8, data, 0, (int) length, timeout)
-                        .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-                this.fileOutputStream.write(data, 0, (int) length);
+
+            runnerOffset = 0;
+            while ( (runnerOffset + 8) < size) {
+                header = Arrays.copyOfRange(buffer, runnerOffset, runnerOffset + 8);
+
+                long length = 0;
+                try {
+                    length = convertByteArrayToLong(header);
+                } catch (Exception e) {
+                    break;
+                }
+                if (length != 0) {
+                    byte[] data = Arrays.copyOfRange(buffer, runnerOffset + 8, (int) length);
+                    this.fileOutputStream.write(data, 0, (int) length);
+                    countEvents++;
+                }
+                runnerOffset += length + 8;
             }
-            offset += length + 8;
-            countEvents++;
+
+            offset += runnerOffset;
         }
         return countEvents;
     }
