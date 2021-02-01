@@ -38,11 +38,14 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.AllArgsConstructor;
 import lombok.val;
+import org.apache.http.HttpStatus;
 
 /**
  * In-memory mock for S3.
@@ -52,6 +55,7 @@ public class S3Mock {
 
     @GuardedBy("objects")
     private final Map<String, Map<Integer, CopyPartRequest>> multipartUploads;
+    private final AtomicLong multipartNextId = new AtomicLong(0);
     @GuardedBy("objects")
     private final Map<String, ObjectData> objects;
 
@@ -101,7 +105,7 @@ public class S3Mock {
             if (startOffset < objectContent.getLength()) {
                 objectContent = new ByteArraySegment(objectContent.slice(0, startOffset).getCopy());
             } else if (startOffset > objectContent.getLength()) {
-                throw new S3Exception("", 0, "InvalidRange", "");
+                throw new S3Exception("", HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE, "InvalidRange", "");
             }
 
             InputStream source = (InputStream) content;
@@ -110,7 +114,7 @@ public class S3Mock {
                 int copyLength = StreamHelpers.readAll(source, buffer, 0, length);
                 assert copyLength == length;
             } catch (IOException ex) {
-                throw new S3Exception("Copy error", 500);
+                throw new S3Exception("Copy error", HttpStatus.SC_INTERNAL_SERVER_ERROR);
             }
 
             od.content = BufferView.wrap(Arrays.asList(objectContent, new ByteArraySegment(buffer)));
@@ -122,7 +126,7 @@ public class S3Mock {
         synchronized (this.objects) {
             ObjectData od = this.objects.get(objectName);
             if (od == null) {
-                throw new S3Exception("NoObject", 404, "NoSuchKey", key);
+                throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);
             }
             od.acl = acl;
         }
@@ -133,7 +137,7 @@ public class S3Mock {
         synchronized (this.objects) {
             ObjectData od = this.objects.get(objectName);
             if (od == null) {
-                throw new S3Exception("NoObject", 404, "NoSuchKey", request.getKey());
+                throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", request.getKey());
             }
             od.acl = request.getAcl();
         }
@@ -144,7 +148,7 @@ public class S3Mock {
         synchronized (this.objects) {
             ObjectData od = this.objects.get(objectName);
             if (od == null) {
-                throw new S3Exception("NoObject", 404, "NoSuchKey", key);
+                throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);
             }
 
             return od.acl;
@@ -156,7 +160,12 @@ public class S3Mock {
         synchronized (this.objects) {
             Map<Integer, CopyPartRequest> partMap = this.multipartUploads.get(objectName);
             if (partMap == null) {
-                throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+                throw new S3Exception("NoSuchUpload", HttpStatus.SC_NOT_FOUND, "NoSuchUpload", "");
+            }
+            if (partMap.containsKey(request.getPartNumber())) {
+                // Overwriting may or may not be accepted in real S3, but in our case, we consider this as a bug so
+                // we want to make sure we don't do it.
+                throw new S3Exception("Part exists already.", HttpStatus.SC_BAD_REQUEST, "InvalidArgument", "");
             }
             partMap.put(request.getPartNumber(), request);
             CopyPartResult result = new CopyPartResult();
@@ -170,7 +179,7 @@ public class S3Mock {
         String objectName = getObjectName(bucketName, key);
         synchronized (this.objects) {
             if (this.objects.remove(objectName) == null) {
-                throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+                throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
             }
         }
     }
@@ -186,13 +195,13 @@ public class S3Mock {
         ListObjectsResult result = new ListObjectsResult();
         List<S3Object> list;
         String objectPrefix = getObjectName(bucketName, prefix);
-        String bucketPrefix = getObjectName(bucketName, "");
+        int bucketPrefixLength = bucketName.length() + 1;
         synchronized (this.objects) {
             list = this.objects.entrySet().stream()
                     .filter(e -> e.getKey().startsWith(objectPrefix))
                     .map(e -> {
                         S3Object object = new S3Object();
-                        object.setKey(e.getKey().substring(bucketPrefix.length()));
+                        object.setKey(e.getKey().substring(bucketPrefixLength));
                         object.setSize((long) e.getValue().content.getLength());
                         object.setLastModified(new Date(System.currentTimeMillis()));
                         return object;
@@ -212,7 +221,7 @@ public class S3Mock {
         synchronized (this.objects) {
             ObjectData od = this.objects.get(objectName);
             if (od == null) {
-                throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+                throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
             }
             metadata.setContentLength((long) od.content.getLength());
             metadata.setLastModified(new Date(System.currentTimeMillis()));
@@ -225,7 +234,7 @@ public class S3Mock {
         synchronized (this.objects) {
             ObjectData od = this.objects.get(objectName);
             if (od == null) {
-                throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+                throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
             }
 
             final int offset = (int) (long) range.getFirst();
@@ -233,7 +242,7 @@ public class S3Mock {
             try {
                 return od.content.slice(offset, length).getReader();
             } catch (Exception ex) {
-                throw new S3Exception("InvalidRange", org.apache.http.HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE, "InvalidRange", "");
+                throw new S3Exception("InvalidRange", HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE, "InvalidRange", "");
             }
         }
     }
@@ -242,7 +251,7 @@ public class S3Mock {
         String objectName = getObjectName(bucketName, key);
         synchronized (this.objects) {
             this.multipartUploads.put(objectName, new HashMap<>());
-            return Integer.toString(this.multipartUploads.size());
+            return Long.toString(this.multipartNextId.incrementAndGet());
         }
     }
 
@@ -251,22 +260,28 @@ public class S3Mock {
         synchronized (this.objects) {
             Map<Integer, CopyPartRequest> partMap = this.multipartUploads.get(objectName);
             if (partMap == null) {
-                throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+                throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
             }
 
             if (!this.objects.containsKey(objectName)) {
-                throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+                throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
             }
 
             val partObjects = partMap.entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey))
-                    .map(e -> getObjectName(e.getValue().getBucketName(), e.getValue().getSourceKey()))
                     .collect(Collectors.toList());
             val builder = BufferView.builder();
 
-            partObjects.forEach(partObjectName -> {
+            val expectedPartId = new AtomicInteger(0); // They start at 1, but we increment before each check.
+            partObjects.forEach(e -> {
+                expectedPartId.incrementAndGet();
+                if (e.getKey() != expectedPartId.get()) {
+                    // Make sure all the parts are there.
+                    throw new S3Exception("InvalidPart", HttpStatus.SC_BAD_REQUEST, "InvalidPart", "");
+                }
+                String partObjectName = getObjectName(e.getValue().getBucketName(), e.getValue().getSourceKey());
                 ObjectData od = this.objects.get(partObjectName);
                 if (od == null) {
-                    throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+                    throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
                 }
                 builder.add(od.content);
             });
@@ -283,7 +298,7 @@ public class S3Mock {
         synchronized (this.objects) {
             Map<Integer, CopyPartRequest> partMap = this.multipartUploads.remove(objectName);
             if (partMap == null) {
-                throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+                throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
             }
         }
     }
