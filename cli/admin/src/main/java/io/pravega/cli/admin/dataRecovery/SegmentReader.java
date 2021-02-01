@@ -78,13 +78,6 @@ public class SegmentReader extends DataRecoveryCommand {
         }
 
         File f = new File(this.filePath + Path.SEPARATOR + "segmentContent" + ".txt");
-        if (f.exists()) {
-            outputInfo("File '%s' already exists.", f.getAbsolutePath());
-            if (!f.delete()) {
-                outputError("Failed to delete the file '%s'.", f.getAbsolutePath());
-                throw new Exception("Failed to delete the file " + f.getAbsolutePath());
-            }
-        }
         if (!f.createNewFile()) {
             outputError("Failed to create file '%s'.", f.getAbsolutePath());
             throw new Exception("Failed to create file " + f.getAbsolutePath());

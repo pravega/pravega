@@ -286,7 +286,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
         // Execute the command for list segments
         String commandResult = TestUtils.executeCommand("storage read-segment " + segmentToBeRead + " " +
-                this.logsDir.getAbsolutePath(), STATE.get());
+                this.logsDir.getAbsolutePath() + "/", STATE.get());
         // There should be a csv file created for storing segments in Container 0
         Assert.assertTrue(new File(this.logsDir.getAbsolutePath(), "segmentContent.txt").exists());
         // Check if the file has segments listed in it
