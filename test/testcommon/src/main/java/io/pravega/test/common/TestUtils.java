@@ -46,10 +46,8 @@ public class TestUtils {
             int candidatePort = BASE_PORT + NEXT_PORT.getAndIncrement() % MAX_PORT_COUNT;
             try {
                 ServerSocket serverSocket = new ServerSocket(candidatePort);
-                //Enabling SO_REUSEADDR prior to binding the socket using bind(SocketAddress) allows the socket
-                //to be bound even though a previous connection is in a timeout state.
-                serverSocket.setReuseAddress(true);
                 serverSocket.close();
+                log.info("Available free port is {}", candidatePort);
                 return candidatePort;
             } catch (IOException e) {
                 // Do nothing. Try another port.

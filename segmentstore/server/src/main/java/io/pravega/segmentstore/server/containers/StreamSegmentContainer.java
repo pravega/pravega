@@ -232,6 +232,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.writer.close();
             this.durableLog.close();
             this.readIndex.close();
+            this.attributeIndex.close();
             this.storage.close();
             this.metrics.close();
             log.info("{}: Closed.", this.traceObjectId);

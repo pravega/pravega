@@ -538,6 +538,13 @@ public class ChunkedSegmentStorage implements Storage {
     }
 
     @Override
+    public boolean supportsAtomicWrites() {
+        // Regardless of the actual Storage implementation, ChunkedSegmentStorage guarantees that all calls to #write(...)
+        // are atomic.
+        return true;
+    }
+
+    @Override
     public Iterator<SegmentProperties> listSegments() {
         throw new UnsupportedOperationException("listSegments is not yet supported");
     }
