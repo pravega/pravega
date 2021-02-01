@@ -98,12 +98,7 @@ public class ExtendedS3Storage implements SyncStorage {
     //endregion
 
     //region constructor
-
-    public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config) {
-        this(client, config, false);
-    }
-
-    ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config, boolean shouldClose) {
+    public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config, boolean shouldClose) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.client = Preconditions.checkNotNull(client, "client");
         this.closed = new AtomicBoolean(false);
