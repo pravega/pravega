@@ -54,7 +54,7 @@ public abstract class DataRecoveryCommand extends AdminCommand {
      * @param args              The arguments with the message.
      */
     protected void outputInfo(String messageTemplate, Object... args) {
-        System.out.println(String.format(messageTemplate, args));
+        output(String.format(messageTemplate, args));
         log.info(String.format(messageTemplate, args));
     }
 

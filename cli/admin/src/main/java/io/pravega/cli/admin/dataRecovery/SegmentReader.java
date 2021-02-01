@@ -63,7 +63,6 @@ public class SegmentReader extends DataRecoveryCommand {
         this.filePath = System.getProperty("user.dir") + Path.SEPARATOR + descriptor().getName() + "_" + fileSuffix;
 
         // If path given as command args, use it
-        ensureArgCount(1);
         this.segmentName = getCommandArgs().getArgs().get(0);
         if (getArgCount() >= 2) {
             this.filePath = getCommandArgs().getArgs().get(1);
@@ -108,7 +107,7 @@ public class SegmentReader extends DataRecoveryCommand {
 
         outputInfo("Writing segment's content to the file...");
         int countEvents = readSegment(storage, this.segmentName, TIMEOUT);
-        outputInfo("Number of events found = %d", countEvents);
+        outputInfo("Number of events found = %d.", countEvents);
 
         outputInfo("Closing the file...");
         this.fileOutputStream.close();

@@ -44,6 +44,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
+import io.pravega.shared.NameUtils;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -241,6 +242,59 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         Path path = Paths.get(this.logsDir.getAbsolutePath() + "/Container_0.csv");
         long lines = Files.lines(path).count();
         AssertExtensions.assertGreaterThan("There should be at least one segment.", 1, lines);
+        Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
+    }
+
+    /**
+     * Tests read segments command.
+     * @throws Exception    In case of any exception thrown while execution.
+     */
+    @Test
+    public void testReadSegmentsCommand() throws Exception {
+        int instanceId = 0;
+        int bookieCount = 3;
+        int containerCount = 1;
+        String streamName = "testReadSegmentsCommand";
+        String segmentToBeRead = SCOPE + "/" + streamName + "/" + "0.#epoch.0";
+
+        @Cleanup
+        PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
+
+        createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName);
+        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+            // Write events to the streams.
+            writeEvents(streamName, clientRunner.getClientFactory());
+        }
+        pravegaRunner.shutDownControllerRunner(); // Shut down the controller
+
+        // Flush all Tier 1 to LTS
+        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.getSegmentStoreRunner().getServiceBuilder());
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
+        }
+
+        pravegaRunner.shutDownSegmentStoreRunner(); // Shutdown SegmentStore
+        pravegaRunner.shutDownBookKeeperRunner(); // Shutdown BookKeeper & ZooKeeper
+
+        // set pravega properties for the test
+        STATE.set(new AdminCommandState());
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("pravegaservice.container.count", "1");
+        pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
+        pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
+        pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Execute the command for list segments
+        String commandResult = TestUtils.executeCommand("storage read-segment " + segmentToBeRead + " " +
+                this.logsDir.getAbsolutePath(), STATE.get());
+        // There should be a csv file created for storing segments in Container 0
+        Assert.assertTrue(new File(this.logsDir.getAbsolutePath(), "segmentContent.txt").exists());
+        // Check if the file has segments listed in it
+        Path path = Paths.get(this.logsDir.getAbsolutePath() + "/segmentContent.txt");
+        long lines = Files.lines(path).count();
+        AssertExtensions.assertGreaterThan("There should be at least one event.", 0, lines);
+        Assert.assertTrue(commandResult.contains("Number of events found = " + NUM_EVENTS));
         Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
     }
 
