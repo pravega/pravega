@@ -249,7 +249,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
      * @throws Exception    In case of any exception thrown while execution.
      */
     @Test
-    public void testReadSegmentsCommand() throws Exception {
+    public void testReadSegmentCommand() throws Exception {
         int instanceId = 0;
         int bookieCount = 3;
         int containerCount = 1;
