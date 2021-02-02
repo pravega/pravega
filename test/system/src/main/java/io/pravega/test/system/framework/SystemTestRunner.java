@@ -80,6 +80,7 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
         if ((type == null) || TestExecutorType.LOCAL.equals(type)) {
             runLeaf(methodBlock(method), describeChild(method), notifier);
         } else {
+            notifier.addListener(new FailFastListener(notifier));
             EachTestNotifier eachNotifier = new EachTestNotifier(notifier, describeChild(method));
             try {
                 eachNotifier.fireTestStarted();
