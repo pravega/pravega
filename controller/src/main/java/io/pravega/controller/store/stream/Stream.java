@@ -685,15 +685,19 @@ interface Stream {
     CompletableFuture<Integer> getSegmentSealedEpoch(long segmentId);
 
     /**
-     * Method to compare streamcuts to check if streamcut1 is strictly ahead of streamcut2. 
-     * Strictly means if the two streamcuts are overlapping for any range, then this method will reply in negative. 
+     * Compares two Stream cuts and returns :
+     *  1 if streamcut1 is ahead of or identical to streamcut2. 
+     *  0 if streamcut1 overlaps with streamcut2. 
+     *  -1 if streamcut2 is ahead of streamcut1. 
+     * A streamcut is considered greater than if for all key ranges the segment/offset in one streamcut is ahead of 
+     * second streamcut. 
      * 
      * @param cut1 streamcut to check
      * @param cut2 streamcut to check against. 
      *
-     * @return CompletableFuture which, upon completion, will indicate if the streamcut1 is strictly ahead of streamcut2.
+     * @return CompletableFuture which, upon completion, will contain comparison result of streamcut1 and streamcut2.
      */
-    CompletableFuture<Boolean> isStreamCutStrictlyGreaterThan(Map<Long, Long> cut1, Map<Long, Long> cut2);
+    CompletableFuture<Integer> compareStreamCuts(Map<Long, Long> cut1, Map<Long, Long> cut2);
 
     /**
      * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.

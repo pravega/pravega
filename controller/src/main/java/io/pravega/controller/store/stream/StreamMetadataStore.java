@@ -1429,8 +1429,10 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                      final OperationContext context, final Executor executor);
 
     /**
-     * Compares two Stream cuts and returns true if streamcut1 is strictly ahead of streamcut2 else returns false. 
-     * This method will return false for both strictly less than and overlapping streamcuts.
+     * Compares two Stream cuts and returns :
+     *  1 if streamcut1 is ahead of or identical to streamcut2. 
+     *  0 if streamcut1 overlaps with streamcut2. 
+     *  -1 if streamcut2 is ahead of streamcut1. 
      * A streamcut is considered greater than if for all key ranges the segment/offset in one streamcut is ahead of 
      * second streamcut. 
      *
@@ -1441,12 +1443,12 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param context    operation context.
      * @param executor   callers executor.
      *                   
-     * @return A completable future which when completed will hold a boolean which will indicate if streamcut1 is strictly
-     * ahead of streamcut2. 
+     * @return A completable future which when completed will hold an integer which will determine the order between 
+     * streamcut1 and streamcut2. 
      */
-    CompletableFuture<Boolean> streamCutStrictlyGreaterThan(final String scope, final String streamName,
-                                                            Map<Long, Long> streamCut1, Map<Long, Long> streamCut2,
-                                                            final OperationContext context, final Executor executor);
+    CompletableFuture<Integer> compareStreamCut(final String scope, final String streamName,
+                                                Map<Long, Long> streamCut1, Map<Long, Long> streamCut2,
+                                                final OperationContext context, final Executor executor);
 
     /**
      * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.    

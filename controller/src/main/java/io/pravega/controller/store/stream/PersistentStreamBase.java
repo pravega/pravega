@@ -249,14 +249,22 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @Override
-    public CompletableFuture<Boolean> isStreamCutStrictlyGreaterThan(Map<Long, Long> streamcut1, Map<Long, Long> streamcut2) {
+    public CompletableFuture<Integer> compareStreamCuts(Map<Long, Long> streamcut1, Map<Long, Long> streamcut2) {
         CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span1Future = computeStreamCutSpan(streamcut1);
         CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span2Future = computeStreamCutSpan(streamcut2);
         return CompletableFuture.allOf(span1Future, span2Future)
                     .thenApply(v -> {
                         ImmutableMap<StreamSegmentRecord, Integer> span1 = span1Future.join();
                         ImmutableMap<StreamSegmentRecord, Integer> span2 = span2Future.join();
-                        return greaterThan(streamcut1, span1, streamcut2, span2);
+                        boolean gt = greaterThan(streamcut1, span1, streamcut2, span2);
+                        boolean lt = greaterThan(streamcut2, span2, streamcut1, span1);
+                        if (gt) { // if its greater then return 1
+                            return 1;
+                        } else if (!lt) { // if its neither greater nor less than then they are overlapping.
+                            return 0;
+                        } else { // else its clearly less than. 
+                            return -1;
+                        }
                     });
     }
 
