@@ -268,7 +268,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
 
     private static Storage createStorage(S3Client client, ExtendedS3StorageConfig adapterConfig, Executor executor) {
         // We can't use the factory here because we're setting our own (mock) client.
-        ExtendedS3Storage storage = new ExtendedS3Storage(client, adapterConfig);
+        ExtendedS3Storage storage = new ExtendedS3Storage(client, adapterConfig, false);
         return new AsyncStorageWrapper(storage, executor);
     }
 
@@ -299,7 +299,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
 
         @Override
         protected Storage createStorage() {
-            ExtendedS3Storage storage = new ExtendedS3Storage(setup.client, setup.adapterConfig);
+            ExtendedS3Storage storage = new ExtendedS3Storage(setup.client, setup.adapterConfig, false);
             return wrap(storage);
         }
     }
