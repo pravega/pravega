@@ -95,7 +95,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
                 // Finally commit transaction.
                 return txn.commit()
                         .exceptionally(this::handleException)
-                        .thenComposeAsync(v3 -> postCommit(), chunkedSegmentStorage.getExecutor());
+                        .thenRunAsync(this::postCommit, chunkedSegmentStorage.getExecutor());
             }, chunkedSegmentStorage.getExecutor());
         }, chunkedSegmentStorage.getExecutor());
     }
@@ -110,14 +110,13 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         throw new CompletionException(ex);
     }
 
-    private CompletableFuture<Void> postCommit() {
-        // Collect garbage.
-        return chunkedSegmentStorage.collectGarbage(chunksToDelete)
-                .thenAcceptAsync(v4 -> {
-                    // Update the read index.
-                    chunkedSegmentStorage.getReadIndexCache().remove(sourceSegment);
-                    logEnd();
-                }, chunkedSegmentStorage.getExecutor());
+    private void postCommit() {
+            // Collect garbage.
+            chunkedSegmentStorage.getGarbageCollector().addToGarbage(chunksToDelete);
+            // Update the read index.
+            chunkedSegmentStorage.getReadIndexCache().remove(sourceSegment);
+            logEnd();
+
     }
 
     private void logEnd() {

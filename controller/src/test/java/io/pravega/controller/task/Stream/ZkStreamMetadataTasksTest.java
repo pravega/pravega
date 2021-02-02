@@ -41,8 +41,50 @@ public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
     }
 
     @Test
-    public void getSubscribersForStreamTest() throws InterruptedException, ExecutionException {
+    public void readerGroupsTest() throws InterruptedException, ExecutionException {
         // skip ZK tests
         assertTrue(true);
+    }
+
+    @Test
+    @Override
+    public void consumptionBasedRetentionSizeLimitTest() {
+        // no op
+    }
+
+    @Test
+    @Override
+    public void consumptionBasedRetentionTimeLimitTest() {
+        // no op
+    }
+    
+    @Test
+    @Override
+    public void consumptionBasedRetentionWithScale() {
+        // no op
+    }
+    
+    @Test
+    @Override
+    public void consumptionBasedRetentionWithScale2() {
+        // no op
+    }
+
+    @Test
+    @Override
+    public void consumptionBasedRetentionWithNoBounds() {
+        // no op
+    }
+
+    @Test
+    @Override
+    public void consumptionBasedRetentionWithNoSubscriber() {
+        // no op
+    }
+
+    @Test
+    @Override
+    public void sizeBasedRetentionStreamTest() {
+        // no op
     }
 }

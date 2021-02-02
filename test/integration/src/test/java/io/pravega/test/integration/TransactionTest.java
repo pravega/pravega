@@ -81,6 +81,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
                                                          .stream(Stream.of("scope", streamName))
                                                          .disableAutomaticCheckpoints()
                                                          .build());
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         EventWriterConfig eventWriterConfig = EventWriterConfig.builder().transactionTimeoutTime(60000).build();
         @Cleanup
@@ -110,6 +111,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
         producer.writeEvent(routingKey, nonTxEvent);
         AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.writeEvent(routingKey, txnEvent));
 
+        @Cleanup
         EventStreamReader<Serializable> consumer = streamManager.getClientFactory().createReader(readerName,
                                                                                                  groupName,
                                                                                                  new JavaSerializer<>(),
@@ -151,6 +153,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         streamManager.createScope("scope");
         streamManager.createStream("scope", streamName, null);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         EventWriterConfig eventWriterConfig = EventWriterConfig.builder()
                           .transactionTimeoutTime(60000)
@@ -191,6 +194,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
                                                          .stream(Stream.of("scope", streamName))
                                                          .disableAutomaticCheckpoints()
                                                          .build());
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         EventWriterConfig eventWriterConfig = EventWriterConfig.builder()
                           .transactionTimeoutTime(60000)

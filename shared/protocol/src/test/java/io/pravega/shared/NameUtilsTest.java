@@ -64,6 +64,21 @@ public class NameUtilsTest {
     }
 
     @Test
+    public void testGetScopedReaderGroupName() {
+        String scope = "scope";
+        String readergroup = "readerGroup";
+        String scopedName = NameUtils.getScopedReaderGroupName(scope, readergroup);
+        Assert.assertTrue(scopedName.startsWith(scope));
+        Assert.assertTrue(scopedName.endsWith(readergroup));
+        val tokens = NameUtils.extractScopedNameTokens(scopedName);
+        Assert.assertEquals(2, tokens.size());
+        Assert.assertEquals(scope, tokens.get(0));
+        Assert.assertEquals(readergroup, tokens.get(1));
+        AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens(scope), ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens("a/b/c"), ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
     public void testStreamNameVerifier() {
         NameUtils.validateStreamName("_systemstream123");
         NameUtils.validateStreamName("stream123");

@@ -18,6 +18,7 @@ import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import org.apache.commons.lang3.NotImplementedException;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +27,9 @@ import java.util.concurrent.TimeUnit;
  * Provides translation between the Model classes and its REST representation.
  */
 public class ModelHelper {
+
+    public static final int MILLIS_TO_MINUTES = 60 * 1000;
+    public static final int MB_TO_BYTES = 1024 * 1024;
 
     /**
      * This method translates the REST request object CreateStreamRequest into internal object StreamConfiguration.
@@ -55,13 +59,31 @@ public class ModelHelper {
         if (createStreamRequest.getRetentionPolicy() != null) {
             switch (createStreamRequest.getRetentionPolicy().getType()) {
                 case LIMITED_SIZE_MB:
-                    retentionPolicy = RetentionPolicy.bySizeBytes(
-                            createStreamRequest.getRetentionPolicy().getValue() * 1024 * 1024);
+                    if (createStreamRequest.getRetentionPolicy().getMaxValue() == null) {
+                        // max value is not specified
+                        retentionPolicy = RetentionPolicy.bySizeBytes(
+                                createStreamRequest.getRetentionPolicy().getValue() * MB_TO_BYTES);
+                    } else {
+                        retentionPolicy = RetentionPolicy.bySizeBytes(
+                                createStreamRequest.getRetentionPolicy().getValue() * MB_TO_BYTES,
+                                createStreamRequest.getRetentionPolicy().getMaxValue() * MB_TO_BYTES);
+                    }
                     break;
                 case LIMITED_DAYS:
-                    retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
-                            createStreamRequest.getRetentionPolicy().getValue());
+                    if (createStreamRequest.getRetentionPolicy().getMaxValue() == null
+                        && createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention() == null) {
+                        retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
+                                    createStreamRequest.getRetentionPolicy().getValue());
+                    } else {
+                        retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
+                                createStreamRequest.getRetentionPolicy().getValue(),
+                                createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention(),
+                                createStreamRequest.getRetentionPolicy().getMaxValue() == null ?
+                                        0 : createStreamRequest.getRetentionPolicy().getMaxValue());
+                    }
                     break;
+                default:
+                    throw new NotImplementedException("retention policy type not supported");
             }
         }
         return StreamConfiguration.builder()
@@ -105,6 +127,8 @@ public class ModelHelper {
                     retentionPolicy = getRetentionPolicy(updateStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
                                                                         updateStreamRequest.getRetentionPolicy().getValue());
                     break;
+                default:
+                    throw new NotImplementedException("retention policy type not supported");
             }
         }
         return StreamConfiguration.builder()
@@ -162,6 +186,8 @@ public class ModelHelper {
                     }
                     retentionConfig.setTimeBasedRetention(timeRetention.days(days).hours(hours).minutes(minutes));
                     break;
+                default:
+                    throw new NotImplementedException("consumption type not supported");
             }
         }
 
@@ -180,6 +206,21 @@ public class ModelHelper {
                         .plusMinutes(timeRetention.getMinutes())
                 :  Duration.ofDays(retentionInDays);
         return RetentionPolicy.byTime(retentionDuration);
+    }
+
+    private static RetentionPolicy getRetentionPolicy(TimeBasedRetention timeRetention, long retentionInDays,
+                                                      TimeBasedRetention maxTimeRetention, long maxRetentionInDays) {
+        Duration retentionDurationMin = (timeRetention != null && retentionInDays == 0) ?
+                Duration.ofDays(timeRetention.getDays())
+                        .plusHours(timeRetention.getHours())
+                        .plusMinutes(timeRetention.getMinutes())
+                :  Duration.ofDays(retentionInDays);
+        Duration retentionDurationMax = (maxTimeRetention != null && maxRetentionInDays == 0) ?
+                Duration.ofDays(maxTimeRetention.getDays())
+                        .plusHours(maxTimeRetention.getHours())
+                        .plusMinutes(maxTimeRetention.getMinutes())
+                :  Duration.ofDays(maxRetentionInDays);
+        return RetentionPolicy.byTime(retentionDurationMin, retentionDurationMax);
     }
 
     /**

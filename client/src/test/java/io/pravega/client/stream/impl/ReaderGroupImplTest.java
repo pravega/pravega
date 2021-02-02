@@ -28,6 +28,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import java.util.Arrays;
@@ -37,6 +38,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -114,12 +116,20 @@ public class ReaderGroupImplTest {
     @Test
     @SuppressWarnings("unchecked")
     public void resetReadersToStreamCut() {
-        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
                 StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                                                      .build());
-        verify(synchronizer, times(1)).updateStateUnconditionally(any(Update.class));
+                .build();
+        when(state.getConfig()).thenReturn(config);
+        when(synchronizer.getState()).thenReturn(state);
+        when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(1L));
+
+        readerGroup.resetReaderGroup(config);
+
+        verify(synchronizer, times(1)).fetchUpdates();
+        verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
+        verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }
 
     @Test
@@ -128,8 +138,16 @@ public class ReaderGroupImplTest {
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(2).forEach(segNum -> positions.put(new Segment(SCOPE, "s1", segNum), 10L));
         Checkpoint checkpoint = new CheckpointImpl("testChkPoint", positions);
-        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkpoint).build());
-        verify(synchronizer, times(1)).updateStateUnconditionally(any(Update.class));
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromCheckpoint(checkpoint).build();
+        when(state.getConfig()).thenReturn(config);
+        when(synchronizer.getState()).thenReturn(state);
+        when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(1L));
+
+        readerGroup.resetReaderGroup(config);
+
+        verify(synchronizer, times(1)).fetchUpdates();
+        verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config);
+        verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }
 
     @Test
@@ -297,5 +315,40 @@ public class ReaderGroupImplTest {
         assertEquals(1, distribution.get("1").intValue());
         assertEquals(1, distribution.get("2").intValue());
         assertEquals(1, distribution.get("3").intValue());
+    }
+
+    @Test
+    public void updateRetentionStreamCutTestSuccess() {
+        Stream test = createStream("test");
+        ReaderGroupState state = mock(ReaderGroupState.class);
+        when(synchronizer.getState()).thenReturn(state);
+        ReaderGroupConfig config = ReaderGroupConfig.builder().stream(test)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .readerGroupId(UUID.randomUUID())
+                .build();
+        when(synchronizer.getState().getConfig()).thenReturn(config);
+        when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), NameUtils.getScopedReaderGroupName(SCOPE, GROUP_NAME),
+                config.getReaderGroupId(), 0L, createStreamCut("test", 1)))
+                .thenReturn(CompletableFuture.completedFuture(true));
+        Map<Stream, StreamCut> cuts = new HashMap<>();
+        cuts.put(test, createStreamCut("test", 1));
+        readerGroup.updateRetentionStreamCut(cuts);
+        verify(controller, times(1))
+                .updateSubscriberStreamCut(test.getScope(), test.getStreamName(), NameUtils.getScopedReaderGroupName(SCOPE, GROUP_NAME),
+                        config.getReaderGroupId(), 0L, createStreamCut("test", 1));
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void updateRetentionStreamCutTestFailure() {
+        Stream test = createStream("test");
+        ReaderGroupState state = mock(ReaderGroupState.class);
+        when(synchronizer.getState()).thenReturn(state);
+        ReaderGroupConfig config = ReaderGroupConfig.builder().stream(test)
+                .readerGroupId(UUID.randomUUID())
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT).build();
+        when(synchronizer.getState().getConfig()).thenReturn(config);
+        Map<Stream, StreamCut> cuts = new HashMap<>();
+        cuts.put(test, createStreamCut("test", 1));
+        readerGroup.updateRetentionStreamCut(cuts);
     }
 }

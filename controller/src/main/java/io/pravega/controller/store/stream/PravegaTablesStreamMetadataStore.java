@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -163,7 +164,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
-    CompletableFuture<Boolean> checkScopeExists(String scope) {
+    public CompletableFuture<Boolean> checkScopeExists(String scope) {
         return Futures.completeOn(storeHelper.expectingDataNotFound(
                 storeHelper.getEntry(SCOPES_TABLE, scope, x -> x).thenApply(v -> true),
                 false), executor);
@@ -242,6 +243,13 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
+    public CompletableFuture<Boolean> checkReaderGroupExists(final String scopeName,
+                                                        final String rgName) {
+        return Futures.completeOn(((PravegaTablesScope) getScope(scopeName)).checkReaderGroupExistsInScope(rgName), executor);
+    }
+
+
+    @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
         return Futures.completeOn(storeHelper.getEntry(DELETED_STREAMS_TABLE, getScopedStreamName(scopeName, streamName),
                 x -> BitConverter.readInt(x, 0))
@@ -291,4 +299,27 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         completedTxnGC.stopAsync();
         completedTxnGC.awaitTerminated();
     }
+
+    // region Reader Group
+    @Override
+    PravegaTablesReaderGroup newReaderGroup(final String scope, final String rgName) {
+        return new PravegaTablesReaderGroup(scope, rgName, storeHelper,
+                () -> ((PravegaTablesScope) getScope(scope)).getReaderGroupsInScopeTableName(), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> addReaderGroupToScope(final String scope,
+                                                         final String name, final UUID readerGroupId) {
+        return Futures.completeOn(((PravegaTablesScope) getScope(scope)).addReaderGroupToScope(name, readerGroupId), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteReaderGroup(final String scope, final String name,
+                                                    final RGOperationContext context, final Executor executor) {
+        return Futures.completeOn(super.deleteReaderGroup(scope, name, context, executor)
+                        .thenCompose(status -> ((PravegaTablesScope) getScope(scope))
+                                .removeReaderGroupFromScope(name).thenApply(v -> status)),
+                executor);
+    }
+    //endregion
 }

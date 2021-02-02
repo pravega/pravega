@@ -12,17 +12,23 @@ package io.pravega.shared.metrics;
 import com.google.common.base.Preconditions;
 import io.micrometer.core.instrument.Meter;
 import io.pravega.common.Exceptions;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Base class for a Metric Proxy.
  *
  * @param <T> Type of Metric.
  */
+@Slf4j
 abstract class MetricProxy<T extends Metric> implements AutoCloseable {
     private final AtomicReference<T> instance = new AtomicReference<>();
+    private final AtomicBoolean closed = new AtomicBoolean();
+
     @Getter
     private final String proxyName;
     private final Consumer<String> closeCallback;
@@ -42,10 +48,12 @@ abstract class MetricProxy<T extends Metric> implements AutoCloseable {
 
     @Override
     public void close() {
-        T i = getInstance();
-        if (i != null) {
-            i.close();
-            this.closeCallback.accept(this.proxyName);
+        if (!closed.getAndSet(true)) {
+            T i = this.instance.get();
+            if (i != null) {
+                i.close();
+                this.closeCallback.accept(this.proxyName);
+            }
         }
     }
 

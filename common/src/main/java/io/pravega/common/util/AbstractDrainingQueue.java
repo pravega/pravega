@@ -9,12 +9,18 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import javax.annotation.concurrent.GuardedBy;
 
 /**
@@ -141,10 +147,51 @@ public abstract class AbstractDrainingQueue<T> {
             if (result.size() > 0) {
                 return CompletableFuture.completedFuture(result);
             } else {
-                this.pendingTake = new CompletableFuture<>();
+                this.pendingTake = newTakeResult();
                 return this.pendingTake;
             }
         }
+    }
+
+    /**
+     * Returns the next items from the queue. If the queue is empty, it blocks the call until at least one item is added,
+     * or until the given timeout expires.
+     *
+     * @param maxCount        The maximum number of items to return. This argument will be ignored if the queue is currently
+     *                        empty, but in that case the result will always be completed with exactly one element.
+     * @param timeout         Timeout.
+     * @param timeoutExecutor An Executor to use for timing out.
+     * @return A CompletableFuture that, when completed, will contain the requested result. If the queue is not currently
+     * empty, this Future will already be completed, otherwise it will be completed the next time the add() method is called.
+     * If the queue is closed and this Future is not yet completed, it will be cancelled. If the timeout expires prior
+     * to adding a new element, this future will be completed with a {@link TimeoutException}.
+     * @throws ObjectClosedException If the Queue is closed.
+     * @throws IllegalStateException If another call to take() is in progress.
+     */
+    public CompletableFuture<Queue<T>> take(int maxCount, Duration timeout, ScheduledExecutorService timeoutExecutor) {
+        CompletableFuture<Queue<T>> result = take(maxCount);
+        if (!result.isDone()) {
+            ScheduledFuture<?> sf = timeoutExecutor.schedule(() -> {
+                synchronized (this.lock) {
+                    if (this.pendingTake == result) {
+                        this.pendingTake = null;
+                    } else {
+                        // This take result is no longer registered, which means it has either (just) been completed
+                        // or it is about to. There is a small window (in the #add() method) where the future is
+                        // unregistered but not yet completed. WE MUST MAKE SURE that we do not preemptively cancel it
+                        // (with a TimeoutException), otherwise we will lose data.
+                        return;
+                    }
+                }
+
+                // Timeout the future after we have unregistered it. A zealous callback may invoke us immediately and be
+                // surprised that their call is rejected since we can only have one take() outstanding at any given time.
+                result.completeExceptionally(new TimeoutException());
+            }, timeout.toMillis(), TimeUnit.MILLISECONDS);
+            result.whenComplete((r, ex) -> sf.cancel(true));
+        }
+
+        return result;
     }
 
     /**
@@ -205,6 +252,11 @@ public abstract class AbstractDrainingQueue<T> {
      * @return The extracted items, in order.
      */
     protected abstract Queue<T> fetch(int maxCount);
+
+    @VisibleForTesting
+    protected CompletableFuture<Queue<T>> newTakeResult() {
+        return new CompletableFuture<>();
+    }
 
     //endregion
 }

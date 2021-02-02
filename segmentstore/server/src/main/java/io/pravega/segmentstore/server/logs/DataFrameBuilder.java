@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.contracts.SequencedElement;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.LogAddress;
@@ -37,7 +37,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @NotThreadSafe
-class DataFrameBuilder<T extends SequencedItemList.Element> implements AutoCloseable {
+class DataFrameBuilder<T extends SequencedElement> implements AutoCloseable {
     //region Members
 
     private final DataFrameOutputStream outputStream;

@@ -88,7 +88,7 @@ if [ "$readyValueZk" != "1/1" ];then
 
 #Step 7: Creating BK-OP
 echo "Creating BK Operator"
-helm install bkop $publishedChartName/bookkeeper-operator --version=$bookkeeperOperatorVersion --set testmode.enabled=true
+helm install bkop $publishedChartName/bookkeeper-operator --version=$bookkeeperOperatorVersion --set testmode.enabled=true --set testmode.version=$desiredBookkeeperCMVersion --wait
 
 bkOpName="$(kubectl get pod | grep "bookkeeper-operator" | awk '{print $1}')"
 #kubectl wait --timeout=1m --for=condition=Ready pod/$bkOpName

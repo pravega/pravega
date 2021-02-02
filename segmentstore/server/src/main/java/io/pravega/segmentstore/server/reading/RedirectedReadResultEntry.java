@@ -37,6 +37,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     private final CompletableFuture<BufferView> result;
     private final GetEntry retryGetEntry;
     private final long redirectedSegmentId;
+    private volatile boolean failed = false;
 
     //endregion
 
@@ -120,7 +121,11 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
 
     @Override
     public void fail(Throwable ex) {
-        throw new UnsupportedOperationException("fail() not supported on " + this.getClass().getSimpleName());
+        // This is usually invoked by the StreamSegmentReadResult - we must set a flag to prevent certain failures from
+        // automatically re-triggering the query for the second entry.
+        this.failed = true;
+        this.result.completeExceptionally(ex);
+        getActiveEntry().fail(ex);
     }
 
     //endregion
@@ -140,14 +145,13 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
      */
     private boolean handle(Throwable ex) {
         ex = Exceptions.unwrap(ex);
-        if (this.secondEntry == null && isRetryable(ex)) {
+        if (!this.failed && this.secondEntry == null && isRetryable(ex)) {
             // This is the first attempt and we caught a retry-eligible exception; issue the query for the new entry.
             CompletableReadResultEntry newEntry = this.retryGetEntry.apply(getStreamSegmentOffset(), this.firstEntry.getRequestedReadLength(), this.redirectedSegmentId);
             if (!(newEntry instanceof RedirectedReadResultEntry)) {
                 // Request the content for the new entry (if that fails, we do not change any state).
                 newEntry.requestContent(this.timer == null ? DEFAULT_TIMEOUT : timer.getRemaining());
                 assert newEntry.getStreamSegmentOffset() == this.adjustedOffset : "new entry's StreamSegmentOffset does not match the adjusted offset of this entry";
-                assert newEntry.getRequestedReadLength() == this.firstEntry.getRequestedReadLength() : "new entry does not have the same RequestedReadLength";
 
                 // After all checks are done, update the internal state to use the new entry.
                 newEntry.setCompletionCallback(this.firstEntry.getCompletionCallback());

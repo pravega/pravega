@@ -255,9 +255,11 @@ public class AppendTest extends LeakDetectorTestSuite {
                 serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
+        @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        @Cleanup
         Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
@@ -287,9 +289,11 @@ public class AppendTest extends LeakDetectorTestSuite {
                 serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
+        @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        @Cleanup
         Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());

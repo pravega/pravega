@@ -605,9 +605,9 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
     }
 
     private ByteBuf buf(long value) {
-        byte[] s = new byte[Long.BYTES];
-        BitConverter.writeLong(s, 0, value);
-        return Unpooled.wrappedBuffer(s);
+        ByteBuf b = Unpooled.wrappedBuffer(new byte[Long.BYTES]);
+        b.setLong(0, value);
+        return b;
     }
 
     private ByteBuf buf(String value) {
@@ -615,7 +615,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
     }
 
     private long keyFromBuf(ByteBuf buf) {
-        return BitConverter.readLong(buf.array(), buf.arrayOffset());
+        return buf.getLong(0);
     }
 
     private TableSegmentEntry versionedEntry(long key, String value, long version) {

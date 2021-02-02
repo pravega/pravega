@@ -125,6 +125,10 @@ allprojects {
             }
         }
     }
+
+    tasks.withType(Test) {
+        jvmArgs = ["-Xmx2g"]
+    }
 }
 
 project('common') {
@@ -193,10 +197,27 @@ project('shared:authplugin') {
     }
 }
 
+project('shared:basic-authplugin') {
+    dependencies {
+        compile project(':common')
+        compile project(':shared:authplugin')
+        compile project(':shared:security')
+        testCompile project(':test:testcommon')
+    }
+
+    javadoc {
+        title = "AuthHandler supporting HTTP Basic Authentication"
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
 project('shared:security') {
     dependencies {
         compile project(':common')
         compile project(':shared:authplugin')
+        compile project(':shared:protocol')
         compile group: 'io.jsonwebtoken', name: 'jjwt', version: jjwtVersion
 
         // Adding JAXB API and the reference implementation as a dependency here, since they are not available
@@ -376,20 +397,31 @@ project ('bindings') {
         // For HDFS
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs-client', version: hadoopVersion, withoutLogger
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+
 
         // Adding JAXB API and the reference implementation as dependencies here, since they are not available
         // in newer Java SE versions (11 and newer).
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
         compile group: 'javax.activation', name: 'javax.activation-api', version: activationVersion
+        testCompile group: 'io.netty', name: 'netty-codec-http', version: nettyVersion
 
         //For Extended S3
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
         testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.5'
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
         testCompile group: 'org.apache.jclouds.provider', name: 'google-cloud-storage', version: '2.1.1'
+
+        // These were previously brought in as transitive dependencies of HDFS, although they were required for running
+        // ExtendedS3SimpleStorageTests. But since the HDFS 3.x upgrade, these transitive dependencies are excluded,
+        // so adding explicit dependencies is necessary (as well as desirable).
+        implementation group: 'com.google.guava', name: 'guava', version: guavaVersion
+        implementation group: 'com.google.inject.extensions', name: 'guice-assistedinject', version: guiceVersion
+        implementation group: 'com.google.inject.extensions', name: 'guice-servlet', version: guiceVersion
+        implementation group: 'com.google.inject', name: 'guice', version: guiceVersion
 
         compile project(':common')
         compile project(':segmentstore:storage')
@@ -676,6 +708,7 @@ project('controller') {
     dependencies {
         compile project(':common')
         compile project(":shared:authplugin")
+        compile project(":shared:basic-authplugin")
         compile project(":shared:security")
         compile project(":shared:controller-api")
         compile project(':shared:cluster')
@@ -694,6 +727,7 @@ project('controller') {
         compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
+        testCompile project(':shared:basic-authplugin')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         // since Java 10 JAXB is not more bundled with the JRE
@@ -726,6 +760,10 @@ project('cli:admin') {
     applicationName = "pravega-admin"
     mainClassName = "io.pravega.cli.admin.AdminCLIRunner"
 
+    applicationDefaultJvmArgs = ["-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/admin-cli-logback.xml",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=adminCli"]
+
     startScripts {
         classpath += files('$APP_HOME/pluginlib')
         doLast {
@@ -741,6 +779,7 @@ project('cli:admin') {
         compile project(':controller')
         compile project(':segmentstore:server')
         compile project(':segmentstore:storage')
+        compile project(':segmentstore:server:host')
         compile project(':segmentstore:storage:impl')
         compile project(':shared:cluster')
         compile project(':test:testcommon')
@@ -971,6 +1010,7 @@ project('test:system') {
         environment "helmRepository",System.getProperty("helmRepository", "pravega")
         // To update config map with desired pravega version
         environment "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
+        environment "desiredBookkeeperCMVersion",System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
         environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
 
         commandLine './kubernetes/setupTestPod.sh'
@@ -1005,6 +1045,7 @@ project('test:system') {
         systemProperty "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
         systemProperty "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
         systemProperty "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
+        systemProperty "desiredBookkeeperCMVersion",System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
         systemProperty "publishedChartName",System.getProperty("publishedChartName", "pravega")
         systemProperty "helmRepository",System.getProperty("helmRepository", "pravega")
 

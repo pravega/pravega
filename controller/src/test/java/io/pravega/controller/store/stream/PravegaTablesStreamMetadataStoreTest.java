@@ -17,6 +17,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -27,6 +28,7 @@ import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
+import io.pravega.controller.store.Version;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -425,7 +427,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         String scopeName = "partial";
         byte[] idBytes = new byte[2 * Long.BYTES];
         UUID id = UUID.randomUUID();
-        BitConverter.writeUUID(idBytes, 0, id);
+        BitConverter.writeUUID(new ByteArraySegment(idBytes), id);
 
         // add entry for a scope in scopes table 
         storeHelper.addNewEntry(PravegaTablesStreamMetadataStore.SCOPES_TABLE, scopeName, idBytes).join();
@@ -439,7 +441,18 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
                            .thenCompose(tableName -> storeHelper.getKeysPaginated(tableName, token, 10));
         AssertExtensions.assertFutureThrows("Table should not exist", tableCheckSupplier.get(), 
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
-        
+
+        UUID rgId = UUID.randomUUID();
+        String rgName = "rg1";
+        Supplier<CompletableFuture<Version>> rgTableCheckSupplier =
+                () -> scope.getReaderGroupsInScopeTableName()
+                        .thenCompose(tableName -> storeHelper.addNewEntry(tableName, rgName, getIdInBytes(rgId)));
+        AssertExtensions.assertFutureThrows("RG Table should not exist", rgTableCheckSupplier.get(),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        scope.addReaderGroupToScope(rgName, rgId).join();
+        assertEquals(rgId, scope.getReaderGroupId(rgName).join());
+
         status = store.createScope(scopeName).join();
         assertEquals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS, status.getStatus());
         
@@ -458,7 +471,13 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
                 scopeObj.createScope(), 
                 e -> Exceptions.unwrap(e).equals(unknown));
     }
-    
+
+    private byte[] getIdInBytes(UUID id) {
+        byte[] b = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(b), id);
+        return b;
+    }
+
     private Set<Integer> getAllBatches(PravegaTablesStreamMetadataStore testStore) {
         Set<Integer> batches = new ConcurrentSkipListSet<>();
         testStore.getStoreHelper().getAllKeys(COMPLETED_TRANSACTIONS_BATCHES_TABLE)

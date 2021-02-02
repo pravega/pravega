@@ -34,6 +34,8 @@ public class StreamSubscriber {
 
     private final String subscriber;
 
+    private final long generation;
+
     /**
      * Truncation Stream cut published by this subscriber
      */
@@ -45,8 +47,9 @@ public class StreamSubscriber {
     private final long updateTime;
 
     @Builder
-    public StreamSubscriber(@NonNull final String subscriber, @NonNull ImmutableMap<Long, Long> truncationStreamCut, final long updationTime) {
+    public StreamSubscriber(@NonNull final String subscriber, final long generation, @NonNull ImmutableMap<Long, Long> truncationStreamCut, final long updationTime) {
         this.subscriber = subscriber;
+        this.generation = generation;
         this.truncationStreamCut = truncationStreamCut;
         this.updateTime = updationTime;
     }
@@ -79,6 +82,7 @@ public class StreamSubscriber {
         private void read00(RevisionDataInput revisionDataInput, StreamSubscriberBuilder recordBuilder)
                 throws IOException {
             recordBuilder.subscriber(revisionDataInput.readUTF());
+            recordBuilder.generation(revisionDataInput.readLong());
             recordBuilder.updationTime(revisionDataInput.readLong());
             ImmutableMap.Builder<Long, Long> streamCutBuilder = ImmutableMap.builder();
             revisionDataInput.readMap(DataInput::readLong, DataInput::readLong, streamCutBuilder);
@@ -88,6 +92,7 @@ public class StreamSubscriber {
         private void write00(StreamSubscriber subscriberRecord, RevisionDataOutput revisionDataOutput)
                 throws IOException {
             revisionDataOutput.writeUTF(subscriberRecord.getSubscriber());
+            revisionDataOutput.writeLong(subscriberRecord.getGeneration());
             revisionDataOutput.writeLong(subscriberRecord.getUpdateTime());
             revisionDataOutput.writeMap(subscriberRecord.getTruncationStreamCut(), DataOutput::writeLong, DataOutput::writeLong);
         }

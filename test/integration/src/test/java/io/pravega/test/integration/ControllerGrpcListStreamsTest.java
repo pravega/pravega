@@ -14,11 +14,11 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.shared.security.auth.DefaultCredentials;
+import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.test.integration.auth.customplugin.TestAuthHandler;
 import io.pravega.test.integration.demo.ClusterWrapper;
-import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
+import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
 import lombok.Cleanup;
 import org.junit.Rule;
 import org.junit.Test;
@@ -56,8 +56,8 @@ public class ControllerGrpcListStreamsTest {
     public void testListStreamsReturnsAllStreamsWhenAuthIsDisabled() {
         // Arrange
         @Cleanup
-        ClusterWrapper cluster = new ClusterWrapper();
-        cluster.initialize();
+        ClusterWrapper cluster = ClusterWrapper.builder().build();
+        cluster.start();
         String scopeName = "test-scope";
 
         ClientConfig clientConfig = ClientConfig.builder()
@@ -76,8 +76,11 @@ public class ControllerGrpcListStreamsTest {
     public void testListStreamsReturnsAllStreamsForPrivilegedUserWhenAuthIsEnabled() {
         // Arrange
         @Cleanup
-        ClusterWrapper cluster = new ClusterWrapper(true, 600);
-        cluster.initialize();
+        ClusterWrapper cluster = ClusterWrapper.builder()
+                .authEnabled(true)
+                .tokenTtlInSeconds(600)
+                .build();
+        cluster.start();
         String scopeName = "test-scope";
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(cluster.controllerUri()))
@@ -100,10 +103,12 @@ public class ControllerGrpcListStreamsTest {
         passwordInputFileEntries.put("user", "prn::/scope:scope1,READ;prn::/scope:scope1/stream:stream1,READ");
 
         @Cleanup
-        ClusterWrapper cluster = new ClusterWrapper(true, "secret",
-                600, this.preparePasswordInputFileEntries(passwordInputFileEntries), 4);
+        ClusterWrapper cluster = ClusterWrapper.builder()
+                .authEnabled(true)
+                .passwordAuthHandlerEntries(this.preparePasswordInputFileEntries(passwordInputFileEntries))
+                .build();
 
-        cluster.initialize();
+        cluster.start();
         String scopeName = "scope1";
 
         this.createStreams(ClientConfig.builder()
@@ -128,8 +133,8 @@ public class ControllerGrpcListStreamsTest {
         ClusterWrapper cluster = null;
         try {
             // Arrange
-            cluster = new ClusterWrapper(true, 600);
-            cluster.initialize();
+            cluster = ClusterWrapper.builder().authEnabled(true).build();
+            cluster.start();
             String scopeName = "test-scope";
             this.createStreams(ClientConfig.builder()
                                 .controllerURI(URI.create(cluster.controllerUri()))

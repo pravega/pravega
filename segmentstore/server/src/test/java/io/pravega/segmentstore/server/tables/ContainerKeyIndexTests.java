@@ -30,6 +30,7 @@ import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -42,12 +43,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -57,6 +62,7 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
 
 /**
  * Unit tests for the {@link ContainerKeyIndex} class.
@@ -68,7 +74,6 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final long SHORT_TIMEOUT_MILLIS = TIMEOUT.toMillis() / 3;
     private static final KeyHasher HASHER = KeyHashers.DEFAULT_HASHER;
     private static final int TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH = 128 * 1024;
-    private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(2);
     private static final Comparator<BufferView> KEY_COMPARATOR = BufferViewComparator.create()::compare;
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -548,8 +553,11 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testRecoveryTimeout() throws Exception {
+        val spyExecutor = Mockito.spy(executorService());
         @Cleanup
         val context = new TestContext();
+        @Cleanup
+        val index = context.createIndex(spyExecutor);
 
         // Setup the segment with initial attributes.
         val iw = new IndexWriter(HASHER, executorService());
@@ -573,28 +581,54 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // Update the index, but keep the LastIndexedOffset at 0.
         val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
         Collection<BucketUpdate> bucketUpdates = buckets.entrySet().stream()
-                                                        .map(e -> {
-                                                            val builder = BucketUpdate.forBucket(e.getValue());
-                                                            val ko = keysWithOffsets.get(e.getKey());
-                                                            builder.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, ko.offset, false));
-                                                            return builder.build();
-                                                        })
-                                                        .collect(Collectors.toList());
+                .map(e -> {
+                    val builder = BucketUpdate.forBucket(e.getValue());
+                    val ko = keysWithOffsets.get(e.getKey());
+                    builder.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, ko.offset, false));
+                    return builder.build();
+                })
+                .collect(Collectors.toList());
         iw.updateBuckets(context.segment, bucketUpdates, 0L, 0, keysWithOffsets.size(), TIMEOUT).join();
 
-        // Issue a request and verify it times out.
+        // Setup a mock Executor.schedule call that returns a future over which we have full control. This will save us
+        // from having to wait for the recovery timeout to actually expire.
+        val timeoutFuture = new AtomicReference<ScheduledFuture<?>>();
+        val timeoutCallback = new AtomicReference<Callable<?>>();
+        Mockito.doAnswer(arg -> {
+            timeoutCallback.set(arg.getArgument(0));
+            timeoutFuture.set((ScheduledFuture<?>) arg.callRealMethod());
+            return timeoutFuture.get();
+        }).when(spyExecutor)
+                .schedule(Mockito.<Callable<Boolean>>any(), Mockito.anyLong(), Mockito.any());
+
+        // Issue the first request. We intend to time it out.
+        val getBucketOffset1 = index.getBucketOffsets(context.segment, hashes, context.timer);
+        TestUtils.await(() -> timeoutFuture.get() != null, 5, TIMEOUT.toMillis());
+
+        // Time-out the call.
+        timeoutCallback.get().call();
         AssertExtensions.assertSuppliedFutureThrows(
                 "Request did not fail when recovery timed out.",
-                () -> context.index.getBucketOffsets(context.segment, hashes, context.timer),
+                () -> getBucketOffset1,
                 ex -> ex instanceof TimeoutException);
 
+        // Wait for the future to be unregistered before continuing.
+        TestUtils.await(timeoutFuture.get()::isDone, 5, TIMEOUT.toMillis());
+
         // Verify that a new operation will be unblocked if we notify that the recovery completed successfully.
-        val get1 = context.index.getBucketOffsets(context.segment, hashes, context.timer);
-        context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), context.segment.getInfo().getLength(), 0);
-        val result1 = get1.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        timeoutFuture.set(null);
+        timeoutCallback.set(null);
+        val getBucketOffset2 = index.getBucketOffsets(context.segment, hashes, context.timer);
+
+        // Wait for the timeout future to be registered. We'll verify if it gets cancelled next.
+        TestUtils.await(() -> timeoutFuture.get() != null, 5, TIMEOUT.toMillis());
+        index.notifyIndexOffsetChanged(context.segment.getSegmentId(), context.segment.getInfo().getLength(), 0);
+        val result1 = getBucketOffset2.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val expected1 = new HashMap<UUID, Long>();
         keysWithOffsets.forEach((k, o) -> expected1.put(k, o.offset));
         AssertExtensions.assertMapEquals("Unexpected result from getBucketOffsets() after a retry.", expected1, result1);
+        AssertExtensions.assertEventuallyEquals("Expected the internal timeout future to be cancelled after a successful recovery.",
+                true, timeoutFuture.get()::isCancelled, 5, TIMEOUT.toMillis());
     }
 
     /**
@@ -942,9 +976,13 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                     .maxUnindexedLength(maxUnindexedSize)
                     .recoveryTimeout(ContainerKeyIndexTests.RECOVERY_TIMEOUT)
                     .build();
-            this.index = new ContainerKeyIndex(CONTAINER_ID, indexConfig, this.cacheManager, this.sortedKeyIndex, KeyHashers.DEFAULT_HASHER, executorService());
+            this.index = createIndex(indexConfig, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);
             this.random = new Random(0);
+        }
+
+        TestContainerKeyIndex createIndex(TableExtensionConfig config, ScheduledExecutorService executorService) {
+            return new TestContainerKeyIndex(CONTAINER_ID, this.cacheManager, this.sortedKeyIndex, KeyHashers.DEFAULT_HASHER, executorService);
         }
 
         @Override
@@ -952,6 +990,18 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             this.index.close();
             this.cacheManager.close();
             this.cacheStorage.close();
+        }
+
+        private class TestContainerKeyIndex extends ContainerKeyIndex {
+            TestContainerKeyIndex(int containerId, TestContainerKeyIndex config, @NonNull CacheManager cacheManager, @NonNull ContainerSortedKeyIndex sortedKeyIndex,
+                                  @NonNull KeyHasher keyHasher, @NonNull ScheduledExecutorService executor) {
+                super(containerId, config, cacheManager, sortedKeyIndex, keyHasher, executor);
+            }
+
+            @Override
+            protected long getMaxTailCachePreIndexLength() {
+                return TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH;
+            }
         }
     }
 

@@ -22,6 +22,7 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.BooleanUtils;
 import io.pravega.controller.fault.ControllerClusterListener;
@@ -53,12 +54,12 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
-import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.RequestSweeper;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
+import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.util.Config;
 import java.net.InetAddress;
 import java.net.URI;
@@ -82,7 +83,7 @@ import org.apache.curator.framework.CuratorFramework;
  * Creates the controller service, given the service configuration.
  */
 @Slf4j
-public class ControllerServiceStarter extends AbstractIdleService {
+public class ControllerServiceStarter extends AbstractIdleService implements AutoCloseable {
     private final ControllerServiceConfig serviceConfig;
     private final StoreClient storeClient;
     private final String objectId;
@@ -101,6 +102,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private TableMetadataTasks kvtMetadataTasks;
     private BucketManager retentionService;
     private BucketManager watermarkingService;
+    private PeriodicWatermarking watermarkingWork;
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
     private SegmentHelper segmentHelper;
@@ -228,16 +230,16 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
             
             ClientConfig clientConfig = clientConfigBuilder.build();
-            connectionFactory = connectionFactoryRef.orElse(new SocketConnectionFactoryImpl(clientConfig));
+            connectionFactory = connectionFactoryRef.orElseGet(() -> new SocketConnectionFactoryImpl(clientConfig));
             connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
-            segmentHelper = segmentHelperRef.orElse(new SegmentHelper(connectionPool, hostStore, controllerExecutor));
+            segmentHelper = segmentHelperRef.orElseGet(() -> new SegmentHelper(connectionPool, hostStore, controllerExecutor));
 
             GrpcAuthHelper authHelper = new GrpcAuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                                                            grpcServerConfig.getTokenSigningKey(),
                                                            grpcServerConfig.getAccessTokenTTLInSeconds());
 
             log.info("Creating the stream store");
-            streamStore = streamMetadataStoreRef.orElse(StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
+            streamStore = streamMetadataStoreRef.orElseGet(() -> StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker, 
@@ -256,7 +258,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             retentionService.awaitRunning();
 
             Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
-            PeriodicWatermarking watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
+            watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
                     clientConfig, watermarkingExecutor);
             watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
                     watermarkingWork::watermark, watermarkingExecutor);
@@ -283,7 +285,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
-            kvtMetadataStore = kvtMetaStoreRef.orElse(KVTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor, streamStore));
+            kvtMetadataStore = kvtMetaStoreRef.orElseGet(() -> KVTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor, streamStore));
             kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
             controllerService = new ControllerService(kvtMetadataStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
                     streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster);
@@ -404,11 +406,17 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 watermarkingService.stopAsync();
             }
 
-            log.info("Closing stream metadata tasks");
-            streamMetadataTasks.close();
+            close(watermarkingWork);
 
-            log.info("Closing stream transaction metadata tasks");
-            streamTransactionMetadataTasks.close();
+            if (streamMetadataTasks != null) {
+                log.info("Closing stream metadata tasks");
+                streamMetadataTasks.close();
+            }
+
+            if (streamTransactionMetadataTasks != null) {
+                log.info("Closing stream transaction metadata tasks");
+                streamTransactionMetadataTasks.close();
+            }
 
             // Await termination of all services
             if (restServer != null) {
@@ -465,17 +473,23 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("closing segment helper");
                 segmentHelper.close();
             }
+
+            close(kvtMetadataStore);
+            close(kvtMetadataTasks);
+
             log.info("Closing connection pool");
-            connectionPool.close();
-            
+            close(connectionPool);
+
             log.info("Closing connection factory");
-            connectionFactory.close();
+            close(connectionFactory);
 
             log.info("Closing storeClient");
-            storeClient.close();
-            
+            close(storeClient);
+
             log.info("Closing store");
-            streamStore.close();
+            close(streamStore);
+
+            close(controllerEventProcessors);
 
             // Close metrics.
             StreamMetrics.reset();
@@ -538,5 +552,29 @@ public class ControllerServiceStarter extends AbstractIdleService {
                     serviceConfig.getGRPCServerConfig().get().getPort());
         }
         return port;
+    }
+
+    @Override
+    public void close() {
+        Callbacks.invokeSafely(() -> stopAsync().awaitTerminated(10, TimeUnit.SECONDS), ex -> log.error("Exception while forcefully shutting down.", ex));
+        close(watermarkingWork);
+        close(streamMetadataTasks);
+        close(streamTransactionMetadataTasks);
+        close(controllerEventProcessors);
+        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor, watermarkingExecutor, eventExecutor);
+        close(cluster);
+        close(segmentHelper);
+        close(kvtMetadataStore);
+        close(kvtMetadataTasks);
+        close(connectionPool);
+        close(connectionFactory);
+        close(storeClient);
+        close(streamStore);
+    }
+
+    private void close(AutoCloseable closeable) {
+        if (closeable != null) {
+            Callbacks.invokeSafely(closeable::close, null);
+        }
     }
 }

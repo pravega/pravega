@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.collect.Maps;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.storage.cache.CacheFullException;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.test.common.AssertExtensions;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
 
 /**
  * Unit tests for the {@link ContainerKeyCache} class.
@@ -311,11 +314,57 @@ public class ContainerKeyCacheTests {
     }
 
     /**
+     * Test a case when the cache storage throws errors while attempting to update.
+     */
+    @Test
+    public void testCacheUpdateFailure() {
+        val segmentId = 0;
+        val offset1 = 0L;
+        val offset2 = 1L;
+
+        val spiedStorage = Mockito.spy(this.cacheStorage);
+        @Cleanup
+        val keyCache = new ContainerKeyCache(spiedStorage);
+        val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
+        val keyHash = newSimpleHash();
+
+        // Perform an initial insert and verify it.
+        keyCache.updateSegmentIndexOffset(segmentId, offset1);
+        val updateResult1 = keyCache.includeExistingKey(segmentId, keyHash, offset1);
+        Assert.assertEquals("Unexpected result from includeExistingKey() for new insertion.", offset1, updateResult1);
+        expectedResult.put(new TestKey(segmentId, keyHash), new CacheBucketOffset(offset1, false));
+        checkCache(expectedResult, keyCache);
+
+        // For the second insert, fail the cache update and verify that the whole entry has been evicted.
+        val replaceAddress = new AtomicInteger(-1);
+        Mockito.doAnswer(arg1 -> {
+            replaceAddress.set(arg1.getArgument(0));
+            throw new CacheFullException("cache full");
+        }).when(spiedStorage).replace(Mockito.anyInt(), Mockito.any());
+
+        val deleteAddress = new AtomicInteger(-1);
+        Mockito.doAnswer(arg1 -> {
+            deleteAddress.set(arg1.getArgument(0));
+            return arg1.callRealMethod();
+        }).when(spiedStorage).delete(Mockito.anyInt());
+
+        val updateResult2 = keyCache.includeExistingKey(segmentId, keyHash, offset2);
+        Assert.assertEquals("Unexpected result from includeExistingKey() for new insertion.", offset2, updateResult2);
+
+        // Set the expected value to null - that indicates it shouldn't be in the cache.
+        expectedResult.put(new TestKey(segmentId, keyHash), null);
+        checkCache(expectedResult, keyCache);
+
+        Assert.assertNotEquals("Replacement was not attempted.", -1, replaceAddress.get());
+        Assert.assertEquals("Deletion was for wrong entry.", replaceAddress.get(), deleteAddress.get());
+    }
+
+    /**
      * Tests the ability to perform Cache Eviction, subject to certain rules:
      * - For a segment with no SegmentIndexOffset - there is no cache eviction.
      * - For a segment with SegmentIndexOffset == MAX - eviction is 100% driven by generations.
      * - For a segment with SegmentIndexOffset controlled - eviction is driven by generations and SegmentIndexOffset.
-     *
+     * <p>
      * The only reason this test should work is because we use a KeyHasher which doesn't produce collisions (for our test);
      * this allows us to stash every Cache Value in its own Cache Entry.
      */

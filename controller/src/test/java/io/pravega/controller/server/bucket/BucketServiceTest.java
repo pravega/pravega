@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
@@ -49,13 +48,14 @@ public abstract class BucketServiceTest {
     BucketManager watermarkingService;
     ScheduledExecutorService executor;
     StreamMetadataTasks streamMetadataTasks;
+    private PeriodicWatermarking periodicWatermarking;
     private ConnectionFactory connectionFactory;
     private String hostId;
     private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
     public void setup() throws Exception {
-        executor = Executors.newScheduledThreadPool(10);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
         hostId = UUID.randomUUID().toString();
 
         streamMetadataStore = createStreamStore(executor);
@@ -75,7 +75,7 @@ public abstract class BucketServiceTest {
         retentionService.awaitRunning();
         
         ClientConfig clientConfig = ClientConfig.builder().build();
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, clientConfig, executor);
+        periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, clientConfig, executor);
         watermarkingService = bucketStoreFactory.createWatermarkingService(Duration.ofMillis(5), periodicWatermarking::watermark, executor);
 
         watermarkingService.startAsync();
@@ -86,6 +86,8 @@ public abstract class BucketServiceTest {
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
         streamMetadataStore.close();
+        watermarkingService.stopAsync().awaitTerminated();
+        periodicWatermarking.close();
         retentionService.stopAsync();
         retentionService.awaitTerminated();
         connectionFactory.close();

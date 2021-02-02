@@ -13,6 +13,8 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthHandler;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AccessOperation;
+import io.pravega.shared.security.auth.AuthorizationResource;
+import io.pravega.shared.security.auth.AuthorizationResourceImpl;
 import io.pravega.shared.security.auth.PermissionsHelper;
 import lombok.Getter;
 import lombok.NonNull;
@@ -62,10 +64,6 @@ public class StreamAuthParams {
         return PermissionsHelper.parse(accessOperation, AuthHandler.Permissions.READ);
     }
 
-    private AuthHandler.Permissions requestedPermission(AuthHandler.Permissions defaultValue) {
-        return PermissionsHelper.parse(accessOperation, defaultValue);
-    }
-
     public AuthHandler.Permissions requiredPermissionForWrites() {
         if (this.isStreamUserDefined()) {
             return AuthHandler.Permissions.READ_UPDATE;
@@ -74,7 +72,7 @@ public class StreamAuthParams {
                 return AuthHandler.Permissions.READ;
             } else {
                 if (isMarkStream()) {
-                    return this.requestedPermission(AuthHandler.Permissions.READ_UPDATE);
+                    return AuthHandler.Permissions.READ;
                 }
                 return AuthHandler.Permissions.READ_UPDATE;
             }
