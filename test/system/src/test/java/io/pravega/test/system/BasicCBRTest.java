@@ -16,9 +16,20 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.RetentionPolicy;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -49,10 +60,8 @@ public class BasicCBRTest extends AbstractReadWriteTest {
     private static final String STREAM = "testCBRStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP = "testCBRReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
 
-    private static final int TOTAL_EVENTS = 10;
-    private static final int EXTRA_EVENTS = TOTAL_EVENTS / 2;
-    private static final int TOTAL_EXTRA_EVENTS = TOTAL_EVENTS + EXTRA_EVENTS;
-    private static final int EVENT_SIZE = 18;
+    private static final int MAX = 300;
+    private static final int MIN = 30;
 
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
     private URI controllerURI = null;
@@ -89,7 +98,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM,
                 StreamConfiguration.builder()
                         .scalingPolicy(ScalingPolicy.fixed(1))
-                        .retentionPolicy(RetentionPolicy.bySizeBytes(10, (TOTAL_EVENTS + 1) * EVENT_SIZE)).build()));
+                        .retentionPolicy(RetentionPolicy.bySizeBytes(MIN, MAX)).build()));
     }
 
     @After
@@ -104,72 +113,60 @@ public class BasicCBRTest extends AbstractReadWriteTest {
 
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
-        // write more events than retention max.
-        writeEvents(clientFactory, STREAM, TOTAL_EXTRA_EVENTS);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+
+        // Write a single event.
+        writer.writeEvent("e1", "data of size 30").join();
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
         readerGroupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder()
-                .stream(Stream.of(SCOPE, STREAM)).build());
-        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP);
-
-        // read those events.
-        readEventFutures(clientFactory, READER_GROUP, 1);
-
-        // verify truncation happens at the retention max.
-        AssertExtensions.assertEventuallyEquals(true, () -> {
-            Map<Segment, Long> segments = controller.getSegmentsAtTime(new StreamImpl(SCOPE, STREAM), 0L).join();
-            log.debug("The segments none1: " + segments);
-            return segments.values().stream().anyMatch(off -> off > 0);
-        }, 120 * 1000L);
-
-        // write more events than retention max.
-        writeEvents(clientFactory, STREAM, TOTAL_EVENTS);
-
-        readerGroup.resetReaderGroup(ReaderGroupConfig.builder()
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
-                .stream(Stream.of(SCOPE, STREAM)).build());
-
-        // verify truncation happens at the retention max as no stream-cut is published.
-        AssertExtensions.assertEventuallyEquals(true, () -> {
-            Map<Segment, Long> segments = controller.getSegmentsAtTime(new StreamImpl(SCOPE, STREAM), 0L).join();
-            log.debug("The segments none2: " + segments);
-            return segments.values().stream().anyMatch(off -> off > 0);
-        }, 120 * 1000L);
-
-        // fill the stream upto retention max.
-        writeEvents(clientFactory, STREAM, TOTAL_EVENTS - EXTRA_EVENTS);
-        // read a few events.
-        readEventFutures(clientFactory, READER_GROUP, 1, EXTRA_EVENTS + 1);
-
-        // create a checkpoint and call updateRetentionStream.
-        Checkpoint checkpoint = readerGroup.initiateCheckpoint("manual checkpoint", executor).join();
-        readerGroup.updateRetentionStreamCut(checkpoint.asImpl().getPositions());
-
-        // verify truncation happens at the provided stream-cut.
-        AssertExtensions.assertEventuallyEquals(true, () -> {
-            Map<Segment, Long> segments = controller.getSegmentsAtTime(new StreamImpl(SCOPE, STREAM), 0L).join();
-            log.debug("The segments none3: " + segments);
-            return segments.values().stream().anyMatch(off -> off > 0);
-        }, 120 * 1000L);
-
-        readerGroup.resetReaderGroup(ReaderGroupConfig.builder()
-                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .disableAutomaticCheckpoints()
                 .stream(Stream.of(SCOPE, STREAM)).build());
+        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP);
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(READER_GROUP + "-" + String.valueOf(1),
+                READER_GROUP, new JavaSerializer<>(), ReaderConfig.builder().build());
 
-        // fill the stream upto retention max.
-        writeEvents(clientFactory, STREAM, EXTRA_EVENTS + 1);
-        // read a few events.
-        readEventFutures(clientFactory, READER_GROUP, 1, EXTRA_EVENTS + 1);
+        // Read one event and update the retention stream-cut.
+        reader.readNextEvent(1000);
+        Map<Stream, StreamCut> streamCuts = readerGroup.generateStreamCuts(executor).join();
+        readerGroup.updateRetentionStreamCut(streamCuts);
 
-        readerGroup.initiateCheckpoint("auto checkpoint", executor).join();
+        // Wait for the retention to kick in.
+        Exceptions.handleInterrupted(() -> Thread.sleep(3 * 60 * 1000));
 
-        // verify truncation happens at the checkpoint.
-        AssertExtensions.assertEventuallyEquals(true, () -> {
-            Map<Segment, Long> segments = controller.getSegmentsAtTime(new StreamImpl(SCOPE, STREAM), 0L).join();
-            log.debug("The segments none4: " + segments);
-            return segments.values().stream().anyMatch(off -> off > 0);
-        }, 120 * 1000L);
+        // Check to make sure no truncation happened as the min policy is 30 bytes.
+        AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
+                new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off == 0),
+                120 * 1000L);
+
+        // Write two more events.
+        writer.writeEvent("e2", "data of size 30").join();
+        writer.writeEvent("e3", "data of size 30").join();
+
+        // Give the controller a chance to truncate
+        Exceptions.handleInterrupted(() -> Thread.sleep(3 * 60 * 1000));
+
+        // Check to make sure truncation happened after the first event.
+        AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
+                new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 30),
+                120 * 1000L);
+
+        // Read next event and update the retention stream-cut.
+        reader.readNextEvent(1000);
+        Map<Stream, StreamCut> streamCuts2 = readerGroup.generateStreamCuts(executor).join();
+        readerGroup.updateRetentionStreamCut(streamCuts2);
+
+        // Give the controller a chance to truncate
+        Exceptions.handleInterrupted(() -> Thread.sleep(3 * 60 * 1000));
+
+        // Check to make sure truncation happened after the second event.
+        AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
+                new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 60),
+                120 * 1000L);
     }
 }
