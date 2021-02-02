@@ -106,7 +106,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
         }
 
         protected Storage getStorage(S3JerseyClient client) {
-            return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), this.storageExecutor);
+            return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config, false)), this.storageExecutor);
         }
     }
 
@@ -133,7 +133,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
 
             S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
             return new ChunkedSegmentStorage(containerId,
-                    new ExtendedS3ChunkStorage(client, this.config, executorService()),
+                    new ExtendedS3ChunkStorage(client, this.config, executorService(), false),
                     metadataStore,
                     this.executor,
                     ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
