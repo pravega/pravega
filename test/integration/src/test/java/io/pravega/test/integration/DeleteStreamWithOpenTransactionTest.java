@@ -35,7 +35,7 @@ public class DeleteStreamWithOpenTransactionTest {
         final String scope = setupUtils.getScope();
         final ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(setupUtils.getControllerUri())
-                .build();;
+                .build();
 
         @Cleanup
         final StreamManager streamManager = StreamManager.create(clientConfig);
@@ -58,7 +58,7 @@ public class DeleteStreamWithOpenTransactionTest {
         // Transactions 5-6 will be opened, written, flushed.
         // Transactions 7-8 will be opened, written.
         // Transactions 9-10 will be opened.
-        for (int i = 0 ; i < 11 ; i++) {
+        for (int i = 0; i < 11; i++) {
             final Transaction<String> txn = writer.beginTxn();
             log.info("i={}, txnId={}", i, txn.getTxnId());
             if (i <= 8) {
