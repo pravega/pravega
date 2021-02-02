@@ -557,7 +557,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         @Cleanup
         val context = new TestContext();
         @Cleanup
-        val index = context.createIndex(spyExecutor);
+        val index = context.createIndex(context.defaultConfig, spyExecutor);
 
         // Setup the segment with initial attributes.
         val iw = new IndexWriter(HASHER, executorService());
@@ -952,6 +952,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         final ContainerKeyIndex index;
         final TimeoutTimer timer;
         final Random random;
+        final TableExtensionConfig defaultConfig;
 
         TestContext() {
             // This is for most tests. Due to variability in test environments, we do not want to set a very small value
@@ -971,18 +972,18 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             this.sortedKeyStorage.createSegment(this.segment.getInfo().getName(), SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
             val ds = new SortedKeyIndexDataSource(this.sortedKeyStorage::put, this.sortedKeyStorage::remove, this.sortedKeyStorage::get);
             this.sortedKeyIndex = new ContainerSortedKeyIndex(ds, executorService());
-            val indexConfig = TableExtensionConfig.builder()
+            this.defaultConfig = TableExtensionConfig.builder()
                     .maxTailCachePreIndexLength(TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
                     .maxUnindexedLength(maxUnindexedSize)
-                    .recoveryTimeout(ContainerKeyIndexTests.RECOVERY_TIMEOUT)
+                    .recoveryTimeout(Duration.ofMillis(ContainerKeyIndexTests.SHORT_TIMEOUT_MILLIS))
                     .build();
-            this.index = createIndex(indexConfig, executorService());
+            this.index = createIndex(this.defaultConfig, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);
             this.random = new Random(0);
         }
 
-        TestContainerKeyIndex createIndex(TableExtensionConfig config, ScheduledExecutorService executorService) {
-            return new TestContainerKeyIndex(CONTAINER_ID, this.cacheManager, this.sortedKeyIndex, KeyHashers.DEFAULT_HASHER, executorService);
+        ContainerKeyIndex createIndex(TableExtensionConfig config, ScheduledExecutorService executorService) {
+            return new ContainerKeyIndex(CONTAINER_ID, config, this.cacheManager, this.sortedKeyIndex, KeyHashers.DEFAULT_HASHER, executorService);
         }
 
         @Override
@@ -990,18 +991,6 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             this.index.close();
             this.cacheManager.close();
             this.cacheStorage.close();
-        }
-
-        private class TestContainerKeyIndex extends ContainerKeyIndex {
-            TestContainerKeyIndex(int containerId, TestContainerKeyIndex config, @NonNull CacheManager cacheManager, @NonNull ContainerSortedKeyIndex sortedKeyIndex,
-                                  @NonNull KeyHasher keyHasher, @NonNull ScheduledExecutorService executor) {
-                super(containerId, config, cacheManager, sortedKeyIndex, keyHasher, executor);
-            }
-
-            @Override
-            protected long getMaxTailCachePreIndexLength() {
-                return TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH;
-            }
         }
     }
 
