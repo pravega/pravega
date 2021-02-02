@@ -36,6 +36,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.http.HttpStatus;
@@ -301,15 +302,10 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     @Override
+    @SneakyThrows
     public void close() {
-        if (!this.closed.getAndSet(true)) {
-            try {
-                if (shouldClose) {
-                    this.client.destroy();
-                }
-            } catch (Exception e) {
-                log.warn("Could not destroy the S3Client.", e);
-            }
+        if (shouldClose && !this.closed.getAndSet(true)) {
+            this.client.destroy();
         }
     }
 
