@@ -146,7 +146,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
 
     @Override
     public void getClientConnection(Flow flow, PravegaNodeUri location, ReplyProcessor rp, CompletableFuture<ClientConnection> connection) {
-        getClientConnection(flow, location, rp).thenApply(connection::complete);
+        getClientConnection(flow, location, rp).thenApply(connection::complete).exceptionally(connection::completeExceptionally);
     }
 
     private static boolean isUnused(Connection connection) {
