@@ -22,7 +22,7 @@
             <!-- daily rollover. Make sure the path matches the one in the file element or else
              the rollover logs are placed in the working directory. -->
             <fileNamePattern>controller_server_%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
-            <!-- each file should be at most 100MB, keep 30 days worth of history, but at most 10GB -->
+            <!-- each file should be at most 100MB, keep 30 files worth of history, but at most 10GB -->
             <maxFileSize>100MB</maxFileSize>
             <maxHistory>30</maxHistory>
             <totalSizeCap>10GB</totalSizeCap>
