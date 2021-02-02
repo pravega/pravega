@@ -292,7 +292,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Check if the file has segments listed in it
         Path path = Paths.get(this.logsDir.getAbsolutePath() + "/segmentContent.txt");
         long lines = Files.lines(path).count();
-        Assert.assertEquals("There should be at least one event.", NUM_EVENTS, lines);
+        Assert.assertEquals("Number of events found and written should match.", NUM_EVENTS, lines);
         Assert.assertTrue(commandResult.contains("Number of events found = " + NUM_EVENTS));
         Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
     }
