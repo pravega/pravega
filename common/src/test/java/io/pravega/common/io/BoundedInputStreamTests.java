@@ -141,6 +141,13 @@ public class BoundedInputStreamTests {
         }
     }
 
+    @Test
+    public void testMarkSupported() throws Exception {
+        @Cleanup
+        val input = new BoundedInputStream(new ByteArrayInputStream(construct(1)), 1);
+        Assert.assertFalse("BoundedInputStream should not support mark", input.markSupported());
+    }
+
     private byte[] construct(int length) {
         byte[] result = new byte[length];
         for (int i = 0; i < length; i++) {
