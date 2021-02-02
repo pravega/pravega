@@ -118,6 +118,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
                 EventWriterConfig.builder().build());
 
         // Write a single event.
+        log.info("Writing event e1 to {}/{}", SCOPE, STREAM);
         writer.writeEvent("e1", "data of size 30").join();
 
         @Cleanup
@@ -132,12 +133,15 @@ public class BasicCBRTest extends AbstractReadWriteTest {
                 READER_GROUP, new JavaSerializer<>(), ReaderConfig.builder().build());
 
         // Read one event and update the retention stream-cut.
+        log.info("Reading event e1 from {}/{}", SCOPE, STREAM);
         reader.readNextEvent(1000);
+        log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
         Map<Stream, StreamCut> streamCuts = readerGroup.generateStreamCuts(executor).join();
+        log.info("{} updating its retention stream-cut to {}", READER_GROUP, streamCuts);
         readerGroup.updateRetentionStreamCut(streamCuts);
 
         // Wait for the retention to kick in.
-        Exceptions.handleInterrupted(() -> Thread.sleep(3 * 60 * 1000));
+        Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
 
         // Check to make sure no truncation happened as the min policy is 30 bytes.
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
@@ -145,11 +149,13 @@ public class BasicCBRTest extends AbstractReadWriteTest {
                 120 * 1000L);
 
         // Write two more events.
+        log.info("Writing event e2 to {}/{}", SCOPE, STREAM);
         writer.writeEvent("e2", "data of size 30").join();
+        log.info("Writing event e3 to {}/{}", SCOPE, STREAM);
         writer.writeEvent("e3", "data of size 30").join();
 
         // Give the controller a chance to truncate
-        Exceptions.handleInterrupted(() -> Thread.sleep(3 * 60 * 1000));
+        Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
 
         // Check to make sure truncation happened after the first event.
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
@@ -157,12 +163,15 @@ public class BasicCBRTest extends AbstractReadWriteTest {
                 120 * 1000L);
 
         // Read next event and update the retention stream-cut.
+        log.info("Reading event e2 from {}/{}", SCOPE, STREAM);
         reader.readNextEvent(1000);
+        log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
         Map<Stream, StreamCut> streamCuts2 = readerGroup.generateStreamCuts(executor).join();
+        log.info("{} updating its retention stream-cut to {}", READER_GROUP, streamCuts2);
         readerGroup.updateRetentionStreamCut(streamCuts2);
 
         // Give the controller a chance to truncate
-        Exceptions.handleInterrupted(() -> Thread.sleep(3 * 60 * 1000));
+        Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
 
         // Check to make sure truncation happened after the second event.
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
