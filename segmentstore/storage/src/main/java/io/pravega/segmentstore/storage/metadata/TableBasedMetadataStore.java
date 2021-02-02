@@ -152,6 +152,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                 }, getExecutor())
                 .thenComposeAsync(v -> {
                     // Now put uploaded keys.
+                    // toUpdate includes both modified keys as well updates to deleted keys to mark them as deleted.
                     return this.tableStore.put(tableName, toUpdate, timeout)
                             .thenComposeAsync(ret -> {
                                 // Update versions.
@@ -160,11 +161,17 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                                     entryToTxnDataMap.get(tableEntry).setDbObject(ret.get(i));
                                     i++;
                                 }
-                                // Delete deleted keys.
+                                // Delete deleted keys. They were already "marked as deleted" in earlier step.
+                                // This next step will just remove them from table store.
                                 return this.tableStore.remove(tableName, keysToDelete, timeout)
                                         .handleAsync((v1, ex) -> {
+                                            // Ignore any exception. WriteAll should succeed irrespective of whether removal
+                                            // of keys marked for deletion succeeds or fails. This is because all the changed
+                                            // keys are already persisted successfully in earlier step.
                                             if (ex == null) {
                                                 deletedKeyToTxnDataMap.values().stream().forEach(txnData -> txnData.setDbObject(TableKey.NOT_EXISTS));
+                                            } else {
+                                                log.warn("Error while deleting keys from table segment {}.", tableName, ex);
                                             }
                                             TABLE_WRITE_LATENCY.reportSuccessEvent(t.getElapsed());
                                             return v1;
