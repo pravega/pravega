@@ -31,8 +31,9 @@ You may obtain a copy of the License at
 
 ## Requirements
 
-- Kubernetes 1.8+
-- An existing Apache Zookeeper 3.5 cluster. This can be easily deployed using our [Zookeeper Operator](https://github.com/pravega/zookeeper-operator).
+- Kubernetes 1.15+
+- An existing Apache Zookeeper 3.6.1 cluster. This can be easily deployed using our [Zookeeper Operator](https://github.com/pravega/zookeeper-operator).
+- Bookkeeper setup using [bookkeeper-operator](https://github.com/pravega/bookkeeper-operator)
 - [Pravega Operator](https://github.com/pravega/pravega-operator/edit/master/README.md) manages Pravega clusters deployed to Kubernetes and automates tasks related to operating a Pravega cluster.
 
 ## Usage
@@ -103,26 +104,26 @@ $ kubectl create -f pvc.yaml
 Use the following YAML template to install a small development Pravega Cluster (3 Bookies, 1 Controller, 3 Segment Stores). Create a `pravega.yaml` file with the following content.
 
 ```yaml
-apiVersion: "pravega.pravega.io/v1alpha1"
+apiVersion: "pravega.pravega.io/v1beta1"
 kind: "PravegaCluster"
 metadata:
-  name: "example"
+  name: "pravega"
 spec:
-  version: 0.4.0
+  version: 0.8.0
   zookeeperUri: [ZOOKEEPER_HOST]:2181
-
-  bookkeeper:
-    replicas: 3
-    image:
-      repository: pravega/bookkeeper
-    autoRecovery: true
-
+  bookkeeperUri: [BOOKKEEPER_SVC]:3181"
   pravega:
     controllerReplicas: 1
     segmentStoreReplicas: 3
+    cacheVolumeClaimTemplate:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "standard"
+      resources:
+        requests:
+          storage: 20Gi
     image:
       repository: pravega/pravega
-    tier2:
+    longtermStorage:
       filesystem:
         persistentVolumeClaim:
           claimName: pravega-tier2
@@ -131,6 +132,7 @@ spec:
 where:
 
 - `[ZOOKEEPER_HOST]` is the host or IP address of your Zookeeper deployment.
+- `[BOOKKEEPER_SVC]` is the host or IP address of your Bookkeeper deployment.
 
 Deploy the Pravega cluster.
 
