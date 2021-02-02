@@ -284,15 +284,15 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
-        // Execute the command for list segments
+        // Execute the command for read segment
         String commandResult = TestUtils.executeCommand("storage read-segment " + segmentToBeRead + " " +
                 this.logsDir.getAbsolutePath() + "/", STATE.get());
-        // There should be a csv file created for storing segments in Container 0
+        // There should be a file created for storing events in  segment
         Assert.assertTrue(new File(this.logsDir.getAbsolutePath(), "segmentContent.txt").exists());
         // Check if the file has segments listed in it
         Path path = Paths.get(this.logsDir.getAbsolutePath() + "/segmentContent.txt");
         long lines = Files.lines(path).count();
-        AssertExtensions.assertGreaterThan("There should be at least one event.", 0, lines);
+        Assert.assertEquals("There should be at least one event.", NUM_EVENTS, lines);
         Assert.assertTrue(commandResult.contains("Number of events found = " + NUM_EVENTS));
         Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
     }

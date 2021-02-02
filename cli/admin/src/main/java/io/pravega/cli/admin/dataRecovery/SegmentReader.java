@@ -149,6 +149,7 @@ public class SegmentReader extends DataRecoveryCommand {
                 if (length != 0) { // If there is something to read
                     data = Arrays.copyOfRange(buffer, runnerOffset + 8, runnerOffset + 8 + (int) length);
                     this.fileOutputStream.write(data, 0, (int) length);
+                    this.fileOutputStream.write("\n".getBytes());
                     countEvents++;
                 }
                 runnerOffset += length + 8;
