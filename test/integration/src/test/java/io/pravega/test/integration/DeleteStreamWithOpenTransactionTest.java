@@ -54,21 +54,26 @@ public class DeleteStreamWithOpenTransactionTest {
                 clientFactory.createTransactionalEventWriter("writerId1", stream, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
-        for (int i = 0 ; i < 10 ; i++) {
+        // Transactions 0-4 will be opened, written, flushed, committed.
+        // Transactions 5-6 will be opened, written, flushed.
+        // Transactions 7-8 will be opened, written.
+        // Transactions 9-10 will be opened.
+        for (int i = 0 ; i < 11 ; i++) {
             final Transaction<String> txn = writer.beginTxn();
-            System.out.println("txnId=" + txn.getTxnId());
-            txn.writeEvent("foo");
-            txn.flush();
-            if (i < 5) {
+            log.info("i={}, txnId={}", i, txn.getTxnId());
+            if (i <= 8) {
+                txn.writeEvent("foo");
+            }
+            if (i <= 6) {
+                txn.flush();
+            }
+            if (i <= 4) {
                 txn.commit();
             }
         }
-        System.out.println("Attempting to delete stream");
         boolean sealed = streamManager.sealStream(scope, stream);
-        System.out.println("sealed=" + sealed);
         Assert.assertTrue(sealed);
         boolean deleted = streamManager.deleteStream(scope, stream);
-        System.out.println("deleted=" + deleted);
         Assert.assertTrue(deleted);
     }
 }
