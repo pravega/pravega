@@ -111,6 +111,7 @@ public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
      */
     @Test
     public void testStreamsAndScopesManagement() {
+        System.exit(1);
         // Perform management tests with Streams and Scopes.
         for (int i = 0; i < TEST_ITERATIONS; i++) {
             log.info("Stream and scope management test in iteration {}.", i);
