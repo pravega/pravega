@@ -26,7 +26,6 @@ import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.NoSuchKeyException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
