@@ -24,6 +24,7 @@ import lombok.val;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -121,7 +122,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
     }
 
     private CompletableFuture<Void> readData(MetadataTransaction txn) {
-        val chunkReadFutures = new ArrayList<CompletableFuture<Void>>();
+        val chunkReadFutures = Collections.synchronizedList(new ArrayList<CompletableFuture<Void>>());
         return Futures.loop(
                 () -> bytesRemaining.get() > 0 && null != currentChunkName,
                 () -> {
@@ -179,14 +180,14 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         return chunkedSegmentStorage.getChunkStorage().openRead(chunkName)
                 .thenComposeAsync(chunkHandle ->
                     Futures.loop(
-                            () -> chunkBytesRemaining.get() > 0 && null != currentChunkName,
+                            () -> chunkBytesRemaining.get() > 0,
                             () -> chunkedSegmentStorage.getChunkStorage().read(chunkHandle,
                                     chunkFromOffset.get(),
                                     chunkBytesRemaining.get(),
                                     buffer,
                                     chunkBufferOffset.get())
                                     .thenAccept(n -> {
-                                        Preconditions.checkState(n != 0, "Zero bytes read");
+                                        Preconditions.checkState(n != 0, "Zero bytes read chunk=%s, fromOffset=%d", chunkName, fromOffset);
                                         chunkBytesRemaining.addAndGet(-n);
                                         chunkFromOffset.addAndGet(n);
                                         chunkBufferOffset.addAndGet(n);
