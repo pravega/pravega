@@ -43,6 +43,6 @@ public class ExtendedS3StorageFactory implements StorageFactory {
 
     private ExtendedS3Storage createS3Storage() {
         S3JerseyClient client = new S3JerseyClient(config.getS3Config());
-        return new ExtendedS3Storage(client, this.config);
+        return new ExtendedS3Storage(client, this.config, true);
     }
 }
