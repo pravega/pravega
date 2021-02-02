@@ -99,6 +99,11 @@ public class BoundedInputStream extends FilterInputStream {
         return Math.min(this.in.available(), this.remaining);
     }
 
+    @Override
+    public boolean markSupported() {
+        return false;
+    }
+
     /**
      * Creates a new BoundedInputStream wrapping the same InputStream as this one, starting at the current position, with
      * the given bound.
