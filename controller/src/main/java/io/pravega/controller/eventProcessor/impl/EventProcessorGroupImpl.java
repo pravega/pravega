@@ -94,7 +94,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 .clientFactory
                 .createEventWriter(eventProcessorConfig.getConfig().getStreamName(),
                         eventProcessorConfig.getSerializer(),
-                        EventWriterConfig.builder().build());
+                        EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build());
         this.checkpointStore = checkpointStore;
         this.rebalancePeriodMillis = eventProcessorConfig.getRebalancePeriodMillis();
     }
