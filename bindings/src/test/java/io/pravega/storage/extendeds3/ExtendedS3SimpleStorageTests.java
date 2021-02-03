@@ -43,7 +43,7 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
     @Override
     protected ChunkStorage getChunkStorage() {
-        return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+        return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), false);
     }
 
     /**
@@ -66,7 +66,7 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), false);
         }
     }
 
@@ -92,7 +92,7 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage createChunkStorage() {
-            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), false);
         }
 
         /**
@@ -128,7 +128,7 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService());
+            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), false);
         }
     }
 }
