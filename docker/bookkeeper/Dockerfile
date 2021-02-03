@@ -17,13 +17,22 @@
 # - github.com/apache/bookkeeper/blob/branch-4.9/docker/Dockerfile
 #
 
-FROM apache/bookkeeper:4.11.1
+FROM centos:7
 
 ARG BK_VERSION=4.11.1
 ARG DISTRO_NAME=bookkeeper-all-${BK_VERSION}-bin
 
+ENV BOOKIE_PORT=3181
+EXPOSE $BOOKIE_PORT
+ENV BK_USER=bookkeeper
+ENV BK_HOME=/opt/bookkeeper
+ENV JAVA_HOME=/usr/lib/jvm/java-11
+
 RUN set -x \
-    && yum install -y iproute wget \
+    && yum install -y iproute \
+    && adduser "${BK_USER}" \
+    && yum install -y java-11-openjdk-devel wget bash python sudo\
+    && mkdir -pv /opt \
     && cd /opt \
     && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz" \
     && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz.asc" \
@@ -33,11 +42,33 @@ RUN set -x \
     && gpg --import KEYS \
     && gpg --batch --verify "$DISTRO_NAME.tar.gz.asc" "$DISTRO_NAME.tar.gz" \
     && tar -xzf "$DISTRO_NAME.tar.gz" \
-    && cp -r bookkeeper-all-${BK_VERSION}/* /opt/bookkeeper/ \
+    && mv bookkeeper-all-${BK_VERSION}/ /opt/bookkeeper/ \
     && rm -rf "bookkeeper-all-${BK_VERSION}" "$DISTRO_NAME.tar.gz" "$DISTRO_NAME.tar.gz.asc" "$DISTRO_NAME.tar.gz.sha512" \
+    # install zookeeper shell
+    && wget -q https://bootstrap.pypa.io/2.7/get-pip.py \
+    && python get-pip.py \
+    && pip install zk-shell \
+    && rm -rf get-pip.py \
+    && yum clean all \
+    && ls /usr/lib/jvm
+
+RUN set -x \
+    && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/bookkeeper-${BK_VERSION}-src.tar.gz" \
+    && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/bookkeeper-${BK_VERSION}-src.tar.gz.asc" \
+    && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/bookkeeper-${BK_VERSION}-src.tar.gz.sha512" \
+    && sha512sum -c bookkeeper-${BK_VERSION}-src.tar.gz.sha512 \
+    && wget https://dist.apache.org/repos/dist/release/bookkeeper/KEYS \
+    && gpg --import KEYS \
+    && gpg --batch --verify "bookkeeper-${BK_VERSION}-src.tar.gz.asc" "bookkeeper-${BK_VERSION}-src.tar.gz" \
+    && tar -xzf "bookkeeper-${BK_VERSION}-src.tar.gz" \
+    && mv bookkeeper-${BK_VERSION}/docker/scripts/ /opt/bookkeeper/  \
+    && rm -rf "bookkeeper-${BK_VERSION}" "bookkeeper-${BK_VERSION}-src.tar.gz" "bookkeeper-${BK_VERSION}-src.tar.gz.asc" "bookkeeper-${BK_VERSION}-src.tar.gz.sha512" \
+    && yum remove -y wget \
     && yum clean all
 
 WORKDIR /opt/bookkeeper
+
+RUN chmod +x -R /opt/bookkeeper/scripts/
 
 COPY entrypoint.sh /opt/bookkeeper/scripts/pravega_entrypoint.sh
 
