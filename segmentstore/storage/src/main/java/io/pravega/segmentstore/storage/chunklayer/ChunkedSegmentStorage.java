@@ -645,6 +645,7 @@ public class ChunkedSegmentStorage implements Storage {
     public void close() {
         close("metadataStore", this.metadataStore);
         close("garbageCollector", this.garbageCollector);
+        close("chunkStorage", this.chunkStorage);
         this.closed.set(true);
     }
 

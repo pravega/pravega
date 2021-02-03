@@ -176,7 +176,9 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     public void createSegment(String streamSegmentName, byte type, int targetRate, Duration elapsed) {
         this.createStreamSegment.reportSuccessEvent(elapsed);
         SegmentAggregates sa = SegmentAggregates.forPolicy(ScaleType.fromValue(type), targetRate);
-        cache.put(streamSegmentName, new SegmentWriteContext(streamSegmentName, sa));
+        if (!NameUtils.isTransactionSegment(streamSegmentName)) {
+            cache.put(streamSegmentName, new SegmentWriteContext(streamSegmentName, sa));
+        }
         if (sa.isScalingEnabled()) {
             reporter.notifyCreated(streamSegmentName);
         }
