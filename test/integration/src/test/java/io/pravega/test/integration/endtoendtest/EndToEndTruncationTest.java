@@ -85,6 +85,7 @@ import static io.pravega.test.integration.ReadWriteUtils.readEvents;
 import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -673,7 +674,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         groupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().automaticCheckpointIntervalMillis(500).stream(Stream.of(scope, streamName)).build());
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(String.valueOf(0), readerGroup, new UTF8StringSerializer(), ReaderConfig.builder().build());
-        assertEquals(totalEvents / 2, ReadWriteUtils.readEvents(reader, totalEvents / 2, 0));
+        assertEquals(totalEvents / 2, ReadWriteUtils.readEventsUntil(reader, eventRead -> true, totalEvents / 2, 0));
         reader.close();
         
         val readerRecreated = clientFactory.createReader(String.valueOf(0), readerGroup, new JavaSerializer<>(), ReaderConfig.builder().build());
@@ -688,6 +689,6 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         // At the control plane, we expect a RetriesExhaustedException as readers try to get successor segments from a deleted stream.
         assertThrows(TruncatedDataException.class,
                      () -> ReadWriteUtils.readEvents(readerRecreated, totalEvents / 2, 0));
-        assertTrue(!streamManager.deleteStream(scope, streamName));
+        assertFalse(streamManager.deleteStream(scope, streamName));
     }
 }

@@ -36,6 +36,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
+import lombok.SneakyThrows;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +48,7 @@ import java.io.InputStream;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * {@link ChunkStorage} for extended S3 based storage.
@@ -63,6 +65,8 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     //region members
     private final ExtendedS3StorageConfig config;
     private final S3Client client;
+    private final boolean shouldClose;
+    private final AtomicBoolean closed;
     @Getter
     @Setter
     private boolean supportsAppend;
@@ -70,10 +74,12 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     //endregion
 
     //region constructor
-    public ExtendedS3ChunkStorage(S3Client client, ExtendedS3StorageConfig config, Executor executor) {
+    public ExtendedS3ChunkStorage(S3Client client, ExtendedS3StorageConfig config, Executor executor, boolean shouldClose) {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.client = Preconditions.checkNotNull(client, "client");
+        this.closed = new AtomicBoolean(false);
+        this.shouldClose = shouldClose;
         this.supportsAppend = true;
     }
     //endregion
@@ -319,6 +325,14 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             client.deleteObject(config.getBucket(), getObjectPath(handle.getChunkName()));
         } catch (Exception e) {
             throw convertException(handle.getChunkName(), "doDelete", e);
+        }
+    }
+
+    @Override
+    @SneakyThrows
+    public void close() {
+        if (shouldClose && !this.closed.getAndSet(true)) {
+            this.client.destroy();
         }
     }
 

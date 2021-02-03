@@ -16,7 +16,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.CertificateUtils;
 import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.EnhancedByteBufInputStream;
 import io.pravega.shared.protocol.netty.InvalidMessageException;
@@ -91,16 +90,15 @@ public class TcpClientConnection implements ClientConnection {
         private final InputStream in;
         private final ReplyProcessor callback;
         private final Thread thread;
-        private final AppendBatchSizeTracker batchSizeTracker;
+        private final FlowToBatchSizeTracker flowToBatchSizeTracker;
         private final AtomicBoolean stop = new AtomicBoolean(false);
 
-        public ConnectionReader(String name, InputStream in, ReplyProcessor callback,
-                                AppendBatchSizeTracker batchSizeTracker) {
+        public ConnectionReader(String name, InputStream in, ReplyProcessor callback, FlowToBatchSizeTracker flowToBatchSizeTracker) {
             this.name = name;
             this.in = in;
             this.callback = callback;
             this.thread = THREAD_FACTORY.newThread(this);
-            this.batchSizeTracker = batchSizeTracker;
+            this.flowToBatchSizeTracker = flowToBatchSizeTracker;
         }
         
         public void start() {
@@ -115,7 +113,7 @@ public class TcpClientConnection implements ClientConnection {
                     WireCommand command = readCommand(in, buffer);
                     if (command instanceof WireCommands.DataAppended) {
                         WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
-                        batchSizeTracker.recordAck(dataAppended.getEventNumber());
+                        flowToBatchSizeTracker.getAppendBatchSizeTrackerByFlowId(Flow.toFlowID(dataAppended.getRequestId())).recordAck(dataAppended.getEventNumber());
                     }
                     try {
                         callback.process((Reply) command);
@@ -194,10 +192,12 @@ public class TcpClientConnection implements ClientConnection {
             Socket socket = createClientSocket(location, clientConfig); 
             try {
                 InputStream inputStream = socket.getInputStream();
-                AppendBatchSizeTrackerImpl batchSizeTracker = new AppendBatchSizeTrackerImpl();
-                ConnectionReader reader = new ConnectionReader(location.toString(), inputStream, callback, batchSizeTracker);
+                FlowToBatchSizeTracker flowToBatchSizeTracker = new FlowToBatchSizeTracker();
+                ConnectionReader reader = new ConnectionReader(location.toString(), inputStream, callback, flowToBatchSizeTracker);
                 reader.start();
-                CommandEncoder encoder = new CommandEncoder(l -> batchSizeTracker, null, socket.getOutputStream());
+                // We use the flow id on both CommandEncoder and ConnectionReader to locate AppendBatchSizeTrackers.
+                CommandEncoder encoder = new CommandEncoder(requestId ->
+                        flowToBatchSizeTracker.getAppendBatchSizeTrackerByFlowId(Flow.toFlowID(requestId)), null, socket.getOutputStream());
                 return new TcpClientConnection(socket, encoder, reader, location, onClose, executor);
             } catch (Exception e) {
                 closeQuietly(socket, log, "Failed to close socket while failing.");
@@ -330,6 +330,11 @@ public class TcpClientConnection implements ClientConnection {
     @Override
     public String toString() {
         return "TcpClientConnection [location=" + location + ", isClosed=" + closed.get() + "]";
+    }
+
+    @VisibleForTesting
+    FlowToBatchSizeTracker getConnectionReaderFlowToBatchSizeTracker() {
+        return this.reader.flowToBatchSizeTracker;
     }
 
 }
