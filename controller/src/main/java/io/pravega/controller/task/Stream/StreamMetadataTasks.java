@@ -198,7 +198,7 @@ public class StreamMetadataTasks extends TaskBase {
                                         final String streamName) {
         this.eventHelper = new EventHelper(clientFactory.createEventWriter(streamName,
                 ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
-                EventWriterConfig.builder().build()),
+                EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build()),
                 this.executor, this.eventExecutor, this.context.getHostId(),
                 ((AbstractStreamMetadataStore) this.streamMetadataStore).getHostTaskIndex());
     }
