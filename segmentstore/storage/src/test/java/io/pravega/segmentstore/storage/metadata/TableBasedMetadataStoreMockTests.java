@@ -15,11 +15,15 @@ import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
+import io.pravega.segmentstore.storage.mocks.InMemoryTableStore;
+import io.pravega.segmentstore.storage.mocks.MockStorageMetadata;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.val;
+import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -27,9 +31,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 /**
  *  Test TableBasedMetadataStore using mock {@link TableStore}.
@@ -124,6 +129,83 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
                 "write should throw an exception",
                 tableBasedMetadataStore.writeAll(Collections.singleton(td)),
                 ex -> ex instanceof StorageMetadataException && ex.getCause() == e);
+    }
+
+    @Test
+    public void testExceptionDuringRemove() throws Exception {
+        TableStore mockTableStore = mock(TableStore.class);
+        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
+
+        when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
+
+        // Throw random exception
+        Exception e = new ArithmeticException();
+        val td = BaseMetadataStore.TransactionData.builder().key("foo").version(1L).dbObject(2L).build();
+        val toRet = new ArrayList<Long>();
+        toRet.add(3L);
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        f.completeExceptionally(e);
+        when(mockTableStore.remove(anyString(), any(), any())).thenReturn(f);
+        when(mockTableStore.put(anyString(), any(), any())).thenReturn(CompletableFuture.completedFuture(toRet));
+        tableBasedMetadataStore.writeAll(Collections.singleton(td)).get();
+    }
+
+    @Test
+    public void testExceptionDuringRemoveWithSpy() throws Exception {
+        TableStore mockTableStore = spy(new InMemoryTableStore(executorService()));
+        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
+
+        // Step 1 - set up keys
+        try (val txn = tableBasedMetadataStore.beginTransaction(false, "TEST")) {
+            txn.create(new MockStorageMetadata("key1", "A"));
+            txn.create(new MockStorageMetadata("key2", "B"));
+            txn.create(new MockStorageMetadata("key3", "C"));
+            txn.commit().join();
+        }
+
+        // Step 2 - Throw random exception
+        Exception e = new ArithmeticException();
+        val td = BaseMetadataStore.TransactionData.builder().key("foo").version(1L).dbObject(2L).build();
+        CompletableFuture<Void> f = new CompletableFuture<>();
+        f.completeExceptionally(e);
+        when(mockTableStore.remove(anyString(), any(), any())).thenReturn(f);
+
+        // Step 3 - modify some keys and delete a key. This uses mock method that throws exception
+        try (val txn = tableBasedMetadataStore.beginTransaction(false, "TEST")) {
+            Assert.assertEquals("A", ((MockStorageMetadata) txn.get("key1").get()).getValue());
+            Assert.assertEquals("B", ((MockStorageMetadata) txn.get("key2").get()).getValue());
+            Assert.assertEquals("C", ((MockStorageMetadata) txn.get("key3").get()).getValue());
+            txn.update(new MockStorageMetadata("key1", "a"));
+            txn.update(new MockStorageMetadata("key2", "b"));
+            txn.delete("key3");
+            txn.commit().join();
+        }
+
+        // Step 4 - Validate results and then retry delete with no mocking.
+        try (val txn = tableBasedMetadataStore.beginTransaction(false, "TEST")) {
+            Assert.assertEquals("a", ((MockStorageMetadata) txn.get("key1").get()).getValue());
+            Assert.assertEquals("b", ((MockStorageMetadata) txn.get("key2").get()).getValue());
+            Assert.assertEquals(null, txn.get("key3").get());
+            val direct = tableBasedMetadataStore.read("key3").get();
+            Assert.assertNotNull(direct);
+            Assert.assertNotEquals(-1L, direct.getDbObject());
+            txn.delete("key3");
+
+            // stop mocking
+            when(mockTableStore.remove(anyString(), any(), any())).thenCallRealMethod();
+
+            txn.commit().join();
+        }
+
+        // Step 5 - Validate results.
+        try (val txn = tableBasedMetadataStore.beginTransaction(true, "TEST")) {
+            Assert.assertEquals("a", ((MockStorageMetadata) txn.get("key1").get()).getValue());
+            Assert.assertEquals("b", ((MockStorageMetadata) txn.get("key2").get()).getValue());
+            Assert.assertEquals(null, txn.get("key3").get());
+            val direct = tableBasedMetadataStore.read("key3").get();
+            Assert.assertNotNull(direct);
+            Assert.assertEquals(-1L, direct.getDbObject());
+        }
     }
 
     @Test
