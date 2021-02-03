@@ -37,8 +37,6 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
 import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
 import lombok.SneakyThrows;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.http.HttpStatus;
@@ -67,20 +65,18 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     private final S3Client client;
     private final boolean shouldClose;
     private final AtomicBoolean closed;
-    @Getter
-    @Setter
-    private boolean supportsAppend;
+    private final boolean supportsAppend;
 
     //endregion
 
     //region constructor
-    public ExtendedS3ChunkStorage(S3Client client, ExtendedS3StorageConfig config, Executor executor, boolean shouldClose) {
+    public ExtendedS3ChunkStorage(S3Client client, ExtendedS3StorageConfig config, Executor executor, boolean supportsAppend, boolean shouldClose) {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.client = Preconditions.checkNotNull(client, "client");
         this.closed = new AtomicBoolean(false);
         this.shouldClose = shouldClose;
-        this.supportsAppend = true;
+        this.supportsAppend = supportsAppend;
     }
     //endregion
 

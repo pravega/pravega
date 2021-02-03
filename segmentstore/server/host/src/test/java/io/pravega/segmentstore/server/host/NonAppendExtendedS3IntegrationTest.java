@@ -134,8 +134,7 @@ public class NonAppendExtendedS3IntegrationTest extends BookKeeperIntegrationTes
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
             S3ClientMock client = new S3ClientMock(s3Config, s3Mock);
-            val chunkStorage = new ExtendedS3ChunkStorage(client, this.config, executorService(), false);
-            chunkStorage.setSupportsAppend(false);
+            val chunkStorage = new ExtendedS3ChunkStorage(client, this.config, executorService(), false, false);
 
             val storage = new ChunkedSegmentStorage(containerId,
                     chunkStorage,

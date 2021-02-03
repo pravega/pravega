@@ -148,11 +148,12 @@ public abstract class BaseChunkStorage extends AsyncBaseChunkStorage {
     abstract protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException;
 
     /**
-     * Creates a new chunk.
+     * Creates a new chunk with provided content.
      *
      * @param chunkName String name of the chunk to create.
      * @param length Number of bytes to write.
-     * @param data   An InputStream representing the data to write.* @return ChunkHandle A writable handle for the recently created chunk.
+     * @param data   An InputStream representing the data to write.
+     * @return ChunkHandle A writable handle for the recently created chunk.
      * @throws ChunkStorageException    Throws ChunkStorageException in case of I/O related exceptions.
      * @throws IllegalArgumentException If argument is invalid.
      */

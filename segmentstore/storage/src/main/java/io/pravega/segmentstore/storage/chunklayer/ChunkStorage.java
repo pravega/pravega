@@ -90,12 +90,12 @@ public interface ChunkStorage extends AutoCloseable {
     CompletableFuture<ChunkHandle> create(String chunkName);
 
     /**
-     * Creates a new chunk.
+     * Creates a new chunk with provided content.
      *
      * @param chunkName String name of the storage object to create.
      * @param length Number of bytes to write.
      * @param data   An InputStream representing the data to write.
-     * @return A CompletableFuture that, when completed, will contain number of bytes written.
+     * @return A CompletableFuture that, when completed, will contain a writable handle for the recently created chunk.
      * @throws IndexOutOfBoundsException When data can not be written at given offset.
      * @throws CompletionException       If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      *                                   {@link ChunkStorageException} In case of I/O related exceptions.

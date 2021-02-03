@@ -520,7 +520,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
     abstract protected CompletableFuture<ChunkHandle> doCreateAsync(String chunkName);
 
     /**
-     * Creates a new chunk.
+     * Creates a new chunk with provided content.
      *
      * @param chunkName String name of the chunk to create.
      * @param length Number of bytes to write.

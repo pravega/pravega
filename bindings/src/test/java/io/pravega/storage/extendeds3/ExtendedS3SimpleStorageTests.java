@@ -44,7 +44,7 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
     @Override
     protected ChunkStorage getChunkStorage() {
-        return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), false);
+        return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), true, false);
     }
 
     /**
@@ -67,7 +67,7 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), false);
+            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), true, false);
         }
     }
 
@@ -93,7 +93,7 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage createChunkStorage() {
-            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), false);
+            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), true, false);
         }
 
         /**
@@ -129,7 +129,7 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), false);
+            return new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), true, false);
         }
     }
 
@@ -153,8 +153,7 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            val ret = new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), false);
-            ret.setSupportsAppend(false);
+            val ret = new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), false, false);
             return ret;
         }
     }
@@ -181,8 +180,7 @@ public class ExtendedS3SimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected ChunkStorage getChunkStorage() {
-            val ret = new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), false);
-            ret.setSupportsAppend(false);
+            val ret = new ExtendedS3ChunkStorage(testContext.client, testContext.adapterConfig, executorService(), false, false);
             return ret;
         }
     }

@@ -613,7 +613,8 @@ public class SystemJournal {
             Preconditions.checkState(chunkStorage.supportsAppend() && config.isAppendEnabled());
             val bytesWritten = chunkStorage.write(currentHandle, systemJournalOffset, bytes.getLength(),
                     new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())).get();
-            Preconditions.checkState(bytesWritten == bytes.getLength());
+            Preconditions.checkState(bytesWritten == bytes.getLength(),
+                    "Bytes written do not match expected length. Actual=%d, expected=%d", bytesWritten, bytes.getLength());
             systemJournalOffset += bytesWritten;
         }
     }
