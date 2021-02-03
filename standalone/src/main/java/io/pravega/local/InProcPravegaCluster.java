@@ -309,7 +309,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                                          .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
                                          .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
                 .include(MetricsConfig.builder()
-                        .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
+                        .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics)
+                        .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, enableInfluxDB)
+                        .with(MetricsConfig.OUTPUT_FREQUENCY, metricsReportInterval));
 
         nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build());
         nodeServiceStarter[segmentStoreId].start();
