@@ -30,17 +30,18 @@ import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.storage.extendeds3.S3ClientMock;
 import io.pravega.storage.extendeds3.S3Mock;
 import io.pravega.test.common.TestUtils;
-import java.net.URI;
-import java.util.concurrent.ScheduledExecutorService;
-
 import lombok.Getter;
+import lombok.val;
 import org.junit.After;
 import org.junit.Before;
+
+import java.net.URI;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * End-to-end tests for SegmentStore, with integrated Extended S3 Storage and DurableDataLog.
  */
-public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
+public class NonAppendExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
     //region Test Configuration and Setup
 
     private String s3ConfigUri;
@@ -133,11 +134,16 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
             S3ClientMock client = new S3ClientMock(s3Config, s3Mock);
-            return new ChunkedSegmentStorage(containerId,
-                    new ExtendedS3ChunkStorage(client, this.config, executorService(), true, false),
+            val chunkStorage = new ExtendedS3ChunkStorage(client, this.config, executorService(), false, false);
+
+            val storage = new ChunkedSegmentStorage(containerId,
+                    chunkStorage,
                     metadataStore,
                     this.executor,
-                    ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+                    ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                            .appendEnabled(false)
+                            .build());
+            return storage;
         }
 
         /**
