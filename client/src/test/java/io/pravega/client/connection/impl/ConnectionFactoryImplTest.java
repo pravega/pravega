@@ -35,6 +35,7 @@ import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
+import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
@@ -105,8 +106,8 @@ public class ConnectionFactoryImplTest {
     @After
     public void tearDown() throws Exception {
         serverChannel.close().awaitUninterruptibly();
-        bossGroup.shutdownGracefully().await();
-        workerGroup.shutdownGracefully().await();
+        bossGroup.shutdownGracefully(10, 10, TimeUnit.MILLISECONDS).await();
+        workerGroup.shutdownGracefully(10, 10, TimeUnit.MILLISECONDS).await();
         if (sslCtx != null) {
             ReferenceCountUtil.safeRelease(sslCtx);
         }
