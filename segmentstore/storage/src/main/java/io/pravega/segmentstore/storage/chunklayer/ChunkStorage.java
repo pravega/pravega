@@ -80,7 +80,7 @@ public interface ChunkStorage extends AutoCloseable {
     CompletableFuture<Boolean> exists(String chunkName);
 
     /**
-     * Creates a new file.
+     * Creates a new chunk.
      *
      * @param chunkName String name of the storage object to create.
      * @return A CompletableFuture that, when completed, will contain a writable handle for the recently created chunk.
@@ -90,7 +90,20 @@ public interface ChunkStorage extends AutoCloseable {
     CompletableFuture<ChunkHandle> create(String chunkName);
 
     /**
-     * Deletes a file.
+     * Creates a new chunk with provided content.
+     *
+     * @param chunkName String name of the storage object to create.
+     * @param length Number of bytes to write.
+     * @param data   An InputStream representing the data to write.
+     * @return A CompletableFuture that, when completed, will contain a writable handle for the recently created chunk.
+     * @throws IndexOutOfBoundsException When data can not be written at given offset.
+     * @throws CompletionException       If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     *                                   {@link ChunkStorageException} In case of I/O related exceptions.
+     */
+    CompletableFuture<ChunkHandle> createWithContent(String chunkName, int length, InputStream data);
+
+    /**
+     * Deletes a chunk.
      *
      * @param handle ChunkHandle of the storage object to delete.
      * @return A CompletableFuture that, when completed, will indicate that the operation completed.
@@ -139,7 +152,7 @@ public interface ChunkStorage extends AutoCloseable {
      * Reads a range of bytes from the underlying storage object.
      *
      * @param handle       ChunkHandle of the storage object to read from.
-     * @param fromOffset   Offset in the file from which to start reading.
+     * @param fromOffset   Offset in the chunk from which to start reading.
      * @param length       Number of bytes to read.
      * @param buffer       Byte buffer to which data is copied.
      * @param bufferOffset Offset in the buffer at which to start copying read data.
@@ -165,7 +178,7 @@ public interface ChunkStorage extends AutoCloseable {
      * </ul>
      *
      * @param handle ChunkHandle of the storage object to write to.
-     * @param offset Offset in the file to start writing.
+     * @param offset Offset in the chunk to start writing.
      * @param length Number of bytes to write.
      * @param data   An InputStream representing the data to write.
      * @return A CompletableFuture that, when completed, will contain number of bytes written.
