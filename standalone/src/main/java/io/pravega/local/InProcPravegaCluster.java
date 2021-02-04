@@ -42,6 +42,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.security.auth.Credentials;
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
@@ -361,15 +362,18 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(true)
-                .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
-                .containerCount(Config.HOST_STORE_CONTAINER_COUNT)
+                .containerCount(containerCount)
+                .hostMonitorMinRebalanceInterval(1)
                 .build();
 
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
                 .maxLeaseValue(Config.MAX_LEASE_VALUE)
                 .build();
 
-        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
+        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl
+                .withDefaultBuilder()
+                .shutdownTimeout(Duration.ofMillis(100))
+                .build();
 
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl
                 .builder()
@@ -408,6 +412,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(Optional.ofNullable(restServerConfig))
+                .shutdownTimeout(Duration.ofMillis(100))
                 .build();
 
         ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);

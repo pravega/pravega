@@ -592,7 +592,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     public void close() {
         this.clientFactory.close();
         try {
-            this.stopAsync().awaitTerminated(10, TimeUnit.SECONDS);
+            this.stopAsync().awaitTerminated(config.getShutdownTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {
             log.error("Timeout expired while waiting for service to shut down.", ex);
         }

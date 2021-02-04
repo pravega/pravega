@@ -9,8 +9,9 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.controller.eventProcessor.CheckpointConfig;
+import java.time.Duration;
 
 /**
  * Configuration of controller event processors.
@@ -150,4 +151,11 @@ public interface ControllerEventProcessorConfig {
      * @return Request kvtable scaling policy.
      */
     ScalingPolicy getKvtStreamScalingPolicy();
+
+    /**
+     * Gets a value indicating the amount of time to await a shutdown.
+     *
+     * @return Shutdown timeout.
+     */
+    Duration getShutdownTimeout();
 }
