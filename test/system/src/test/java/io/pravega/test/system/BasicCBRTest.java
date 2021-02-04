@@ -16,12 +16,14 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -31,6 +33,7 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
@@ -48,9 +51,12 @@ import org.junit.runner.RunWith;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -60,9 +66,12 @@ public class BasicCBRTest extends AbstractReadWriteTest {
     private static final String STREAM = "testCBRStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP = "testCBRReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
 
+    private static final int READ_TIMEOUT = 1000;
+    private static final int GROUP_REFRESH_TIME_MILLIS = 1000;
     private static final int MAX = 300;
     private static final int MIN = 30;
 
+    private final ReaderConfig readerConfig = ReaderConfig.builder().build();
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
     private URI controllerURI = null;
     private StreamManager streamManager = null;
@@ -130,23 +139,20 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP);
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(READER_GROUP + "-" + String.valueOf(1),
-                READER_GROUP, new JavaSerializer<>(), ReaderConfig.builder().build());
+                READER_GROUP, new JavaSerializer<>(), readerConfig);
 
         // Read one event and update the retention stream-cut.
         log.info("Reading event e1 from {}/{}", SCOPE, STREAM);
-        reader.readNextEvent(1000);
+        reader.readNextEvent(READ_TIMEOUT);
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
-        Map<Stream, StreamCut> streamCuts = readerGroup.generateStreamCuts(executor).join();
+        Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup);
         log.info("{} updating its retention stream-cut to {}", READER_GROUP, streamCuts);
         readerGroup.updateRetentionStreamCut(streamCuts);
-
-        // Wait for the retention to kick in.
-        Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
 
         // Check to make sure no truncation happened as the min policy is 30 bytes.
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off == 0),
-                120 * 1000L);
+                5 * 60 * 1000L);
 
         // Write two more events.
         log.info("Writing event e2 to {}/{}", SCOPE, STREAM);
@@ -154,28 +160,48 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         log.info("Writing event e3 to {}/{}", SCOPE, STREAM);
         writer.writeEvent("e3", "data of size 30").join();
 
-        // Give the controller a chance to truncate
-        Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
-
         // Check to make sure truncation happened after the first event.
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 30),
-                120 * 1000L);
+                5 * 60 * 1000L);
 
         // Read next event and update the retention stream-cut.
         log.info("Reading event e2 from {}/{}", SCOPE, STREAM);
-        reader.readNextEvent(1000);
+        reader.readNextEvent(READ_TIMEOUT);
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
-        Map<Stream, StreamCut> streamCuts2 = readerGroup.generateStreamCuts(executor).join();
+        Map<Stream, StreamCut> streamCuts2 = generateStreamCuts(readerGroup);
         log.info("{} updating its retention stream-cut to {}", READER_GROUP, streamCuts2);
         readerGroup.updateRetentionStreamCut(streamCuts2);
-
-        // Give the controller a chance to truncate
-        Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
 
         // Check to make sure truncation happened after the second event.
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 60),
-                120 * 1000L);
+                5 * 60 * 1000L);
+    }
+
+    private Map<Stream, StreamCut> generateStreamCuts(final ReaderGroup readerGroup) {
+        log.info("Generate StreamCuts");
+        String readerId = "streamCut";
+        CompletableFuture<Map<Stream, StreamCut>> streamCuts = null;
+
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
+             EventStreamReader<Integer> reader = clientFactory.createReader(readerId, READER_GROUP,
+                     new JavaSerializer<Integer>(), readerConfig)) {
+
+            streamCuts = readerGroup.generateStreamCuts(executor); //create checkpoint
+
+            Exceptions.handleInterrupted(() -> TimeUnit.MILLISECONDS.sleep(GROUP_REFRESH_TIME_MILLIS)); // sleep for group refresh.
+            //read the next event, this causes the reader to update its latest offset.
+            EventRead<Integer> event = reader.readNextEvent(READ_TIMEOUT);
+            assertTrue("No events expected as all events are read", (event.getEvent() == null) && (!event.isCheckpoint()));
+            Futures.exceptionListener(streamCuts, t -> log.error("StreamCut generation failed", t));
+            assertTrue("Stream cut generation should be completed", Futures.await(streamCuts));
+        } catch (ReinitializationRequiredException e) {
+            log.error("Exception while reading event using readerId: {}", readerId, e);
+            fail("Reinitialization Exception is not expected");
+        }
+        return streamCuts.join();
     }
 }
