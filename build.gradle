@@ -1022,7 +1022,6 @@ project('test:system') {
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
 
-        failFast = true
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
         systemProperty "execType", "KUBERNETES"
         // The below properties are used to to specify the pravega docker image properties
@@ -1069,6 +1068,7 @@ project('test:system') {
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
 
         maxParallelForks = 1
+        failFast = true
     }
 
     task execShellScript(type: Exec) {

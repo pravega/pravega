@@ -146,7 +146,6 @@ public class StreamCutsTest extends AbstractReadWriteTest {
      */
     @Test
     public void streamCutsTest() {
-        System.exit(1);
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
 
         @Cleanup

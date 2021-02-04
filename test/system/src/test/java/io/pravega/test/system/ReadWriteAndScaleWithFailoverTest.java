@@ -139,7 +139,6 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
     @Test
     public void readWriteAndScaleWithFailoverTest() throws Exception {
-        System.exit(1);
         createWriters(clientFactory, NUM_WRITERS, scope, SCALE_STREAM);
         createReaders(clientFactory, readerGroupName, scope, readerGroupManager, SCALE_STREAM, NUM_READERS);
 
