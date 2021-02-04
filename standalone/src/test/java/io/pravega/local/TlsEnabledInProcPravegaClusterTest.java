@@ -12,10 +12,11 @@ package io.pravega.local;
 import io.pravega.client.ClientConfig;
 
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
-import java.util.concurrent.ExecutionException;
 import javax.net.ssl.SSLHandshakeException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -62,27 +63,29 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
                 .build();
     }
 
-    @Override
-    @Test
-    public void testWriteAndReadEventWithValidClientConfig() throws ExecutionException, InterruptedException {
-        super.testWriteAndReadEventWithValidClientConfig();
-    }
-
     /**
      * This test verifies that create stream fails when the client config is invalid.
      *
      * Note: The timeout being used for the test is kept rather large so that there is ample time for the expected
      * exception to be raised even in case of abnormal delays in test environments.
      */
-    @Test(timeout = 300000)
+    @Test(timeout = 30000)
     public void testCreateStreamFailsWithInvalidClientConfig() {
         // Truststore for the TLS connection is missing.
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
                 .build();
 
+        ControllerImplConfig controllerImplConfig = ControllerImplConfig.builder()
+                .clientConfig(clientConfig)
+                .retryAttempts(10)
+                .initialBackoffMillis(1000)
+                .backoffMultiple(1)
+                .maxBackoffMillis(1000)
+                .build();
+
         @Cleanup
-        StreamManager streamManager = StreamManager.create(clientConfig);
+        StreamManager streamManager = new StreamManagerImpl(clientConfig, controllerImplConfig);
 
         AssertExtensions.assertThrows("TLS exception did not occur.",
                 () -> streamManager.createScope(scopeName()),

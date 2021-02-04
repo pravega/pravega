@@ -15,7 +15,6 @@ import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
@@ -233,6 +232,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.writer.close();
             this.durableLog.close();
             this.readIndex.close();
+            this.attributeIndex.close();
             this.storage.close();
             this.metrics.close();
             log.info("{}: Closed.", this.traceObjectId);
@@ -283,10 +283,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     if (ex == null) {
                         // Successful start.
                         log.info("{}: Started.", this.traceObjectId);
-                    } else if (!(Exceptions.unwrap(ex) instanceof ObjectClosedException) || !Services.isTerminating(state())) {
+                    } else if (Services.isTerminating(state())) {
                         // If the delayed start fails, immediately shut down the Segment Container with the appropriate
-                        // exception. We should ignore ObjectClosedExceptions or other exceptions during a shutdown phase
-                        // since that's most likely due to us shutting down.
+                        // exception. However if we are already shut down (or in the process of), it is sufficient to
+                        // log the secondary service exception and move on.
+                        log.warn("{}: Ignoring delayed start error due to Segment Container shutting down.", this.traceObjectId, ex);
+                    } else {
                         doStop(ex);
                     }
                 });
