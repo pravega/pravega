@@ -556,12 +556,12 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
     @Override
     public void close() {
-        Callbacks.invokeSafely(() -> stopAsync().awaitTerminated(10, TimeUnit.SECONDS), ex -> log.error("Exception while forcefully shutting down.", ex));
+        Callbacks.invokeSafely(() -> stopAsync().awaitTerminated(serviceConfig.getShutdownTimeout().toMillis(), TimeUnit.MILLISECONDS), ex -> log.error("Exception while forcefully shutting down.", ex));
         close(watermarkingWork);
         close(streamMetadataTasks);
         close(streamTransactionMetadataTasks);
         close(controllerEventProcessors);
-        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor, watermarkingExecutor, eventExecutor);
+        ExecutorServiceHelpers.shutdown(serviceConfig.getShutdownTimeout(), controllerExecutor, retentionExecutor, watermarkingExecutor, eventExecutor);
         close(cluster);
         close(segmentHelper);
         close(kvtMetadataStore);
