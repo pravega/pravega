@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -43,8 +44,8 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     private final long offset;
     private final String sourceSegment;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
-    private final ArrayList<String> chunksToDelete = new ArrayList<>();
-    private final List<ChunkNameOffsetPair> newReadIndexEntries = new ArrayList<>();
+    private final List<String> chunksToDelete = Collections.synchronizedList(new ArrayList<>());
+    private final List<ChunkNameOffsetPair> newReadIndexEntries = Collections.synchronizedList(new ArrayList<>());
 
     private final Timer timer;
 

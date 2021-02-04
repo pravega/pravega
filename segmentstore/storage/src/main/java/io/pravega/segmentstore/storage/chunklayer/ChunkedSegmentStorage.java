@@ -477,7 +477,7 @@ public class ChunkedSegmentStorage implements Storage {
     public CompletableFuture<Void> defrag(MetadataTransaction txn, SegmentMetadata segmentMetadata,
                                            String startChunkName,
                                            String lastChunkName,
-                                           ArrayList<String> chunksToDelete,
+                                           List<String> chunksToDelete,
                                            List<ChunkNameOffsetPair> newReadIndexEntries,
                                            long defragOffset) {
         return new DefragmentOperation(this, txn, segmentMetadata, startChunkName, lastChunkName, chunksToDelete, newReadIndexEntries, defragOffset).call();
