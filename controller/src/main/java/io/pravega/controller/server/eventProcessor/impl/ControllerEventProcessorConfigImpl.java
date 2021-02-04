@@ -9,18 +9,17 @@
  */
 package io.pravega.controller.server.eventProcessor.impl;
 
+import com.google.common.base.Preconditions;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.Exceptions;
-import io.pravega.controller.util.Config;
-import io.pravega.shared.NameUtils;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import com.google.common.base.Preconditions;
+import io.pravega.controller.util.Config;
+import io.pravega.shared.NameUtils;
+import java.time.Duration;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.ToString;
-
-import java.time.Duration;
 
 /**
  * Configuration of controller event processors.
@@ -52,8 +51,10 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
     private final CheckpointConfig commitCheckpointConfig;
     private final CheckpointConfig abortCheckpointConfig;
     private final CheckpointConfig scaleCheckpointConfig;
-    
+
     private final long rebalanceIntervalMillis;
+    @Getter
+    private final Duration shutdownTimeout;
 
     @Builder
     ControllerEventProcessorConfigImpl(final String scopeName,
@@ -72,7 +73,8 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
                                        final CheckpointConfig commitCheckpointConfig,
                                        final CheckpointConfig abortCheckpointConfig,
                                        final ScalingPolicy scaleStreamScalingPolicy,
-                                       final long rebalanceIntervalMillis) {
+                                       final long rebalanceIntervalMillis,
+                                       final Duration shutdownTimeout) {
 
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Exceptions.checkNotNullOrEmpty(commitStreamName, "commitStreamName");
@@ -111,9 +113,14 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
         this.scaleReaderGroupSize = 1;
         this.scaleCheckpointConfig = CheckpointConfig.none();
         this.rebalanceIntervalMillis = rebalanceIntervalMillis;
+        this.shutdownTimeout = shutdownTimeout == null ? Duration.ofSeconds(10) : shutdownTimeout;
     }
 
     public static ControllerEventProcessorConfig withDefault() {
+        return withDefaultBuilder().build();
+    }
+
+    public static ControllerEventProcessorConfigImpl.ControllerEventProcessorConfigImplBuilder withDefaultBuilder() {
         return ControllerEventProcessorConfigImpl.builder()
                 .scopeName(NameUtils.INTERNAL_SCOPE_NAME)
                 .commitStreamName(NameUtils.getInternalNameForStream("commitStream"))
@@ -131,8 +138,7 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
                 .kvtReaderGroupSize(1)
                 .commitCheckpointConfig(CheckpointConfig.periodic(10, 10))
                 .abortCheckpointConfig(CheckpointConfig.periodic(10, 10))
-                .rebalanceIntervalMillis(Duration.ofMinutes(2).toMillis())
-                .build();
+                .rebalanceIntervalMillis(Duration.ofMinutes(2).toMillis());
     }
 
     @Override

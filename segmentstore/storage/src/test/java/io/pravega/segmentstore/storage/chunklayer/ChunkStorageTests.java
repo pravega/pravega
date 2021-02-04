@@ -93,6 +93,32 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
         testNotExists(chunkName);
     }
 
+    @Test
+    public void testChunkLifeCycleCreateWithContent() throws Exception {
+        // try reading non existent chunk
+        String chunkName = "testchunk";
+        testNotExists(chunkName);
+
+        // Perform basic operations.
+        byte[] writeBuffer = new byte[10];
+        populate(writeBuffer);
+        ChunkHandle chunkHandle = chunkStorage.createWithContent(chunkName, writeBuffer.length, new ByteArrayInputStream(writeBuffer)).get();
+        assertEquals(chunkName, chunkHandle.getChunkName());
+        assertEquals(false, chunkHandle.isReadOnly());
+
+        chunkHandle = chunkStorage.openRead(chunkName).get();
+        assertEquals(chunkName, chunkHandle.getChunkName());
+        assertEquals(true, chunkHandle.isReadOnly());
+
+        chunkHandle = chunkStorage.openWrite(chunkName).get();
+        assertEquals(chunkName, chunkHandle.getChunkName());
+        assertEquals(false, chunkHandle.isReadOnly());
+        testAlreadyExists(chunkName);
+
+        chunkStorage.delete(chunkHandle).join();
+        testNotExists(chunkName);
+    }
+
     /**
      * Test basic read and write.
      */
@@ -110,6 +136,27 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
         populate(writeBuffer);
         int bytesWritten = chunkStorage.write(chunkHandle, 0, writeBuffer.length, new ByteArrayInputStream(writeBuffer)).get();
         assertEquals(writeBuffer.length, bytesWritten);
+
+        // Read back.
+        byte[] readBuffer = new byte[writeBuffer.length];
+        int bytesRead = chunkStorage.read(chunkHandle, 0, writeBuffer.length, readBuffer, 0).get();
+        assertEquals(writeBuffer.length, bytesRead);
+        assertArrayEquals(writeBuffer, readBuffer);
+
+        // Delete.
+        chunkStorage.delete(chunkHandle).join();
+    }
+
+    @Test
+    public void testSimpleReadWriteCreateWithContent() throws Exception {
+        String chunkName = "testchunk";
+
+        // Create.
+        byte[] writeBuffer = new byte[10];
+        populate(writeBuffer);
+        ChunkHandle chunkHandle = chunkStorage.createWithContent(chunkName, writeBuffer.length, new ByteArrayInputStream(writeBuffer)).get();
+        assertEquals(chunkName, chunkHandle.getChunkName());
+        assertEquals(false, chunkHandle.isReadOnly());
 
         // Read back.
         byte[] readBuffer = new byte[writeBuffer.length];
@@ -157,6 +204,41 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
         // Delete.
         chunkStorage.delete(chunkHandle).join();
     }
+
+    /**
+     * Test consecutive reads.
+     */
+    @Test
+    public void testConsecutiveReadsCreateWithContent() throws Exception {
+        String chunkName = "testchunk";
+
+        // Create.
+        byte[] writeBuffer = new byte[15];
+        populate(writeBuffer);
+        // Create.
+        ChunkHandle chunkHandle = chunkStorage.createWithContent(chunkName, writeBuffer.length, new ByteArrayInputStream(writeBuffer)).get();
+        assertEquals(chunkName, chunkHandle.getChunkName());
+        assertEquals(false, chunkHandle.isReadOnly());
+
+        // Read back in multiple reads.
+        byte[] readBuffer = new byte[writeBuffer.length];
+
+        int totalBytesRead = 0;
+        for (int i = 1; i <= 5; i++) {
+            int remaining = i;
+            while (remaining > 0) {
+                int bytesRead = chunkStorage.read(chunkHandle, totalBytesRead, remaining, readBuffer, totalBytesRead).get();
+                remaining -= bytesRead;
+                totalBytesRead += bytesRead;
+            }
+        }
+        assertEquals(writeBuffer.length, totalBytesRead);
+        assertArrayEquals(writeBuffer, readBuffer);
+
+        // Delete.
+        chunkStorage.delete(chunkHandle).join();
+    }
+
 
     /**
      * Test consecutive writes.
@@ -289,6 +371,35 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof InvalidOffsetException);
 
         chunkStorage.delete(chunkHandle).join();
+    }
+
+    /**
+     * Test simple reads and writes for exceptions.
+     */
+    @Test
+    public void testCreateWithContentExceptions() throws Exception {
+        String chunkName = "testchunk";
+
+        byte[] writeBuffer = new byte[10];
+        populate(writeBuffer);
+        // Create exceptions.
+        AssertExtensions.assertThrows(
+                " createWithContent should throw exception.",
+                () -> chunkStorage.createWithContent(null, writeBuffer.length, new ByteArrayInputStream(writeBuffer)).get(),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows(
+                " createWithContent should throw exception.",
+                () -> chunkStorage.createWithContent(chunkName, -1, new ByteArrayInputStream(writeBuffer)).get(),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows(
+                " createWithContent should throw exception.",
+                () -> chunkStorage.createWithContent(chunkName, 0, new ByteArrayInputStream(writeBuffer)).get(),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows(
+                " createWithContent should throw exception.",
+                () -> chunkStorage.createWithContent(chunkName, 1, null).get(),
+                ex -> ex instanceof IllegalArgumentException);
+
     }
 
     /**
