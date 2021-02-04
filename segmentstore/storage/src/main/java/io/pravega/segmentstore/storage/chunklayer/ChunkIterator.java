@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
@@ -28,15 +29,17 @@ class ChunkIterator {
     private volatile ChunkMetadata currentMetadata;
 
     ChunkIterator(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, SegmentMetadata segmentMetadata) {
-        this.chunkedSegmentStorage = chunkedSegmentStorage;
-        this.txn = txn;
+        this.chunkedSegmentStorage = Preconditions.checkNotNull(chunkedSegmentStorage, "chunkedSegmentStorage");
+        this.txn = Preconditions.checkNotNull(txn, "txn");
+        Preconditions.checkNotNull(segmentMetadata, "segmentMetadata");
+        // The following can be null.
         this.currentChunkName = segmentMetadata.getFirstChunk();
-        lastChunkName = null;
     }
 
-    ChunkIterator(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, SegmentMetadata segmentMetadata, String startChunkName, String lastChunkName ) {
-        this.chunkedSegmentStorage = chunkedSegmentStorage;
-        this.txn = txn;
+    ChunkIterator(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, String startChunkName, String lastChunkName) {
+        this.chunkedSegmentStorage = Preconditions.checkNotNull(chunkedSegmentStorage, "chunkedSegmentStorage");
+        this.txn = Preconditions.checkNotNull(txn, "txn");
+        // The following can be null.
         this.currentChunkName = startChunkName;
         this.lastChunkName = lastChunkName;
     }

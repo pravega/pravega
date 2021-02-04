@@ -22,7 +22,7 @@ import java.io.IOException;
 
 /**
  * Represents read index block .
- * Following metadata is stored.
+ * Following metadata is stored:
  * <ul>
  * <li>Name of entry.</li>     
  * <li>Name of the chunk containing first byte of this block.</li>
@@ -32,7 +32,6 @@ import java.io.IOException;
 @Builder(toBuilder = true)
 @Data
 @EqualsAndHashCode(callSuper = true)
-@ThreadSafe
 public class ReadIndexBlockMetadata extends StorageMetadata {
     /**
      * Name of this index node.
@@ -47,7 +46,7 @@ public class ReadIndexBlockMetadata extends StorageMetadata {
     /**
      * Length of the chunk.
      */
-    private long startOffset;
+    private final long startOffset;
 
     /**
      * Status bit flags.

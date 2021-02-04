@@ -15,6 +15,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
 
 import java.util.concurrent.ExecutorService;
@@ -78,9 +79,7 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
 
         @Override
         protected void checkData(byte[] expected, byte[] output, int expectedStartIndex, int outputStartIndex, int length) {
-            for (int i = 0; i < length; i++) {
-                Assert.assertEquals(expected[expectedStartIndex + i], output[outputStartIndex + i]);
-            }
+            AssertExtensions.assertArrayEquals("Data check failed", expected, expectedStartIndex, output, outputStartIndex, length);
         }
 
         @Override
