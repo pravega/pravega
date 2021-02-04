@@ -17,7 +17,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
 
 /**
