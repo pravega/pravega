@@ -121,19 +121,23 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand {
         outputInfo("Writing segments' details to the csv files...");
         Iterator<SegmentProperties> segmentIterator = storage.listSegments();
         while (segmentIterator.hasNext()) {
-            SegmentProperties currentSegment = segmentIterator.next();
+            try {
+                SegmentProperties currentSegment = segmentIterator.next();
 
-            // skip, if the segment is an attribute segment.
-            if (NameUtils.isAttributeSegment(currentSegment.getName())) {
+                // skip, if the segment is an attribute segment.
+                if (NameUtils.isAttributeSegment(currentSegment.getName())) {
+                    continue;
+                }
+
+                segmentsCount++;
+                int containerId = this.segToConMapper.getContainerId(currentSegment.getName());
+                outputInfo(containerId + "\t" + currentSegment.isSealed() + "\t" + currentSegment.getLength() + "\t" +
+                        currentSegment.getName());
+                this.csvWriters[containerId].append(currentSegment.isSealed() + "," + currentSegment.getLength() + "," +
+                        currentSegment.getName() + "\n");
+            } catch (Exception e) {
                 continue;
             }
-
-            segmentsCount++;
-            int containerId = this.segToConMapper.getContainerId(currentSegment.getName());
-            outputInfo(containerId + "\t" + currentSegment.isSealed() + "\t" + currentSegment.getLength() + "\t" +
-                    currentSegment.getName());
-            this.csvWriters[containerId].append(currentSegment.isSealed() + "," + currentSegment.getLength() + "," +
-                    currentSegment.getName() + "\n");
         }
 
         outputInfo("Closing all csv files...");
