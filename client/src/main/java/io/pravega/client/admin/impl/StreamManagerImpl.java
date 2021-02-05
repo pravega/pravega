@@ -48,10 +48,16 @@ public class StreamManagerImpl implements StreamManager {
     private final ConnectionPool connectionPool;
     private final ScheduledExecutorService executor;
     private final StreamCutHelper streamCutHelper;
-    
+
+
     public StreamManagerImpl(ClientConfig clientConfig) {
+        this(clientConfig, ControllerImplConfig.builder().clientConfig(clientConfig).build());
+    }
+
+    @VisibleForTesting
+    public StreamManagerImpl(ClientConfig clientConfig, ControllerImplConfig controllerConfig) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
-        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(), executor);
+        this.controller = new ControllerImpl(controllerConfig, executor);
         this.connectionPool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
     }

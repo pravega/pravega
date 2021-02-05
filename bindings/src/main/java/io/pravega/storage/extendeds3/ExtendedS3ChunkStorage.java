@@ -65,16 +65,18 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     private final S3Client client;
     private final boolean shouldClose;
     private final AtomicBoolean closed;
+    private final boolean supportsAppend;
 
     //endregion
 
     //region constructor
-    public ExtendedS3ChunkStorage(S3Client client, ExtendedS3StorageConfig config, Executor executor, boolean shouldClose) {
+    public ExtendedS3ChunkStorage(S3Client client, ExtendedS3StorageConfig config, Executor executor, boolean supportsAppend, boolean shouldClose) {
         super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.client = Preconditions.checkNotNull(client, "client");
         this.closed = new AtomicBoolean(false);
         this.shouldClose = shouldClose;
+        this.supportsAppend = supportsAppend;
     }
     //endregion
 
@@ -87,7 +89,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
     @Override
     public boolean supportsAppend() {
-        return true;
+        return supportsAppend;
     }
 
     @Override
@@ -139,6 +141,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
     @Override
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
+        Preconditions.checkState(supportsAppend, "supportsAppend is false.");
         try {
             val objectPath = getObjectPath(handle.getChunkName());
             // Check object exists.
@@ -249,6 +252,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
     @Override
     protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException {
+        Preconditions.checkState(supportsAppend, "supportsAppend is false.");
         try {
             if (!client.listObjects(config.getBucket(), getObjectPath(chunkName)).getObjects().isEmpty()) {
                 throw new ChunkAlreadyExistsException(chunkName, "Chunk already exists");
@@ -257,7 +261,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             S3ObjectMetadata metadata = new S3ObjectMetadata();
             metadata.setContentLength((long) 0);
 
-            PutObjectRequest request = new PutObjectRequest(config.getBucket(), getObjectPath(chunkName), null);
+            PutObjectRequest request = new PutObjectRequest(config.getBucket(), getObjectPath(chunkName), null).withObjectMetadata(metadata);
 
             AccessControlList acl = new AccessControlList();
             acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
@@ -271,6 +275,25 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             return ChunkHandle.writeHandle(chunkName);
         } catch (Exception e) {
             throw convertException(chunkName, "doCreate", e);
+        }
+    }
+
+    @Override
+    protected ChunkHandle doCreateWithContent(String chunkName, int length, InputStream data) throws ChunkStorageException {
+        try {
+            val objectPath = getObjectPath(chunkName);
+
+            S3ObjectMetadata metadata = new S3ObjectMetadata().withContentType("application/octet-stream").withContentLength(length);
+            val request = new PutObjectRequest(this.config.getBucket(), objectPath, data).withObjectMetadata(metadata);
+            AccessControlList acl = new AccessControlList();
+            acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
+            request.setAcl(acl);
+
+            client.putObject(request);
+
+            return ChunkHandle.writeHandle(chunkName);
+        } catch (Exception e) {
+            throw convertException(chunkName, "doCreateWithContent", e);
         }
     }
 

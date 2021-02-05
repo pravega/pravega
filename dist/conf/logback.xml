@@ -21,9 +21,9 @@ You may obtain a copy of the License at
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
             <!-- daily rollover. Make sure the path matches the one in the file element or else
              the rollover logs are placed in the working directory. -->
-            <fileNamePattern>${log.dir:-.}/${log.name:-pravega}_%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <fileNamePattern>${log.dir:-.}/%d{YYYY-MM-dd, aux}/${log.name:-pravega}_%d{yyyy-MM-dd_HH}.%i.log.gz</fileNamePattern>
             <!-- each file should be at most 100MB, keep 30 files worth of history, but at most 10GB -->
-            <maxFileSize>100MB</maxFileSize>
+            <maxFileSize>10MB</maxFileSize>
             <maxHistory>30</maxHistory>
             <totalSizeCap>10GB</totalSizeCap>
         </rollingPolicy>
