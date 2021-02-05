@@ -147,6 +147,12 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
             return;
         }
 
+        if (cmd instanceof WireCommands.KeepAlive) {
+            // The SegmentStore responds to a KeepAlive WireCommand, this ensures the client can detect unresponsive
+            // SegmentStores due to network glitches. No action is required for the client on receiving this WireCommand.
+            return;
+        }
+
         // Obtain ReplyProcessor and process the reply.
         ReplyProcessor processor = getReplyProcessor(cmd);
         if (processor != null) {
@@ -247,8 +253,8 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     private ReplyProcessor getReplyProcessor(Reply cmd) {
         int flowId = disableFlow.get() ? FLOW_DISABLED : Flow.toFlowID(cmd.getRequestId());
         final ReplyProcessor processor = flowIdReplyProcessorMap.get(flowId);
-        if (processor == null) {
-            log.warn("No ReplyProcessor found for the provided flowId {}. Ignoring response", flowId);
+        if (processor == null ) {
+            log.warn("No ReplyProcessor found for the provided flowId {} and reply {}. Ignoring response", flowId, cmd);
             if (cmd instanceof WireCommands.ReleasableCommand) {
                 ((WireCommands.ReleasableCommand) cmd).release();
             }
