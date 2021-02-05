@@ -115,7 +115,6 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                 .statsRecorder(Mockito.mock(SegmentStatsRecorder.class))
                 .build();
 
-
         WireCommands.KeepAlive keepAliveCommand = new WireCommands.KeepAlive();
         processor.keepAlive(keepAliveCommand);
         verify(connection).send(new WireCommands.KeepAlive());
