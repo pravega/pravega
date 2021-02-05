@@ -68,13 +68,17 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     /* Cluster name */
     private final String clusterName = "singlenode-" + UUID.randomUUID();
-    private boolean enableMetrics;
 
     /*Enabling this will configure security for the singlenode with hardcoded cert files and creds.*/
     private boolean enableAuth;
     private boolean enableTls;
 
     private boolean enableTlsReload;
+
+    /* Metrics related variables*/
+    private boolean enableMetrics;
+    private boolean enableInfluxDB;
+    private int metricsReportInterval;
 
     /*Controller related variables*/
     private boolean isInProcController;
@@ -153,7 +157,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                     "TLS enabled, but not all parameters set");
 
             this.isInProcHDFS = this.isInMemStorage ? false : true;
-            return new InProcPravegaCluster(isInMemStorage, enableMetrics, enableAuth, enableTls, enableTlsReload,
+            return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, enableTlsReload,
+                    enableMetrics, enableInfluxDB, metricsReportInterval,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
@@ -305,7 +310,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                                          .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
                                          .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
                 .include(MetricsConfig.builder()
-                        .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
+                        .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics)
+                        .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, enableInfluxDB)
+                        .with(MetricsConfig.OUTPUT_FREQUENCY, metricsReportInterval));
 
         nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build());
         nodeServiceStarter[segmentStoreId].start();
