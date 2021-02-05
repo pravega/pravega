@@ -14,6 +14,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -27,6 +28,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -45,7 +47,10 @@ import org.junit.Test;
 public class MetadataCleanerTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1;
     private static final int MAX_ACTIVE_COUNT = 1000;
-    private static final ContainerConfig CONFIG = ContainerConfig.builder().build();
+    private static final int ATTRIBUTES_PER_SEGMENT = 10;
+    private static final ContainerConfig CONFIG = ContainerConfig.builder()
+            .with(ContainerConfig.MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT, ATTRIBUTES_PER_SEGMENT / 2)
+            .build();
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     @Override
@@ -76,6 +81,19 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
         context.cleaner.runOnce().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         AssertExtensions.assertContainsSameElements("Unexpected evicted segments on the second round.",
                 expected2, context.cleanedUpMetadata, Comparator.comparingLong(SegmentMetadata::getId));
+
+        // Verify that we have properly evicted the attributes that we should have.
+        val nonEvictedSegmentIds = context.metadata.getAllStreamSegmentIds();
+        AssertExtensions.assertGreaterThan("", 0, nonEvictedSegmentIds.size());
+        for (val segmentId : nonEvictedSegmentIds) {
+            val sm = context.metadata.getStreamSegmentMetadata(segmentId);
+            if (sm.isDeleted() || sm.isMerged()) {
+                continue;
+            }
+
+            val attributeCount = sm.getAttributes((k, v) -> !Attributes.isCoreAttribute(k)).size();
+            Assert.assertEquals("Unexpected number of remaining non-core attributes.", CONFIG.getMaxCachedExtendedAttributeCount(), attributeCount);
+        }
     }
 
     /**
@@ -103,7 +121,8 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void populateMetadata(UpdateableContainerMetadata metadata, int deletedCount, int mergedCount, int evictableCount, int nonEvictableCount) {
+    private void populateMetadata(UpdateableContainerMetadata metadata, int deletedCount, int mergedCount, int evictableCount,
+                                  int nonEvictableCount, int attributeCount) {
         val truncationSeqNo = 10000L;
         metadata.removeTruncationMarkers(truncationSeqNo);
 
@@ -139,7 +158,16 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
             val name = String.format("%s_NonEvictable", id);
             val m = metadata.mapStreamSegmentId(name, id);
             m.setLength(4000 + i);
+            m.setLastUsed(truncationSeqNo - 1); // So we can evict some attributes.
+            for (int j = 0; j < CONFIG.getMaxCachedExtendedAttributeCount(); j++) {
+                m.updateAttributes(Collections.singletonMap(UUID.randomUUID(), (long) j));
+            }
+
+            // This will make the segment non-evictable, and the same with the rest of the attributes.
             m.setLastUsed(truncationSeqNo + 1);
+            for (int j = CONFIG.getMaxCachedExtendedAttributeCount(); j < attributeCount; j++) {
+                m.updateAttributes(Collections.singletonMap(UUID.randomUUID(), attributeCount + (long) j));
+            }
         }
 
         metadata.enterRecoveryMode();
@@ -165,7 +193,7 @@ public class MetadataCleanerTests extends ThreadPooledTestSuite {
 
             this.metadataStore = new TestMetadataStore(connector);
             this.cleaner = new MetadataCleaner(CONFIG, this.metadata, this.metadataStore, this.cleanedUpMetadata::addAll, executorService(), "");
-            populateMetadata(this.metadata, 10, 20, 30, 40);
+            populateMetadata(this.metadata, 10, 20, 30, 40, ATTRIBUTES_PER_SEGMENT);
         }
 
         @Override
