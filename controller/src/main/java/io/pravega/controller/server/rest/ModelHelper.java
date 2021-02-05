@@ -40,7 +40,7 @@ public class ModelHelper {
     public static final StreamConfiguration getCreateStreamConfig(final CreateStreamRequest createStreamRequest) {
         ScalingPolicy scalingPolicy;
         if (createStreamRequest.getScalingPolicy().getType() == ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS) {
-           scalingPolicy = ScalingPolicy.fixed(createStreamRequest.getScalingPolicy().getMinSegments());
+            scalingPolicy = ScalingPolicy.fixed(createStreamRequest.getScalingPolicy().getMinSegments());
         } else if (createStreamRequest.getScalingPolicy().getType() ==
                 ScalingConfig.TypeEnum.BY_RATE_IN_EVENTS_PER_SEC) {
             scalingPolicy = ScalingPolicy.byEventRate(
@@ -71,9 +71,9 @@ public class ModelHelper {
                     break;
                 case LIMITED_DAYS:
                     if (createStreamRequest.getRetentionPolicy().getMaxValue() == null
-                        && createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention() == null) {
+                            && createStreamRequest.getRetentionPolicy().getMaxTimeBasedRetention() == null) {
                         retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
-                                    createStreamRequest.getRetentionPolicy().getValue());
+                                createStreamRequest.getRetentionPolicy().getValue());
                     } else {
                         retentionPolicy = getRetentionPolicy(createStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
                                 createStreamRequest.getRetentionPolicy().getValue(),
@@ -125,23 +125,23 @@ public class ModelHelper {
                     break;
                 case LIMITED_DAYS:
                     retentionPolicy = getRetentionPolicy(updateStreamRequest.getRetentionPolicy().getTimeBasedRetention(),
-                                                                        updateStreamRequest.getRetentionPolicy().getValue());
+                            updateStreamRequest.getRetentionPolicy().getValue());
                     break;
                 default:
                     throw new NotImplementedException("retention policy type not supported");
             }
         }
         return StreamConfiguration.builder()
-                                  .scalingPolicy(scalingPolicy)
-                                  .retentionPolicy(retentionPolicy)
-                                  .build();
+                .scalingPolicy(scalingPolicy)
+                .retentionPolicy(retentionPolicy)
+                .build();
     }
 
     /**
      * The method translates the internal object StreamConfiguration into REST response object.
      *
-     * @param scope the scope of the stream
-     * @param streamName the name of the stream
+     * @param scope               the scope of the stream
+     * @param streamName          the name of the stream
      * @param streamConfiguration The configuration of stream
      * @return Stream properties wrapped in StreamResponse object
      */
@@ -204,7 +204,7 @@ public class ModelHelper {
                 Duration.ofDays(timeRetention.getDays())
                         .plusHours(timeRetention.getHours())
                         .plusMinutes(timeRetention.getMinutes())
-                :  Duration.ofDays(retentionInDays);
+                : Duration.ofDays(retentionInDays);
         return RetentionPolicy.byTime(retentionDuration);
     }
 
@@ -214,22 +214,23 @@ public class ModelHelper {
                 Duration.ofDays(timeRetention.getDays())
                         .plusHours(timeRetention.getHours())
                         .plusMinutes(timeRetention.getMinutes())
-                :  Duration.ofDays(retentionInDays);
+                : Duration.ofDays(retentionInDays);
         Duration retentionDurationMax = (maxTimeRetention != null && maxRetentionInDays == 0) ?
                 Duration.ofDays(maxTimeRetention.getDays())
                         .plusHours(maxTimeRetention.getHours())
                         .plusMinutes(maxTimeRetention.getMinutes())
-                :  Duration.ofDays(maxRetentionInDays);
+                : Duration.ofDays(maxRetentionInDays);
         return RetentionPolicy.byTime(retentionDurationMin, retentionDurationMax);
     }
 
     /**
      * This method takes total retention duration in milliseconds and
      * computes minutes from remainder ms after subtracting (daysInMs + hoursInMs)
+     *
      * @param totalDurationInMs retention duration in milliseconds
-     * @param daysInMs milliseconds for days in the retention duration
-     * @param hours hours in the retention duration. This absolute value not in ms.
-     * */
+     * @param daysInMs          milliseconds for days in the retention duration
+     * @param hours             hours in the retention duration. This absolute value not in ms.
+     */
     private static long getMinsFromMillis(long totalDurationInMs, long daysInMs, long hours) {
         long remainderMs = 0L;
         if (hours > 0) {

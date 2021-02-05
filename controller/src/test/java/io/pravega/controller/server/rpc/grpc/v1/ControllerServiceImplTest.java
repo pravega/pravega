@@ -574,13 +574,13 @@ public abstract class ControllerServiceImplTest {
                 .endingStreamCuts(endSC).build();
         ResultObserver<CreateReaderGroupResponse> result = new ResultObserver<>();
         String rgName = "rg_1";
-        this.controllerService.createReaderGroup(ModelHelper.decode(SCOPE1, rgName, config), result);
+        this.controllerService.createReaderGroup(ModelHelper.decode(SCOPE1, rgName, config, config.getReaderGroupId()), result);
         CreateReaderGroupResponse createRGStatus = result.get();
         assertEquals("Create Reader Group Invalid RG Name", CreateReaderGroupResponse.Status.INVALID_RG_NAME, createRGStatus.getStatus());
 
         ResultObserver<CreateReaderGroupResponse> result1 = new ResultObserver<>();
         rgName = "rg1";
-        this.controllerService.createReaderGroup(ModelHelper.decode("somescope", rgName, config), result1);
+        this.controllerService.createReaderGroup(ModelHelper.decode("somescope", rgName, config, config.getReaderGroupId()), result1);
         createRGStatus = result1.get();
         assertEquals("Create Reader Group Scope not found", CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND, createRGStatus.getStatus());
     }

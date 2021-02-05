@@ -10,7 +10,6 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
@@ -21,6 +20,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.CreateReaderGroupEvent;
+import io.pravega.shared.controller.event.RGStreamCutRecord;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
@@ -74,16 +74,8 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
     }
 
     private ReaderGroupConfig getConfigFromEvent(CreateReaderGroupEvent request) {
-        Map<Stream, StreamCut> startStreamCut = request.getStartingStreamCuts().entrySet()
-                .stream().collect(Collectors.toMap(e -> Stream.of(e.getKey()),
-                        e -> ModelHelper.generateStreamCut(Stream.of(e.getKey()).getScope(),
-                                Stream.of(e.getKey()).getStreamName(),
-                                e.getValue().getStreamCut())));
-        Map<Stream, StreamCut> endStreamCut = request.getEndingStreamCuts().entrySet()
-                .stream().collect(Collectors.toMap(e -> Stream.of(e.getKey()),
-                        e -> ModelHelper.generateStreamCut(Stream.of(e.getKey()).getScope(),
-                                Stream.of(e.getKey()).getStreamName(),
-                                e.getValue().getStreamCut())));
+        Map<Stream, StreamCut> startStreamCut = getStreamCutMapFromRecord(request.getStartingStreamCuts());
+        Map<Stream, StreamCut> endStreamCut = getStreamCutMapFromRecord(request.getEndingStreamCuts());
         return ReaderGroupConfig.builder().readerGroupId(request.getReaderGroupId())
                 .groupRefreshTimeMillis(request.getGroupRefreshTimeMillis())
                 .automaticCheckpointIntervalMillis(request.getAutomaticCheckpointIntervalMillis())
@@ -93,4 +85,13 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
                 .startingStreamCuts(startStreamCut)
                 .endingStreamCuts(endStreamCut).build();
     }
+
+    private Map<Stream, StreamCut> getStreamCutMapFromRecord(final Map<String, RGStreamCutRecord> streamCutMap) {
+        return streamCutMap.entrySet()
+                .stream().collect(Collectors.toMap(e -> Stream.of(e.getKey()),
+                        e -> io.pravega.client.control.impl.ModelHelper.generateStreamCut(Stream.of(e.getKey()).getScope(),
+                                Stream.of(e.getKey()).getStreamName(),
+                                e.getValue().getStreamCut())));
+    }
+
 }

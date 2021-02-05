@@ -1522,7 +1522,7 @@ public class ControllerImpl implements Controller {
     //endregion
 
     // region ReaderGroups
-    public CompletableFuture<Boolean> createReaderGroup(String scope, String rgName, final ReaderGroupConfig rgConfig) {
+    public CompletableFuture<ReaderGroupConfig> createReaderGroup(String scope, String rgName, final ReaderGroupConfig rgConfig) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(rgName, "rgName");
@@ -1533,7 +1533,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<CreateReaderGroupResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<CreateReaderGroupResponse> callback = new RPCAsyncCallback<>(requestId, "createReaderGroup", scope, rgName, rgConfig);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "createReaderGroup", scope, rgName)
-                    .createReaderGroup(ModelHelper.decode(scope, rgName, rgConfig), callback);
+                    .createReaderGroup(ModelHelper.decode(scope, rgName, rgConfig, rgConfig.getReaderGroupId()), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -1549,7 +1549,7 @@ public class ControllerImpl implements Controller {
                     throw new IllegalArgumentException("Scope does not exist: " + scope);
                 case SUCCESS:
                     log.info(requestId, "ReaderGroup created successfully: {}", rgName);
-                    return true;
+                    return ModelHelper.encode(x.getConfig());
                 case UNRECOGNIZED:
                 default:
                     throw new ControllerFailureException("Unknown return status creating reader group " + rgName
@@ -1574,7 +1574,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<UpdateReaderGroupResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateReaderGroupResponse> callback = new RPCAsyncCallback<>(requestId, "updateReaderGroup", scope, rgName, rgConfig);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "updateReaderGroup", scope, rgName)
-                    .updateReaderGroup(ModelHelper.decode(scope, rgName, rgConfig), callback);
+                    .updateReaderGroup(ModelHelper.decode(scope, rgName, rgConfig, rgConfig.getReaderGroupId()), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {

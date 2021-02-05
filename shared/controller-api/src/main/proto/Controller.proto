@@ -111,8 +111,7 @@ message CreateReaderGroupResponse {
         INVALID_RG_NAME = 3;
     }
     Status status = 1;
-    string readerGroupId = 2;
-    int64 generation = 3;
+    ReaderGroupConfiguration config = 2;
 }
 
 message DeleteReaderGroupStatus {

@@ -355,16 +355,15 @@ public class StreamMetadataTasks extends TaskBase {
                                          .thenCompose(done -> streamMetadataStore.getReaderGroupId(scope, rgName)
                                          .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
                                                  .thenApply(cfgRecord -> CreateReaderGroupResponse.newBuilder()
-                                                         .setReaderGroupId(rgId.toString())
-                                                         .setGeneration(cfgRecord.getObject().getGeneration())
+                                                         .setConfig(encodeReaderGroupConfigRecord(scope, rgName, cfgRecord.getObject(), rgId))
                                                          .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build()))));
                      }
                      return streamMetadataStore.getReaderGroupId(scope, rgName)
                              .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
                                      .thenApply(cfgRecord -> Controller.CreateReaderGroupResponse.newBuilder()
-                                     .setReaderGroupId(rgId.toString())
-                                     .setGeneration(cfgRecord.getObject().getGeneration())
-                                     .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build()));
+                                     .setConfig(encodeReaderGroupConfigRecord(scope, rgName, cfgRecord.getObject(), rgId))
+                                     .setStatus(CreateReaderGroupResponse.Status.SUCCESS)
+                                     .build()));
                  });
          });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
@@ -450,16 +449,14 @@ public class StreamMetadataTasks extends TaskBase {
                                                 .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
                                                         .thenApply(cfgRecord ->
                                                         CreateReaderGroupResponse.newBuilder()
-                                                        .setReaderGroupId(rgId.toString())
-                                                        .setGeneration(cfgRecord.getObject().getGeneration())
-                                                        .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build())));
+                                                                .setConfig(encodeReaderGroupConfigRecord(scope, rgName, cfgRecord.getObject(), rgId))
+                                                                .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build())));
                                     }
                                     return streamMetadataStore.getReaderGroupId(scope, rgName)
                                             .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
                                                     .thenApply(cfgRecord -> CreateReaderGroupResponse.newBuilder()
-                                                    .setReaderGroupId(rgId.toString())
-                                                    .setGeneration(cfgRecord.getObject().getGeneration())
-                                                    .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build()));
+                                                            .setConfig(encodeReaderGroupConfigRecord(scope, rgName, cfgRecord.getObject(), rgId))
+                                                            .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build()));
                                 });
                     });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, 10, executor);
@@ -472,6 +469,42 @@ public class StreamMetadataTasks extends TaskBase {
                     log.debug("ReaderGroup State is {}", state.toString());
                     return ReaderGroupState.ACTIVE.equals(state);
                 });
+    }
+
+    /**
+     * The method translates the internal object ReaderGroupConfigRecord object into REST response object.
+     *
+     * @param scope the scope of the Reader Group.
+     * @param rgName the name of the Reader Group.
+     * @param rgConfig The configuration of Reader Group.
+     * @return Stream properties wrapped in StreamResponse object
+     */
+    private static final ReaderGroupConfiguration encodeReaderGroupConfigRecord(String scope, String rgName,
+                                                                        final ReaderGroupConfigRecord rgConfig,
+                                                                                final UUID rgId) {
+        List<Controller.StreamCut> startStreamCuts = rgConfig.getStartingStreamCuts().entrySet().stream()
+                .map(e -> Controller.StreamCut.newBuilder()
+                        .setStreamInfo(ModelHelper.createStreamInfo(Stream.of(e.getKey()).getScope(), Stream.of(e.getKey()).getStreamName()))
+                        .putAllCut(e.getValue().getStreamCut()).build()).collect(Collectors.toList());
+
+        List<Controller.StreamCut> endStreamCuts = rgConfig.getEndingStreamCuts().entrySet().stream()
+                .map(e -> Controller.StreamCut.newBuilder()
+                        .setStreamInfo(ModelHelper.createStreamInfo(Stream.of(e.getKey()).getScope(), Stream.of(e.getKey()).getStreamName()))
+                        .putAllCut(e.getValue().getStreamCut()).build()).collect(Collectors.toList());
+
+        final Controller.ReaderGroupConfiguration.Builder builder = ReaderGroupConfiguration.newBuilder()
+                .setScope(scope)
+                .setReaderGroupName(rgName)
+                .setGroupRefreshTimeMillis(rgConfig.getGroupRefreshTimeMillis())
+                .setAutomaticCheckpointIntervalMillis(rgConfig.getAutomaticCheckpointIntervalMillis())
+                .setMaxOutstandingCheckpointRequest(rgConfig.getMaxOutstandingCheckpointRequest())
+                .setRetentionType(rgConfig.getRetentionTypeOrdinal())
+                .setGeneration(rgConfig.getGeneration())
+                .setReaderGroupId(rgId.toString())
+                .addAllStartingStreamCuts(startStreamCuts)
+                .addAllEndingStreamCuts(endStreamCuts);
+        return builder.build();
+
     }
 
     /**
