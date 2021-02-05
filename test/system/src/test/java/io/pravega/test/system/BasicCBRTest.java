@@ -187,14 +187,14 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
 
         try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
-             EventStreamReader<Integer> reader = clientFactory.createReader(readerId, READER_GROUP,
-                     new JavaSerializer<Integer>(), readerConfig)) {
+             EventStreamReader<String> reader = clientFactory.createReader(readerId, READER_GROUP,
+                     new JavaSerializer<String>(), readerConfig)) {
 
             streamCuts = readerGroup.generateStreamCuts(executor); //create checkpoint
 
             Exceptions.handleInterrupted(() -> TimeUnit.MILLISECONDS.sleep(GROUP_REFRESH_TIME_MILLIS)); // sleep for group refresh.
             //read the next event, this causes the reader to update its latest offset.
-            EventRead<Integer> event = reader.readNextEvent(READ_TIMEOUT);
+            EventRead<String> event = reader.readNextEvent(READ_TIMEOUT);
             assertTrue("No events expected as all events are read", (event.getEvent() == null) && (!event.isCheckpoint()));
             Futures.exceptionListener(streamCuts, t -> log.error("StreamCut generation failed", t));
             assertTrue("Stream cut generation should be completed", Futures.await(streamCuts));
