@@ -253,8 +253,8 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     private ReplyProcessor getReplyProcessor(Reply cmd) {
         int flowId = disableFlow.get() ? FLOW_DISABLED : Flow.toFlowID(cmd.getRequestId());
         final ReplyProcessor processor = flowIdReplyProcessorMap.get(flowId);
-        if (processor == null ) {
-            log.warn("No ReplyProcessor found for the provided flowId {} and reply {}. Ignoring response", flowId, cmd);
+        if (processor == null) {
+            log.warn("No ReplyProcessor found for the provided flowId {}. Ignoring response", flowId);
             if (cmd instanceof WireCommands.ReleasableCommand) {
                 ((WireCommands.ReleasableCommand) cmd).release();
             }
