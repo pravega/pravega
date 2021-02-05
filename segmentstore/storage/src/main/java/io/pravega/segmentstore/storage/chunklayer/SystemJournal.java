@@ -100,6 +100,9 @@ public class SystemJournal {
     @GuardedBy("lock")
     private int currentFileIndex;
 
+    @GuardedBy("lock")
+    private boolean newChunkRequired;
+
     /**
      * String prefix for all system segments.
      */
@@ -155,7 +158,9 @@ public class SystemJournal {
      * @throws Exception Exception if any.
      */
     public void initialize() throws Exception {
-        chunkStorage.create(getSystemJournalChunkName()).get();
+        if (chunkStorage.supportsAppend()) {
+            chunkStorage.create(getSystemJournalChunkName()).get();
+        }
     }
 
     /**
@@ -167,7 +172,6 @@ public class SystemJournal {
     public CompletableFuture<Void> bootstrap(long epoch) throws Exception {
         this.epoch = epoch;
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
-        Preconditions.checkState(!chunkStorage.exists(getSystemJournalChunkName()).get());
         try (val txn = metadataStore.beginTransaction(false, getSystemSegments())) {
             // Keep track of offsets at which chunks were added to the system segments.
             val chunkStartOffsets = new HashMap<String, Long>();
@@ -245,7 +249,7 @@ public class SystemJournal {
                 }
                 // Add a new log file if required.
                 if (!chunkStorage.supportsAppend() || !config.isAppendEnabled() || !done) {
-                    startNewJournalFile();
+                    newChunkRequired = true;
                 }
             }
         }
@@ -575,7 +579,7 @@ public class SystemJournal {
 
         // Write snapshot
         val snapshotFile = getSystemJournalChunkName(containerId, epoch, 0);
-        currentHandle = chunkStorage.create(snapshotFile).get();
+
         ByteArraySegment bytes;
         try {
             bytes = SYSTEM_SNAPSHOT_SERIALIZER.serialize(systemSnapshot);
@@ -583,10 +587,11 @@ public class SystemJournal {
             throw new ChunkStorageException(getSystemJournalChunkName(), "Unable to serialize", e);
         }
         synchronized (lock) {
-            // Persist
-            writeToJournal(bytes);
+            currentHandle = chunkStorage.createWithContent(snapshotFile,
+                        bytes.getLength(),
+                        new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())).get();
             // Start new journal.
-            startNewJournalFile();
+            newChunkRequired = true;
         }
 
     }
@@ -596,19 +601,22 @@ public class SystemJournal {
      * @param bytes Bytes to write.
      */
     private void writeToJournal(ByteArraySegment bytes) throws ExecutionException, InterruptedException {
-        val bytesWritten = chunkStorage.write(currentHandle, systemJournalOffset, bytes.getLength(),
-                new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())).get();
-        Preconditions.checkState(bytesWritten == bytes.getLength());
-        systemJournalOffset += bytesWritten;
-    }
 
-    /**
-     * Adds a new System journal file.
-     */
-    private void startNewJournalFile() throws ExecutionException, InterruptedException {
-        currentHandle = chunkStorage.create(getSystemJournalChunkName(containerId, epoch, currentFileIndex + 1)).get();
-        currentFileIndex++;
-        systemJournalOffset = 0;
+        if (newChunkRequired) {
+            currentFileIndex++;
+            systemJournalOffset = 0;
+            currentHandle = chunkStorage.createWithContent(getSystemJournalChunkName(containerId, epoch, currentFileIndex), bytes.getLength(),
+                    new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())).get();
+            systemJournalOffset += bytes.getLength();
+            newChunkRequired = false;
+        } else {
+            Preconditions.checkState(chunkStorage.supportsAppend() && config.isAppendEnabled());
+            val bytesWritten = chunkStorage.write(currentHandle, systemJournalOffset, bytes.getLength(),
+                    new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())).get();
+            Preconditions.checkState(bytesWritten == bytes.getLength(),
+                    "Bytes written do not match expected length. Actual=%d, expected=%d", bytesWritten, bytes.getLength());
+            systemJournalOffset += bytesWritten;
+        }
     }
 
     /**
