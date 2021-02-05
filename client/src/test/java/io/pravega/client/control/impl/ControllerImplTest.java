@@ -81,7 +81,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
@@ -351,25 +351,29 @@ public class ControllerImplTest {
 
             @Override
             public void createReaderGroup(ReaderGroupConfiguration request,
-                                          StreamObserver<CreateReaderGroupStatus> responseObserver) {
+                                          StreamObserver<CreateReaderGroupResponse> responseObserver) {
                 if (request.getReaderGroupName().equals("rg1")) {
-                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
-                            .setStatus(CreateReaderGroupStatus.Status.SUCCESS)
+                    responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
+                            .setReaderGroupId(UUID.randomUUID().toString())
+                            .setStatus(CreateReaderGroupResponse.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg2")) {
-                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
-                            .setStatus(CreateReaderGroupStatus.Status.FAILURE)
+                    responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
+                            .setReaderGroupId(UUID.randomUUID().toString())
+                            .setStatus(CreateReaderGroupResponse.Status.FAILURE)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg3")) {
-                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
-                            .setStatus(CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND)
+                    responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
+                            .setReaderGroupId(UUID.randomUUID().toString())
+                            .setStatus(CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg4")) {
-                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
-                            .setStatus(CreateReaderGroupStatus.Status.INVALID_RG_NAME)
+                    responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
+                            .setReaderGroupId(UUID.randomUUID().toString())
+                            .setStatus(CreateReaderGroupResponse.Status.INVALID_RG_NAME)
                             .build());
                     responseObserver.onCompleted();
                 }
