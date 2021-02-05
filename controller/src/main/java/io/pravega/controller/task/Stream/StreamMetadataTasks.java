@@ -353,14 +353,18 @@ public class StreamMetadataTasks extends TaskBase {
                                  () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId()))
                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
                                          .thenCompose(done -> streamMetadataStore.getReaderGroupId(scope, rgName)
-                                         .thenApply(rgId -> Controller.CreateReaderGroupResponse.newBuilder()
+                                         .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
+                                                 .thenApply(cfgRecord -> CreateReaderGroupResponse.newBuilder()
                                                          .setReaderGroupId(rgId.toString())
-                                                         .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build())));
+                                                         .setGeneration(cfgRecord.getObject().getGeneration())
+                                                         .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build()))));
                      }
                      return streamMetadataStore.getReaderGroupId(scope, rgName)
-                             .thenApply(rgId -> Controller.CreateReaderGroupResponse.newBuilder()
+                             .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
+                                     .thenApply(cfgRecord -> Controller.CreateReaderGroupResponse.newBuilder()
                                      .setReaderGroupId(rgId.toString())
-                                     .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build());
+                                     .setGeneration(cfgRecord.getObject().getGeneration())
+                                     .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build()));
                  });
          });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
@@ -443,14 +447,19 @@ public class StreamMetadataTasks extends TaskBase {
                                         return streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId())
                                                 .thenCompose(x -> createReaderGroupTasks(scope, rgName, config, createTimestamp))
                                                 .thenCompose(status -> streamMetadataStore.getReaderGroupId(scope, rgName)
-                                                .thenApply(rgId -> CreateReaderGroupResponse.newBuilder()
+                                                .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
+                                                        .thenApply(cfgRecord ->
+                                                        CreateReaderGroupResponse.newBuilder()
                                                         .setReaderGroupId(rgId.toString())
-                                                        .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build()));
+                                                        .setGeneration(cfgRecord.getObject().getGeneration())
+                                                        .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build())));
                                     }
                                     return streamMetadataStore.getReaderGroupId(scope, rgName)
-                                            .thenApply(rgId -> CreateReaderGroupResponse.newBuilder()
+                                            .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
+                                                    .thenApply(cfgRecord -> CreateReaderGroupResponse.newBuilder()
                                                     .setReaderGroupId(rgId.toString())
-                                                    .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build());
+                                                    .setGeneration(cfgRecord.getObject().getGeneration())
+                                                    .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build()));
                                 });
                     });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, 10, executor);

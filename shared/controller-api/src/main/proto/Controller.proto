@@ -112,6 +112,7 @@ message CreateReaderGroupResponse {
     }
     Status status = 1;
     string readerGroupId = 2;
+    int64 generation = 3;
 }
 
 message DeleteReaderGroupStatus {
