@@ -231,8 +231,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
         } else {
             // No new chunk needed just write data to existing chunk.
-            return chunkedSegmentStorage.getChunkStorage().openWrite(lastChunkMetadata.get().getName())
-                    .thenAcceptAsync(h -> chunkHandle = h, chunkedSegmentStorage.getExecutor());
+            chunkHandle = ChunkHandle.writeHandle(lastChunkMetadata.get().getName());
+            return CompletableFuture.completedFuture(null);
         }
     }
 
