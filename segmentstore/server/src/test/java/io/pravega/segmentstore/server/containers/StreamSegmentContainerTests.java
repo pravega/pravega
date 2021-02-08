@@ -1604,7 +1604,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     public void testAttributeCleanup() throws Exception {
         final String segmentName = "segment";
         final UUID[] attributes = new UUID[]{Attributes.EVENT_COUNT, new UUID(0, 1), new UUID(0, 2), new UUID(0, 3)};
-        Map<UUID, Long> expectedAttributes = new HashMap<>();
+        Map<UUID, Long> allAttributes = new HashMap<>();
 
         final TestContainerConfig containerConfig = new TestContainerConfig();
         containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(250));
@@ -1624,23 +1624,32 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Add one append with some attribute changes and verify they were set correctly.
         val appendAttributes = createAttributeUpdates(attributes);
-        applyAttributes(appendAttributes, expectedAttributes);
-        localContainer.updateAttributes(segmentName, appendAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        applyAttributes(appendAttributes, allAttributes);
+        for (val au : appendAttributes) {
+            localContainer.updateAttributes(segmentName, Collections.singletonList(au), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        }
         SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after initial updateAttributes() call.", expectedAttributes, sp, AUTO_ATTRIBUTES);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after initial updateAttributes() call.", allAttributes, sp, AUTO_ATTRIBUTES);
 
         // Wait until the attributes are forgotten
-        localContainer.triggerAttributeCleanup(segmentName).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        localContainer.triggerAttributeCleanup(segmentName, containerConfig.getMaxCachedExtendedAttributeCount()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Now get attributes again and verify them.
         sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        val coreAttributes = Attributes.getCoreNonNullAttributes(expectedAttributes); // We expect extended attributes to be dropped in this case.
-        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction.", coreAttributes, sp, AUTO_ATTRIBUTES);
 
-        val allAttributes = localContainer.getAttributes(segmentName, expectedAttributes.keySet(), true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        AssertExtensions.assertMapEquals("Unexpected attributes after eviction & reload.", expectedAttributes, allAttributes);
+        // During attribute eviction, we expect all core attributes to be preserved, and only 1 extended attribute (as
+        // defined in the config) to be preserved. This extended attribute should be the last one we updated.
+        val expectedAttributes = new HashMap<>(Attributes.getCoreNonNullAttributes(allAttributes));
+        val lastExtAttribute = appendAttributes.stream()
+                .filter(au -> !Attributes.isCoreAttribute(au.getAttributeId()))
+                .reduce((a, b) -> b).get(); // .reduce() helps us get the last element in the stream.
+        expectedAttributes.put(lastExtAttribute.getAttributeId(), lastExtAttribute.getValue());
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction.", expectedAttributes, sp, AUTO_ATTRIBUTES);
+
+        val fetchedAttributes = localContainer.getAttributes(segmentName, allAttributes.keySet(), true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        AssertExtensions.assertMapEquals("Unexpected attributes after eviction & reload.", allAttributes, fetchedAttributes);
         sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & reload+getInfo.", expectedAttributes, sp, AUTO_ATTRIBUTES);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & reload+getInfo.", allAttributes, sp, AUTO_ATTRIBUTES);
     }
 
     /**
@@ -2466,14 +2475,14 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
          *
          * @param segmentName The segment we are trying to evict attributes for.
          */
-        CompletableFuture<Void> triggerAttributeCleanup(String segmentName) {
+        CompletableFuture<Void> triggerAttributeCleanup(String segmentName, int expectedExtendedAttributeCount) {
             CompletableFuture<Void> cleanupTask = Futures.futureWithTimeout(TIMEOUT, this.executor);
             SegmentMetadata sm = super.metadata.getStreamSegmentMetadata(super.metadata.getStreamSegmentId(segmentName, false));
 
             // Inject this callback into the MetadataCleaner callback, which was setup for us in createMetadataCleaner().
             this.metadataCleanupFinishedCallback = ignored -> {
-                boolean onlyCoreAttributes = sm.getAttributes().keySet().stream().allMatch(Attributes::isCoreAttribute);
-                if (onlyCoreAttributes) {
+                int extendedAttributeCount = sm.getAttributes((k, v) -> !Attributes.isCoreAttribute(k)).size();
+                if (extendedAttributeCount <= expectedExtendedAttributeCount) {
                     cleanupTask.complete(null);
                 }
             };
