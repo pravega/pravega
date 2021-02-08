@@ -612,7 +612,7 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     private void closeConnection(Reply reply, RawClient client) {
-        log.info("Closing connection as a result of receiving: {}", reply);
+        log.debug("Closing connection as a result of receiving: {}", reply);
         if (client != null) {
             try {
                 client.close();
@@ -671,10 +671,10 @@ public class SegmentHelper implements AutoCloseable {
         Set<Class<? extends Reply>> expectedReplies = EXPECTED_SUCCESS_REPLIES.get(requestType);
         Set<Class<? extends Reply>> expectedFailingReplies = EXPECTED_FAILING_REPLIES.get(requestType);
         if (expectedReplies != null && expectedReplies.contains(reply.getClass())) {
-            log.info(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
+            log.debug(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
                     reply.getClass().getSimpleName(), reply.getRequestId());
         } else if (expectedFailingReplies != null && expectedFailingReplies.contains(reply.getClass())) {
-            log.info(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
+            log.debug(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
                     reply.getClass().getSimpleName(), reply.getRequestId());
             if (reply instanceof WireCommands.NoSuchSegment) {
                 throw new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist);
