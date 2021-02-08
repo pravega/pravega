@@ -337,33 +337,13 @@ public class StreamMetadataTasks extends TaskBase {
          return isRGCreationComplete(scope, rgName)
                  .thenCompose(complete -> {
                      if (!complete) {
-                         Map<String, RGStreamCutRecord> startStreamCuts = config.getStartingStreamCuts().entrySet().stream()
-                                 .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
-                                         e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
-                         Map<String, RGStreamCutRecord> endStreamCuts = config.getEndingStreamCuts().entrySet().stream()
-                                 .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
-                                         e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
-                         CreateReaderGroupEvent event = new CreateReaderGroupEvent(requestId, scope, rgName, config.getGroupRefreshTimeMillis(),
-                                 config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
-                                 config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
-                                 startStreamCuts, endStreamCuts, createTimestamp);
-
-                         //3. Create Reader Group Metadata and submit event
-                         return eventHelper.addIndexAndSubmitTask(event,
+                         //3. Create Reader Group Metadata inside Scope and submit the event
+                         return eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, config, requestId, createTimestamp),
                                  () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId()))
                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
-                                         .thenCompose(done -> streamMetadataStore.getReaderGroupId(scope, rgName)
-                                         .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
-                                                 .thenApply(cfgRecord -> CreateReaderGroupResponse.newBuilder()
-                                                         .setConfig(encodeReaderGroupConfigRecord(scope, rgName, cfgRecord.getObject(), rgId))
-                                                         .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build()))));
+                                         .thenCompose(done -> buildCreateSuccessResponse(scope, rgName)));
                      }
-                     return streamMetadataStore.getReaderGroupId(scope, rgName)
-                             .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
-                                     .thenApply(cfgRecord -> Controller.CreateReaderGroupResponse.newBuilder()
-                                     .setConfig(encodeReaderGroupConfigRecord(scope, rgName, cfgRecord.getObject(), rgId))
-                                     .setStatus(CreateReaderGroupResponse.Status.SUCCESS)
-                                     .build()));
+                     return buildCreateSuccessResponse(scope, rgName);
                  });
          });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
@@ -378,6 +358,29 @@ public class StreamMetadataTasks extends TaskBase {
         }
         return CompletableFuture.completedFuture(Boolean.TRUE);
         });
+    }
+
+    private CompletableFuture<CreateReaderGroupResponse> buildCreateSuccessResponse(final String scope, final String rgName) {
+        return streamMetadataStore.getReaderGroupId(scope, rgName)
+                .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
+                        .thenApply(cfgRecord -> Controller.CreateReaderGroupResponse.newBuilder()
+                                .setConfig(encodeReaderGroupConfigRecord(scope, rgName, cfgRecord.getObject(), rgId))
+                                .setStatus(CreateReaderGroupResponse.Status.SUCCESS)
+                                .build()));
+    }
+
+    private CreateReaderGroupEvent buildCreateRGEvent(String scope, String rgName, ReaderGroupConfig config,
+                                                      final long requestId, final long createTimestamp) {
+        Map<String, RGStreamCutRecord> startStreamCuts = config.getStartingStreamCuts().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                        e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+        Map<String, RGStreamCutRecord> endStreamCuts = config.getEndingStreamCuts().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                        e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+        return new CreateReaderGroupEvent(requestId, scope, rgName, config.getGroupRefreshTimeMillis(),
+                config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
+                config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
+                startStreamCuts, endStreamCuts, createTimestamp);
     }
 
     public CompletableFuture<CreateReaderGroupResponse.Status> createReaderGroupTasks(final String scope, final String readerGroup,
@@ -445,18 +448,16 @@ public class StreamMetadataTasks extends TaskBase {
                                     if (!complete) {
                                         return streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId())
                                                 .thenCompose(x -> createReaderGroupTasks(scope, rgName, config, createTimestamp))
-                                                .thenCompose(status -> streamMetadataStore.getReaderGroupId(scope, rgName)
-                                                .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
-                                                        .thenApply(cfgRecord ->
-                                                        CreateReaderGroupResponse.newBuilder()
-                                                                .setConfig(encodeReaderGroupConfigRecord(scope, rgName, cfgRecord.getObject(), rgId))
-                                                                .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build())));
+                                                .thenCompose(status -> {
+                                                    if (CreateReaderGroupResponse.Status.SUCCESS.equals(status)) {
+                                                        return buildCreateSuccessResponse(scope, rgName);
+                                                    } else {
+                                                        return CompletableFuture.completedFuture(CreateReaderGroupResponse.newBuilder()
+                                                                .setStatus(status).build());
+                                                    }
+                                                });
                                     }
-                                    return streamMetadataStore.getReaderGroupId(scope, rgName)
-                                            .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
-                                                    .thenApply(cfgRecord -> CreateReaderGroupResponse.newBuilder()
-                                                            .setConfig(encodeReaderGroupConfigRecord(scope, rgName, cfgRecord.getObject(), rgId))
-                                                            .setStatus(CreateReaderGroupResponse.Status.SUCCESS).build()));
+                                    return buildCreateSuccessResponse(scope, rgName);
                                 });
                     });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, 10, executor);

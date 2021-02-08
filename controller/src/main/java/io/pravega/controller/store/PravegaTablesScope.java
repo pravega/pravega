@@ -222,7 +222,7 @@ public class PravegaTablesScope implements Scope {
                         storeHelper.addNewEntryIfAbsent(tableName, readerGroupName, getIdInBytes(readerGroupId)),
                         e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException,
                         () -> storeHelper.createTable(tableName)
-                                .thenCompose(v -> storeHelper.addNewEntry(tableName, readerGroupName,
+                                .thenCompose(v -> storeHelper.addNewEntryIfAbsent(tableName, readerGroupName,
                                         getIdInBytes(readerGroupId))))));
 
     }
