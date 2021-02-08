@@ -28,6 +28,7 @@ import lombok.val;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -52,8 +53,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final long traceId;
     private final Timer timer;
-    private final ArrayList<SystemJournal.SystemJournalRecord> systemLogRecords = new ArrayList<>();
-    private final List<ChunkNameOffsetPair> newReadIndexEntries = new ArrayList<>();
+    private final List<SystemJournal.SystemJournalRecord> systemLogRecords = Collections.synchronizedList(new ArrayList<>());
+    private final List<ChunkNameOffsetPair> newReadIndexEntries = Collections.synchronizedList(new ArrayList<>());
     private final AtomicInteger chunksAddedCount = new AtomicInteger();
 
     private volatile boolean isCommitted = false;
@@ -332,7 +333,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             segmentMetadata.setOwnershipChanged(false);
             log.debug("{} write - First write after failover - op={}, segment={}.", chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), segmentMetadata.getName());
         }
-        segmentMetadata.incrementChunkCount();
+        segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() + 1);
 
         // Update the transaction.
         txn.create(newChunkMetadata);
@@ -349,7 +350,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
      * @param oldChunkName      Name of the previous last chunk.
      * @param newChunkName      Name of the new last chunk.
      */
-    private void addSystemLogRecord(ArrayList<SystemJournal.SystemJournalRecord> systemLogRecords, String streamSegmentName, long offset, String oldChunkName, String newChunkName) {
+    private void addSystemLogRecord(List<SystemJournal.SystemJournalRecord> systemLogRecords, String streamSegmentName, long offset, String oldChunkName, String newChunkName) {
         systemLogRecords.add(
                 SystemJournal.ChunkAddedRecord.builder()
                         .segmentName(streamSegmentName)
