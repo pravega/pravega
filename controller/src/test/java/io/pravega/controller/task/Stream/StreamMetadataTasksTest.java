@@ -411,10 +411,9 @@ public abstract class StreamMetadataTasksTest {
 
         // Create ReaderGroup 2 again, and check that it returns success, but RG is not re-created
         createFuture = streamMetadataTasks.createReaderGroup(SCOPE, "rg2", rgConfigSubscriber3, System.currentTimeMillis());
-        assertTrue(Futures.await(processEvent(requestEventWriter)));
         Controller.CreateReaderGroupResponse createResponse = createFuture.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse.getStatus());
-        assertEquals(rgIdSub2, createResponse.getConfig().getReaderGroupId());
+        assertEquals(rgIdSub2, UUID.fromString(createResponse.getConfig().getReaderGroupId()));
         assertEquals(rgConfigSubscriber2.getRetentionType().ordinal(), createResponse.getConfig().getRetentionType());
 
         createFuture = streamMetadataTasks.createReaderGroupInternal(SCOPE, "bad_rg_name", rgConfigSubscriber3, System.currentTimeMillis());
@@ -431,7 +430,7 @@ public abstract class StreamMetadataTasksTest {
         createFuture = streamMetadataTasks.createReaderGroupInternal(SCOPE, "rg4", rgConfigNonSubscriber, System.currentTimeMillis());
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createFuture.join().getStatus());
 
-        // LIst all subscriber ReaderGroup, there should be 3
+        // List all subscriber ReaderGroup, there should be 3
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
         assertEquals(SubscribersResponse.Status.SUCCESS, listSubscribersResponse.getStatus());
         assertEquals(3, listSubscribersResponse.getSubscribersList().size());
