@@ -1533,7 +1533,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<CreateReaderGroupResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<CreateReaderGroupResponse> callback = new RPCAsyncCallback<>(requestId, "createReaderGroup", scope, rgName, rgConfig);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "createReaderGroup", scope, rgName)
-                    .createReaderGroup(ModelHelper.decode(scope, rgName, rgConfig, rgConfig.getReaderGroupId()), callback);
+                    .createReaderGroup(ModelHelper.decode(scope, rgName, rgConfig), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -1574,7 +1574,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<UpdateReaderGroupResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateReaderGroupResponse> callback = new RPCAsyncCallback<>(requestId, "updateReaderGroup", scope, rgName, rgConfig);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "updateReaderGroup", scope, rgName)
-                    .updateReaderGroup(ModelHelper.decode(scope, rgName, rgConfig, rgConfig.getReaderGroupId()), callback);
+                    .updateReaderGroup(ModelHelper.decode(scope, rgName, rgConfig), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {

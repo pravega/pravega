@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rest;
 
+import io.pravega.client.stream.Stream;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
 import io.pravega.controller.server.rest.generated.model.TimeBasedRetention;
@@ -18,10 +19,15 @@ import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import org.apache.commons.lang3.NotImplementedException;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Provides translation between the Model classes and its REST representation.
@@ -197,6 +203,43 @@ public class ModelHelper {
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionConfig);
         return streamProperty;
+    }
+
+    /**
+     * The method translates the internal object ReaderGroupConfigRecord object into REST response object.
+     *
+     * @param scope the scope of the Reader Group.
+     * @param rgName the name of the Reader Group.
+     * @param rgConfig The configuration of Reader Group.
+     * @param rgId Reader Group Id.
+     * @return Stream properties wrapped in StreamResponse object
+     */
+    public static final Controller.ReaderGroupConfiguration encodeReaderGroupConfigRecord(String scope, String rgName,
+                                                                                           final ReaderGroupConfigRecord rgConfig,
+                                                                                           final UUID rgId) {
+        List<Controller.StreamCut> startStreamCuts = rgConfig.getStartingStreamCuts().entrySet().stream()
+                .map(e -> Controller.StreamCut.newBuilder()
+                        .setStreamInfo(io.pravega.client.control.impl.ModelHelper.createStreamInfo(Stream.of(e.getKey()).getScope(), Stream.of(e.getKey()).getStreamName()))
+                        .putAllCut(e.getValue().getStreamCut()).build()).collect(Collectors.toList());
+
+        List<Controller.StreamCut> endStreamCuts = rgConfig.getEndingStreamCuts().entrySet().stream()
+                .map(e -> Controller.StreamCut.newBuilder()
+                        .setStreamInfo(io.pravega.client.control.impl.ModelHelper.createStreamInfo(Stream.of(e.getKey()).getScope(), Stream.of(e.getKey()).getStreamName()))
+                        .putAllCut(e.getValue().getStreamCut()).build()).collect(Collectors.toList());
+
+        final Controller.ReaderGroupConfiguration.Builder builder = Controller.ReaderGroupConfiguration.newBuilder()
+                .setScope(scope)
+                .setReaderGroupName(rgName)
+                .setGroupRefreshTimeMillis(rgConfig.getGroupRefreshTimeMillis())
+                .setAutomaticCheckpointIntervalMillis(rgConfig.getAutomaticCheckpointIntervalMillis())
+                .setMaxOutstandingCheckpointRequest(rgConfig.getMaxOutstandingCheckpointRequest())
+                .setRetentionType(rgConfig.getRetentionTypeOrdinal())
+                .setGeneration(rgConfig.getGeneration())
+                .setReaderGroupId(rgId.toString())
+                .addAllStartingStreamCuts(startStreamCuts)
+                .addAllEndingStreamCuts(endStreamCuts);
+        return builder.build();
+
     }
 
     private static RetentionPolicy getRetentionPolicy(TimeBasedRetention timeRetention, long retentionInDays) {

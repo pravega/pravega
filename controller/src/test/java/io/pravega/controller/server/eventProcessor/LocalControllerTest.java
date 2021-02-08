@@ -285,7 +285,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         final String scope = "scope";
         final String rgName = "subscriber";
         when(this.mockControllerService.getStreamMetadataTasks()).thenReturn(mockStreamMetaTasks);
-        Controller.ReaderGroupConfiguration expectedConfig = ModelHelper.decode(scope, rgName, config, config.getReaderGroupId());
+        Controller.ReaderGroupConfiguration expectedConfig = ModelHelper.decode(scope, rgName, config);
         when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
                 .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupResponse.newBuilder()
                         .setConfig(expectedConfig)
@@ -353,7 +353,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 .endingStreamCuts(endSC).build();
 
         final String rgName = "subscriber";
-        Controller.ReaderGroupConfiguration expectedConfig = ModelHelper.decode(scope, rgName, config, config.getReaderGroupId());
+        Controller.ReaderGroupConfiguration expectedConfig = ModelHelper.decode(scope, rgName, config);
         when(this.mockControllerService.getReaderGroupConfig(anyString(), anyString())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ReaderGroupConfigResponse.newBuilder()
                         .setStatus(Controller.ReaderGroupConfigResponse.Status.SUCCESS)
