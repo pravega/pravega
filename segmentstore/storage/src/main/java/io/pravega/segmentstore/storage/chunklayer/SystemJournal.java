@@ -332,7 +332,7 @@ public class SystemJournal {
      */
     private byte[] getContents(String snapshotFile) throws ExecutionException, InterruptedException {
         val info = chunkStorage.getInfo(snapshotFile).get();
-        val h = chunkStorage.openRead(snapshotFile).get();
+        val h = ChunkHandle.readHandle(snapshotFile);
         byte[] contents = new byte[Math.toIntExact(info.getLength())];
         long fromOffset = 0;
         int remaining = contents.length;
