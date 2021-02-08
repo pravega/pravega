@@ -290,7 +290,13 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupResponse.newBuilder()
                         .setConfig(expectedConfig)
                         .setStatus(Controller.CreateReaderGroupResponse.Status.SUCCESS).build()));
-        Assert.assertEquals(expectedConfig, this.testController.createReaderGroup(scope, rgName, config).join());
+        ReaderGroupConfig responseCfg = this.testController.createReaderGroup(scope, rgName, config).join();
+        Assert.assertEquals(UUID.fromString(expectedConfig.getReaderGroupId()), responseCfg.getReaderGroupId());
+        Assert.assertEquals(expectedConfig.getRetentionType(), responseCfg.getRetentionType().ordinal());
+        Assert.assertEquals(expectedConfig.getGeneration(), responseCfg.getGeneration());
+        Assert.assertEquals(expectedConfig.getGroupRefreshTimeMillis(), responseCfg.getGroupRefreshTimeMillis());
+        Assert.assertEquals(expectedConfig.getAutomaticCheckpointIntervalMillis(), responseCfg.getAutomaticCheckpointIntervalMillis());
+        Assert.assertEquals(expectedConfig.getMaxOutstandingCheckpointRequest(), responseCfg.getMaxOutstandingCheckpointRequest());
 
         when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
                 .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupResponse.newBuilder()
