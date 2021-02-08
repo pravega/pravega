@@ -91,12 +91,12 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         createStreamHelper(getStreamForReaderGroup(groupName), StreamConfiguration.builder()
                                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                                   .build());
-        getThrowingException(controller.createReaderGroup(scope, groupName, config));
+        ReaderGroupConfig ctrlConfig = getThrowingException(controller.createReaderGroup(scope, groupName, config));
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
-        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
+        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, ctrlConfig);
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ctrlConfig, segments, getEndSegmentsForStreams(ctrlConfig), false));
     }
 
     @Override

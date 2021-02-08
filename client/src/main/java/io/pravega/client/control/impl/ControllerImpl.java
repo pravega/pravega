@@ -97,7 +97,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
@@ -1522,7 +1522,7 @@ public class ControllerImpl implements Controller {
     //endregion
 
     // region ReaderGroups
-    public CompletableFuture<Boolean> createReaderGroup(String scope, String rgName, final ReaderGroupConfig rgConfig) {
+    public CompletableFuture<ReaderGroupConfig> createReaderGroup(String scope, String rgName, final ReaderGroupConfig rgConfig) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(rgName, "rgName");
@@ -1530,8 +1530,8 @@ public class ControllerImpl implements Controller {
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "createReaderGroup", rgConfig, requestId);
 
-        final CompletableFuture<CreateReaderGroupStatus> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<CreateReaderGroupStatus> callback = new RPCAsyncCallback<>(requestId, "createReaderGroup", scope, rgName, rgConfig);
+        final CompletableFuture<CreateReaderGroupResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<CreateReaderGroupResponse> callback = new RPCAsyncCallback<>(requestId, "createReaderGroup", scope, rgName, rgConfig);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "createReaderGroup", scope, rgName)
                     .createReaderGroup(ModelHelper.decode(scope, rgName, rgConfig), callback);
             return callback.getFuture();
@@ -1549,7 +1549,7 @@ public class ControllerImpl implements Controller {
                     throw new IllegalArgumentException("Scope does not exist: " + scope);
                 case SUCCESS:
                     log.info(requestId, "ReaderGroup created successfully: {}", rgName);
-                    return true;
+                    return ModelHelper.encode(x.getConfig());
                 case UNRECOGNIZED:
                 default:
                     throw new ControllerFailureException("Unknown return status creating reader group " + rgName
@@ -1848,7 +1848,7 @@ public class ControllerImpl implements Controller {
                     .deleteKeyValueTable(kvtInfo, callback);
         }
 
-        void createReaderGroup(ReaderGroupConfiguration rgConfig, RPCAsyncCallback<CreateReaderGroupStatus> callback) {
+        void createReaderGroup(ReaderGroupConfiguration rgConfig, RPCAsyncCallback<CreateReaderGroupResponse> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .createReaderGroup(rgConfig, callback);
         }
