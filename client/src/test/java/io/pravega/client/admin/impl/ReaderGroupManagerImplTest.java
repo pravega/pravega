@@ -80,7 +80,7 @@ public class ReaderGroupManagerImplTest {
         when(controller.createStream(SCOPE, getStreamForReaderGroup(GROUP_NAME), StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build())).thenReturn(CompletableFuture.completedFuture(true));
-        when(controller.createReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(true));
+        when(controller.createReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(config));
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
         // Create a ReaderGroup
