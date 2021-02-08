@@ -15,7 +15,8 @@ import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -703,11 +704,12 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
     /**
      * Context data used to capture operation runtime information.
      */
-    @Data
     static class OperationContext {
         /**
          * End to end latency of the operation.
          */
-        Duration inclusiveLatency;
+        @Getter
+        @Setter
+        private volatile Duration inclusiveLatency = Duration.ZERO;
     }
 }
