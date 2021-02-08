@@ -370,15 +370,15 @@ public abstract class ControllerServiceWithStreamTest {
                 .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-        Controller.CreateReaderGroupStatus rgStatus =  consumer.createReaderGroup(SCOPE, "rg1",
+        Controller.CreateReaderGroupResponse rgStatus =  consumer.createReaderGroup(SCOPE, "rg1",
                                                         rgConfig, System.currentTimeMillis()).get();
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, rgStatus.getStatus());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, rgStatus.getStatus());
 
         // there should be 1 invocation
         verify(streamStore, times(1)).createReaderGroup(anyString(), anyString(), any(), anyLong(), any(), any());
 
         rgStatus = consumer.createReaderGroup(SCOPE, "rg1", rgConfig, System.currentTimeMillis()).get();
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, rgStatus.getStatus());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, rgStatus.getStatus());
 
         // verify that create readergroup is not called again
         verify(streamStore, times(1)).createReaderGroup(anyString(), anyString(), any(), anyLong(), any(), any());

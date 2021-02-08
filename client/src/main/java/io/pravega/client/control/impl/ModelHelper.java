@@ -462,7 +462,14 @@ public final class ModelHelper {
     }
 
 
-    public static final Controller.ReaderGroupConfiguration decode(String scope, String groupName, final ReaderGroupConfig config) {
+    public static final Controller.ReaderGroupConfiguration decode(String scope, String groupName,
+                                                                   final ReaderGroupConfig config) {
+        return decode(scope, groupName, config, config.getReaderGroupId());
+    }
+
+    public static final Controller.ReaderGroupConfiguration decode(String scope, String groupName,
+                                                                   final ReaderGroupConfig config,
+                                                                   final UUID readerGroupId) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(groupName, "ReaderGroup name is null");
         Preconditions.checkNotNull(config, "ReaderGroupConfig is null");
@@ -485,7 +492,7 @@ public final class ModelHelper {
                 .setMaxOutstandingCheckpointRequest(config.getMaxOutstandingCheckpointRequest())
                 .setRetentionType(config.getRetentionType().ordinal())
                 .setGeneration(config.getGeneration())
-                .setReaderGroupId(config.getReaderGroupId().toString())
+                .setReaderGroupId(readerGroupId.toString())
                 .addAllStartingStreamCuts(startStreamCuts)
                 .addAllEndingStreamCuts(endStreamCuts);
         return builder.build();

@@ -66,7 +66,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
@@ -322,7 +322,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @param createTimestamp Reader Group creation timestamp.
      * @return creation status.
      */
-    public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroup(final String scope, final String rgName,
+    public CompletableFuture<CreateReaderGroupResponse> createReaderGroup(final String scope, final String rgName,
                                                                                final ReaderGroupConfig config, long createTimestamp) {
     final long requestId = requestTracker.getRequestIdFor("createReaderGroup", scope, rgName);
     return RetryHelper.withRetriesAsync(() -> {
@@ -330,30 +330,20 @@ public class StreamMetadataTasks extends TaskBase {
       return streamMetadataStore.checkScopeExists(scope)
          .thenCompose(exists -> {
          if (!exists) {
-                  return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND);
+                  return CompletableFuture.completedFuture(Controller.CreateReaderGroupResponse.newBuilder()
+                                  .setStatus(CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND).build());
          }
          //2. check state of the ReaderGroup, if found
          return isRGCreationComplete(scope, rgName)
                  .thenCompose(complete -> {
                      if (!complete) {
-                         Map<String, RGStreamCutRecord> startStreamCuts = config.getStartingStreamCuts().entrySet().stream()
-                                 .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
-                                         e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
-                         Map<String, RGStreamCutRecord> endStreamCuts = config.getEndingStreamCuts().entrySet().stream()
-                                 .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
-                                         e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
-                         CreateReaderGroupEvent event = new CreateReaderGroupEvent(requestId, scope, rgName, config.getGroupRefreshTimeMillis(),
-                                 config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
-                                 config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
-                                 startStreamCuts, endStreamCuts, createTimestamp);
-
-                         //3. Create Reader Group Metadata and submit event
-                         return eventHelper.addIndexAndSubmitTask(event,
+                         //3. Create Reader Group Metadata inside Scope and submit the event
+                         return eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, config, requestId, createTimestamp),
                                  () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId()))
                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
-                                                 .thenApply(done -> CreateReaderGroupStatus.Status.SUCCESS));
+                                         .thenCompose(done -> buildCreateSuccessResponse(scope, rgName)));
                      }
-                     return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
+                     return buildCreateSuccessResponse(scope, rgName);
                  });
          });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
@@ -370,8 +360,31 @@ public class StreamMetadataTasks extends TaskBase {
         });
     }
 
-    public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroupTasks(String scope, String readerGroup,
-                                                                             ReaderGroupConfig config, long createTimestamp) {
+    private CompletableFuture<CreateReaderGroupResponse> buildCreateSuccessResponse(final String scope, final String rgName) {
+        return streamMetadataStore.getReaderGroupId(scope, rgName)
+                .thenCompose(rgId -> streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, null, executor)
+                        .thenApply(cfgRecord -> Controller.CreateReaderGroupResponse.newBuilder()
+                                .setConfig(io.pravega.controller.server.rest.ModelHelper.encodeReaderGroupConfigRecord(scope, rgName, cfgRecord.getObject(), rgId))
+                                .setStatus(CreateReaderGroupResponse.Status.SUCCESS)
+                                .build()));
+    }
+
+    private CreateReaderGroupEvent buildCreateRGEvent(String scope, String rgName, ReaderGroupConfig config,
+                                                      final long requestId, final long createTimestamp) {
+        Map<String, RGStreamCutRecord> startStreamCuts = config.getStartingStreamCuts().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                        e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+        Map<String, RGStreamCutRecord> endStreamCuts = config.getEndingStreamCuts().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey().getScopedName(),
+                        e -> new RGStreamCutRecord(ImmutableMap.copyOf(ModelHelper.getStreamCutMap(e.getValue())))));
+        return new CreateReaderGroupEvent(requestId, scope, rgName, config.getGroupRefreshTimeMillis(),
+                config.getAutomaticCheckpointIntervalMillis(), config.getMaxOutstandingCheckpointRequest(),
+                config.getRetentionType().ordinal(), config.getGeneration(), config.getReaderGroupId(),
+                startStreamCuts, endStreamCuts, createTimestamp);
+    }
+
+    public CompletableFuture<CreateReaderGroupResponse.Status> createReaderGroupTasks(final String scope, final String readerGroup,
+                                                                             final ReaderGroupConfig config, final long createTimestamp) {
         final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
         return streamMetadataStore.createReaderGroup(scope, readerGroup, config, createTimestamp, context, executor)
                 .thenCompose(v -> {
@@ -396,7 +409,7 @@ public class StreamMetadataTasks extends TaskBase {
                         return streamMetadataStore.getVersionedReaderGroupState(scope, readerGroup, true, null, executor)
                                 .thenCompose(newstate -> streamMetadataStore.updateReaderGroupVersionedState(scope, readerGroup,
                                         ReaderGroupState.ACTIVE, newstate, context, executor))
-                                .thenApply(v1 -> CreateReaderGroupStatus.Status.SUCCESS);
+                                .thenApply(v1 -> CreateReaderGroupResponse.Status.SUCCESS);
                     }
                     return Futures.failedFuture(new IllegalStateException(String.format("Error creating StateSynchronizer Stream for Reader Group %s: %s",
                             readerGroup, createStatus.toString())));
@@ -407,8 +420,9 @@ public class StreamMetadataTasks extends TaskBase {
         });
     }
 
-    public CompletableFuture<CreateReaderGroupStatus.Status> createReaderGroupInternal(String scope, String rgName,
-                                                                                       ReaderGroupConfig config, final long createTimestamp) {
+    public CompletableFuture<CreateReaderGroupResponse> createReaderGroupInternal(final String scope, final String rgName,
+                                                                                       final ReaderGroupConfig config,
+                                                                                       final long createTimestamp) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
         Preconditions.checkNotNull(config, "ReaderGroup config is null");
@@ -417,14 +431,16 @@ public class StreamMetadataTasks extends TaskBase {
             NameUtils.validateReaderGroupName(rgName);
         } catch (IllegalArgumentException | NullPointerException e) {
             log.warn("Create ReaderGroup failed due to invalid name {}", rgName);
-            return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.INVALID_RG_NAME);
+            return CompletableFuture.completedFuture(CreateReaderGroupResponse.newBuilder()
+                    .setStatus(CreateReaderGroupResponse.Status.INVALID_RG_NAME).build());
         }
         return RetryHelper.withRetriesAsync(() -> {
             // 1. check if scope with this name exists...
             return streamMetadataStore.checkScopeExists(scope)
                     .thenCompose(exists -> {
                         if (!exists) {
-                            return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND);
+                            return CompletableFuture.completedFuture(CreateReaderGroupResponse.newBuilder()
+                                    .setStatus(CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND).build());
                         }
                         //2. check state of the ReaderGroup
                         return isRGCreationComplete(scope, rgName)
@@ -432,9 +448,16 @@ public class StreamMetadataTasks extends TaskBase {
                                     if (!complete) {
                                         return streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId())
                                                 .thenCompose(x -> createReaderGroupTasks(scope, rgName, config, createTimestamp))
-                                                .thenApply(y -> CreateReaderGroupStatus.Status.SUCCESS);
+                                                .thenCompose(status -> {
+                                                    if (CreateReaderGroupResponse.Status.SUCCESS.equals(status)) {
+                                                        return buildCreateSuccessResponse(scope, rgName);
+                                                    } else {
+                                                        return CompletableFuture.completedFuture(CreateReaderGroupResponse.newBuilder()
+                                                                .setStatus(status).build());
+                                                    }
+                                                });
                                     }
-                                    return CompletableFuture.completedFuture(CreateReaderGroupStatus.Status.SUCCESS);
+                                    return buildCreateSuccessResponse(scope, rgName);
                                 });
                     });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, 10, executor);
@@ -448,7 +471,6 @@ public class StreamMetadataTasks extends TaskBase {
                     return ReaderGroupState.ACTIVE.equals(state);
                 });
     }
-
 
     /**
      * Update Reader Group Configuration.
