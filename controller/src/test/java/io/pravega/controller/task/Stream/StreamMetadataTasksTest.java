@@ -409,6 +409,20 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createFuture.join().getStatus());
 
+        // Create ReaderGroup 2 again, and check that it returns success, but RG is not re-created
+        createFuture = streamMetadataTasks.createReaderGroup(SCOPE, "rg2", rgConfigSubscriber3, System.currentTimeMillis());
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+        Controller.CreateReaderGroupResponse createResponse = createFuture.join();
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse.getStatus());
+        assertEquals(rgIdSub2, createResponse.getConfig().getReaderGroupId());
+        assertEquals(rgConfigSubscriber2.getRetentionType().ordinal(), createResponse.getConfig().getRetentionType());
+
+        createFuture = streamMetadataTasks.createReaderGroupInternal(SCOPE, "bad_rg_name", rgConfigSubscriber3, System.currentTimeMillis());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.INVALID_RG_NAME, createFuture.join().getStatus());
+
+        createFuture = streamMetadataTasks.createReaderGroupInternal("badscope", "rg3", rgConfigSubscriber3, System.currentTimeMillis());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND, createFuture.join().getStatus());
+
         // Create ReaderGroup 3
         createFuture = streamMetadataTasks.createReaderGroupInternal(SCOPE, "rg3", rgConfigSubscriber3, System.currentTimeMillis());
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createFuture.join().getStatus());
