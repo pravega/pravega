@@ -25,7 +25,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -169,7 +168,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
                 .thenRunAsync(() -> {
                     Collection<SegmentMetadata> evictedSegments = this.metadata.cleanup(cleanupCandidates, lastSeqNo);
                     this.cleanupCallback.accept(evictedSegments);
-                    int evictedAttributes = this.metadata.cleanupExtendedAttributes(0, lastSeqNo);
+                    int evictedAttributes = this.metadata.cleanupExtendedAttributes(this.config.getMaxCachedExtendedAttributeCount(), lastSeqNo);
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "metadataCleanup", traceId, evictedSegments.size(), evictedAttributes);
                 }, this.executor);
     }
