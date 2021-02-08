@@ -189,12 +189,12 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+    public CompletableFuture<ReaderGroupConfig> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
         StreamMetadataTasks streamMetadataTasks = controller.getStreamMetadataTasks();
         return streamMetadataTasks.createReaderGroupInternal(scopeName, rgName, config, System.currentTimeMillis())
                 .thenApply(x -> {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
-            switch (x) {
+            switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
                 case INVALID_RG_NAME:
@@ -202,7 +202,7 @@ public class LocalController implements Controller {
                 case SCOPE_NOT_FOUND:
                     throw new IllegalArgumentException("Scope does not exist: " + scopeName);
                 case SUCCESS:
-                    return true;
+                    return ModelHelper.encode(x.getConfig());
                 default:
                     throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
                             + " " + x);
