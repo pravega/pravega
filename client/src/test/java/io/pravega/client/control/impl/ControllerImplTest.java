@@ -354,25 +354,25 @@ public class ControllerImplTest {
                                           StreamObserver<CreateReaderGroupResponse> responseObserver) {
                 if (request.getReaderGroupName().equals("rg1")) {
                     responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
-                            .setReaderGroupId(UUID.randomUUID().toString())
+                            .setConfig(request)
                             .setStatus(CreateReaderGroupResponse.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg2")) {
                     responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
-                            .setReaderGroupId(UUID.randomUUID().toString())
+                            .setConfig(request)
                             .setStatus(CreateReaderGroupResponse.Status.FAILURE)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg3")) {
                     responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
-                            .setReaderGroupId(UUID.randomUUID().toString())
+                            .setConfig(request)
                             .setStatus(CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg4")) {
                     responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
-                            .setReaderGroupId(UUID.randomUUID().toString())
+                            .setConfig(request)
                             .setStatus(CreateReaderGroupResponse.Status.INVALID_RG_NAME)
                             .build());
                     responseObserver.onCompleted();
@@ -1538,7 +1538,7 @@ public class ControllerImplTest {
 
     @Test
     public void testCreateReaderGroup() throws Exception {
-        CompletableFuture<Boolean> createRGStatus;
+        CompletableFuture<ReaderGroupConfig> createRGConfig;
         final Segment seg0 = new Segment("scope1", "stream1", 0L);
         final Segment seg1 = new Segment("scope1", "stream1", 1L);
         ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
@@ -1556,20 +1556,21 @@ public class ControllerImplTest {
                 .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-        createRGStatus = controllerClient.createReaderGroup("scope1", "rg1", config);
-        assertTrue(createRGStatus.get());
+        createRGConfig = controllerClient.createReaderGroup("scope1", "rg1", config);
+        assertEquals(createRGConfig.get().getReaderGroupId(), config.getReaderGroupId());
+        assertEquals(createRGConfig.get().getGeneration(), config.getGeneration());
 
-        createRGStatus = controllerClient.createReaderGroup("scope1", "rg2", config);
+        createRGConfig = controllerClient.createReaderGroup("scope1", "rg2", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                createRGStatus, Throwable -> true);
+                createRGConfig, Throwable -> true);
 
-        createRGStatus = controllerClient.createReaderGroup("scope1", "rg3", config);
+        createRGConfig = controllerClient.createReaderGroup("scope1", "rg3", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                createRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+                createRGConfig, throwable -> throwable instanceof IllegalArgumentException);
 
-        createRGStatus = controllerClient.createReaderGroup("scope1", "rg4", config);
+        createRGConfig = controllerClient.createReaderGroup("scope1", "rg4", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                createRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+                createRGConfig, throwable -> throwable instanceof IllegalArgumentException);
     }
 
     @Test
