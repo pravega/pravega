@@ -340,10 +340,11 @@ public class ControllerServiceTest {
                 .readerGroupId(UUID.randomUUID())
                 .endingStreamCuts(endSC).build();
 
-        CompletableFuture<ReaderGroupConfig> createRG = controller.createReaderGroup(scope, "rg1", rgConfig);
-        assertEquals(rgConfig.getReaderGroupId(), createRG.get().getReaderGroupId());
+        ReaderGroupConfig createRGResult = controller.createReaderGroup(scope, "rg1", rgConfig).get();
+        assertEquals(rgConfig.getReaderGroupId(), createRGResult.getReaderGroupId());
 
-        assertEquals(rgConfig.getReaderGroupId(), controller.createReaderGroup(scope, "rg2", rgConfig).get());
+        createRGResult = controller.createReaderGroup(scope, "rg2", rgConfig).get();
+        assertEquals(rgConfig.getReaderGroupId(), createRGResult.getReaderGroupId());
 
         assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup(scope, "bad_rg_name", rgConfig).get());
         assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup("badscope", "rg3", rgConfig).get());
