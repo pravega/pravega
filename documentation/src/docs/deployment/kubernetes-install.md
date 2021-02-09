@@ -34,7 +34,7 @@ You may obtain a copy of the License at
 - Kubernetes 1.15+
 - Helm 3.2.1+
 - An existing Apache Zookeeper 3.6.1 cluster. This can be easily deployed using our [Zookeeper Operator](https://github.com/pravega/zookeeper-operator).
-- An existing Apache Bookkeeper 4.9.2 cluster. This can be easily deployed using our [Bookkeeper Operator](https://github.com/pravega/bookkeeper-operator).
+- An existing Apache Bookkeeper 4.9.2 (or higher) cluster. This can be easily deployed using our [Bookkeeper Operator](https://github.com/pravega/bookkeeper-operator).
 - Cert-Manager v0.15.0+ or some other certificate management solution in order to manage the webhook service certificates. This can be easily deployed by referring to [this](https://cert-manager.io/docs/installation/kubernetes/).
 - An Issuer and a Certificate (either self-signed or CA signed) in the same namespace that the Pravega Operator will be installed (refer to this manifest to create a self-signed certificate in the default namespace).
 ## Usage
