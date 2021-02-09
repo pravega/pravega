@@ -9,7 +9,11 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import io.pravega.common.util.ConfigurationException;
+import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
+import io.pravega.test.common.AssertExtensions;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -81,5 +85,85 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getGarbageCollectionMaxQueueSize(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionMaxQueueSize());
         Assert.assertEquals(config.getGarbageCollectionSleep(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionSleep());
         Assert.assertEquals(config.getGarbageCollectionMaxAttempts(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionMaxAttempts());
+    }
+
+    @Test
+    public void testNonNegativeIntegers() {
+        Property[] properties = new Property[] {
+                ChunkedSegmentStorageConfig.MAX_INDEXED_SEGMENTS,
+                ChunkedSegmentStorageConfig.MAX_INDEXED_CHUNKS_PER_SEGMENTS,
+                ChunkedSegmentStorageConfig.MAX_INDEXED_CHUNKS,
+                ChunkedSegmentStorageConfig.SELF_CHECK_LATE_WARNING_THRESHOLD,
+                ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_MAX_CONCURRENCY,
+                ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_MAX_QUEUE_SIZE,
+                ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_MAX_ATTEMPS
+        };
+        for (Property p : properties) {
+            assertThrows(p, "-1");
+            assertThrows(p, Long.toString(1L + Integer.MAX_VALUE));
+            assertNotThrows(p, Integer.toString(Integer.MAX_VALUE - 1));
+            assertNotThrows(p, Integer.toString(0));
+        }
+    }
+
+    @Test
+    public void testPositiveIntegers() {
+        Property[] properties = new Property[] {
+                ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_DELAY,
+                ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_SLEEP,
+        };
+        for (Property p : properties) {
+            assertThrows(p, "-1");
+            assertThrows(p, Long.toString(1L + Integer.MAX_VALUE));
+            assertThrows(p, Integer.toString(0));
+            assertNotThrows(p, Integer.toString(Integer.MAX_VALUE - 1));
+            assertNotThrows(p, "1");
+        }
+    }
+
+    @Test
+    public void testNonNegativeLongs() {
+        Property[] properties = new Property[] {
+                ChunkedSegmentStorageConfig.MIN_SIZE_LIMIT_FOR_CONCAT,
+                ChunkedSegmentStorageConfig.MAX_SIZE_LIMIT_FOR_CONCAT
+        };
+        for (Property p : properties) {
+            assertThrows(p, "-1");
+            assertThrows(p, Double.toString(1L + Long.MAX_VALUE));
+            assertNotThrows(p, Long.toString(Long.MAX_VALUE - 1));
+            assertNotThrows(p, Long.toString(0));
+        }
+    }
+
+    @Test
+    public void testPositiveLongs() {
+        Property[] properties = new Property[] {
+                ChunkedSegmentStorageConfig.DEFAULT_ROLLOVER_SIZE,
+        };
+        for (Property p : properties) {
+            assertThrows(p, "-1");
+            assertThrows(p, Double.toString(1L + Long.MAX_VALUE));
+            assertThrows(p, Long.toString(0));
+            assertNotThrows(p, Long.toString(Long.MAX_VALUE - 1));
+            assertNotThrows(p, "1");
+        }
+    }
+
+    public <T> void assertThrows(Property<T> property, String value) {
+        Properties props = new Properties();
+        val fullName = property.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE);
+        props.setProperty(fullName, value);
+        TypedProperties typedProperties = new TypedProperties(props, "storage");
+        AssertExtensions.assertThrows(String.format("Property %s should throw an exception", fullName),
+                () -> new ChunkedSegmentStorageConfig(typedProperties),
+                ex -> ex instanceof ConfigurationException);
+    }
+
+    public <T> void assertNotThrows(Property<T> property, String value) {
+        Properties props = new Properties();
+        val fullName = property.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE);
+        props.setProperty(fullName, value);
+        TypedProperties typedProperties = new TypedProperties(props, "storage");
+        new ChunkedSegmentStorageConfig(typedProperties);
     }
 }

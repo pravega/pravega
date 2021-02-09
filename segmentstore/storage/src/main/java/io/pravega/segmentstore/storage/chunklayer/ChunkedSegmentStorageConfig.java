@@ -18,6 +18,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.val;
 
 import java.time.Duration;
 
@@ -43,7 +44,6 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_QUEUE_SIZE = Property.named("garbage.collection.queue.size.max", 16 * 1024);
     public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.seconds", 60);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPS = Property.named("garbage.collection.attempts.max", 3);
-
 
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
@@ -178,21 +178,21 @@ public class ChunkedSegmentStorageConfig {
         this.appendEnabled = properties.getBoolean(APPENDS_ENABLED);
         this.lazyCommitEnabled = properties.getBoolean(LAZY_COMMIT_ENABLED);
         this.inlineDefragEnabled = properties.getBoolean(INLINE_DEFRAG_ENABLED);
-        this.maxBufferSizeForChunkDataTransfer = properties.getInt(MAX_BUFFER_SIZE_FOR_APPENDS);
+        this.maxBufferSizeForChunkDataTransfer = getNonNegativeInt(properties, MAX_BUFFER_SIZE_FOR_APPENDS);
         // Don't use appends for concat when appends are disabled.
-        this.minSizeLimitForConcat = this.appendEnabled ? properties.getLong(MIN_SIZE_LIMIT_FOR_CONCAT) : 0;
-        this.maxSizeLimitForConcat = properties.getLong(MAX_SIZE_LIMIT_FOR_CONCAT);
-        this.maxIndexedSegments = properties.getInt(MAX_INDEXED_SEGMENTS);
-        this.maxIndexedChunksPerSegment = properties.getInt(MAX_INDEXED_CHUNKS_PER_SEGMENTS);
-        this.maxIndexedChunks = properties.getInt(MAX_INDEXED_CHUNKS);
-        long defaultMaxLength = properties.getLong(DEFAULT_ROLLOVER_SIZE);
+        this.minSizeLimitForConcat = this.appendEnabled ? getNonNegativeLong(properties, MIN_SIZE_LIMIT_FOR_CONCAT) : 0;
+        this.maxSizeLimitForConcat = getNonNegativeLong(properties, MAX_SIZE_LIMIT_FOR_CONCAT);
+        this.maxIndexedSegments = getNonNegativeInt(properties, MAX_INDEXED_SEGMENTS);
+        this.maxIndexedChunksPerSegment = getNonNegativeInt(properties, MAX_INDEXED_CHUNKS_PER_SEGMENTS);
+        this.maxIndexedChunks = getNonNegativeInt(properties, MAX_INDEXED_CHUNKS);
+        long defaultMaxLength = getPositiveLong(properties, DEFAULT_ROLLOVER_SIZE);
         this.defaultRollingPolicy = new SegmentRollingPolicy(defaultMaxLength);
-        this.lateWarningThresholdInMillis = properties.getInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
-        this.garbageCollectionDelay = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_DELAY));
-        this.garbageCollectionMaxConcurrency = properties.getInt(GARBAGE_COLLECTION_MAX_CONCURRENCY);
-        this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
-        this.garbageCollectionSleep = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_SLEEP));
-        this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPS);
+        this.lateWarningThresholdInMillis = getNonNegativeInt(properties, SELF_CHECK_LATE_WARNING_THRESHOLD);
+        this.garbageCollectionDelay = Duration.ofSeconds(getPositiveInt(properties, GARBAGE_COLLECTION_DELAY));
+        this.garbageCollectionMaxConcurrency = getNonNegativeInt(properties, GARBAGE_COLLECTION_MAX_CONCURRENCY);
+        this.garbageCollectionMaxQueueSize = getNonNegativeInt(properties, GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
+        this.garbageCollectionSleep = Duration.ofSeconds(getPositiveInt(properties, GARBAGE_COLLECTION_SLEEP));
+        this.garbageCollectionMaxAttempts = getNonNegativeInt(properties, GARBAGE_COLLECTION_MAX_ATTEMPS);
     }
 
     /**
@@ -202,5 +202,37 @@ public class ChunkedSegmentStorageConfig {
      */
     public static ConfigBuilder<ChunkedSegmentStorageConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, ChunkedSegmentStorageConfig::new);
+    }
+
+    private int getNonNegativeInt(TypedProperties properties, Property<Integer> property) {
+        val value = properties.getInt(property);
+        if (value < 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", property));
+        }
+        return value;
+    }
+
+    private int getPositiveInt(TypedProperties properties, Property<Integer> property) {
+        val value = properties.getInt(property);
+        if (value <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", property));
+        }
+        return value;
+    }
+
+    private long getNonNegativeLong(TypedProperties properties, Property<Long> property) {
+        val value = properties.getLong(property);
+        if (value < 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a non-negative long.", property));
+        }
+        return value;
+    }
+
+    private long getPositiveLong(TypedProperties properties, Property<Long> property) {
+        val value = properties.getLong(property);
+        if (value <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive long.", property));
+        }
+        return value;
     }
 }
