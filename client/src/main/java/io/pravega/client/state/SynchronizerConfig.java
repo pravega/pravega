@@ -22,11 +22,21 @@ import lombok.Data;
 public class SynchronizerConfig implements Serializable {
 
     private static final long serialVersionUID = 2L;
+
+    /**
+     * This writer config is used by the segment writers in the StateSyncrhonizer. The default values
+     * enable connection pooling and ensures the background connection retry attempts continue until the StateSyncrhonizer
+     * is closed.
+     */
     EventWriterConfig eventWriterConfig;
+    /**
+     * This size is used to allocate buffer space for the bytes the reader in the StateSyncrhonizer reads from the
+     * segment. The default buffer size is 256KB.
+     */
     int readBufferSize;
     
     public static class SynchronizerConfigBuilder {
-        private EventWriterConfig eventWriterConfig = EventWriterConfig.builder().enableConnectionPooling(true).build();
+        private EventWriterConfig eventWriterConfig = EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).enableConnectionPooling(true).build();
         private int readBufferSize = 256 * 1024;
     }
 }
