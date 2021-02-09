@@ -292,8 +292,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
 
                                 // Delete chunk from storage.
                                 if (shouldDeleteChunk) {
-                                    return chunkStorage.openWrite(chunkToDelete)
-                                            .thenComposeAsync(chunkStorage::delete, storageExecutor)
+                                    return chunkStorage.delete(ChunkHandle.writeHandle(chunkToDelete))
                                             .handleAsync((v, e) -> {
                                                 if (e != null) {
                                                     val ex = Exceptions.unwrap(e);
