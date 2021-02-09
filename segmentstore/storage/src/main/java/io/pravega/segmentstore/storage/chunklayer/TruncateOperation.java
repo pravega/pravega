@@ -175,7 +175,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
                             startOffset.addAndGet(currentMetadata.getLength());
                             chunksToDelete.add(currentMetadata.getName());
-                            segmentMetadata.decrementChunkCount();
+                            segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() - 1);
 
                             // move to next chunk
                             currentChunkName = currentMetadata.getNextChunk();

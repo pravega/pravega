@@ -63,68 +63,68 @@ public abstract class BaseChunkStorage extends AsyncBaseChunkStorage {
     }
 
     @Override
-    protected CompletableFuture<ChunkInfo> doGetInfoAsync(String chunkName) {
-        return execute(() -> doGetInfo(chunkName));
+    protected CompletableFuture<ChunkInfo> doGetInfoAsync(String chunkName, OperationContext opContext) {
+        return execute(() -> doGetInfo(chunkName), opContext);
     }
 
     @Override
-    protected CompletableFuture<ChunkHandle> doCreateAsync(String chunkName) {
-        return execute(() -> doCreate(chunkName));
+    protected CompletableFuture<ChunkHandle> doCreateAsync(String chunkName, OperationContext opContext) {
+        return execute(() -> doCreate(chunkName), opContext);
     }
 
     @Override
-    protected CompletableFuture<ChunkHandle> doCreateWithContentAsync(String chunkName, int length, InputStream data) {
-        return execute(() -> doCreateWithContent(chunkName, length, data));
+    protected CompletableFuture<ChunkHandle> doCreateWithContentAsync(String chunkName, int length, InputStream data, OperationContext opContext) {
+        return execute(() -> doCreateWithContent(chunkName, length, data), opContext);
     }
 
     @Override
-    protected CompletableFuture<Boolean> checkExistsAsync(String chunkName) {
-        return execute(() -> checkExists(chunkName));
+    protected CompletableFuture<Boolean> checkExistsAsync(String chunkName, OperationContext opContext) {
+        return execute(() -> checkExists(chunkName), opContext);
     }
 
     @Override
-    protected CompletableFuture<Void> doDeleteAsync(ChunkHandle handle) {
+    protected CompletableFuture<Void> doDeleteAsync(ChunkHandle handle, OperationContext opContext) {
         return execute(() -> {
             doDelete(handle);
             return null;
-        });
+        }, opContext);
     }
 
     @Override
-    protected CompletableFuture<ChunkHandle> doOpenReadAsync(String chunkName) {
-        return execute(() -> doOpenRead(chunkName));
+    protected CompletableFuture<ChunkHandle> doOpenReadAsync(String chunkName, OperationContext opContext) {
+        return execute(() -> doOpenRead(chunkName), opContext);
     }
 
     @Override
-    protected CompletableFuture<ChunkHandle> doOpenWriteAsync(String chunkName) {
-        return execute(() -> doOpenWrite(chunkName));
+    protected CompletableFuture<ChunkHandle> doOpenWriteAsync(String chunkName, OperationContext opContext) {
+        return execute(() -> doOpenWrite(chunkName), opContext);
     }
 
     @Override
-    protected CompletableFuture<Integer> doReadAsync(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) {
-        return execute(() -> doRead(handle, fromOffset, length, buffer, bufferOffset));
+    protected CompletableFuture<Integer> doReadAsync(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset, OperationContext opContext) {
+        return execute(() -> doRead(handle, fromOffset, length, buffer, bufferOffset), opContext);
     }
 
     @Override
-    protected CompletableFuture<Integer> doWriteAsync(ChunkHandle handle, long offset, int length, InputStream data) {
-        return execute(() -> doWrite(handle, offset, length, data));
+    protected CompletableFuture<Integer> doWriteAsync(ChunkHandle handle, long offset, int length, InputStream data, OperationContext opContext) {
+        return execute(() -> doWrite(handle, offset, length, data), opContext);
     }
 
     @Override
-    protected CompletableFuture<Integer> doConcatAsync(ConcatArgument[] chunks) {
-        return execute(() -> doConcat(chunks));
+    protected CompletableFuture<Integer> doConcatAsync(ConcatArgument[] chunks, OperationContext opContext) {
+        return execute(() -> doConcat(chunks), opContext);
     }
 
     @Override
-    protected CompletableFuture<Void> doSetReadOnlyAsync(ChunkHandle handle, boolean isReadOnly) {
+    protected CompletableFuture<Void> doSetReadOnlyAsync(ChunkHandle handle, boolean isReadOnly, OperationContext opContext) {
         return execute(() -> {
             doSetReadOnly(handle, isReadOnly);
             return null;
-        });
+        }, opContext);
     }
 
-    protected CompletableFuture<Boolean> doTruncateAsync(ChunkHandle handle, long offset) {
-        return execute(() -> doTruncate(handle, offset));
+    protected CompletableFuture<Boolean> doTruncateAsync(ChunkHandle handle, long offset, OperationContext opContext) {
+        return execute(() -> doTruncate(handle, offset), opContext);
     }
 
     /**

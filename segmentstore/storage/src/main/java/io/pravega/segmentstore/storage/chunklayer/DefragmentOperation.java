@@ -241,7 +241,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                                     ((ChunkMetadata) metadata).setActive(false);
                                     txn.update(metadata);
                                 }, chunkedSegmentStorage.getExecutor()));
-                segmentMetadata.decrementChunkCount();
+                segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() - 1);
             }
             return Futures.allOf(futures).thenRunAsync(() -> {
                 txn.update(target);

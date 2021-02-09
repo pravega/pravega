@@ -46,7 +46,6 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final List<String> chunksToDelete = Collections.synchronizedList(new ArrayList<>());
     private final List<ChunkNameOffsetPair> newReadIndexEntries = Collections.synchronizedList(new ArrayList<>());
-
     private final Timer timer;
 
     private volatile SegmentMetadata targetSegmentMetadata;

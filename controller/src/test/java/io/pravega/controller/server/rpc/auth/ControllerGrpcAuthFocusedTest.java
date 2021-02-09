@@ -310,10 +310,10 @@ public class ControllerGrpcAuthFocusedTest {
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
 
         //Act
-        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
 
         //Verify
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, status.getStatus());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, status.getStatus());
     }
 
     @Test
@@ -327,10 +327,10 @@ public class ControllerGrpcAuthFocusedTest {
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
 
         //Act
-        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
 
         //Verify
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, status.getStatus());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, status.getStatus());
     }
 
     @Test
@@ -348,7 +348,7 @@ public class ControllerGrpcAuthFocusedTest {
         thrown.expectMessage("PERMISSION_DENIED");
 
         //Act
-        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
     }
 
     @Test
@@ -366,7 +366,7 @@ public class ControllerGrpcAuthFocusedTest {
         thrown.expectMessage("PERMISSION_DENIED");
 
         //Act
-        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
     }
 
     @Test
@@ -384,7 +384,7 @@ public class ControllerGrpcAuthFocusedTest {
         thrown.expectMessage("UNAUTHENTICATED");
 
         //Act
-        Controller.CreateReaderGroupStatus status = blockingStub.createReaderGroup(config);
+        Controller.CreateReaderGroupResponse status = blockingStub.createReaderGroup(config);
     }
 
     @Test
@@ -1044,8 +1044,8 @@ public class ControllerGrpcAuthFocusedTest {
         ControllerServiceBlockingStub stub =
                 prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
 
-        Controller.CreateReaderGroupStatus status = stub.createReaderGroup(ModelHelper.decode(scope, group, config));
-        if (!status.getStatus().equals(Controller.CreateReaderGroupStatus.Status.SUCCESS)) {
+        Controller.CreateReaderGroupResponse status = stub.createReaderGroup(ModelHelper.decode(scope, group, config));
+        if (!status.getStatus().equals(Controller.CreateReaderGroupResponse.Status.SUCCESS)) {
             throw new RuntimeException("Failed to create reader-group");
         }
     }
@@ -1057,8 +1057,8 @@ public class ControllerGrpcAuthFocusedTest {
         ControllerServiceBlockingStub stub =
                 prepareBlockingCallStubStrict(UserNames.ADMIN, DEFAULT_PASSWORD);
 
-        Controller.CreateReaderGroupStatus status = stub.createReaderGroup(ModelHelper.decode(scope, group, config));
-        if (!status.getStatus().equals(Controller.CreateReaderGroupStatus.Status.SUCCESS)) {
+        Controller.CreateReaderGroupResponse status = stub.createReaderGroup(ModelHelper.decode(scope, group, config));
+        if (!status.getStatus().equals(Controller.CreateReaderGroupResponse.Status.SUCCESS)) {
             throw new RuntimeException("Failed to create reader-group");
         }
     }
