@@ -127,7 +127,8 @@ public class MultiControllerTest extends AbstractSystemTest {
         // All APIs should throw exception and fail.
         Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
 
-        AssertExtensions.assertEventuallyEquals(true, () -> controllerService.getServiceDetails().isEmpty(), 30000);
+        AssertExtensions.assertEventuallyEquals("Problem scaling down the Controller service.", true,
+                () -> controllerService.getServiceDetails().isEmpty(), 1000, 30000);
         controllerURIDirect.set(URI.create("tcp://0.0.0.0:9090"));
         controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
 
