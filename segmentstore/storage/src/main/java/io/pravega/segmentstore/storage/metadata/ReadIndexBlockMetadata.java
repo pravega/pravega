@@ -50,7 +50,7 @@ public class ReadIndexBlockMetadata extends StorageMetadata {
     /**
      * Status bit flags.
      */
-    private int status;
+    private volatile int status;
 
     /**
      * Retrieves the key associated with the metadata, which is the name of the chunk.
@@ -75,7 +75,7 @@ public class ReadIndexBlockMetadata extends StorageMetadata {
     /**
      * Sets the given bit for given mask.
      */
-    synchronized private ReadIndexBlockMetadata setFlag(int mask, boolean value) {
+    private ReadIndexBlockMetadata setFlag(int mask, boolean value) {
         status = value ? (status | mask) : (status & (~mask));
         return this;
     }
@@ -83,7 +83,7 @@ public class ReadIndexBlockMetadata extends StorageMetadata {
     /**
      * Gets the status of the bit for given mask.
      */
-    synchronized private boolean getFlag(int mask) {
+    private boolean getFlag(int mask) {
         return (status & mask) != 0;
     }
 
