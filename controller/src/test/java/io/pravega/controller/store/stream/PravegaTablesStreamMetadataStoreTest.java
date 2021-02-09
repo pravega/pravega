@@ -29,7 +29,6 @@ import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
-import io.pravega.controller.store.Version;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
