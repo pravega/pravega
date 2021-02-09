@@ -19,6 +19,8 @@ import lombok.val;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -101,10 +103,10 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     private final SegmentMetadata segmentMetadata;
     private final String startChunkName;
     private final String lastChunkName;
-    private final ArrayList<String> chunksToDelete;
+    private final List<String> chunksToDelete;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
 
-    private volatile ArrayList<ChunkInfo> chunksToConcat = new ArrayList<>();
+    private volatile List<ChunkInfo> chunksToConcat = Collections.synchronizedList(new ArrayList<>());
 
     private volatile ChunkMetadata target;
     private volatile String targetChunkName;
@@ -119,7 +121,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     private final AtomicLong bytesToRead = new AtomicLong();
     private final AtomicInteger currentArgIndex = new AtomicInteger();
 
-    DefragmentOperation(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, SegmentMetadata segmentMetadata, String startChunkName, String lastChunkName, ArrayList<String> chunksToDelete) {
+    DefragmentOperation(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, SegmentMetadata segmentMetadata, String startChunkName, String lastChunkName, List<String> chunksToDelete) {
         this.txn = txn;
         this.segmentMetadata = segmentMetadata;
         this.startChunkName = startChunkName;
@@ -226,7 +228,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                                     ((ChunkMetadata) metadata).setActive(false);
                                     txn.update(metadata);
                                 }, chunkedSegmentStorage.getExecutor()));
-                segmentMetadata.decrementChunkCount();
+                segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() - 1);
             }
             return Futures.allOf(futures).thenRunAsync(() -> {
                 txn.update(target);
@@ -241,7 +243,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
         return txn.get(targetChunkName)
                 .thenComposeAsync(storageMetadata -> {
                     target = (ChunkMetadata) storageMetadata;
-                    chunksToConcat = new ArrayList<>();
+                    chunksToConcat = Collections.synchronizedList(new ArrayList<>());
                     targetSizeAfterConcat.set(target.getLength());
 
                     // Add target to the list of chunks

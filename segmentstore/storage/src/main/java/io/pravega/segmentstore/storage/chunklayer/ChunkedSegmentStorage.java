@@ -42,6 +42,7 @@ import java.util.Arrays;
 import java.util.ConcurrentModificationException;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -463,7 +464,7 @@ public class ChunkedSegmentStorage implements Storage {
     public CompletableFuture<Void> defrag(MetadataTransaction txn, SegmentMetadata segmentMetadata,
                                            String startChunkName,
                                            String lastChunkName,
-                                           ArrayList<String> chunksToDelete) {
+                                           List<String> chunksToDelete) {
         return new DefragmentOperation(this, txn, segmentMetadata, startChunkName, lastChunkName, chunksToDelete).call();
     }
 

@@ -30,6 +30,7 @@ import static com.google.common.base.Strings.nullToEmpty;
  * <li>Name of the chunk.</li>
  * <li>Length of the chunk.</li>
  * <li>Name of the next chunk in list.</li>
+ * <li>Status flags.</li>
  * </ul>
  */
 @Builder(toBuilder = true)
@@ -45,17 +46,17 @@ public class ChunkMetadata extends StorageMetadata {
     /**
      * Length of the chunk.
      */
-    private long length;
+    private volatile long length;
 
     /**
      * Name of the next chunk.
      */
-    private String nextChunk;
+    private volatile String nextChunk;
 
     /**
      * Status bit flags.
      */
-    private int status;
+    private volatile int status;
 
     /**
      * Retrieves the key associated with the metadata, which is the name of the chunk.

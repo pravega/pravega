@@ -34,10 +34,15 @@ public class SingleNodeConfig {
     // TLS-related configurations
     public final static Property<Boolean> ENABLE_TLS = Property.named("security.tls.enable", false, "enableTls");
     public final static Property<String> KEY_FILE = Property.named("security.tls.privateKey.location", "", "keyFile");
-        public final static Property<String> CERT_FILE = Property.named("security.tls.certificate.location", "", "certFile");
+    public final static Property<String> CERT_FILE = Property.named("security.tls.certificate.location", "", "certFile");
     public final static Property<String> KEYSTORE_JKS = Property.named("security.tls.keyStore.location", "", "keyStoreJKS");
     public final static Property<String> KEYSTORE_JKS_PASSWORD_FILE = Property.named("security.tls.keyStore.pwd.location", "", "keyStoreJKSPasswordFile");
     public final static Property<String> TRUSTSTORE_JKS = Property.named("security.tls.trustStore.location", "", "trustStoreJKS");
+
+    // Metrics configurations
+    public final static Property<Boolean> ENABLE_METRICS = Property.named("metrics.enable", false);
+    public final static Property<Boolean> ENABLE_INFLUX_REPORTER = Property.named("metrics.influx.enable", false);
+    public final static Property<Integer> METRICS_REPORT_INTERVAL = Property.named("metrics.reporting.interval", 60);
 
     private static final String COMPONENT_CODE = "singlenode";
     //end region
@@ -138,6 +143,23 @@ public class SingleNodeConfig {
     private boolean enableAuth;
 
 
+    /**
+     * Flag to enable metrics.
+     */
+    @Getter
+    private boolean enableMetrics;
+
+    /**
+     * Flag to enable InfluxDB reporting.
+     */
+    @Getter
+    private boolean enableInfluxDB;
+
+    /**
+     * Flag to control the rate of reporting.
+     */
+    @Getter
+    private int metricsReportInterval;
 
     //end region
 
@@ -159,6 +181,9 @@ public class SingleNodeConfig {
         this.keyStoreJKSPasswordFile = properties.get(KEYSTORE_JKS_PASSWORD_FILE);
         this.trustStoreJKS = properties.get(TRUSTSTORE_JKS);
         this.enableSegmentStoreTlsReload = properties.getBoolean(ENABLE_TLS_RELOAD);
+        this.enableMetrics = properties.getBoolean(ENABLE_METRICS);
+        this.enableInfluxDB = properties.getBoolean(ENABLE_INFLUX_REPORTER);
+        this.metricsReportInterval = properties.getInt(METRICS_REPORT_INTERVAL);
     }
 
     /**
