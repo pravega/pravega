@@ -340,10 +340,11 @@ public class ControllerServiceTest {
                 .readerGroupId(UUID.randomUUID())
                 .endingStreamCuts(endSC).build();
 
-        CompletableFuture<Boolean> createRG = controller.createReaderGroup(scope, "rg1", rgConfig);
-        assertTrue(createRG.get());
+        ReaderGroupConfig createRGResult = controller.createReaderGroup(scope, "rg1", rgConfig).get();
+        assertEquals(rgConfig.getReaderGroupId(), createRGResult.getReaderGroupId());
 
-        assertTrue(controller.createReaderGroup(scope, "rg2", rgConfig).get());
+        createRGResult = controller.createReaderGroup(scope, "rg2", rgConfig).get();
+        assertEquals(rgConfig.getReaderGroupId(), createRGResult.getReaderGroupId());
 
         assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup(scope, "bad_rg_name", rgConfig).get());
         assertThrows(IllegalArgumentException.class, () -> controller.createReaderGroup("badscope", "rg3", rgConfig).get());
@@ -399,7 +400,7 @@ public class ControllerServiceTest {
         final ReaderGroupConfig rgConfig1 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream(scopedStreamName3).retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .build();
-        assertTrue(controller.createReaderGroup(scope, "rg2", rgConfig1).get());
+        assertEquals(rgConfig1.getReaderGroupId(), controller.createReaderGroup(scope, "rg2", rgConfig1).get().getReaderGroupId());
 
         // Update a ReaderGroup from Subscriber to Non-subscriber
         String scopedStreamName = NameUtils.getScopedStreamName(scope, stream1);
@@ -409,7 +410,7 @@ public class ControllerServiceTest {
         ReaderGroupConfig rgConfigNonSubscriber = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream(scopedStreamName).readerGroupId(rgConfigSubscriber.getReaderGroupId()).generation(rgConfigSubscriber.getGeneration())
                 .build();
-        assertTrue(controller.createReaderGroup(scope, "group", rgConfigSubscriber).join());
+        assertEquals(rgConfigSubscriber.getReaderGroupId(), controller.createReaderGroup(scope, "group", rgConfigSubscriber).join().getReaderGroupId());
         subscribers = controller.listSubscribers(scope, stream1).get();
         assertEquals(1, subscribers.size());
         assertNotNull(controller.updateReaderGroup(scope, "group", rgConfigNonSubscriber).join());
@@ -455,8 +456,8 @@ public class ControllerServiceTest {
                 .endingStreamCuts(endSC).build();
 
         final String rg1 = "rg1";
-        CompletableFuture<Boolean> createRG = controller.createReaderGroup(scope, rg1, rgConfig);
-        assertTrue(createRG.get());
+        CompletableFuture<ReaderGroupConfig> createRG = controller.createReaderGroup(scope, rg1, rgConfig);
+        assertEquals(rgConfig.getReaderGroupId(), createRG.get().getReaderGroupId());
 
         List<String> subs = controller.listSubscribers(scope, stream).get();
         assertEquals(1, subs.size());
