@@ -106,6 +106,21 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testKeepAlive() {
+        ServerConnection connection = mock(ServerConnection.class);
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                .store(mock(StreamSegmentStore.class))
+                .connection(connection)
+                .connectionTracker(mock(ConnectionTracker.class))
+                .statsRecorder(Mockito.mock(SegmentStatsRecorder.class))
+                .build();
+
+        WireCommands.KeepAlive keepAliveCommand = new WireCommands.KeepAlive();
+        processor.keepAlive(keepAliveCommand);
+        verify(connection).send(new WireCommands.KeepAlive());
+    }
+
+    @Test
     public void testAppend() {
         String streamSegmentName = "scope/stream/0.#epoch.0";
         UUID clientId = UUID.randomUUID();
