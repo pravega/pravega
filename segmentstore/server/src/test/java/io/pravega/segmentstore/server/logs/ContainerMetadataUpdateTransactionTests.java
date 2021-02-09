@@ -44,6 +44,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -53,6 +54,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -257,7 +259,16 @@ public class ContainerMetadataUpdateTransactionTests {
      */
     @Test
     public void testStreamSegmentAppendWithBadAttributes() throws Exception {
-        testWithBadAttributes(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates));
+        Consumer<Operation> checkAfterSuccess = op -> {
+            val a = (StreamSegmentAppendOperation) op;
+            Assert.assertEquals("Expected SegmentOffset to have been updated.", SEGMENT_LENGTH, a.getStreamSegmentOffset());
+        };
+        Consumer<Operation> checkAfterRejection = op -> {
+            val a = (StreamSegmentAppendOperation) op;
+            AssertExtensions.assertLessThan("Not expected SegmentOffset to have been updated.", 0, a.getStreamSegmentOffset());
+        };
+        testWithBadAttributes(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates),
+                checkAfterSuccess, checkAfterRejection);
     }
 
     //endregion
@@ -425,23 +436,36 @@ public class ContainerMetadataUpdateTransactionTests {
     }
 
     private void testWithBadAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation) throws Exception {
+        testWithBadAttributes(createOperation, null, null);
+    }
+
+    private void testWithBadAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation,
+                                       Consumer<Operation> checkAfterSuccess, Consumer<Operation> checkAfterRejection) throws Exception {
         final UUID attributeNoUpdate = UUID.randomUUID();
         final UUID attributeReplaceIfGreater = UUID.randomUUID();
         final UUID attributeReplaceIfEquals = UUID.randomUUID();
         final UUID attributeReplaceIfEqualsNullValue = UUID.randomUUID();
+        if (checkAfterSuccess == null) {
+            checkAfterSuccess = TestUtils::doNothing;
+        }
+        if (checkAfterRejection == null) {
+            checkAfterRejection = TestUtils::doNothing;
+        }
 
         UpdateableContainerMetadata metadata = createMetadata();
         val txn = createUpdateTransaction(metadata);
         BiFunction<Throwable, Boolean, Boolean> exceptionChecker = (ex, expectNoPreviousValue) ->
-            (ex instanceof BadAttributeUpdateException) && ((BadAttributeUpdateException) ex).isPreviousValueMissing() == expectNoPreviousValue;
+                (ex instanceof BadAttributeUpdateException) && ((BadAttributeUpdateException) ex).isPreviousValueMissing() == expectNoPreviousValue;
 
         // Values not set
         Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.ReplaceIfEquals, 0, 0));
+        val op1 = createOperation.apply(attributeUpdates);
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to CAS-update an attribute with no previous value.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                () -> txn.preProcessOperation(op1),
                 ex -> exceptionChecker.apply(ex, true));
+        checkAfterRejection.accept(op1);
 
         // Append #1.
         attributeUpdates.clear();
@@ -455,38 +479,47 @@ public class ContainerMetadataUpdateTransactionTests {
         Operation op = createOperation.apply(attributeUpdates);
         txn.preProcessOperation(op);
         txn.acceptOperation(op);
+        checkAfterSuccess.accept(op);
 
         // ReplaceIfEquals fails when the current attribute value is NULL_ATTRIBUTE_VALUE (this should not set the IsPreviousValueMissing flag).
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEqualsNullValue, AttributeUpdateType.ReplaceIfEquals, 1, 1));
+        val op2 = createOperation.apply(attributeUpdates);
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to CAS-update an attribute with no previous value.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                () -> txn.preProcessOperation(op2),
                 ex -> exceptionChecker.apply(ex, false));
+        checkAfterRejection.accept(op2);
 
         // Append #2: Try to update attribute that cannot be updated.
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 3));
+        val op3 = createOperation.apply(attributeUpdates);
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an unmodifiable attribute.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                () -> txn.preProcessOperation(op3),
                 ex -> exceptionChecker.apply(ex, false));
+        checkAfterRejection.accept(op2);
 
         // Append #3: Try to update attribute with bad value for ReplaceIfGreater attribute.
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 1));
+        val op4 = createOperation.apply(attributeUpdates);
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an attribute with the wrong value for ReplaceIfGreater.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                () -> txn.preProcessOperation(op4),
                 ex -> exceptionChecker.apply(ex, false));
+        checkAfterRejection.accept(op4);
 
         // Append #4: Try to update attribute with bad value for ReplaceIfEquals attribute.
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 3, 3));
+        val op5 = createOperation.apply(attributeUpdates);
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an attribute with the wrong comparison value for ReplaceIfGreater.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                () -> txn.preProcessOperation(op5),
                 ex -> exceptionChecker.apply(ex, false));
+        checkAfterRejection.accept(op5);
 
         // Reset the attribute update list to its original state so we can do the final verification.
         attributeUpdates.clear();
