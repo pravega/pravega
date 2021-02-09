@@ -399,25 +399,38 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
         // Create ReaderGroup 1
-        CompletableFuture<Controller.CreateReaderGroupStatus.Status> createFuture =
+        CompletableFuture<Controller.CreateReaderGroupResponse> createFuture =
         streamMetadataTasks.createReaderGroup(SCOPE, "rg1", rgConfigSubscriber1, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createFuture.join().getStatus());
 
         // Create ReaderGroup 2
         createFuture = streamMetadataTasks.createReaderGroup(SCOPE, "rg2", rgConfigSubscriber2, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createFuture.join().getStatus());
+
+        // Create ReaderGroup 2 again, and check that it returns success, but RG is not re-created
+        createFuture = streamMetadataTasks.createReaderGroup(SCOPE, "rg2", rgConfigSubscriber3, System.currentTimeMillis());
+        Controller.CreateReaderGroupResponse createResponse = createFuture.join();
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse.getStatus());
+        assertEquals(rgIdSub2, UUID.fromString(createResponse.getConfig().getReaderGroupId()));
+        assertEquals(rgConfigSubscriber2.getRetentionType().ordinal(), createResponse.getConfig().getRetentionType());
+
+        createFuture = streamMetadataTasks.createReaderGroupInternal(SCOPE, "bad_rg_name", rgConfigSubscriber3, System.currentTimeMillis());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.INVALID_RG_NAME, createFuture.join().getStatus());
+
+        createFuture = streamMetadataTasks.createReaderGroupInternal("badscope", "rg3", rgConfigSubscriber3, System.currentTimeMillis());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND, createFuture.join().getStatus());
 
         // Create ReaderGroup 3
         createFuture = streamMetadataTasks.createReaderGroupInternal(SCOPE, "rg3", rgConfigSubscriber3, System.currentTimeMillis());
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createFuture.join().getStatus());
 
         // Create ReaderGroup 4
         createFuture = streamMetadataTasks.createReaderGroupInternal(SCOPE, "rg4", rgConfigNonSubscriber, System.currentTimeMillis());
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createFuture.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createFuture.join().getStatus());
 
-        // LIst all subscriber ReaderGroup, there should be 3
+        // List all subscriber ReaderGroup, there should be 3
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
         assertEquals(SubscribersResponse.Status.SUCCESS, listSubscribersResponse.getStatus());
         assertEquals(3, listSubscribersResponse.getSubscribersList().size());
@@ -572,15 +585,15 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
         String subscriber1 = "subscriber1";
-        CompletableFuture<Controller.CreateReaderGroupStatus.Status> createStatus
+        CompletableFuture<Controller.CreateReaderGroupResponse> createStatus
         = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, rgConfigSubscriber, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         String subscriber2 = "subscriber2";
         createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, rgConfigSubscriber, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         SubscribersResponse listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
         assertEquals(SubscribersResponse.Status.SUCCESS, listSubscribersResponse.getStatus());
@@ -1217,14 +1230,14 @@ public abstract class StreamMetadataTasksTest {
         // region case 1: basic retention
 
         String subscriber1 = "subscriber1";
-        CompletableFuture<Controller.CreateReaderGroupStatus.Status> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, consumpRGConfig, System.currentTimeMillis());
+        CompletableFuture<Controller.CreateReaderGroupResponse> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, consumpRGConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         String subscriber2 = "subscriber2";
         createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, consumpRGConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         streamMetadataTasks.updateSubscriberStreamCut(SCOPE, stream1, subscriber1Name, consumpRGConfig.getReaderGroupId().toString(), 0L, ImmutableMap.of(0L, 2L, 1L, 1L), null).join();
@@ -1375,14 +1388,14 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(Controller.CreateStreamStatus.Status.SUCCESS))
                 .when(streamMetadataTasks).createRGStream(anyString(), anyString(), any(), anyLong(), anyInt());
         String subscriber1 = "subscriber1";
-        CompletableFuture<Controller.CreateReaderGroupStatus.Status> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, consumpRGConfig, System.currentTimeMillis());
+        CompletableFuture<Controller.CreateReaderGroupResponse> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, consumpRGConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         String subscriber2 = "subscriber2";
         createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, consumpRGConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
@@ -1613,14 +1626,14 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
         String subscriber1 = "subscriber1";
-        CompletableFuture<Controller.CreateReaderGroupStatus.Status> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, consumpRGConfig, System.currentTimeMillis());
+        CompletableFuture<Controller.CreateReaderGroupResponse> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, consumpRGConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         String subscriber2 = "subscriber2";
         createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, consumpRGConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
@@ -1709,14 +1722,14 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
         String subscriber1 = "subscriber1";
-        CompletableFuture<Controller.CreateReaderGroupStatus.Status> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, consumpRGConfig, System.currentTimeMillis());
+        CompletableFuture<Controller.CreateReaderGroupResponse> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, consumpRGConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         String subscriber2 = "subscriber2";
         createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, consumpRGConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
@@ -1822,14 +1835,14 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
         String subscriber1 = "subscriber1";
-        CompletableFuture<Controller.CreateReaderGroupStatus.Status> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, consumpRGConfig, System.currentTimeMillis());
+        CompletableFuture<Controller.CreateReaderGroupResponse> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, consumpRGConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         String subscriber2 = "subscriber2";
         createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, consumpRGConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
