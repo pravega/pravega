@@ -19,7 +19,6 @@ import java.util.Random;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -103,6 +102,16 @@ public class TestUtils {
         modifiersField.setAccessible(true);
         modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
         field.set(null, newValue);
+    }
+
+    /**
+     * A no-op {@link java.util.function.Consumer<T>} that does nothing.
+     *
+     * @param ignored Arg.
+     * @param <T>     Type.
+     */
+    public static <T> void doNothing(T ignored) {
+        // Does nothing.
     }
 
 }
