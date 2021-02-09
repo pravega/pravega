@@ -130,6 +130,12 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
+    @Override
+    public void keepAlive(WireCommands.KeepAlive keepAlive) {
+        log.debug("Received a keepAlive from connection: {}", connection);
+        connection.send(keepAlive);
+    }
+
     /**
      * Setup an append so that subsequent append calls can occur.
      * This requires validating that the segment exists.

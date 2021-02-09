@@ -14,7 +14,6 @@ import io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
-import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
@@ -64,7 +63,6 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.conditionalCheckFailed(new ConditionalCheckFailed(null, 1, 2)));
         assertThrows(IllegalStateException.class, () -> rp.dataAppended(new DataAppended(1, null, 0, -1, 2)));
         assertThrows(IllegalStateException.class, () -> rp.invalidEventNumber(new InvalidEventNumber(null, 0, "")));
-        assertThrows(IllegalStateException.class, () -> rp.keepAlive(new KeepAlive()));
         assertThrows(IllegalStateException.class, () -> rp.noSuchSegment(new NoSuchSegment(0, "", "", 2)));
         assertThrows(UnsupportedOperationException.class, () -> rp.operationUnsupported(new OperationUnsupported(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.segmentAlreadyExists(new SegmentAlreadyExists(1, "", "")));
