@@ -32,7 +32,7 @@ import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricRegistryUtils;
@@ -182,8 +182,8 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
 
         final String subscriber = "subscriber1";
-        CreateReaderGroupStatus createRGStatus = controllerWrapper.getControllerService().createReaderGroup(scopeName, subscriber, rgConfig, System.currentTimeMillis()).get();
-        assertEquals(CreateReaderGroupStatus.Status.SUCCESS, createRGStatus.getStatus());
+        CreateReaderGroupResponse createRGStatus = controllerWrapper.getControllerService().createReaderGroup(scopeName, subscriber, rgConfig, System.currentTimeMillis()).get();
+        assertEquals(CreateReaderGroupResponse.Status.SUCCESS, createRGStatus.getStatus());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.CREATE_READER_GROUP)).count());
 
         final String subscriberScopedName = NameUtils.getScopedReaderGroupName(scopeName, subscriber);
