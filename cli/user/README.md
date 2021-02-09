@@ -66,7 +66,7 @@ Initial configuration:
 
 Type "help" for list of commands, or "exit" to exit.
 ```
-The values can be changed at the properties file, or use `config set property=...` to change the value. Make sure to update `controller-uri:<pravega-cluster-name>-pravega-controller.<namespace>:<port>`
+The values can be changed using `config set property=...` to change the value. Make sure to update `controller-uri:<pravega-cluster-name>-pravega-controller.<namespace>:<port>`
 
 From that point onwards, you can check the available commands typing `help`:
 ```
@@ -104,12 +104,19 @@ Scope 'example' created successfully.
 For more info on how the Pravega User CLI works, please visit [this page](https://github.com/pravega/pravega/wiki/Pravega-User-CLI).
 
 ## Pravega CLI on Kubernetes
-The pravega-cli can be accessed through the kubernetes pod such as the segmentstore pod.
 
+The Pravega User CLI can be accessed through the Kubernetes pod such as the Segment Store pod, or externally if exposed to Controller/Segment Store endpoints.
 
-Once in the pod, you can run the pravega-cli under admin mode
+From the available options, we now show how to use the Pravega User CLI from inside the Kubernetes cluster, by using the built-in tool in the Pravega server instances.
+
+You can access a Segment Store pod in the following way:
+````
+kubectl exec pravega-pravega-segment-store-0 -it bash
+````
+
+Run existing Pravega User CLI:
 ```
-    ./bin/pravega-cli
+./bin/pravega-cli
     OpenJDK 64-Bit Server VM warning: Option MaxRAMFraction was deprecated in version 10.0 and will likely be removed in a future release.
     Pravega User CLI Tool.
         Usage instructions: https://github.com/pravega/pravega/wiki/Pravega-User-CLI
@@ -122,8 +129,7 @@ Once in the pod, you can run the pravega-cli under admin mode
         pretty-print=true
 ```
 
-The initial configuration needs to be modified by using `config set` command.
-For example:
+The `controller-uri` in the initial configuration needs to be modified by using `config set` command. For example:
 ```
 config set controller-uri=pravega-pravega-controller.default:10080
 
@@ -137,10 +143,7 @@ config list
 ```
 
 
-Once the config file is updated, the following commands and more will work:
-```
-scope create example
-```
+Once the config file is updated, you can run commands.
 
 ## Support
 If you find any issue or you have any suggestion, please report an issue to [this repository](https://github.com/pravega/pravega/issues).
