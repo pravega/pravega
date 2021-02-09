@@ -352,10 +352,10 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                                                    .build();
 
         setupGetAttributes(streamSegmentName, clientId, store);
-        val ac1 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 1), CompletableFuture.completedFuture((long) data.length));
+        val ac1 = interceptAppend(store, streamSegmentName, 0, updateEventNumber(clientId, 1), CompletableFuture.completedFuture((long) data.length));
 
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), 0L, requestId));
 
         val ac2 = interceptAppend(store, streamSegmentName, 0, updateEventNumber(clientId, 2, 1, 1),
                 Futures.failedFuture(new BadOffsetException(streamSegmentName, data.length, 0)));
@@ -372,6 +372,44 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
+    }
+    
+    @Test
+    public void testConditionalAppendFailureOnUnconditionalAppend() {
+        String streamSegmentName = "scope/stream/testConditionalAppendFailureOnUnconditionalAppend";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                                                   .store(store)
+                                                   .connection(connection)
+                                                   .connectionTracker(tracker)
+                                                   .statsRecorder(mockedRecorder)
+                                                   .build();
+
+        setupGetAttributes(streamSegmentName, clientId, store);
+        val ac1 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 1), CompletableFuture.completedFuture((long) data.length));
+
+        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), null, requestId));
+
+        val ac2 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 1, 1, 1),
+                Futures.failedFuture(new BadOffsetException(streamSegmentName, data.length, 0)));
+
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
+        verifyStoreAppend(ac1, data);
+        verifyStoreAppend(ac2, data);
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(tracker, times(2)).updateOutstandingBytes(connection, data.length, data.length);
+        verify(connection).send(new DataAppended(requestId, clientId, 1, 0, data.length));
+        verify(connection).close();
+        verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
     }
 
     @Test
