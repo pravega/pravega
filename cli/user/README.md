@@ -105,7 +105,7 @@ For more info on how the Pravega User CLI works, please visit [this page](https:
 
 ## Pravega CLI on Kubernetes
 
-The Pravega User CLI can be accessed through the Kubernetes pod such as the Segment Store pod, or externally if exposed to Controller/Segment Store endpoints.
+The Pravega User CLI can be used from inside the Kubernetes cluster (including the Segment Store pod that has the CLI tool built-in), or externally if your Pravega cluster publicly exposes the Controller/Segment Store endpoints.
 
 From the available options, we now show how to use the Pravega User CLI from inside the Kubernetes cluster, by using the built-in tool in the Pravega server instances.
 

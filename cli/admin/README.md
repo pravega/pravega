@@ -52,7 +52,7 @@ You can run the Pravega Admin CLI as follows:
 ```
 ./bin/pravega-admin
 ```
-You will see an output related to the default configuration parameters available at `conf/admin-cli.properties`. The values can be changed at the properties file (`conf/config.properties`), or use `config set property=...` to change the value.
+You will see an output related to the default configuration parameters available at `conf/admin-cli.properties`. The values can be changed at the properties file (`conf/admin-cli.properties`), or use `config set property=...` to change the value.
 (you may want to change this file according to your setting):
 ```
 Pravega Admin CLI.
@@ -137,7 +137,7 @@ You can access a Segment Store pod in the following way:
 kubectl exec pravega-pravega-segment-store-0 -it bash
 ````
 
-Once in the pod, you can run the Pravega Admin CLI
+Once in the pod, you can run the Pravega Admin CLI:
 ```
 ./bin/pravega-admin
     OpenJDK 64-Bit Server VM warning: Option MaxRAMFraction was deprecated in version 10.0 and will likely be removed in a future release.
