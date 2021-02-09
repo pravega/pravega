@@ -32,21 +32,26 @@ You may obtain a copy of the License at
 ## Requirements
 
 - Kubernetes 1.15+
+- Helm 3.2.1+
 - An existing Apache Zookeeper 3.6.1 cluster. This can be easily deployed using our [Zookeeper Operator](https://github.com/pravega/zookeeper-operator).
-- Bookkeeper setup using [bookkeeper-operator](https://github.com/pravega/bookkeeper-operator)
-- [Pravega Operator](https://github.com/pravega/pravega-operator/edit/master/README.md) manages Pravega clusters deployed to Kubernetes and automates tasks related to operating a Pravega cluster.
-
+- An existing Apache Bookkeeper 4.9.2 cluster. This can be easily deployed using our [Bookkeeper Operator](https://github.com/pravega/bookkeeper-operator).
+- Cert-Manager v0.15.0+ or some other certificate management solution in order to manage the webhook service certificates. This can be easily deployed by referring to this.
+- An Issuer and a Certificate (either self-signed or CA signed) in the same namespace that the Pravega Operator will be installed (refer to this manifest to create a self-signed certificate in the default namespace).
 ## Usage
 
 ### Install the Pravega Operator
 
 > Note: If you are running on Google Kubernetes Engine (GKE), please [check this first](https://github.com/pravega/pravega-operator#installation-on-google-kubernetes-engine).
 
-Run the following command to install the `PravegaCluster` custom resource definition (CRD), create the `pravega-operator` service account, roles, bindings, and the deploy the Pravega Operator.
 
+Install the Pravega Operator with helm using: 
 ```
-$ kubectl create -f deploy
+$ helm repo add pravega https://charts.pravega.io
+$ helm repo update
+$ helm install [RELEASE_NAME] pravega/pravega-operator --version=[VERSION] --set webhookCert.certName=[CERT_NAME] --set webhookCert.secretName=[SECRET_NAME]
 ```
+
+Further details can be found [here](https://github.com/pravega/pravega-operator/tree/master/charts/pravega-operator#installing-the-chart).
 
 Verify that the Pravega Operator is running.
 
@@ -109,7 +114,7 @@ kind: "PravegaCluster"
 metadata:
   name: "pravega"
 spec:
-  version: 0.8.0
+  version: 0.9.0
   zookeeperUri: [ZOOKEEPER_HOST]:2181
   bookkeeperUri: [BOOKKEEPER_SVC]:3181"
   pravega:
