@@ -28,6 +28,7 @@ import lombok.val;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -52,8 +53,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final long traceId;
     private final Timer timer;
-    private final ArrayList<SystemJournal.SystemJournalRecord> systemLogRecords = new ArrayList<>();
-    private final List<ChunkNameOffsetPair> newReadIndexEntries = new ArrayList<>();
+    private final List<SystemJournal.SystemJournalRecord> systemLogRecords = Collections.synchronizedList(new ArrayList<>());
+    private final List<ChunkNameOffsetPair> newReadIndexEntries = Collections.synchronizedList(new ArrayList<>());
     private final AtomicInteger chunksAddedCount = new AtomicInteger();
 
     private volatile boolean isCommitted = false;
@@ -230,8 +231,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
         } else {
             // No new chunk needed just write data to existing chunk.
-            return chunkedSegmentStorage.getChunkStorage().openWrite(lastChunkMetadata.get().getName())
-                    .thenAcceptAsync(h -> chunkHandle = h, chunkedSegmentStorage.getExecutor());
+            chunkHandle = ChunkHandle.writeHandle(lastChunkMetadata.get().getName());
+            return CompletableFuture.completedFuture(null);
         }
     }
 
@@ -239,7 +240,13 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         // Create new chunk
         String newChunkName = getNewChunkName(handle.getSegmentName(),
                 segmentMetadata.getLength());
-        return chunkedSegmentStorage.getChunkStorage().create(newChunkName)
+        CompletableFuture<ChunkHandle> createdHandle;
+        if (chunkedSegmentStorage.shouldAppend()) {
+            createdHandle = chunkedSegmentStorage.getChunkStorage().create(newChunkName);
+        } else {
+            createdHandle = CompletableFuture.completedFuture(ChunkHandle.writeHandle(newChunkName));
+        }
+        return createdHandle
                 .thenAcceptAsync(h -> {
                     chunkHandle = h;
                     String previousLastChunkName = lastChunkMetadata.get() == null ? null : lastChunkMetadata.get().getName();
@@ -326,7 +333,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             segmentMetadata.setOwnershipChanged(false);
             log.debug("{} write - First write after failover - op={}, segment={}.", chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), segmentMetadata.getName());
         }
-        segmentMetadata.incrementChunkCount();
+        segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() + 1);
 
         // Update the transaction.
         txn.create(newChunkMetadata);
@@ -343,7 +350,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
      * @param oldChunkName      Name of the previous last chunk.
      * @param newChunkName      Name of the new last chunk.
      */
-    private void addSystemLogRecord(ArrayList<SystemJournal.SystemJournalRecord> systemLogRecords, String streamSegmentName, long offset, String oldChunkName, String newChunkName) {
+    private void addSystemLogRecord(List<SystemJournal.SystemJournalRecord> systemLogRecords, String streamSegmentName, long offset, String oldChunkName, String newChunkName) {
         systemLogRecords.add(
                 SystemJournal.ChunkAddedRecord.builder()
                         .segmentName(streamSegmentName)
@@ -366,7 +373,14 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         Preconditions.checkState(0 != bytesCount, "Attempt to write zero bytes");
         // Finally write the data.
         val bis = new BoundedInputStream(data, bytesCount);
-        return chunkedSegmentStorage.getChunkStorage().write(chunkHandle, offsetToWriteAt, bytesCount, bis)
+        CompletableFuture<Integer> retValue;
+        if (chunkedSegmentStorage.shouldAppend()) {
+            retValue = chunkedSegmentStorage.getChunkStorage().write(chunkHandle, offsetToWriteAt, bytesCount, bis);
+        } else {
+            retValue = chunkedSegmentStorage.getChunkStorage().createWithContent(chunkHandle.getChunkName(), bytesCount, bis)
+                    .thenApplyAsync(h -> bytesCount, chunkedSegmentStorage.getExecutor());
+        }
+        return retValue
                 .thenAcceptAsync(bytesWritten -> {
                     // Update the metadata for segment and chunk.
                     Preconditions.checkState(bytesWritten >= 0, "bytesWritten must be non-negative");
