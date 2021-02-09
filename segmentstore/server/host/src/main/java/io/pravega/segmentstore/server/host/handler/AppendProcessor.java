@@ -247,7 +247,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         Preconditions.checkNotNull(state, "state");
         boolean success = exception == null;
         try {
-            boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
+            boolean conditionalFailed = !success && (append.isConditional() && Exceptions.unwrap(exception) instanceof BadOffsetException);
 
             if (success) {
                 synchronized (state.getAckLock()) {
