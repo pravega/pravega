@@ -243,7 +243,7 @@ public class ChunkedSegmentStorage implements Storage {
         // Get the last chunk
         val lastChunkName = segmentMetadata.getLastChunk();
         final CompletableFuture<Boolean> f;
-        if (null != lastChunkName) {
+        if (shouldAppend() && null != lastChunkName) {
             f = txn.get(lastChunkName)
                     .thenComposeAsync(storageMetadata -> {
                         val lastChunk = (ChunkMetadata) storageMetadata;
@@ -261,7 +261,8 @@ public class ChunkedSegmentStorage implements Storage {
                                     // Adjust its length;
                                     if (chunkInfo.getLength() != lastChunk.getLength()) {
                                         Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength(),
-                                                "Length of last chunk on LTS must be greater than what is in metadata.");
+                                                "Length of last chunk on LTS must be greater than what is in metadata. Chunk=%s length=%s",
+                                                lastChunk, chunkInfo.getLength());
                                         // Whatever length you see right now is the final "sealed" length of the last chunk.
                                         lastChunk.setLength(chunkInfo.getLength());
                                         segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + lastChunk.getLength());
