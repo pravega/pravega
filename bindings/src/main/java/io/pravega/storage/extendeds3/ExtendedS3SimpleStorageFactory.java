@@ -41,7 +41,7 @@ public class ExtendedS3SimpleStorageFactory implements SimpleStorageFactory {
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
-                new ExtendedS3ChunkStorage(createS3Client(), this.config, this.executor, true),
+                new ExtendedS3ChunkStorage(createS3Client(), this.config, this.executor, true, true),
                 metadataStore,
                 this.executor,
                 this.chunkedSegmentStorageConfig);

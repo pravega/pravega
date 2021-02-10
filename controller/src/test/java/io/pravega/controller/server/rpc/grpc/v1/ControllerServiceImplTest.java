@@ -51,7 +51,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
@@ -572,17 +572,17 @@ public abstract class ControllerServiceImplTest {
                 .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-        ResultObserver<CreateReaderGroupStatus> result = new ResultObserver<>();
+        ResultObserver<CreateReaderGroupResponse> result = new ResultObserver<>();
         String rgName = "rg_1";
-        this.controllerService.createReaderGroup(ModelHelper.decode(SCOPE1, rgName, config), result);
-        CreateReaderGroupStatus createRGStatus = result.get();
-        assertEquals("Create Reader Group Invalid RG Name", CreateReaderGroupStatus.Status.INVALID_RG_NAME, createRGStatus.getStatus());
+        this.controllerService.createReaderGroup(ModelHelper.decode(SCOPE1, rgName, config, config.getReaderGroupId()), result);
+        CreateReaderGroupResponse createRGStatus = result.get();
+        assertEquals("Create Reader Group Invalid RG Name", CreateReaderGroupResponse.Status.INVALID_RG_NAME, createRGStatus.getStatus());
 
-        ResultObserver<CreateReaderGroupStatus> result1 = new ResultObserver<>();
+        ResultObserver<CreateReaderGroupResponse> result1 = new ResultObserver<>();
         rgName = "rg1";
-        this.controllerService.createReaderGroup(ModelHelper.decode("somescope", rgName, config), result1);
+        this.controllerService.createReaderGroup(ModelHelper.decode("somescope", rgName, config, config.getReaderGroupId()), result1);
         createRGStatus = result1.get();
-        assertEquals("Create Reader Group Scope not found", CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND, createRGStatus.getStatus());
+        assertEquals("Create Reader Group Scope not found", CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND, createRGStatus.getStatus());
     }
 
     @Test
@@ -1192,11 +1192,11 @@ public abstract class ControllerServiceImplTest {
                 .readerGroupId(rgId)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-        ResultObserver<CreateReaderGroupStatus> result = new ResultObserver<>();
+        ResultObserver<CreateReaderGroupResponse> result = new ResultObserver<>();
 
         this.controllerService.createReaderGroup(ModelHelper.decode(scope, rgName, config), result);
-        CreateReaderGroupStatus createRGStatus = result.get();
-        assertEquals("Create Reader Group", CreateReaderGroupStatus.Status.SUCCESS, createRGStatus.getStatus());
+        CreateReaderGroupResponse createRGStatus = result.get();
+        assertEquals("Create Reader Group", CreateReaderGroupResponse.Status.SUCCESS, createRGStatus.getStatus());
     }
 
     @Test(timeout = 30000L)

@@ -137,7 +137,7 @@ public class AutoScaleProcessor implements AutoCloseable {
         AtomicReference<EventStreamWriter<AutoScaleEvent>> w = new AtomicReference<>();
 
         Futures.completeAfter(() -> Retry.indefinitelyWithExpBackoff(100, 10, 10000, this::handleBootstrapException)
-                                         .runInExecutor(() -> bootstrapOnce(clientFactory, w), 
+                                         .runInExecutor(() -> bootstrapOnce(clientFactory, w),
                                                  executor).thenApply(v -> w.get()), writer);
     }
 
@@ -153,7 +153,9 @@ public class AutoScaleProcessor implements AutoCloseable {
             if (!startInitWriter.get()) {
                 throw new RuntimeException("Init not requested");
             }
-            EventWriterConfig writerConfig = EventWriterConfig.builder().build();
+            // Ensure the writer tries indefinitely to establish connection. This retry will continue in the background
+            // until the AutoScaleProcessor is closed.
+            EventWriterConfig writerConfig = EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build();
             writerRef.set(clientFactory.createEventWriter(configuration.getInternalRequestStream(),
                     SERIALIZER, writerConfig));
             log.info("AutoScale Processor Initialized. RequestStream={}",
