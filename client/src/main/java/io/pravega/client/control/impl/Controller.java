@@ -29,6 +29,7 @@ import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 
 import java.util.List;
 import java.util.Map;
@@ -137,12 +138,12 @@ public interface Controller extends AutoCloseable {
      * @param scopeName Scope name for Reader Group.
      * @param rgName Stream name.
      * @param config ReaderGroup configuration.
-     * @throws IllegalArgumentException if Stream does not exist.
+     * @throws IllegalArgumentException if ReaderGroup Config is invalid.
      * @return A future which will throw if the operation fails, otherwise
      *         the subscriber was updated in Stream Metadata and a long indicating
      *         the updated config generation is returned.
      */
-    CompletableFuture<Long> updateReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
+    CompletableFuture<UpdateReaderGroupResponse> updateReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
 
     /**
      * API to get Reader Group Configuration.

@@ -1563,7 +1563,7 @@ public class ControllerImpl implements Controller {
         });
     }
 
-    public CompletableFuture<Long> updateReaderGroup(String scope, String rgName, final ReaderGroupConfig rgConfig) {
+    public CompletableFuture<UpdateReaderGroupResponse> updateReaderGroup(String scope, String rgName, final ReaderGroupConfig rgConfig) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(rgName, "rgName");
@@ -1586,11 +1586,9 @@ public class ControllerImpl implements Controller {
                     log.warn(requestId, "Illegal Reader Group Name: {}", rgName);
                     throw new IllegalArgumentException("Illegal readergroup name: " + rgName);
                 case RG_NOT_FOUND:
-                    log.warn(requestId, "Scope not found: {}", scope);
-                    throw new IllegalArgumentException("Scope does not exist: " + scope);
                 case SUCCESS:
                     log.info(requestId, "ReaderGroup created successfully: {}", rgName);
-                    return x.getGeneration();
+                    return x;
                 case UNRECOGNIZED:
                 default:
                     throw new ControllerFailureException("Unknown return status creating reader group " + rgName

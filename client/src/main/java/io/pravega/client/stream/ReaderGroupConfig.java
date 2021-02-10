@@ -19,6 +19,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput.ElementSerializer;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
+import java.io.Reader;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -75,6 +76,19 @@ public class ReaderGroupConfig implements Serializable {
         NONE,
         MANUAL_RELEASE_AT_USER_STREAMCUT,
         AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT;
+    }
+
+    public static ReaderGroupConfig copyFrom(ReaderGroupConfig cfg, long generation, UUID readerGroupId) {
+        return ReaderGroupConfig.builder()
+                .readerGroupId(readerGroupId)
+                .generation(generation)
+                .startingStreamCuts(cfg.getStartingStreamCuts())
+                .endingStreamCuts(cfg.getEndingStreamCuts())
+                .retentionType(cfg.getRetentionType())
+                .groupRefreshTimeMillis(cfg.getGroupRefreshTimeMillis())
+                .maxOutstandingCheckpointRequest(cfg.maxOutstandingCheckpointRequest)
+                .automaticCheckpointIntervalMillis(cfg.getAutomaticCheckpointIntervalMillis())
+                .build();
     }
 
     public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {

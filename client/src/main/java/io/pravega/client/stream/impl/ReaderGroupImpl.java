@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -44,19 +45,14 @@ import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
+import io.pravega.common.LoggerHelpers;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
@@ -215,7 +211,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 ReaderGroupConfig newConfig = config.toBuilder()
                         .readerGroupId(currentConfig.getReaderGroupId())
                         .generation(currentConfig.getGeneration()).build();
-                long newGen = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, newConfig));
+                long newGen = Futures.getThrowingException(updateConfigToController(scope, groupName, config));
                 Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
                 synchronizer.updateState((s, updates) -> {
                     updates.add(new ReaderGroupStateInit(newConfig.toBuilder().generation(newGen).build(), segments, getEndSegmentsForStreams(newConfig), false));
@@ -223,6 +219,27 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 return;
             }
         }
+    }
+
+    private CompletableFuture<Long> updateConfigToController(String scope, String rgName, ReaderGroupConfig config) {
+        return controller.updateReaderGroup(scope, rgName, config)
+                .thenCompose(response -> {
+                    if (UpdateReaderGroupResponse.Status.RG_NOT_FOUND.equals(response.getStatus())) {
+                        // for backward compatibility with old ReaderGroups that may not be present on Controller.
+                        ReaderGroupConfig createCfg = ReaderGroupConfig.copyFrom(config, 0, config.getReaderGroupId());
+                        return controller.createReaderGroup(scope, rgName, createCfg)
+                                .thenCompose(conf -> {
+                                    if (config.getGeneration() == conf.getGeneration()
+                                    && config.getReaderGroupId() == conf.getReaderGroupId()) {
+                                        return CompletableFuture.completedFuture(conf.getGeneration());
+                                    } else {
+                                        ReaderGroupConfig cfg = ReaderGroupConfig.copyFrom(config, conf.getGeneration(), conf.getReaderGroupId());
+                                        return updateConfigToController(scope, rgName, cfg);
+                                    }
+                                });
+                    }
+                    return CompletableFuture.completedFuture(response.getGeneration());
+                });
     }
 
     private boolean stateTransition(ReaderGroupConfig config, ReaderGroupState.ReaderGroupStateUpdate update) {
