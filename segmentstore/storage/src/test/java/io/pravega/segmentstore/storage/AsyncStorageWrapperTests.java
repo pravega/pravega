@@ -355,6 +355,14 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
 
     }
 
+    @Test
+    public void testSupportsAtomicWrites() {
+        val innerStorage = new TestStorage((operation, segment) -> null);
+        @Cleanup
+        val s = new AsyncStorageWrapper(innerStorage, executorService());
+        Assert.assertFalse(s.supportsAtomicWrites());
+    }
+
     private CompletableFuture<Void> allOf(Collection<CompletableFuture<?>> futures) {
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
     }
