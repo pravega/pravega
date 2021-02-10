@@ -108,7 +108,7 @@ public class MultiControllerTest extends AbstractSystemTest {
      * @throws InterruptedException If test is interrupted.
      */
     @Test(timeout = 300000)
-    public void multiControllerTest() throws ExecutionException, InterruptedException {
+    public void multiControllerTest() throws Exception {
 
         log.info("Start execution of multiControllerTest");
 
@@ -127,13 +127,10 @@ public class MultiControllerTest extends AbstractSystemTest {
         // All APIs should throw exception and fail.
         Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
 
-        if (!controllerService.getServiceDetails().isEmpty()) {
-            controllerURIDirect.set(controllerService.getServiceDetails().get(0));
-            controllerURIDiscover.set(controllerService.getServiceDetails().get(0));
-        } else {
-            controllerURIDirect.set(URI.create("tcp://0.0.0.0:9090"));
-            controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
-        }
+        AssertExtensions.assertEventuallyEquals("Problem scaling down the Controller service.", true,
+                () -> controllerService.getServiceDetails().isEmpty(), 1000, 30000);
+        controllerURIDirect.set(URI.create("tcp://0.0.0.0:9090"));
+        controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
 
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect.get());
         log.info("Test tcp:// with no controller instances running");
