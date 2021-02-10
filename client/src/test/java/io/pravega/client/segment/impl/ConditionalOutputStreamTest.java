@@ -27,6 +27,7 @@ import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.AssertExtensions;
 import java.nio.ByteBuffer;
+import java.util.UUID;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -267,18 +268,22 @@ public class ConditionalOutputStreamTest {
 
         AssertExtensions.assertThrows("AuthenticationException wasn't thrown",
                 () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.AuthTokenCheckFailed(1L, "SomeException",
-                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED)),
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED), "test"),
                 e -> e instanceof AuthenticationException);
 
         AssertExtensions.assertThrows("AuthenticationException wasn't thrown",
                 () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.AuthTokenCheckFailed(1L, "SomeException",
-                        WireCommands.AuthTokenCheckFailed.ErrorCode.UNSPECIFIED)),
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.UNSPECIFIED), "test"),
                 e -> e instanceof AuthenticationException);
 
         AssertExtensions.assertThrows("TokenExpiredException wasn't thrown",
                 () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.AuthTokenCheckFailed(1L, "SomeException",
-                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED)),
+                        WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED), "test"),
                 e -> e instanceof TokenExpiredException);
+        
+        AssertExtensions.assertThrows("InvalidEventNumber wasn't treated as a connection failure",
+                () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.InvalidEventNumber(UUID.randomUUID(), 1, "SomeException"), "test"),
+                e -> e instanceof ConnectionFailedException);
     }
     
     /**
