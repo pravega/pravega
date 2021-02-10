@@ -76,7 +76,8 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
         Preconditions.checkState(segments.getNumberOfSegments() > 0, "Stream is sealed");
         Preconditions.checkState(segments.getNumberOfSegments() == 1, "Stream is configured with more than one segment");
         Segment segment = segments.getSegments().iterator().next();
-        EventWriterConfig config = EventWriterConfig.builder().build();
+        // The writer should not give up connecting to SegmentStore in the background until the ByteStreamWriter is closed.
+        EventWriterConfig config = EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build();
         DelegationTokenProvider tokenProvider =
                 DelegationTokenProviderFactory.create(controller, segment, AccessOperation.WRITE);
         return new BufferedByteStreamWriterImpl(
