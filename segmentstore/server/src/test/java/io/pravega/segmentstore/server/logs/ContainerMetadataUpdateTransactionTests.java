@@ -240,6 +240,14 @@ public class ContainerMetadataUpdateTransactionTests {
                 "preProcessOperations accepted an append with the wrong offset.",
                 () -> txn.preProcessOperation(badAppendOp),
                 ex -> ex instanceof BadOffsetException);
+
+        // Append #4 (wrong offset + wrong attribute). AS PER SEGMENT STORE CONTRACT, BadAttributeUpdateException takes precedence.
+        badAppendOp.getAttributeUpdates().add(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.ReplaceIfEquals, 1, 1234));
+        AssertExtensions.assertThrows(
+                "preProcessOperations failed with wrong exception when append has both bad offset and bad attribute.",
+                () -> txn.preProcessOperation(badAppendOp),
+                ex -> ex instanceof BadAttributeUpdateException);
+
         AssertExtensions.assertThrows(
                 "acceptOperation accepted an append that was rejected during preProcessing.",
                 () -> txn.acceptOperation(badAppendOp),
