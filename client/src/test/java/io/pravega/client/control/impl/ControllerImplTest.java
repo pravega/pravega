@@ -81,7 +81,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
@@ -149,6 +149,10 @@ public class ControllerImplTest {
     private static final int SERVICE_PORT = 12345;
     private static final String NON_EXISTENT = "non-existent";
     private static final String FAILING = "failing";
+    private static final int KEEP_ALIVE_TEST_STREAM_CREATE_DELAY_MILLIS = 2000;
+    private static final int KEEP_ALIVE_TEST_PERMIT_TIME_MILLIS = 250;
+    private static final int KEEP_ALIVE_TEST_KEEP_ALIVE_MILLIS = 500;
+
 
     @Rule
     public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
@@ -267,7 +271,7 @@ public class ControllerImplTest {
 
                     // Simulating delay in sending response. This is used for the keepalive test,
                     // where response time > 30 seconds is required to simulate a failure.
-                    Exceptions.handleInterrupted(() -> Thread.sleep(40000));
+                    Exceptions.handleInterrupted(() -> Thread.sleep(KEEP_ALIVE_TEST_STREAM_CREATE_DELAY_MILLIS));
                     responseObserver.onNext(CreateStreamStatus.newBuilder()
                             .setStatus(CreateStreamStatus.Status.SUCCESS)
                             .build());
@@ -347,25 +351,29 @@ public class ControllerImplTest {
 
             @Override
             public void createReaderGroup(ReaderGroupConfiguration request,
-                                          StreamObserver<CreateReaderGroupStatus> responseObserver) {
+                                          StreamObserver<CreateReaderGroupResponse> responseObserver) {
                 if (request.getReaderGroupName().equals("rg1")) {
-                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
-                            .setStatus(CreateReaderGroupStatus.Status.SUCCESS)
+                    responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
+                            .setConfig(request)
+                            .setStatus(CreateReaderGroupResponse.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg2")) {
-                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
-                            .setStatus(CreateReaderGroupStatus.Status.FAILURE)
+                    responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
+                            .setConfig(request)
+                            .setStatus(CreateReaderGroupResponse.Status.FAILURE)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg3")) {
-                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
-                            .setStatus(CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND)
+                    responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
+                            .setConfig(request)
+                            .setStatus(CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg4")) {
-                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
-                            .setStatus(CreateReaderGroupStatus.Status.INVALID_RG_NAME)
+                    responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
+                            .setConfig(request)
+                            .setStatus(CreateReaderGroupResponse.Status.INVALID_RG_NAME)
                             .build());
                     responseObserver.onCompleted();
                 }
@@ -1320,11 +1328,10 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testKeepAlive() throws IOException, ExecutionException, InterruptedException {
-
+    public void testKeepAliveNoServer() throws Exception {
         // Verify that keep-alive timeout less than permissible by the server results in a failure.
         NettyChannelBuilder builder = NettyChannelBuilder.forAddress("localhost", serverPort)
-                                                         .keepAliveTime(10, TimeUnit.SECONDS);
+                                                         .keepAliveTime(5, TimeUnit.SECONDS);
         if (testSecure) {
             builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(
                     new File(SecurityConfigDefaults.TLS_CA_CERT_PATH)).build());
@@ -1337,19 +1344,25 @@ public class ControllerImplTest {
                                                                         .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                                                                         .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                                         .build())
-                                    .retryAttempts(1).build(),
+                                    .retryAttempts(1)
+                                    .initialBackoffMillis(1)
+                                    .timeoutMillis(500)
+                                    .build(),
                 this.executor);
         CompletableFuture<Boolean> createStreamStatus = controller.createStream("scope1", "streamdelayed", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         AssertExtensions.assertFutureThrows("Should throw RetriesExhaustedException", createStreamStatus,
                 throwable -> throwable instanceof RetriesExhaustedException);
+    }
 
+    @Test
+    public void testKeepAliveWithServer() throws Exception {
         // Verify that the same RPC with permissible keepalive time succeeds.
         int serverPort2 = TestUtils.getAvailableListenPort();
         NettyServerBuilder testServerBuilder = NettyServerBuilder.forPort(serverPort2)
                                                                  .addService(testServerImpl)
-                                                                 .permitKeepAliveTime(5, TimeUnit.SECONDS);
+                                                                 .permitKeepAliveTime(KEEP_ALIVE_TEST_PERMIT_TIME_MILLIS, TimeUnit.MILLISECONDS);
 
         if (testSecure) {
            testServerBuilder = testServerBuilder.useTransportSecurity(
@@ -1357,11 +1370,12 @@ public class ControllerImplTest {
                    new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH));
         }
 
+        @Cleanup("shutdownNow")
         Server testServer = testServerBuilder.build()
                 .start();
 
-        builder = NettyChannelBuilder.forAddress("localhost", serverPort2)
-                           .keepAliveTime(10, TimeUnit.SECONDS);
+        NettyChannelBuilder builder = NettyChannelBuilder.forAddress("localhost", serverPort2)
+                           .keepAliveTime(KEEP_ALIVE_TEST_KEEP_ALIVE_MILLIS, TimeUnit.MILLISECONDS);
         if (testSecure) {
             builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(
                     new File(SecurityConfigDefaults.TLS_CA_CERT_PATH)).build());
@@ -1371,11 +1385,13 @@ public class ControllerImplTest {
         @Cleanup
         final ControllerImpl controller1 = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
-                                                                        .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
-                                                                        .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                                                        .build())
-                                    .retryAttempts(1).build(), this.executor);
-        createStreamStatus = controller1.createStream("scope1", "streamdelayed", StreamConfiguration.builder()
+                        .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                        .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
+                        .build())
+                        .retryAttempts(1)
+                        .initialBackoffMillis(1)
+                        .build(), this.executor);
+        val createStreamStatus = controller1.createStream("scope1", "streamdelayed", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         assertTrue(createStreamStatus.get());
@@ -1522,7 +1538,7 @@ public class ControllerImplTest {
 
     @Test
     public void testCreateReaderGroup() throws Exception {
-        CompletableFuture<Boolean> createRGStatus;
+        CompletableFuture<ReaderGroupConfig> createRGConfig;
         final Segment seg0 = new Segment("scope1", "stream1", 0L);
         final Segment seg1 = new Segment("scope1", "stream1", 1L);
         ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
@@ -1540,20 +1556,21 @@ public class ControllerImplTest {
                 .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-        createRGStatus = controllerClient.createReaderGroup("scope1", "rg1", config);
-        assertTrue(createRGStatus.get());
+        createRGConfig = controllerClient.createReaderGroup("scope1", "rg1", config);
+        assertEquals(createRGConfig.get().getReaderGroupId(), config.getReaderGroupId());
+        assertEquals(createRGConfig.get().getGeneration(), config.getGeneration());
 
-        createRGStatus = controllerClient.createReaderGroup("scope1", "rg2", config);
+        createRGConfig = controllerClient.createReaderGroup("scope1", "rg2", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                createRGStatus, Throwable -> true);
+                createRGConfig, Throwable -> true);
 
-        createRGStatus = controllerClient.createReaderGroup("scope1", "rg3", config);
+        createRGConfig = controllerClient.createReaderGroup("scope1", "rg3", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                createRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+                createRGConfig, throwable -> throwable instanceof IllegalArgumentException);
 
-        createRGStatus = controllerClient.createReaderGroup("scope1", "rg4", config);
+        createRGConfig = controllerClient.createReaderGroup("scope1", "rg4", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                createRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+                createRGConfig, throwable -> throwable instanceof IllegalArgumentException);
     }
 
     @Test
