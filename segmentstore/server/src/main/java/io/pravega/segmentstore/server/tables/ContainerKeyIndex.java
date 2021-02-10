@@ -19,6 +19,7 @@ import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.ConditionalTableUpdateException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
@@ -492,7 +493,7 @@ class ContainerKeyIndex implements AutoCloseable {
         assert !expectedVersions.isEmpty();
         val bucketReader = TableBucketReader.key(segment, this::getBackpointerOffset, this.executor);
         val searches = expectedVersions.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> bucketReader.find(e.getKey().getKey(), e.getValue(), timer)));
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> findBucketEntry(segment, bucketReader, e.getKey().getKey(), e.getValue(), timer)));
         return Futures
                 .allOf(searches.values())
                 .thenRun(() -> {
@@ -512,6 +513,33 @@ class ContainerKeyIndex implements AutoCloseable {
                         throw new CompletionException(new BadKeyVersionException(segment.getInfo().getName(), failed));
                     }
                 });
+    }
+
+    /**
+     * Finds the actual version of a Table Key while accounting for TableBucket rearrangements/relocations due to
+     * concurrent compactions.
+     * <p>
+     * This is handled by detecting a {@link StreamSegmentTruncatedException} and bypassing the cache in that case to
+     * read the TableBucket offset directly from the index, which should already contain the updated value (indexing is
+     * done prior to truncation).
+     *
+     * @param segment      A {@link DirectSegmentAccess} to read from.
+     * @param bucketReader A {@link TableBucketReader} to use to parse the table bucket.
+     * @param key          The sought key.
+     * @param bucketOffset The {@link TableBucket} offset to begin from.
+     * @param timer        Timer
+     * @param <T>          Return type.
+     */
+    <T> CompletableFuture<T> findBucketEntry(DirectSegmentAccess segment, TableBucketReader<T> bucketReader,
+                                             BufferView key, long bucketOffset, TimeoutTimer timer) {
+        // We first attempt an optimistic read, which involves fewer steps, and only invalidate the cache and read
+        // directly from the index if unable to find anything and there is a chance the sought key actually exists.
+        // Encountering a truncated Segment offset indicates that the Segment may have recently been compacted and
+        // we are using a stale cache value.
+        return Futures.exceptionallyComposeExpecting(bucketReader.find(key, bucketOffset, timer),
+                ex -> ex instanceof StreamSegmentTruncatedException,
+                () -> getBucketOffsetDirect(segment, this.keyHasher.hash(key), timer)
+                        .thenComposeAsync(newOffset -> bucketReader.find(key, newOffset, timer), this.executor));
     }
 
     /**
