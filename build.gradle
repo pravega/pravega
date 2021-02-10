@@ -960,6 +960,14 @@ project('test:system') {
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
+        excludedTests = System.getProperty('excludeSystemTests', '').split(',').toList()
+        includedTests = System.getProperty('includeSystemTests', '').split(',').toList()
+        // Let included tests take precedence if both are specified.
+        if (!includedTests.isEmpty()) {
+            includes = includedTests
+        } else if (!excludedTests.isEmpty()) {
+            excludes = excludedTests
+        }
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
@@ -1016,6 +1024,15 @@ project('test:system') {
     task startK8SystemTests(type: Test) {
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
+
+        excludedTests = System.getProperty('excludeSystemTests', '').split(',').toList()
+        includedTests = System.getProperty('includeSystemTests', '').split(',').toList()
+        // Let included tests take precedence if both are specified.
+        if (!includedTests.isEmpty()) {
+            includes = includedTests
+        } else if (!excludedTests.isEmpty()) {
+            excludes = excludedTests
+        }
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
 
