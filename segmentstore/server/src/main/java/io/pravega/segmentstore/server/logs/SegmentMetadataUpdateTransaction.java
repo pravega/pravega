@@ -271,19 +271,19 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         if (!this.recoveryMode) {
-            // Offset check (if append-with-offset).
-            long operationOffset = operation.getStreamSegmentOffset();
-            if (operationOffset >= 0 && operationOffset != this.length) {
-                // If the Operation already has an offset assigned, verify that it matches the current end offset of the Segment.
-                throw new BadOffsetException(this.name, this.length, operationOffset);
-            }
-
-            // Attribute validation.
+            // Attribute validation must occur first. If an append is invalid due to both bad attributes and offsets,
+            // the attribute validation takes precedence.
             preProcessAttributes(operation.getAttributeUpdates());
 
-            // Only assign the offset after all validations passed. Otherwise we will modify the operation and a
-            // subsequent retry may fail with an unexpected exception.
-            if (operationOffset < 0) {
+            // Offset check (if append-with-offset).
+            long operationOffset = operation.getStreamSegmentOffset();
+            if (operationOffset >= 0) {
+                // If the Operation already has an offset assigned, verify that it matches the current end offset of the Segment.
+                if (operationOffset != this.length) {
+                    throw new BadOffsetException(this.name, this.length, operationOffset);
+                }
+            } else {
+                // No pre-assigned offset. Put the Append at the end of the Segment.
                 operation.setStreamSegmentOffset(this.length);
             }
         }
