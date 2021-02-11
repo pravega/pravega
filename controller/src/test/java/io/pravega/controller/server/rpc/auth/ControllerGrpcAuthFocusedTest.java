@@ -488,13 +488,17 @@ public class ControllerGrpcAuthFocusedTest {
         String stream1 = "test1";
         String stream2 = "test2";
         String readerGroup = "group";
-        ReaderGroupConfig oldConfig = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream1)).build();
+        final UUID rgId = UUID.randomUUID();
+        ReaderGroupConfig oldConfig = ReaderGroupConfig.builder()
+                .readerGroupId(rgId).generation(0L)
+                .stream(NameUtils.getScopedStreamName(scope, stream1)).build();
         createScopeAndStreamsStrict(scope, Arrays.asList(stream1, stream2), prepareFromFixedScaleTypePolicy(2));
         createReaderGroupStrict(scope, readerGroup, oldConfig);
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStubStrict(UserNames.ADMIN, DEFAULT_PASSWORD);
-        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup, ReaderGroupConfig.builder()
-                .stream(NameUtils.getScopedStreamName(scope, stream2)).readerGroupId(oldConfig.getReaderGroupId()).build());
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup,
+                ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream2))
+                        .readerGroupId(oldConfig.getReaderGroupId()).generation(0L).build());
 
         //Act
         Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
