@@ -17,19 +17,16 @@
     </appender>
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>controller-server.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+        <file>logs/controller-server.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
             <!-- daily rollover. Make sure the path matches the one in the file element or else
              the rollover logs are placed in the working directory. -->
-            <fileNamePattern>controller_server_%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
-
-            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                <maxFileSize>10MB</maxFileSize>
-            </timeBasedFileNamingAndTriggeringPolicy>
-            <!-- keep 30 days' worth of history -->
+            <fileNamePattern>logs/%d{YYYY-MM-dd, aux}/controller_server_%d{yyyy-MM-dd_HH}.%i.log.gz</fileNamePattern>
+            <!-- each file should be at most 10MB, keep 30 files worth of history, but at most 10GB -->
+            <maxFileSize>10MB</maxFileSize>
             <maxHistory>30</maxHistory>
+            <totalSizeCap>10GB</totalSizeCap>
         </rollingPolicy>
-
         <encoder>
             <charset>UTF-8</charset>
             <pattern>%d %-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>

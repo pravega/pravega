@@ -59,6 +59,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -229,6 +230,14 @@ public class FlowHandlerTest {
         flowHandler.process(msg);
         verify(processor).hello(msg);
         verify(errorProcessor).hello(msg);
+    }
+
+    @Test
+    public void testKeepAlive() {
+        final WireCommands.KeepAlive msg = new WireCommands.KeepAlive();
+        flowHandler.process(msg);
+        // ensure none of the Replyprocessors are bothered with this msg.
+        verifyNoInteractions(processor);
     }
 
     @Test
