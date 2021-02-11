@@ -299,7 +299,7 @@ public class ReaderGroupStateManagerTest {
         assertTrue(readerState.handleEndOfSegment(segment));
     }
     
-    @Test//(timeout = 10000)
+    @Test(timeout = 10000)
     public void testReachEndInvalidState() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
