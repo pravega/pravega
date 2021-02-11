@@ -78,6 +78,28 @@ public class TestUtils {
     }
 
     /**
+     * Awaits the given condition to become true, where condition could be non-repeatable.
+     *
+     * @param condition            A Supplier that indicates when the condition is true. When this happens, this method will return.
+     * @param checkFrequencyMillis The number of millis to wait between successive checks of the condition.
+     * @param timeoutMillis        The maximum amount of time to wait.
+     * @throws TimeoutException If the condition was not met during the allotted time.
+     */
+    @SneakyThrows(InterruptedException.class)
+    public static void awaitException(Supplier<Boolean> condition, int checkFrequencyMillis, long timeoutMillis) throws TimeoutException {
+        long remainingMillis = timeoutMillis;
+        boolean result = false;
+        while (!(result = condition.get()) && remainingMillis > 0) {
+            Thread.sleep(checkFrequencyMillis);
+            remainingMillis -= checkFrequencyMillis;
+        }
+
+        if (!result && remainingMillis <= 0) {
+            throw new TimeoutException("Timeout expired prior to the condition becoming true.");
+        }
+    }
+
+    /**
      * Generates an auth token using the Basic authentication scheme.
      * @param username the username to use.
      * @param password the password to use.
