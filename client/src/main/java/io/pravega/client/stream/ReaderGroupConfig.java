@@ -41,6 +41,9 @@ import static java.util.stream.Collectors.summarizingLong;
 @Builder(toBuilder = true)
 public class ReaderGroupConfig implements Serializable {
 
+    public static final UUID DEFAULT_UUID = new UUID(0L, 0L);
+    public static final long DEFAULT_GENERATION = -1;
+
     private static final long serialVersionUID = 1L;
     private static final ReaderGroupConfigSerializer SERIALIZER = new ReaderGroupConfigSerializer();
     private final long groupRefreshTimeMillis;
@@ -57,6 +60,8 @@ public class ReaderGroupConfig implements Serializable {
     private final long generation;
 
     private final UUID readerGroupId;
+
+
 
     /**
      * If a Reader Group wants unconsumed data to be retained in a Stream,
@@ -78,27 +83,14 @@ public class ReaderGroupConfig implements Serializable {
         AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT;
     }
 
-    public static ReaderGroupConfig copyFrom(ReaderGroupConfig cfg, long generation, UUID readerGroupId) {
-        return ReaderGroupConfig.builder()
-                .readerGroupId(readerGroupId)
-                .generation(generation)
-                .startingStreamCuts(cfg.getStartingStreamCuts())
-                .endingStreamCuts(cfg.getEndingStreamCuts())
-                .retentionType(cfg.getRetentionType())
-                .groupRefreshTimeMillis(cfg.getGroupRefreshTimeMillis())
-                .maxOutstandingCheckpointRequest(cfg.maxOutstandingCheckpointRequest)
-                .automaticCheckpointIntervalMillis(cfg.getAutomaticCheckpointIntervalMillis())
-                .build();
-    }
-
     public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
        private long groupRefreshTimeMillis = 3000; //default value
        private long automaticCheckpointIntervalMillis = 30000; //default value
        // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
        private StreamDataRetention retentionType = StreamDataRetention.NONE; //default value
-       private long generation = 0;
-       private UUID readerGroupId = UUID.randomUUID();
+       private long generation = DEFAULT_GENERATION;
+       private UUID readerGroupId = DEFAULT_UUID;
 
        /**
         * Disables automatic checkpointing. Checkpoints need to be

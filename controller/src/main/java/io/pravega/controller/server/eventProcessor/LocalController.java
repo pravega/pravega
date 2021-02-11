@@ -43,7 +43,6 @@ import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -212,7 +211,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<UpdateReaderGroupResponse> updateReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+    public CompletableFuture<Long> updateReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
         return this.controller.updateReaderGroup(scopeName, rgName, config).thenApply(x -> {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
@@ -223,7 +222,7 @@ public class LocalController implements Controller {
                 case RG_NOT_FOUND:
                     throw new IllegalArgumentException("Scope does not exist: " + scopedRGName);
                 case SUCCESS:
-                    return x;
+                    return x.getGeneration();
                 default:
                     throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
                             + " " + x.getStatus());

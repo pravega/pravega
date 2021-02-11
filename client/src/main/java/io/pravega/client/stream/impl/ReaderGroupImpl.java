@@ -207,39 +207,44 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             val currentConfig = synchronizer.getState().getConfig();
             // We only move into the block if the state transition has happened successfully.
             if (stateTransition(currentConfig, new UpdatingConfig(true))) {
-                // Use the latest generation and reader group Id.
-                ReaderGroupConfig newConfig = config.toBuilder()
-                        .readerGroupId(currentConfig.getReaderGroupId())
-                        .generation(currentConfig.getGeneration()).build();
-                long newGen = Futures.getThrowingException(updateConfigToController(scope, groupName, config));
-                Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
-                synchronizer.updateState((s, updates) -> {
-                    updates.add(new ReaderGroupStateInit(newConfig.toBuilder().generation(newGen).build(), segments, getEndSegmentsForStreams(newConfig), false));
-                });
+                if (currentConfig.getReaderGroupId() == ReaderGroupConfig.DEFAULT_UUID
+                        && currentConfig.getGeneration() == ReaderGroupConfig.DEFAULT_GENERATION) {
+                    // Migration code path, for moving a ReaderGroup from version < 0.9 to 0.9+
+                    final ReaderGroupConfig updateConfig = config.toBuilder()
+                            .readerGroupId(UUID.randomUUID())
+                            .generation(0L).build();
+                    final long nextGen = Futures.getThrowingException(controller.createReaderGroup(scope, getGroupName(), updateConfig)
+                       .thenCompose(conf -> {
+                       if (!conf.getReaderGroupId().equals(updateConfig.getReaderGroupId())) {
+                          return controller.updateReaderGroup(scope, groupName,
+                                  updateConfig.toBuilder().readerGroupId(conf.getReaderGroupId())
+                                          .generation(conf.getGeneration()).build());
+                        } else {
+                           // if ReaderGroup IDs matched, our create was updated on Controller
+                           // so just return the generation provided by create response
+                          return CompletableFuture.completedFuture(conf.getGeneration());
+                       }
+                       }));
+                    updateConfigInStateSynchronizer(updateConfig, nextGen);
+                } else {
+                    // normal code path
+                    // Use the latest generation and reader group Id.
+                    ReaderGroupConfig newConfig = config.toBuilder()
+                            .readerGroupId(currentConfig.getReaderGroupId())
+                            .generation(currentConfig.getGeneration()).build();
+                    final long nextGen = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, newConfig));
+                    updateConfigInStateSynchronizer(newConfig, nextGen);
+                }
                 return;
             }
         }
     }
 
-    private CompletableFuture<Long> updateConfigToController(String scope, String rgName, ReaderGroupConfig config) {
-        return controller.updateReaderGroup(scope, rgName, config)
-                .thenCompose(response -> {
-                    if (UpdateReaderGroupResponse.Status.RG_NOT_FOUND.equals(response.getStatus())) {
-                        // for backward compatibility with old ReaderGroups that may not be present on Controller.
-                        ReaderGroupConfig createCfg = ReaderGroupConfig.copyFrom(config, 0, config.getReaderGroupId());
-                        return controller.createReaderGroup(scope, rgName, createCfg)
-                                .thenCompose(conf -> {
-                                    if (config.getGeneration() == conf.getGeneration()
-                                    && config.getReaderGroupId() == conf.getReaderGroupId()) {
-                                        return CompletableFuture.completedFuture(conf.getGeneration());
-                                    } else {
-                                        ReaderGroupConfig cfg = ReaderGroupConfig.copyFrom(config, conf.getGeneration(), conf.getReaderGroupId());
-                                        return updateConfigToController(scope, rgName, cfg);
-                                    }
-                                });
-                    }
-                    return CompletableFuture.completedFuture(response.getGeneration());
-                });
+    private void updateConfigInStateSynchronizer(ReaderGroupConfig config, long newGen) {
+        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
+        synchronizer.updateState((s, updates) -> {
+            updates.add(new ReaderGroupStateInit(config.toBuilder().generation(newGen).build(), segments, getEndSegmentsForStreams(config), false));
+        });
     }
 
     private boolean stateTransition(ReaderGroupConfig config, ReaderGroupState.ReaderGroupStateUpdate update) {

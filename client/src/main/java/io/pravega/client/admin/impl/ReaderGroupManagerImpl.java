@@ -33,6 +33,7 @@ import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
 import java.io.IOException;
@@ -46,6 +47,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
+import static io.pravega.client.stream.impl.ReaderGroupImpl.getSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 import static io.pravega.common.concurrent.Futures.getThrowingException;
 import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
@@ -75,28 +77,29 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         this.controller = controller;
     }
 
-    private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        getAndHandleExceptions(controller.createStream(scope, streamName, StreamConfiguration.builder()
-                                                                          .scalingPolicy(config.getScalingPolicy())
-                                                                          .build()),
-                               RuntimeException::new);
-        return new StreamImpl(scope, streamName);
-    }
-
     @Override
     public void createReaderGroup(String groupName, ReaderGroupConfig config) {
         log.info("Creating reader group: {} for streams: {} with configuration: {}", groupName,
                 Arrays.toString(config.getStartingStreamCuts().keySet().toArray()), config);
         NameUtils.validateReaderGroupName(groupName);
-        createStreamHelper(getStreamForReaderGroup(groupName), StreamConfiguration.builder()
-                                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
-                                                                                  .build());
-        ReaderGroupConfig ctrlConfig = getThrowingException(controller.createReaderGroup(scope, groupName, config));
+        if (config.getReaderGroupId() == ReaderGroupConfig.DEFAULT_UUID) {
+            // make sure we never attempt to create a ReaderGroup with default ReadrGroupId which is 0-0-0
+            config = config.toBuilder().readerGroupId(UUID.randomUUID()).generation(0L).build();
+        }
+        ReaderGroupConfig controllerConfig = getThrowingException(controller.createReaderGroup(scope, groupName, config));
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
-        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, ctrlConfig);
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ctrlConfig, segments, getEndSegmentsForStreams(ctrlConfig), false));
+        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, controllerConfig);
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
+        ReaderGroupConfig syncConfig = synchronizer.getState().getConfig();
+        if (syncConfig.getReaderGroupId() == ReaderGroupConfig.DEFAULT_UUID
+        && syncConfig.getGeneration() == ReaderGroupConfig.DEFAULT_GENERATION) {
+            // migrate RG from version < 0.9 to 0.9+
+            synchronizer.updateState((s, updates) -> {
+              updates.add(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
+          });
+        }
     }
 
     @Override
@@ -105,10 +108,20 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                 new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
         synchronizer.fetchUpdates();
-        UUID groupId = synchronizer.getState().getConfig().getReaderGroupId();
-        long generation = synchronizer.getState().getConfig().getGeneration();
-        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, groupId, generation),
-                RuntimeException::new);
+        ReaderGroupConfig syncConfig = synchronizer.getState().getConfig();
+        if (ReaderGroupConfig.DEFAULT_UUID.equals(syncConfig.getReaderGroupId())
+            && ReaderGroupConfig.DEFAULT_GENERATION == syncConfig.getGeneration()) {
+            // migrate RG case
+            getAndHandleExceptions(controller.createReaderGroup(scope, groupName,
+                    syncConfig.toBuilder().readerGroupId(UUID.randomUUID()).generation(0L).build())
+                    .thenCompose(conf -> controller.deleteReaderGroup(scope, groupName, conf.getReaderGroupId(),
+                            conf.getGeneration())), RuntimeException::new);
+        } else {
+            // normal delete
+            getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, syncConfig.getReaderGroupId(),
+                    syncConfig.getGeneration()),
+                    RuntimeException::new);
+        }
     }
 
     @Override

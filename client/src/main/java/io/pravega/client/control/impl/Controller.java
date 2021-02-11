@@ -143,7 +143,7 @@ public interface Controller extends AutoCloseable {
      *         the subscriber was updated in Stream Metadata and a long indicating
      *         the updated config generation is returned.
      */
-    CompletableFuture<UpdateReaderGroupResponse> updateReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
+    CompletableFuture<Long> updateReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
 
     /**
      * API to get Reader Group Configuration.
