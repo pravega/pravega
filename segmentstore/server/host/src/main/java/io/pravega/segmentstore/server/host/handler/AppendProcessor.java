@@ -171,8 +171,16 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                                 if (u != null) {
                                     handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
                                 } else {
+                                    // Last event number stored according to Segment store.
                                     long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
-                                    this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
+                                    final WriterState writerState = this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
+                                    if (writerState != null) {
+                                        // Writer state already exists for this writer.
+                                        long lastEventNumber = writerState.getLastAckedEventNumber();
+                                        eventNumber = Math.max(lastEventNumber, eventNumber);
+                                        log.debug("Setting up Appends for writerId {}, last event number from attributes is {} from writer state is {}",
+                                                writer, eventNumber, lastEventNumber);
+                                    }
                                     connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
                                 }
                             } catch (Throwable e) {

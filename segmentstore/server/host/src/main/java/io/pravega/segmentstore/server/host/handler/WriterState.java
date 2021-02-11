@@ -178,6 +178,15 @@ class WriterState {
     }
 
     /**
+     * Gets the Event Number of the last Event that was Acked to the Client.
+     *
+     * @return The last event number that was acked to the client by the store.
+     */
+    synchronized long getLastAckedEventNumber() {
+        return this.lastAckedEventNumber;
+    }
+
+    /**
      * Gets a {@link DelayedErrorHandler} based on the following rules:
      * - If no call has been made to {@link #appendFailed}, this will return null.
      * - If {@link #appendFailed} has been invoked at least once, this will return a {@link DelayedErrorHandler} with
