@@ -29,7 +29,6 @@ import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 
 import java.util.List;
 import java.util.Map;

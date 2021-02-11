@@ -19,7 +19,6 @@ import io.pravega.common.io.serialization.RevisionDataOutput.ElementSerializer;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
-import java.io.Reader;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Collections;

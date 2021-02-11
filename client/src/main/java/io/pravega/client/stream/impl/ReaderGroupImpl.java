@@ -15,7 +15,6 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -45,14 +44,20 @@ import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
-import io.pravega.common.LoggerHelpers;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
@@ -220,8 +225,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                                   updateConfig.toBuilder().readerGroupId(conf.getReaderGroupId())
                                           .generation(conf.getGeneration()).build());
                         } else {
-                           // if ReaderGroup IDs matched, our create was updated on Controller
-                           // so just return the generation provided by create response
+                          // ReaderGroup IDs matched so our create was updated on Controller
                           return CompletableFuture.completedFuture(conf.getGeneration());
                        }
                        }));
