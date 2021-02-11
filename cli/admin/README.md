@@ -52,8 +52,8 @@ You can run the Pravega Admin CLI as follows:
 ```
 ./bin/pravega-admin
 ```
-You will see an output related to the default configuration parameters available at `conf/admin-cli.properties`. The values can be changed at the properties file (`conf/admin-cli.properties`), or use `config set property=...` to change the value.
-(you may want to change this file according to your setting):
+The config values can be changed at the `conf/admin-cli.properties` to permanently change the config, or use `config set property=...` to change temporarily change the config for command line session only.
+The initial configuration:
 ```
 Pravega Admin CLI.
    
@@ -70,7 +70,7 @@ Initial configuration:
 	cli.controller.grpc.uri=tcp://localhost:9090
 ```
 
-From that point onwards, you can check the available commands typing `help`:
+From that point onwards, you can check the available commands by typing `help`:
 ``` 
 > help
 All available commands:
@@ -130,7 +130,7 @@ explore the whole functionality of Pravega Admin CLI.
 
 The Pravega Admin CLI needs to be executed from inside the Kubernetes cluster, as it requires to reach the services that form a Pravega cluster.
 
-To this end, you can either spark a new pod in the cluster and build the tool, or log in one of the Pravega server pods that already has the Pravega Admin CLI built in. From now on, we will describe how to use the Pravega Admin CLI in Kubernetes assuming the latter option.
+To this end, you can either start a new pod in the cluster and build the tool, or log into a Pravega server pod that already has the Pravega Admin CLI built in. In this section, we will assume the latter option and describe how to use the Pravega Admin CLI from within existing Pravega server pods.
 
 You can access a Segment Store pod in the following way:
 ````
