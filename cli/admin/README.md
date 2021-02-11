@@ -158,7 +158,7 @@ Once in the pod, you can run the Pravega Admin CLI:
 ```
 
 The initial configuration needs to be modified according to the information of your cluster by accessing the properties file (`./conf/admin-cli.properties`) or using `config set` command.
-For example, this is the configuration we used on a new Pravega cluster deployed via Helm chart as described in the Pravega Operator documentation:
+For example, this is the configuration we used on a new Pravega cluster deployed via Helm chart as described in the [Pravega Operator documentation](https://github.com/pravega/pravega-operator/tree/master/charts/pravega#installing-the-chart):
 ```
 config set cli.controller.rest.uri=pravega-pravega-controller.default:10080
 
