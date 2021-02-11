@@ -510,13 +510,16 @@ public class ControllerGrpcAuthFocusedTest {
         String stream1 = "test1";
         String stream2 = "test2";
         String readerGroup = "group";
-        ReaderGroupConfig oldConfig = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream1)).build();
+        UUID rgId = UUID.randomUUID();
+        ReaderGroupConfig oldConfig = ReaderGroupConfig.builder()
+                .readerGroupId(rgId).generation(0L)
+                .stream(NameUtils.getScopedStreamName(scope, stream1)).build();
         createScopeAndStreams(scope, Arrays.asList(stream1, stream2), prepareFromFixedScaleTypePolicy(2));
         createReaderGroup(scope, readerGroup, oldConfig);
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStub(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup, ReaderGroupConfig.builder()
-                .stream(NameUtils.getScopedStreamName(scope, stream2)).readerGroupId(oldConfig.getReaderGroupId()).build());
+                .stream(NameUtils.getScopedStreamName(scope, stream2)).readerGroupId(rgId).generation(0L).build());
 
         //Act
         Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
@@ -530,11 +533,13 @@ public class ControllerGrpcAuthFocusedTest {
         //Arrange
         String scope = "scope1";
         String stream = "test";
+        UUID rgId = UUID.randomUUID();
         createScopeAndStreamStrict(scope, stream, prepareFromFixedScaleTypePolicy(2));
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStubStrict(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
         Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group",
-                ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build());
+                ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream))
+                        .readerGroupId(rgId).generation(0L).build());
 
         //Verify
         thrown.expect(StatusRuntimeException.class);
