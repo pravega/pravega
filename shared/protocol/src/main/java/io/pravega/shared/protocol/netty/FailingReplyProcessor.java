@@ -177,7 +177,7 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void keepAlive(KeepAlive keepAlive) {
-        throw new IllegalStateException("Unexpected operation: " + keepAlive);
+        log.trace("KeepAlive received");
     }
 
     @Override
