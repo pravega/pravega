@@ -89,7 +89,7 @@ public class TestUtils {
     public static void awaitException(Supplier<Boolean> condition, int checkFrequencyMillis, long timeoutMillis) throws TimeoutException {
         long remainingMillis = timeoutMillis;
         boolean result = false;
-        while (!(result=condition.get()) && remainingMillis > 0) {
+        while (!(result = condition.get()) && remainingMillis > 0) {
             Thread.sleep(checkFrequencyMillis);
             remainingMillis -= checkFrequencyMillis;
         }
