@@ -35,14 +35,13 @@ You may obtain a copy of the License at
 - Helm 3.2.1+
 - An existing Apache Zookeeper 3.6.1 cluster. This can be easily deployed using our [Zookeeper Operator](https://github.com/pravega/zookeeper-operator).
 - An existing Apache Bookkeeper 4.9.2 (or higher) cluster. This can be easily deployed using our [Bookkeeper Operator](https://github.com/pravega/bookkeeper-operator).
-- Cert-Manager v0.15.0+ or some other certificate management solution in order to manage the webhook service certificates. This can be easily deployed by referring to [this](https://cert-manager.io/docs/installation/kubernetes/).
+- Cert-Manager v0.15.0+ or some other certificate management solution in order to manage the webhook service certificates. This can be easily deployed by referring to [cert-manager installation docs](https://cert-manager.io/docs/installation/kubernetes/).
 - An Issuer and a Certificate (either self-signed or CA signed) in the same namespace that the Pravega Operator will be installed (refer to this manifest to create a self-signed certificate in the default namespace).
 ## Usage
-
+s
 ### Install the Pravega Operator
 
-> Note: If you are running on Google Kubernetes Engine (GKE), please [check this first](https://github.com/pravega/pravega-operator#installation-on-google-kubernetes-engine).
-
+> Note: If you are running on Google Kubernetes Engine (GKE), please [check this first](https://github.com/pravega/pravega-operator/blob/master/doc/development.md#installation-on-google-kubernetes-engine).
 
 Install the Pravega Operator with helm using: 
 ```
@@ -51,7 +50,7 @@ $ helm repo update
 $ helm install [RELEASE_NAME] pravega/pravega-operator --version=[VERSION] --set webhookCert.certName=[CERT_NAME] --set webhookCert.secretName=[SECRET_NAME]
 ```
 
-Further details can be found [here](https://github.com/pravega/pravega-operator/tree/master/charts/pravega-operator#installing-the-chart).
+Further details can be found in [pravega-operator Helm Chart docs](https://github.com/pravega/pravega-operator/tree/master/charts/pravega-operator#installing-the-chart).
 
 Verify that the Pravega Operator is running.
 
@@ -116,7 +115,7 @@ metadata:
 spec:
   version: 0.9.0
   zookeeperUri: [ZOOKEEPER_HOST]:2181
-  bookkeeperUri: [BOOKKEEPER_SVC]:3181"
+  bookkeeperUri: [BOOKKEEPER_HOST]:3181"
   pravega:
     controllerReplicas: 1
     segmentStoreReplicas: 3
@@ -137,7 +136,7 @@ spec:
 where:
 
 - `[ZOOKEEPER_HOST]` is the host or IP address of your Zookeeper deployment.
-- `[BOOKKEEPER_SVC]` is the host or IP address of your Bookkeeper deployment.
+- `[BOOKKEEPER_HOST]` is the host or IP address of your Bookkeeper deployment.
 
 Deploy the Pravega cluster.
 
