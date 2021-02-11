@@ -89,6 +89,42 @@ public class AssertExtensions {
     }
 
     /**
+     * Asserts that an exception of the Type provided is thrown eventually.
+     *
+     * @param run  The Runnable to execute.
+     * @param type The type of exception to expect.
+     * @param checkIntervalMillis The number of milliseconds to wait between two checks.
+     * @param timeoutMillis       The timeout in milliseconds after which an assertion error should be thrown.
+     * @throws Exception If the is an assertion error, and exception from `eval`, or the thread is interrupted.
+     */
+    public static void assertEventuallyThrows(Class<? extends Exception> type, RunnableWithException run, int checkIntervalMillis, long timeoutMillis) throws Exception {
+        try {
+        TestUtils.awaitException(() -> {
+                try {
+                    run.run();
+                    Assert.fail("No exception thrown where: " + type.getName() + " was expected");
+                } catch (CompletionException | ExecutionException e) {
+                    if (!type.isAssignableFrom(e.getCause().getClass())) {
+                        throw new RuntimeException(
+                                "Exception of the wrong type. Was expecting " + type + " but got: " + e.getCause().getClass().getName(),
+                                e);
+                    }
+                } catch (Exception e) {
+                    if (!type.isAssignableFrom(e.getClass())) {
+                        throw new RuntimeException(
+                                "Exception of the wrong type. Was expecting " + type + " but got: " + e.getClass().getName(),
+                                e);
+                    }
+                    return true;
+                }
+            return false;
+        }, checkIntervalMillis, timeoutMillis);
+        } catch (TimeoutException e) {
+            throw new TimeoutException("Expected exception did not occur:" + type.getName());
+        }
+    }
+
+    /**
      * Asserts that an exception of the Type provided is thrown.
      *
      * @param run  The Runnable to execute.
