@@ -90,7 +90,7 @@ plugins.withId('java') {
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
         testLogging.events = ["FAILED"]
-        maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
+        maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 2
         minHeapSize = "128m"
         maxHeapSize = "512m"
         def jvmArgsCopy = jvmArgs

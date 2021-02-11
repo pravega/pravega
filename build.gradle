@@ -385,6 +385,11 @@ project('segmentstore:storage:impl') {
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
+
+    tasks.withType(Test) {
+        maxParallelForks = 1 // Due to Bookkeeper runtime constraints.
+    }
+
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
@@ -426,6 +431,11 @@ project ('bindings') {
         testCompile project(':test:testcommon')
         testCompile project(path: ':segmentstore:storage', configuration: 'testRuntime')
     }
+
+    tasks.withType(Test) {
+        maxParallelForks = 1 // Due to HDFS runtime constraints.
+    }
+
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
@@ -512,6 +522,10 @@ project('segmentstore:server:host') {
 
     applicationDistribution.into("bin") {
         from(createAppWithGCLogging)
+    }
+
+    tasks.withType(Test) {
+        maxParallelForks = 1 // Due to Bookkeeper runtime constraints.
     }
 
     javadoc {
@@ -790,6 +804,10 @@ project('cli:admin') {
         testCompile group: 'org.apache.zookeeper', name: 'zookeeper', version: apacheZookeeperVersion, classifier: 'tests'
     }
 
+    tasks.withType(Test) {
+        maxParallelForks = 1 // Due to Bookkeeper runtime constraints.
+    }
+
     javadoc {
         dependsOn delombok
         source = delombok.outputDir
@@ -820,6 +838,10 @@ project('cli:user') {
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:integration')
         testCompile group: 'junit', name: 'junit', version: '4.12'
+    }
+
+    tasks.withType(Test) {
+        maxParallelForks = 1 // Due to Bookkeeper runtime constraints.
     }
 
     javadoc {
