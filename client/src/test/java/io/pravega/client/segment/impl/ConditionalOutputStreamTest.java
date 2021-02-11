@@ -220,6 +220,46 @@ public class ConditionalOutputStreamTest {
         assertTrue(objectUnderTest.write(data, 0));
         assertEquals(3, retryCounter.get());
     }
+    
+    @SneakyThrows
+    @Test(timeout = 10000)
+    public void testRetriesOnInvalidEventNumber() {
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController("localhost", 0, connectionFactory, true);
+        ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
+        Segment segment = new Segment("scope", "testWrite", 1);
+        @Cleanup
+        ConditionalOutputStream objectUnderTest = factory.createConditionalOutputStream(segment,
+                DelegationTokenProviderFactory.create("token", controller, segment, AccessOperation.ANY),
+                EventWriterConfig.builder().build());
+        ByteBuffer data = ByteBuffer.allocate(10);
+
+        ClientConnection clientConnection = Mockito.mock(ClientConnection.class);
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        connectionFactory.provideConnection(location, clientConnection);
+        setupAppend(connectionFactory, segment, clientConnection, location);
+
+        final AtomicLong retryCounter = new AtomicLong(0);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
+                ReplyProcessor processor = connectionFactory.getProcessor(location);
+
+                if (retryCounter.getAndIncrement() < 2) {
+                    processor.process(new WireCommands.InvalidEventNumber(argument.getWriterId(), argument.getRequestId(), ""));
+                } else {
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(),
+                            argument.getWriterId(), argument.getEventNumber(), 0, -1));
+                }
+                return null;
+            }
+        }).when(clientConnection).send(any(ConditionalAppend.class));
+        assertTrue(objectUnderTest.write(data, 0));
+        assertEquals(3, retryCounter.get());
+    }
 
     @Test(timeout = 10000)
     public void testNonExpiryTokenCheckFailure() throws ConnectionFailedException {
