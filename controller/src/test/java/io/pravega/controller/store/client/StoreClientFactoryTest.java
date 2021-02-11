@@ -68,8 +68,8 @@ public class StoreClientFactoryTest extends ThreadPooledTestSuite {
         sessionExpiry.join();
 
         // verify that we fail with session expiry and we fail without retrying.
-        AssertExtensions.assertThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath("/test"));
-
+        AssertExtensions.assertEventuallyThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath("/test"),
+                2000, 30000L);
         assertTrue(expirationRetryCounter.get() > 0);
     }
 
