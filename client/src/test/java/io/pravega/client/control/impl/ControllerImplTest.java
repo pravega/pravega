@@ -149,6 +149,10 @@ public class ControllerImplTest {
     private static final int SERVICE_PORT = 12345;
     private static final String NON_EXISTENT = "non-existent";
     private static final String FAILING = "failing";
+    private static final int KEEP_ALIVE_TEST_STREAM_CREATE_DELAY_MILLIS = 2000;
+    private static final int KEEP_ALIVE_TEST_PERMIT_TIME_MILLIS = 250;
+    private static final int KEEP_ALIVE_TEST_KEEP_ALIVE_MILLIS = 500;
+
 
     @Rule
     public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
@@ -267,7 +271,7 @@ public class ControllerImplTest {
 
                     // Simulating delay in sending response. This is used for the keepalive test,
                     // where response time > 30 seconds is required to simulate a failure.
-                    Exceptions.handleInterrupted(() -> Thread.sleep(40000));
+                    Exceptions.handleInterrupted(() -> Thread.sleep(KEEP_ALIVE_TEST_STREAM_CREATE_DELAY_MILLIS));
                     responseObserver.onNext(CreateStreamStatus.newBuilder()
                             .setStatus(CreateStreamStatus.Status.SUCCESS)
                             .build());
@@ -1324,11 +1328,10 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testKeepAlive() throws IOException, ExecutionException, InterruptedException {
-
+    public void testKeepAliveNoServer() throws Exception {
         // Verify that keep-alive timeout less than permissible by the server results in a failure.
         NettyChannelBuilder builder = NettyChannelBuilder.forAddress("localhost", serverPort)
-                                                         .keepAliveTime(10, TimeUnit.SECONDS);
+                                                         .keepAliveTime(5, TimeUnit.SECONDS);
         if (testSecure) {
             builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(
                     new File(SecurityConfigDefaults.TLS_CA_CERT_PATH)).build());
@@ -1341,19 +1344,25 @@ public class ControllerImplTest {
                                                                         .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                                                                         .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                                         .build())
-                                    .retryAttempts(1).build(),
+                                    .retryAttempts(1)
+                                    .initialBackoffMillis(1)
+                                    .timeoutMillis(500)
+                                    .build(),
                 this.executor);
         CompletableFuture<Boolean> createStreamStatus = controller.createStream("scope1", "streamdelayed", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         AssertExtensions.assertFutureThrows("Should throw RetriesExhaustedException", createStreamStatus,
                 throwable -> throwable instanceof RetriesExhaustedException);
+    }
 
+    @Test
+    public void testKeepAliveWithServer() throws Exception {
         // Verify that the same RPC with permissible keepalive time succeeds.
         int serverPort2 = TestUtils.getAvailableListenPort();
         NettyServerBuilder testServerBuilder = NettyServerBuilder.forPort(serverPort2)
                                                                  .addService(testServerImpl)
-                                                                 .permitKeepAliveTime(5, TimeUnit.SECONDS);
+                                                                 .permitKeepAliveTime(KEEP_ALIVE_TEST_PERMIT_TIME_MILLIS, TimeUnit.MILLISECONDS);
 
         if (testSecure) {
            testServerBuilder = testServerBuilder.useTransportSecurity(
@@ -1361,11 +1370,12 @@ public class ControllerImplTest {
                    new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH));
         }
 
+        @Cleanup("shutdownNow")
         Server testServer = testServerBuilder.build()
                 .start();
 
-        builder = NettyChannelBuilder.forAddress("localhost", serverPort2)
-                           .keepAliveTime(10, TimeUnit.SECONDS);
+        NettyChannelBuilder builder = NettyChannelBuilder.forAddress("localhost", serverPort2)
+                           .keepAliveTime(KEEP_ALIVE_TEST_KEEP_ALIVE_MILLIS, TimeUnit.MILLISECONDS);
         if (testSecure) {
             builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(
                     new File(SecurityConfigDefaults.TLS_CA_CERT_PATH)).build());
@@ -1375,11 +1385,13 @@ public class ControllerImplTest {
         @Cleanup
         final ControllerImpl controller1 = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
-                                                                        .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
-                                                                        .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                                                        .build())
-                                    .retryAttempts(1).build(), this.executor);
-        createStreamStatus = controller1.createStream("scope1", "streamdelayed", StreamConfiguration.builder()
+                        .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                        .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
+                        .build())
+                        .retryAttempts(1)
+                        .initialBackoffMillis(1)
+                        .build(), this.executor);
+        val createStreamStatus = controller1.createStream("scope1", "streamdelayed", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         assertTrue(createStreamStatus.get());
