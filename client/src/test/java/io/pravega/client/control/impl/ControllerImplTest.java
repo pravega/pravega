@@ -1620,8 +1620,7 @@ public class ControllerImplTest {
                 deleteRGStatus, Throwable -> true);
 
         deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg3", UUID.randomUUID(), 0L);
-        AssertExtensions.assertFutureThrows("Server should throw exception",
-                deleteRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+        assertFalse(deleteRGStatus.get());
     }
 
     @Test

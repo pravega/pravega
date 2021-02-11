@@ -116,7 +116,8 @@ public class ReaderGroupImplTest {
     @Test
     @SuppressWarnings("unchecked")
     public void resetReadersToStreamCut() {
-        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
+        final UUID rgId = UUID.randomUUID();
+        ReaderGroupConfig config = ReaderGroupConfig.builder().readerGroupId(rgId).generation(0L).startFromStreamCuts(ImmutableMap.<Stream,
                 StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
@@ -135,10 +136,12 @@ public class ReaderGroupImplTest {
     @Test
     @SuppressWarnings("unchecked")
     public void resetReadersToCheckpoint() {
+        final UUID readerGroupId = UUID.randomUUID();
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(2).forEach(segNum -> positions.put(new Segment(SCOPE, "s1", segNum), 10L));
         Checkpoint checkpoint = new CheckpointImpl("testChkPoint", positions);
-        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromCheckpoint(checkpoint).build();
+        ReaderGroupConfig config = ReaderGroupConfig.builder().readerGroupId(readerGroupId).generation(0L)
+                .startFromCheckpoint(checkpoint).build();
         when(state.getConfig()).thenReturn(config);
         when(synchronizer.getState()).thenReturn(state);
         when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(1L));
@@ -319,12 +322,14 @@ public class ReaderGroupImplTest {
 
     @Test
     public void updateRetentionStreamCutTestSuccess() {
+        final UUID rgId = UUID.randomUUID();
         Stream test = createStream("test");
         ReaderGroupState state = mock(ReaderGroupState.class);
         when(synchronizer.getState()).thenReturn(state);
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(test)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
-                .readerGroupId(UUID.randomUUID())
+                .readerGroupId(rgId)
+                .generation(0L)
                 .build();
         when(synchronizer.getState().getConfig()).thenReturn(config);
         when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), NameUtils.getScopedReaderGroupName(SCOPE, GROUP_NAME),
