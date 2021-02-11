@@ -501,7 +501,7 @@ public class ReaderGroupStateManager {
                 if (cpName.equals(checkpointName)) {
                     updates.add(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
                 } else {
-                    log.error("{} was asked to checkpoint for {} but the state says its next checkpoint should be {}", readerId, checkpointName, cpName);
+                    log.warn("{} was asked to checkpoint for {} but the state says its next checkpoint should be {}", readerId, checkpointName, cpName);
                 }
             }
         });

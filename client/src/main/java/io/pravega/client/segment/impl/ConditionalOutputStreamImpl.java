@@ -141,8 +141,9 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
         } else if (reply instanceof WrongHost) {
             throw Exceptions.sneakyThrow(new ConnectionFailedException(reply.toString()));
         } else if (reply instanceof InvalidEventNumber) {
-            throw Exceptions.sneakyThrow(new ConnectionFailedException(
-                    "Got stale data from setupAppend on segment " + segmentId + " for ConditionalOutputStream."));
+            InvalidEventNumber ien = (InvalidEventNumber) reply;
+            throw Exceptions.sneakyThrow(new ConnectionFailedException(ien.getWriterId() + 
+                    "Got stale data from setupAppend on segment " + segmentId + " for ConditionalOutputStream. Event number was " + ien.getEventNumber()));
         } else if (reply instanceof AuthTokenCheckFailed) {
             AuthTokenCheckFailed authTokenCheckFailed = (WireCommands.AuthTokenCheckFailed) reply;
             if (authTokenCheckFailed.isTokenExpired()) {
