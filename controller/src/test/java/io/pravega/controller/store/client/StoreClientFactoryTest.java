@@ -26,6 +26,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 public class StoreClientFactoryTest extends ThreadPooledTestSuite {
     TestingServer zkServer;
@@ -67,9 +68,8 @@ public class StoreClientFactoryTest extends ThreadPooledTestSuite {
         
         sessionExpiry.join();
 
-        // verify that we fail with session expiry and we fail without retrying.
-        AssertExtensions.assertEventuallyThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath("/test"),
-                2000, 30000L);
+        assertFalse(client.getZookeeperClient().getZooKeeper().getState().isConnected());
+
         assertTrue(expirationRetryCounter.get() > 0);
     }
 
