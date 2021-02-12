@@ -784,6 +784,7 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         output.write(PendingEvent.withoutHeader(null, data, acked3));
         inOrder.verify(connection).send(append);
         inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        inOrder.verify(connection).send(any(Append.class));
         // the setup append should not transmit the inflight events given that the segment is sealed.
         inOrder.verifyNoMoreInteractions();
         assertFalse(acked.isDone());
