@@ -119,7 +119,11 @@ public final class MetricsNames {
     public static final String SLTS_DELETE_LATENCY = PREFIX + "segmentstore.storage.slts.delete_latency_ms";        // Histogram
     public static final String SLTS_CONCAT_LATENCY = PREFIX + "segmentstore.storage.slts.concat_latency_ms";        // Histogram
     public static final String SLTS_TRUNCATE_LATENCY = PREFIX + "segmentstore.storage.slts.truncate_latency_ms";    // Histogram
-    public static final String SLTS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.read_index_scan_latency_ms"; // Histogram
+
+    public static final String SLTS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.read_index_scan_latency_ms";              // Histogram
+    public static final String SLTS_READ_INDEX_NUM_SCANNED = PREFIX + "segmentstore.storage.slts.read_index_num_scanned";                   // Histogram
+    public static final String SLTS_SYS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.system_read_index_scan_latency_ms";   // Histogram
+    public static final String SLTS_SYS_READ_INDEX_NUM_SCANNED = PREFIX + "segmentstore.storage.slts.system_read_index_num_scanned";        // Histogram
 
     public static final String SLTS_READ_BYTES = PREFIX + "segmentstore.storage.slts.read_bytes";          // Counter
     public static final String SLTS_WRITE_BYTES = PREFIX + "segmentstore.storage.slts.write_bytes";        // Counter
@@ -134,6 +138,12 @@ public final class MetricsNames {
     public static final String STORAGE_METADATA_COMMIT_LATENCY = PREFIX + "segmentstore.storage.metadata_commit_latency_ms";            // Histogram
     public static final String STORAGE_METADATA_TABLE_GET_LATENCY = PREFIX + "segmentstore.storage.metadata_table_get_latency_ms";      // Histogram
     public static final String STORAGE_METADATA_TABLE_WRITE_LATENCY = PREFIX + "segmentstore.storage.metadata_table_write_latency_ms";  // Histogram
+
+    public static final String STORAGE_METADATA_FOUND_IN_TXN = PREFIX + "segmentstore.storage.metadata_found_in_txn";       // Counter
+    public static final String STORAGE_METADATA_FOUND_IN_BUFFER = PREFIX + "segmentstore.storage.metadata_found_in_buffer"; // Counter
+    public static final String STORAGE_METADATA_FOUND_IN_CACHE = PREFIX + "segmentstore.storage.metadata_found_in_cache";   // Counter
+    public static final String STORAGE_METADATA_FOUND_IN_STORE = PREFIX + "segmentstore.storage.metadata_found_in_store";   // Counter
+    public static final String STORAGE_METADATA_NOT_FOUND = PREFIX + "segmentstore.storage.metadata_not_found";             // Counter
 
     // Cache stats
     public static final String CACHE_WRITE_BYTES = PREFIX + "segmentstore.cache.write_bytes";                                     // Counter

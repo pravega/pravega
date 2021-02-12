@@ -48,6 +48,9 @@ import java.util.stream.Collectors;
 
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.COMMIT_LATENCY;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.GET_LATENCY;
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_BUFFER;
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_CACHE;
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_TXN;
 
 /**
  * Implements base metadata store that provides core functionality of metadata store by encapsulating underlying key value store.
@@ -520,6 +523,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         TransactionData data = txnData.get(key);
         if (null != data) {
             GET_LATENCY.reportSuccessEvent(t.getElapsed());
+            METADATA_FOUND_IN_TXN.inc();
             return CompletableFuture.completedFuture(data.getValue());
         }
 
@@ -529,6 +533,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         return CompletableFuture.supplyAsync(() -> bufferedTxnData.get(key), executor)
                 .thenApplyAsync(dataFromBuffer -> {
                     if (dataFromBuffer != null) {
+                        METADATA_FOUND_IN_BUFFER.inc();
                         // Make sure it is a deep copy.
                         val retValue = dataFromBuffer.getValue();
                         if (null != retValue) {
@@ -626,6 +631,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     private CompletableFuture<TransactionData> readFromStore(String key) {
         val fromCache = cache.getIfPresent(key);
         if (null != fromCache) {
+            METADATA_FOUND_IN_CACHE.inc();
             return CompletableFuture.completedFuture(fromCache);
         }
         return read(key);
