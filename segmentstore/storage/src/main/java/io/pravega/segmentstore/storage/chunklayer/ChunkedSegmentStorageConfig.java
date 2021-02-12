@@ -41,8 +41,8 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> GARBAGE_COLLECTION_DELAY = Property.named("garbage.collection.delay.seconds", 60);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_CONCURRENCY = Property.named("garbage.collection.concurrency.max", 10);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_QUEUE_SIZE = Property.named("garbage.collection.queue.size.max", 16 * 1024);
-    public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.seconds", 60);
-    public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPS = Property.named("garbage.collection.attempts.max", 3);
+    public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.millis", 10);
+    public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPTS = Property.named("garbage.collection.attempts.max", 3);
 
 
     /**
@@ -63,7 +63,7 @@ public class ChunkedSegmentStorageConfig {
             .garbageCollectionDelay(Duration.ofSeconds(60))
             .garbageCollectionMaxConcurrency(10)
             .garbageCollectionMaxQueueSize(16 * 1024)
-            .garbageCollectionSleep(Duration.ofSeconds(60))
+            .garbageCollectionSleep(Duration.ofMillis(10))
             .garbageCollectionMaxAttempts(3)
             .build();
 
@@ -191,8 +191,8 @@ public class ChunkedSegmentStorageConfig {
         this.garbageCollectionDelay = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_DELAY));
         this.garbageCollectionMaxConcurrency = properties.getInt(GARBAGE_COLLECTION_MAX_CONCURRENCY);
         this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
-        this.garbageCollectionSleep = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_SLEEP));
-        this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPS);
+        this.garbageCollectionSleep = Duration.ofMillis(properties.getInt(GARBAGE_COLLECTION_SLEEP));
+        this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPTS);
     }
 
     /**
