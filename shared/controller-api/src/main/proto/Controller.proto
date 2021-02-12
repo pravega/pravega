@@ -55,7 +55,7 @@ service ControllerService {
     rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
     rpc listSubscribers(StreamInfo) returns (SubscribersResponse);
     rpc updateSubscriberStreamCut(SubscriberStreamCut) returns (UpdateSubscriberStatus);
-    rpc createReaderGroup(ReaderGroupConfiguration) returns (CreateReaderGroupStatus);
+    rpc createReaderGroup(ReaderGroupConfiguration) returns (CreateReaderGroupResponse);
     rpc getReaderGroupConfig(ReaderGroupInfo) returns (ReaderGroupConfigResponse);
     rpc deleteReaderGroup(ReaderGroupInfo) returns (DeleteReaderGroupStatus);
     rpc updateReaderGroup(ReaderGroupConfiguration) returns (UpdateReaderGroupResponse);
@@ -103,7 +103,7 @@ message ReaderGroupInfo {
     int64 generation = 4;
 }
 
-message CreateReaderGroupStatus {
+message CreateReaderGroupResponse {
     enum Status {
         SUCCESS = 0;
         FAILURE = 1;
@@ -111,6 +111,7 @@ message CreateReaderGroupStatus {
         INVALID_RG_NAME = 3;
     }
     Status status = 1;
+    ReaderGroupConfiguration config = 2;
 }
 
 message DeleteReaderGroupStatus {
