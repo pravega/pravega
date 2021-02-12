@@ -168,15 +168,11 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         loopFuture = Futures.loop(
                 this::canRun,
                 () -> delaySupplier.get()
-                        .thenRunAsync(() -> {
-                            log.info("{}: Iteration {} started.", traceObjectId, iterationId.get());
-                        }, executor)
                         .thenComposeAsync(v -> deleteGarbage(true, config.getGarbageCollectionMaxConcurrency()), executor)
                         .handleAsync((v, ex) -> {
                             if (null != ex) {
                                 log.error("{}: Error during doRun.", traceObjectId, ex);
                             }
-                            log.info("{}: Iteration {} ended.", traceObjectId, iterationId.getAndIncrement());
                             return null;
                         }, executor),
                 executor);
@@ -240,7 +236,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
      * @return CompletableFuture which is completed when garbage is deleted.
      */
     CompletableFuture<Boolean> deleteGarbage(boolean isBackground, int maxItems) {
-        log.debug("{}: deleteGarbage - started.", traceObjectId);
+        log.debug("{}: Iteration {} started.", traceObjectId, iterationId.get());
         // Sleep if suspended.
         if (suspended.get() && isBackground) {
             log.info("{}: deleteGarbage - suspended - sleeping for {}.", traceObjectId, config.getGarbageCollectionDelay());
@@ -351,7 +347,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         }
         return Futures.allOf(futures)
                 .thenApplyAsync( v -> {
-                    log.debug("{}: deleteGarbage - finished.", traceObjectId);
+                    log.debug("{}: Iteration {} ended.", traceObjectId, iterationId.getAndIncrement());
                     return true;
                 }, executor);
     }
