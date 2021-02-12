@@ -135,7 +135,7 @@ public class OffsetTruncationTest extends AbstractReadWriteTest {
         // Perform truncation on stream segment.
         Checkpoint cp = readerGroup.initiateCheckpoint("truncationCheckpoint", executor).join();
         StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
-        StreamCut alternativeStreamCut = readerGroup.generateStreamCuts(executorService).join().get(Stream.of(SCOPE, STREAM));
+        StreamCut alternativeStreamCut = readerGroup.generateStreamCuts(executor).join().get(Stream.of(SCOPE, STREAM));
         assertEquals("StreamCuts for reader group differ depending on how they are generated.", streamCut, alternativeStreamCut);
         assertTrue(streamManager.truncateStream(SCOPE, STREAM, streamCut));
 
