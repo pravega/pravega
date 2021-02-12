@@ -498,7 +498,7 @@ public class ReaderGroupStateManager {
             } else {
                 reinitRequired.set(false);
                 String cpName = state.getCheckpointForReader(readerId);
-                if (cpName.equals(checkpointName)) {
+                if (checkpointName.equals(cpName)) {
                     updates.add(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
                 } else {
                     log.warn("{} was asked to checkpoint for {} but the state says its next checkpoint should be {}", readerId, checkpointName, cpName);

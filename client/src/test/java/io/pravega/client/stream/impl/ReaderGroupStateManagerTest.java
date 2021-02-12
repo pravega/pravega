@@ -804,6 +804,8 @@ public class ReaderGroupStateManagerTest {
         assertEquals("CP3", readerState.getCheckpoint());
         readerState.checkpoint("CP3", new PositionImpl(Collections.emptyMap()));
         assertNull(readerState.getCheckpoint());
+        readerState.checkpoint("CP3", new PositionImpl(Collections.emptyMap())); //Checking idempotency (state should resolved inconsistency)
+        assertNull(readerState.getCheckpoint());
     }
 
     @Test(timeout = 10000)
