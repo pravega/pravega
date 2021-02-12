@@ -324,6 +324,10 @@ public class ConditionalOutputStreamTest {
         AssertExtensions.assertThrows("InvalidEventNumber wasn't treated as a connection failure",
                 () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.InvalidEventNumber(UUID.randomUUID(), 1, "SomeException"), "test"),
                 e -> e instanceof ConnectionFailedException);
+        
+        AssertExtensions.assertThrows("Hello wasn't treated as a connection failure",
+                                      () ->  objectUnderTest.handleUnexpectedReply(new WireCommands.Hello(1, 1), "test"),
+                                      e -> e instanceof ConnectionFailedException);
     }
     
     /**
