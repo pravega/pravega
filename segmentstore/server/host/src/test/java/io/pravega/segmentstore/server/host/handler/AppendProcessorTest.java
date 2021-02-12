@@ -99,7 +99,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AppendProcessorTest extends ThreadPooledTestSuite {
-    private final long requestId = 1L;
+    private final long requestId = 1234L;
 
     @Override
     protected int getThreadPoolSize() {
@@ -389,7 +389,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verify(tracker, times(3)).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new DataAppended(requestId, clientId, 1, 0, data.length));
         verify(connection).send(new ConditionalCheckFailed(clientId, 2, requestId));
-        verify(connection).send(new InvalidEventNumber(clientId, 1, "test"));
+        verify(connection).send(new InvalidEventNumber(clientId, requestId, "test"));
         verify(connection).close();
         verify(tracker, times(3)).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
@@ -571,7 +571,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         // Send a setup append WireCommand.
         Reply reply = sendRequest(channel, new SetupAppend(requestId, clientId, streamSegmentName, ""));
-        assertEquals(new AppendSetup(1, streamSegmentName, clientId, 0), reply);
+        assertEquals(new AppendSetup(requestId, streamSegmentName, clientId, 0), reply);
 
         // Send an append which will cause a RuntimeException to be thrown by the store.
         reply = sendRequest(channel, new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null,
@@ -600,7 +600,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         // Send a setup append WireCommand.
         Reply reply = sendRequest(channel, new SetupAppend(requestId, clientId, streamSegmentName, ""));
-        assertEquals(new AppendSetup(1, streamSegmentName, clientId, 0), reply);
+        assertEquals(new AppendSetup(requestId, streamSegmentName, clientId, 0), reply);
 
         // Send an append which will cause a RuntimeException to be thrown by the store.
         reply = sendRequest(channel, new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null,
@@ -608,6 +608,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         // validate InvalidEventNumber Wirecommand is sent before closing the Channel.
         assertNotNull("Invalid Event WireCommand is expected", reply);
         assertEquals(WireCommandType.INVALID_EVENT_NUMBER.getCode(), ((WireCommand) reply).getType().getCode());
+        assertEquals(requestId, ((InvalidEventNumber) reply).getRequestId());
 
         // Verify that the channel is closed by the AppendProcessor.
         assertEventuallyEquals(false, channel::isOpen, 3000);
@@ -943,7 +944,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         InOrder connectionVerifier = Mockito.inOrder(connection);
         setupGetAttributes(streamSegmentName, clientId, store);
 
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        processor.setupAppend(new SetupAppend(requestId, clientId, streamSegmentName, ""));
         verify(store).getAttributes(eq(streamSegmentName), any(), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(connection).send(new WireCommands.AppendSetup(requestId, streamSegmentName, clientId, 0));
         verifyNoMoreInteractions(connection);
