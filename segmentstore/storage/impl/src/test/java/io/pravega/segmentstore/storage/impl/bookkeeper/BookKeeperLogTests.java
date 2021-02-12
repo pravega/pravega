@@ -268,6 +268,8 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
             } finally {
                 // Resume the bookie with the appends still in flight.
                 resumeFirstBookie();
+                AssertExtensions.assertThrows("Bookies should be running, but they aren't",
+                        BookKeeperLogTests::restartFirstBookie, ex -> ex instanceof IllegalStateException);
             }
 
             // Wait for all writes to complete, then reassemble the data in the order set by LogAddress.
@@ -319,6 +321,10 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                                 }
                             });
                 }
+                AssertExtensions.assertThrows("Bookies shouldn't be running, but they are",
+                        BookKeeperLogTests::suspendFirstBookie, ex -> ex instanceof IllegalStateException);
+                AssertExtensions.assertThrows("Bookies shouldn't be running, but they are",
+                        BookKeeperLogTests::resumeFirstBookie, ex -> ex instanceof IllegalStateException);
             } finally {
                 // Don't forget to resume the bookie, but only AFTER we are done testing.
                 restartFirstBookie();
