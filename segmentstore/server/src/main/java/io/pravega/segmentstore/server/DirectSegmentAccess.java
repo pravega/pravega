@@ -16,13 +16,13 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -110,7 +110,7 @@ public interface DirectSegmentAccess {
      * @throws IllegalArgumentException If the Segment Name is invalid (NOTE: this doesn't check if the Segment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Map<UUID, Long>> getAttributes(Collection<UUID> attributeIds, boolean cache, Duration timeout);
+    CompletableFuture<Map<AttributeId, Long>> getAttributes(Collection<AttributeId> attributeIds, boolean cache, Duration timeout);
 
     /**
      * Initiates a Read operation on the Segment and returns a ReadResult which can be used to consume the read data.
@@ -161,12 +161,12 @@ public interface DirectSegmentAccess {
     CompletableFuture<Void> truncate(long offset, Duration timeout);
 
     /**
-     * Gets an iterator for the Segment's Attributes in the given range (using natural ordering based on {@link UUID#compareTo}.
-     * @param fromId  A UUID representing the first Attribute Id to include.
-     * @param toId    A UUID representing the last Attribute Id to include.
+     * Gets an iterator for the Segment's Attributes in the given range (using natural ordering based on {@link AttributeId#compareTo}.
+     * @param fromId  An AttributeId representing the first Attribute Id to include.
+     * @param toId    An AttributeId representing the last Attribute Id to include.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will return an {@link AttributeIterator} that can be used to iterate
      * through the Segment's Attributes.
      */
-    CompletableFuture<AttributeIterator> attributeIterator(UUID fromId, UUID toId, Duration timeout);
+    CompletableFuture<AttributeIterator> attributeIterator(AttributeId fromId, AttributeId toId, Duration timeout);
 }

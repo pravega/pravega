@@ -20,6 +20,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -48,7 +49,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -113,13 +113,13 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
     @Test
     public void testCreateSegmentAlreadyExists() {
         final String segmentName = "NewSegment";
-        final Map<UUID, Long> originalAttributes = ImmutableMap.of(UUID.randomUUID(), 123L, Attributes.EVENT_COUNT, 1L);
-        final Map<UUID, Long> expectedAttributes = getExpectedCoreAttributes(originalAttributes, SEGMENT_TYPE);
+        final Map<AttributeId, Long> originalAttributes = ImmutableMap.of(AttributeId.randomUUID(), 123L, Attributes.EVENT_COUNT, 1L);
+        final Map<AttributeId, Long> expectedAttributes = getExpectedCoreAttributes(originalAttributes, SEGMENT_TYPE);
         final Collection<AttributeUpdate> correctAttributeUpdates =
                 originalAttributes.entrySet().stream()
                         .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
                         .collect(Collectors.toList());
-        final Map<UUID, Long> badAttributes = Collections.singletonMap(UUID.randomUUID(), 456L);
+        final Map<AttributeId, Long> badAttributes = Collections.singletonMap(AttributeId.randomUUID(), 456L);
         final Collection<AttributeUpdate> badAttributeUpdates =
                 badAttributes.entrySet().stream()
                              .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
@@ -266,7 +266,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         // the info is fetched from there.
         val sm = context.getMetadata().mapStreamSegmentId(segmentName, segmentId);
         sm.setLength(segmentInfo.getLength() + 1);
-        sm.updateAttributes(Collections.singletonMap(UUID.randomUUID(), 12345L));
+        sm.updateAttributes(Collections.singletonMap(AttributeId.randomUUID(), 12345L));
         val inMetadataInfo = context.getMetadataStore().getSegmentInfo(segmentName, TIMEOUT).join();
         assertEquals("Unexpected SegmentInfo when Segment exists in Metadata.", sm, inMetadataInfo);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes when Segment exists in Metadata.",
@@ -301,7 +301,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
                 .attributes(toAttributes(createAttributeUpdates(ATTRIBUTE_COUNT)))
                 .build();
         context.getMetadataStore().updateSegmentInfo(toMetadata(segmentId, initialSegmentInfo), TIMEOUT).join();
-        Map<UUID, Long> expectedAttributes = initialSegmentInfo.getAttributes();
+        Map<AttributeId, Long> expectedAttributes = initialSegmentInfo.getAttributes();
 
         CompletableFuture<Void> addInvoked = new CompletableFuture<>();
         context.connector.setMapSegmentId((id, sp, pin, timeout) -> {
@@ -386,7 +386,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
             Assert.assertEquals("Metadata does not have the expected value for isSealed for StreamSegment " + name, expectedSeal, sm.isSealed());
 
             val segmentState = context.getMetadataStore().getSegmentInfo(name, TIMEOUT).join();
-            Map<UUID, Long> expectedAttributes = segmentState == null ? null : segmentState.getAttributes();
+            Map<AttributeId, Long> expectedAttributes = segmentState == null ? null : segmentState.getAttributes();
             SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in metadata for StreamSegment " + name, expectedAttributes, sm);
             long expectedStartOffset = segmentState == null ? 0 : segmentState.getStartOffset();
             Assert.assertEquals("Unexpected StartOffset in metadata for " + name, expectedStartOffset, sm.getStartOffset());
@@ -676,7 +676,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         Collection<AttributeUpdate> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             boolean isCore = i % 2 == 0;
-            UUID id = isCore ? new UUID(Long.MIN_VALUE, i) : UUID.randomUUID();
+            AttributeId id = isCore ? AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX, i) : AttributeId.randomUUID();
             AttributeUpdateType ut = AttributeUpdateType.values()[i % AttributeUpdateType.values().length];
             result.add(new AttributeUpdate(id, ut, i, i));
         }
@@ -684,7 +684,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         return result;
     }
 
-    private Map<UUID, Long> toAttributes(Collection<AttributeUpdate> updates) {
+    private Map<AttributeId, Long> toAttributes(Collection<AttributeUpdate> updates) {
         return updates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
     }
 
@@ -733,7 +733,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         Assert.assertEquals(message + " getStartOffset() mismatch.", expected.getStartOffset(), actual.getStartOffset());
     }
 
-    private Map<UUID, Long> getExpectedCoreAttributes(Map<UUID, Long> attributes, SegmentType segmentType) {
+    private Map<AttributeId, Long> getExpectedCoreAttributes(Map<AttributeId, Long> attributes, SegmentType segmentType) {
         attributes = Attributes.getCoreNonNullAttributes(attributes);
         segmentType.intoAttributes(attributes);
         return attributes;

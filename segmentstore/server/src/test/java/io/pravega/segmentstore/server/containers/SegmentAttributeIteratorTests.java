@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.collect.Maps;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
@@ -28,7 +29,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.Builder;
@@ -91,8 +91,8 @@ public class SegmentAttributeIteratorTests extends ThreadPooledTestSuite {
             }
         });
 
-        UUID fromId = testData.sortedAttributeIds.get(0);
-        UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - 1);
+        AttributeId fromId = testData.sortedAttributeIds.get(0);
+        AttributeId toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - 1);
         val iterator = new SegmentAttributeIterator(testData.getAttributeIterator(fromId, toId), testData.segmentMetadata, fromId, toId);
         AssertExtensions.assertSuppliedFutureThrows(
                 "getNext() did not throw when iterators returned data out of order.",
@@ -115,8 +115,8 @@ public class SegmentAttributeIteratorTests extends ThreadPooledTestSuite {
         });
 
         // We generate the iterators to include more data than we provide to the mixer.
-        UUID fromId = testData.sortedAttributeIds.get(1);
-        UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - 1);
+        AttributeId fromId = testData.sortedAttributeIds.get(1);
+        AttributeId toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - 1);
         val iterator = new SegmentAttributeIterator(testData.getAttributeIterator(fromId, toId), testData.segmentMetadata, fromId, toId);
         AssertExtensions.assertSuppliedFutureThrows(
                 "getNext() did not throw when iterators returned data out of range.",
@@ -126,11 +126,11 @@ public class SegmentAttributeIteratorTests extends ThreadPooledTestSuite {
 
     private void test(TestData testData) {
         for (int i = 0; i < testData.sortedAttributeIds.size() / 2; i++) {
-            UUID fromId = testData.sortedAttributeIds.get(i);
-            UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - i - 1);
+            AttributeId fromId = testData.sortedAttributeIds.get(i);
+            AttributeId toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - i - 1);
             val iterator = new SegmentAttributeIterator(testData.getAttributeIterator(fromId, toId), testData.segmentMetadata, fromId, toId);
-            val finalResult = new ArrayList<Map.Entry<UUID, Long>>();
-            val ids = new HashSet<UUID>();
+            val finalResult = new ArrayList<Map.Entry<AttributeId, Long>>();
+            val ids = new HashSet<AttributeId>();
             iterator.forEachRemaining(intermediateResult -> {
                 for (val e : intermediateResult) {
                     Assert.assertTrue("Duplicate key found: " + e.getKey(), ids.add(e.getKey()));
@@ -148,23 +148,23 @@ public class SegmentAttributeIteratorTests extends ThreadPooledTestSuite {
         }
     }
 
-    private static boolean isBetween(UUID toCheck, UUID fromId, UUID toId) {
+    private static boolean isBetween(AttributeId toCheck, AttributeId fromId, AttributeId toId) {
         return fromId.compareTo(toCheck) <= 0 && toId.compareTo(toCheck) >= 0;
     }
 
     private TestData createTestData(int baseIteratorCount, int metadataAttributeCount) {
         val rnd = new Random(0);
         val builder = TestData.builder();
-        val expectedResult = new HashMap<UUID, Long>();
-        val sortedAttributeIds = new ArrayList<UUID>();
+        val expectedResult = new HashMap<AttributeId, Long>();
+        val sortedAttributeIds = new ArrayList<AttributeId>();
         int nextAttributeId = 0;
 
         // Create base iterators.
         int iteratorSize = 0;
         for (int i = 0; i < baseIteratorCount; i++) {
-            val indexItems = new ArrayList<Map.Entry<UUID, Long>>(iteratorSize);
+            val indexItems = new ArrayList<Map.Entry<AttributeId, Long>>(iteratorSize);
             for (int j = 0; j < iteratorSize; j++) {
-                UUID attributeId = new UUID(nextAttributeId, nextAttributeId);
+                AttributeId attributeId = AttributeId.uuid(nextAttributeId, nextAttributeId);
                 long attributeValue = rnd.nextLong();
                 indexItems.add(Maps.immutableEntry(attributeId, attributeValue));
                 sortedAttributeIds.add(attributeId);
@@ -180,13 +180,13 @@ public class SegmentAttributeIteratorTests extends ThreadPooledTestSuite {
         val metadata = new StreamSegmentMetadata("Segment", 0, 0);
         metadata.setLength(0);
         for (int i = 0; i < metadataAttributeCount; i++) {
-            UUID attributeId = baseIteratorCount <= 1 ? null : sortedAttributeIds.get(rnd.nextInt(sortedAttributeIds.size()));
+            AttributeId attributeId = baseIteratorCount <= 1 ? null : sortedAttributeIds.get(rnd.nextInt(sortedAttributeIds.size()));
             if (attributeId == null) {
-                attributeId = new UUID(nextAttributeId, nextAttributeId);
+                attributeId = AttributeId.uuid(nextAttributeId, nextAttributeId);
                 nextAttributeId++;
             } else if (rnd.nextDouble() > ATTRIBUTE_OVERLAP_RATIO) {
                 // Do not reuse attribute id, but choose one nearby.
-                attributeId = new UUID(attributeId.getMostSignificantBits() + 1, attributeId.getLeastSignificantBits() + 1);
+                attributeId = AttributeId.uuid(attributeId.getBitGroup(0) + 1, attributeId.getBitGroup(1) + 1);
             }
 
             long attributeValue = rnd.nextLong();
@@ -195,7 +195,7 @@ public class SegmentAttributeIteratorTests extends ThreadPooledTestSuite {
         }
 
         sortedAttributeIds.addAll(metadata.getAttributes().keySet());
-        sortedAttributeIds.sort(UUID::compareTo);
+        sortedAttributeIds.sort(AttributeId::compareTo);
 
         return builder.segmentMetadata(metadata)
                       .expectedResult(expectedResult.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getKey)).collect(Collectors.toList()))
@@ -205,13 +205,13 @@ public class SegmentAttributeIteratorTests extends ThreadPooledTestSuite {
 
     @Builder
     private static class TestData {
-        private final List<UUID> sortedAttributeIds;
+        private final List<AttributeId> sortedAttributeIds;
         @Singular
-        private final List<List<Map.Entry<UUID, Long>>> baseIteratorAttributes;
+        private final List<List<Map.Entry<AttributeId, Long>>> baseIteratorAttributes;
         private final SegmentMetadata segmentMetadata;
-        private final List<Map.Entry<UUID, Long>> expectedResult;
+        private final List<Map.Entry<AttributeId, Long>> expectedResult;
 
-        AttributeIterator getAttributeIterator(UUID fromId, UUID toId) {
+        AttributeIterator getAttributeIterator(AttributeId fromId, AttributeId toId) {
             val baseIterator = baseIteratorAttributes.iterator();
             return () -> CompletableFuture.completedFuture(
                     baseIterator.hasNext()

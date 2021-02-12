@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -201,7 +202,7 @@ class IndexWriter extends IndexReader {
      */
     private void generateBucketUpdate(TableBucket bucket, long bucketOffset, UpdateInstructions update) {
         assert bucketOffset >= 0;
-        update.withAttribute(new AttributeUpdate(bucket.getHash(), AttributeUpdateType.Replace, bucketOffset));
+        update.withAttribute(new AttributeUpdate(AttributeId.fromUUID(bucket.getHash()), AttributeUpdateType.Replace, bucketOffset));
         if (!bucket.exists()) {
             update.bucketAdded();
         }
@@ -215,7 +216,7 @@ class IndexWriter extends IndexReader {
      */
     private void generateBucketDelete(TableBucket bucket, UpdateInstructions update) {
         if (bucket.exists()) {
-            update.withAttribute(new AttributeUpdate(bucket.getHash(), AttributeUpdateType.Replace, Attributes.NULL_ATTRIBUTE_VALUE));
+            update.withAttribute(new AttributeUpdate(AttributeId.fromUUID(bucket.getHash()), AttributeUpdateType.Replace, Attributes.NULL_ATTRIBUTE_VALUE));
             update.bucketRemoved();
         }
     }

@@ -20,6 +20,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -186,7 +187,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         int appendId = 0;
         for (long streamSegmentId : streamSegmentIds) {
             for (int i = 0; i < appendsPerStreamSegment; i++) {
-                val attributes = Collections.singletonList(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.Replace, i));
+                val attributes = Collections.singletonList(new AttributeUpdate(AttributeId.randomUUID(), AttributeUpdateType.Replace, i));
                 result.add(new StreamSegmentAppendOperation(streamSegmentId, generateAppendData(appendId), attributes));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
                 appendId++;
@@ -195,7 +196,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
 
         for (long transactionId : transactionIds.keySet()) {
             for (int i = 0; i < appendsPerStreamSegment; i++) {
-                val attributes = Collections.singletonList(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.Replace, i));
+                val attributes = Collections.singletonList(new AttributeUpdate(AttributeId.randomUUID(), AttributeUpdateType.Replace, i));
                 result.add(new StreamSegmentAppendOperation(transactionId, generateAppendData(appendId), attributes));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
                 appendId++;

@@ -21,6 +21,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
@@ -34,7 +35,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -60,9 +60,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @GuardedBy("this")
     private SegmentType type;
     @GuardedBy("this")
-    private final Map<UUID, Long> coreAttributes;
+    private final Map<AttributeId, Long> coreAttributes;
     @GuardedBy("this")
-    private final Map<UUID, ExtendedAttributeValue> extendedAttributes;
+    private final Map<AttributeId, ExtendedAttributeValue> extendedAttributes;
     @GuardedBy("this")
     private long storageLength;
     @GuardedBy("this")
@@ -184,12 +184,12 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized Map<UUID, Long> getAttributes() {
+    public synchronized Map<AttributeId, Long> getAttributes() {
         return new AttributesView();
     }
 
     @Override
-    public synchronized Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter) {
+    public synchronized Map<AttributeId, Long> getAttributes(BiPredicate<AttributeId, Long> filter) {
         return getAttributes().entrySet().stream()
                 .filter(e -> filter.test(e.getKey(), e.getValue()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -295,7 +295,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized void updateAttributes(Map<UUID, Long> attributes) {
+    public synchronized void updateAttributes(Map<AttributeId, Long> attributes) {
         attributes.forEach((id, value) -> {
             if (Attributes.isCoreAttribute(id)) {
                 this.coreAttributes.put(id, value);
@@ -469,7 +469,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     /**
      * Read-only view of this SegmentMetadata's Attributes (combines Core and Extended Attributes into one single Map).
      */
-    private class AttributesView implements Map<UUID, Long> {
+    private class AttributesView implements Map<AttributeId, Long> {
         @Override
         public int size() {
             synchronized (StreamSegmentMetadata.this) {
@@ -507,7 +507,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         }
 
         @Override
-        public Set<UUID> keySet() {
+        public Set<AttributeId> keySet() {
             synchronized (StreamSegmentMetadata.this) {
                 return CollectionHelpers.joinSets(coreAttributes.keySet(), extendedAttributes.keySet());
             }
@@ -523,7 +523,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         }
 
         @Override
-        public Set<Map.Entry<UUID, Long>> entrySet() {
+        public Set<Map.Entry<AttributeId, Long>> entrySet() {
             synchronized (StreamSegmentMetadata.this) {
                 return CollectionHelpers.joinSets(
                         coreAttributes.entrySet(), Callbacks::identity,
@@ -547,7 +547,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         }
 
         @Override
-        public Long put(UUID uuid, Long aLong) {
+        public Long put(AttributeId attributeId, Long aLong) {
             throw new UnsupportedOperationException();
         }
 
@@ -557,7 +557,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         }
 
         @Override
-        public void putAll(Map<? extends UUID, ? extends Long> map) {
+        public void putAll(Map<? extends AttributeId, ? extends Long> map) {
             throw new UnsupportedOperationException();
         }
 

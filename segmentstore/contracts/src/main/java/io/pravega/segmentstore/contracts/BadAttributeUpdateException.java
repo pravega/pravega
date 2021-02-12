@@ -15,7 +15,6 @@
  */
 package io.pravega.segmentstore.contracts;
 
-import java.util.UUID;
 import lombok.Getter;
 
 /**
@@ -34,7 +33,7 @@ public class BadAttributeUpdateException extends StreamSegmentException {
     private final boolean previousValueMissing;
 
     @Getter
-    private final UUID attributeId;
+    private final AttributeId attributeId;
 
     /**
      * Creates a new instance of the BadAttributeUpdateException class.

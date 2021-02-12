@@ -23,6 +23,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -535,7 +536,7 @@ public class PravegaRequestProcessorTest {
     }
 
     private MergeStreamSegmentResult createMergeStreamSegmentResult(String streamSegmentName, UUID txnId) {
-        Map<UUID, Long> attributes = new HashMap<>();
+        Map<AttributeId, Long> attributes = new HashMap<>();
         attributes.put(Attributes.EVENT_COUNT, 10L);
         attributes.put(Attributes.CREATION_TIME, (long) streamSegmentName.hashCode());
         return new MergeStreamSegmentResult(100, 100, attributes);
@@ -543,7 +544,7 @@ public class PravegaRequestProcessorTest {
 
     private SegmentProperties createSegmentProperty(String streamSegmentName, UUID txnId) {
 
-        Map<UUID, Long> attributes = new HashMap<>();
+        Map<AttributeId, Long> attributes = new HashMap<>();
         attributes.put(Attributes.EVENT_COUNT, 10L);
         attributes.put(Attributes.CREATION_TIME, (long) streamSegmentName.hashCode());
 

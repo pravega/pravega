@@ -16,12 +16,12 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.common.MathHelpers;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
-import java.util.UUID;
 import lombok.val;
 import org.junit.Assert;
 
@@ -59,10 +59,10 @@ public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSeg
         }
     }
 
-    static Map<UUID, Long> createAttributes(int count) {
-        val result = new HashMap<UUID, Long>();
+    static Map<AttributeId, Long> createAttributes(int count) {
+        val result = new HashMap<AttributeId, Long>();
         for (int i = 0; i < count; i++) {
-            result.put(UUID.randomUUID(), (long) i);
+            result.put(AttributeId.randomUUID(), (long) i);
         }
 
         return result;

@@ -16,12 +16,12 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.segmentstore.contracts.AttributeId;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Defines an {@link AsyncIterator} over a Segment's Attributes, processing them in batches.
  */
-public interface AttributeIterator extends AsyncIterator<List<Map.Entry<UUID, Long>>> {
+public interface AttributeIterator extends AsyncIterator<List<Map.Entry<AttributeId, Long>>> {
 }

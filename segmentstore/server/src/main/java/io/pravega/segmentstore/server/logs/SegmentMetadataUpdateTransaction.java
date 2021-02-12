@@ -18,6 +18,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -41,7 +42,6 @@ import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.BiPredicate;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
@@ -55,8 +55,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     //region Members
 
     private final boolean recoveryMode;
-    private final Map<UUID, Long> baseAttributeValues;
-    private final Map<UUID, Long> attributeUpdates;
+    private final Map<AttributeId, Long> baseAttributeValues;
+    private final Map<AttributeId, Long> attributeUpdates;
     @Getter
     private final long id;
     @Getter
@@ -145,13 +145,13 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter) {
+    public Map<AttributeId, Long> getAttributes(BiPredicate<AttributeId, Long> filter) {
         throw new UnsupportedOperationException("getAttributes(BiPredicate) is not supported on " + getClass().getName());
     }
 
     @Override
-    public Map<UUID, Long> getAttributes() {
-        HashMap<UUID, Long> result = new HashMap<>(this.baseAttributeValues);
+    public Map<AttributeId, Long> getAttributes() {
+        HashMap<AttributeId, Long> result = new HashMap<>(this.baseAttributeValues);
         result.putAll(this.attributeUpdates);
         return result;
     }
@@ -217,7 +217,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void updateAttributes(Map<UUID, Long> attributeValues) {
+    public void updateAttributes(Map<AttributeId, Long> attributeValues) {
         this.attributeUpdates.clear();
         this.attributeUpdates.putAll(attributeValues);
         this.isChanged = true;

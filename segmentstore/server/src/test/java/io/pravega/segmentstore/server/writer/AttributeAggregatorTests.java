@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -48,7 +49,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -72,9 +72,9 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
     private static final long SEGMENT_ID = 123;
     private static final String SEGMENT_NAME = "Segment";
     private static final byte[] APPEND_DATA = SEGMENT_NAME.getBytes();
-    private static final UUID CORE_ATTRIBUTE_ID = Attributes.EVENT_COUNT;
-    private static final List<UUID> EXTENDED_ATTRIBUTE_IDS = Collections.unmodifiableList(
-            IntStream.range(0, 20).mapToObj(i -> UUID.randomUUID()).collect(Collectors.toList()));
+    private static final AttributeId CORE_ATTRIBUTE_ID = Attributes.EVENT_COUNT;
+    private static final List<AttributeId> EXTENDED_ATTRIBUTE_IDS = Collections.unmodifiableList(
+            IntStream.range(0, 20).mapToObj(i -> AttributeId.randomUUID()).collect(Collectors.toList()));
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final Duration SHORT_TIMEOUT = Duration.ofSeconds(5);
     private static final WriterConfig DEFAULT_CONFIG = WriterConfig
@@ -96,7 +96,7 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testAdd() throws Exception {
-        final UUID extendedId = EXTENDED_ATTRIBUTE_IDS.get(0);
+        final AttributeId extendedId = EXTENDED_ATTRIBUTE_IDS.get(0);
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
@@ -281,7 +281,7 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        val outstandingAttributes = new HashSet<UUID>();
+        val outstandingAttributes = new HashSet<AttributeId>();
         val firstOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
         val lastOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
 
@@ -372,7 +372,7 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        val outstandingAttributes = new HashSet<UUID>();
+        val outstandingAttributes = new HashSet<AttributeId>();
         val firstOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
         val lastOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
 
@@ -521,7 +521,7 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        val outstandingAttributes = new HashSet<UUID>();
+        val outstandingAttributes = new HashSet<AttributeId>();
         val firstOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
         val lastOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
 
@@ -547,7 +547,7 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
         checkAutoAttributesEventual(lastOutstandingSeqNo.get(), context);
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected the attribute index to have been sealed.",
-                () -> context.dataSource.persistAttributes(SEGMENT_ID, Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT),
+                () -> context.dataSource.persistAttributes(SEGMENT_ID, Collections.singletonMap(AttributeId.randomUUID(), 1L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentSealedException);
     }
 
@@ -577,12 +577,12 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
         // include all operations with indices less than or equal to recoveryId and observe the results.
         for (int recoveryId = 0; recoveryId < operations.size(); recoveryId++) {
             long lastPersistedSeqNo = context.segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, Operation.NO_SEQUENCE_NUMBER);
-            val outstandingAttributes = new HashSet<UUID>();
+            val outstandingAttributes = new HashSet<AttributeId>();
             val firstOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
             val lastOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
             @Cleanup
             val aggregator = context.createAggregator();
-            val expectedAttributes = new HashMap<UUID, Long>();
+            val expectedAttributes = new HashMap<AttributeId, Long>();
             for (int i = 0; i <= recoveryId; i++) {
                 AttributeUpdaterOperation op = operations.get(i);
 
@@ -645,7 +645,7 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        val outstandingAttributes = new HashSet<UUID>();
+        val outstandingAttributes = new HashSet<AttributeId>();
         val firstOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
         val lastOutstandingSeqNo = new AtomicLong(Operation.NO_SEQUENCE_NUMBER);
 
@@ -702,7 +702,7 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
         checkAutoAttributesEventual(Operation.NO_SEQUENCE_NUMBER, context); // Segment is sealed, so it couldn't have updated this value.
     }
 
-    private void addExtendedAttributes(AttributeUpdaterOperation op, Set<UUID> target) {
+    private void addExtendedAttributes(AttributeUpdaterOperation op, Set<AttributeId> target) {
         op.getAttributeUpdates().stream()
           .map(AttributeUpdate::getAttributeId)
           .filter(id -> !Attributes.isCoreAttribute(id))
@@ -754,7 +754,7 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
         return sealOp;
     }
 
-    private AttributeUpdate createAttributeUpdate(UUID attributeId, long value) {
+    private AttributeUpdate createAttributeUpdate(AttributeId attributeId, long value) {
         return new AttributeUpdate(attributeId, AttributeUpdateType.Replace, value);
     }
 

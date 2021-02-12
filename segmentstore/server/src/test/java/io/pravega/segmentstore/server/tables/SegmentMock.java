@@ -19,6 +19,7 @@ import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
@@ -39,7 +40,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -85,7 +85,7 @@ class SegmentMock implements DirectSegmentAccess {
     /**
      * Gets the number of attributes that match the given filter.
      */
-    synchronized int getAttributeCount(BiPredicate<UUID, Long> tester) {
+    synchronized int getAttributeCount(BiPredicate<AttributeId, Long> tester) {
         return (int) this.metadata.getAttributes().entrySet().stream().filter(e -> tester.test(e.getKey(), e.getValue())).count();
     }
 
@@ -119,7 +119,7 @@ class SegmentMock implements DirectSegmentAccess {
                     throw new CompletionException(ex);
                 }
                 if (attributeUpdates != null) {
-                    val updatedValues = new HashMap<UUID, Long>();
+                    val updatedValues = new HashMap<AttributeId, Long>();
                     attributeUpdates.forEach(update -> collectAttributeValue(update, updatedValues));
                     this.metadata.updateAttributes(updatedValues);
                 }
@@ -159,7 +159,7 @@ class SegmentMock implements DirectSegmentAccess {
     }
 
     @Override
-    public CompletableFuture<Map<UUID, Long>> getAttributes(Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+    public CompletableFuture<Map<AttributeId, Long>> getAttributes(Collection<AttributeId> attributeIds, boolean cache, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> {
             synchronized (this) {
                 return attributeIds.stream()
@@ -173,25 +173,25 @@ class SegmentMock implements DirectSegmentAccess {
     public CompletableFuture<Void> updateAttributes(Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return CompletableFuture.runAsync(() -> {
             synchronized (this) {
-                val updatedValues = new HashMap<UUID, Long>();
+                val updatedValues = new HashMap<AttributeId, Long>();
                 attributeUpdates.forEach(update -> collectAttributeValue(update, updatedValues));
                 this.metadata.updateAttributes(updatedValues);
             }
         }, this.executor);
     }
 
-    synchronized void updateAttributes(Map<UUID, Long> attributeValues) {
+    synchronized void updateAttributes(Map<AttributeId, Long> attributeValues) {
         this.metadata.updateAttributes(attributeValues);
     }
 
     @Override
-    public CompletableFuture<AttributeIterator> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
+    public CompletableFuture<AttributeIterator> attributeIterator(AttributeId fromId, AttributeId toId, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> new AttributeIteratorImpl(this.metadata, fromId, toId), this.executor);
     }
 
     @GuardedBy("this")
     @SneakyThrows(BadAttributeUpdateException.class)
-    private void collectAttributeValue(AttributeUpdate update, Map<UUID, Long> values) {
+    private void collectAttributeValue(AttributeUpdate update, Map<AttributeId, Long> values) {
         long newValue = update.getValue();
         boolean hasValue = false;
         long previousValue = Attributes.NULL_ATTRIBUTE_VALUE;
@@ -260,21 +260,21 @@ class SegmentMock implements DirectSegmentAccess {
     private class AttributeIteratorImpl implements AttributeIterator {
         private final int maxBatchSize = 5;
         @GuardedBy("attributes")
-        private final ArrayDeque<Map.Entry<UUID, Long>> attributes;
+        private final ArrayDeque<Map.Entry<AttributeId, Long>> attributes;
 
-        AttributeIteratorImpl(SegmentMetadata metadata, UUID fromId, UUID toId) {
+        AttributeIteratorImpl(SegmentMetadata metadata, AttributeId fromId, AttributeId toId) {
             this.attributes = metadata
                     .getAttributes().entrySet().stream()
                     .filter(e -> fromId.compareTo(e.getKey()) <= 0 && toId.compareTo(e.getKey()) >= 0)
-                    .sorted(Comparator.comparing(Map.Entry::getKey, UUID::compareTo))
+                    .sorted(Comparator.comparing(Map.Entry::getKey, AttributeId::compareTo))
                     .collect(Collectors.toCollection(ArrayDeque::new));
         }
 
         @Override
-        public CompletableFuture<List<Map.Entry<UUID, Long>>> getNext() {
+        public CompletableFuture<List<Map.Entry<AttributeId, Long>>> getNext() {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.attributes) {
-                    val result = new ArrayList<Map.Entry<UUID, Long>>();
+                    val result = new ArrayList<Map.Entry<AttributeId, Long>>();
                     while (!this.attributes.isEmpty() && result.size() < maxBatchSize) {
                         result.add(this.attributes.removeFirst());
                     }

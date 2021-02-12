@@ -20,6 +20,7 @@ import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
@@ -43,7 +44,6 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -285,13 +285,13 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
                 getPerBatchMillis));
     }
 
-    private void executeInBatches(int attributeCount, int batchSize, boolean random, BiConsumer<Integer, Map<UUID, Long>> processBatch) {
+    private void executeInBatches(int attributeCount, int batchSize, boolean random, BiConsumer<Integer, Map<AttributeId, Long>> processBatch) {
         int count = 0;
         int batchId = 0;
         Random rnd = random ? new Random(0) : null;
         while (count < attributeCount) {
             int bs = Math.min(batchSize, attributeCount - count);
-            val batch = new HashMap<UUID, Long>(bs);
+            val batch = new HashMap<AttributeId, Long>(bs);
             for (int indexInBatch = 0; indexInBatch < bs; indexInBatch++) {
                 val key = random ? getRandomKey(attributeCount, rnd) : getKey(count + indexInBatch);
                 val value = getValue(batchId, indexInBatch, batchSize);
@@ -327,13 +327,13 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
         return offset - SEGMENT_ROLLING_SIZE;
     }
 
-    private UUID getKey(int count) {
-        return new UUID(count, count);
+    private AttributeId getKey(int count) {
+        return AttributeId.uuid(count, count);
     }
 
-    private UUID getRandomKey(int attributeCount, Random rnd) {
+    private AttributeId getRandomKey(int attributeCount, Random rnd) {
         int r = rnd.nextInt(attributeCount);
-        return new UUID(r, r);
+        return AttributeId.uuid(r, r);
     }
 
     private long getValue(int batchId, int indexInBatch, int batchSize) {

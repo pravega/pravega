@@ -28,6 +28,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -59,7 +60,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -187,7 +187,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         @GuardedBy("lock")
         private final Map<String, Long> segments = new HashMap<>();
         @GuardedBy("lock")
-        private final Map<String, Map<UUID, Long>> attributes = new HashMap<>();
+        private final Map<String, Map<AttributeId, Long>> attributes = new HashMap<>();
         private final Object lock = new Object();
 
         @Override
@@ -259,7 +259,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+        public CompletableFuture<Map<AttributeId, Long>> getAttributes(String streamSegmentName, Collection<AttributeId> attributeIds, boolean cache, Duration timeout) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.lock) {
                     val segmentAttributes = this.attributes.get(streamSegmentName);

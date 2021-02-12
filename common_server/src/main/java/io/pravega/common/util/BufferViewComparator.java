@@ -147,6 +147,32 @@ public abstract class BufferViewComparator implements Comparator<byte[]>, Serial
     }
 
     /**
+     * Gets the minimum value for an array with given length. When compared against this, all other byte arrays with lengths
+     * equal to or greater than {@code length} will be larger.
+     *
+     * @param length The length.
+     * @return The minimum value.
+     */
+    public static byte[] getMinValue(int length) {
+        byte[] r = new byte[length];
+        Arrays.fill(r, 0, r.length, MIN_VALUE);
+        return r;
+    }
+
+    /**
+     * Gets the maximum value for an array with given length. When compared against this, all other byte arrays with lengths
+     * equal to or smaller than {@code length} will be smaller.
+     *
+     * @param length The length.
+     * @return The maximum value.
+     */
+    public static byte[] getMaxValue(int length) {
+        byte[] r = new byte[length];
+        Arrays.fill(r, 0, r.length, MAX_VALUE);
+        return r;
+    }
+
+    /**
      * Gets an {@link ArrayView} of the same length as the given one that immediately succeeds it when compared with
      * {@link BufferViewComparator}.
      *
@@ -156,8 +182,7 @@ public abstract class BufferViewComparator implements Comparator<byte[]>, Serial
      */
     public static ArrayView getNextItemOfSameLength(ArrayView array) {
         final int maxValue = MAX_VALUE & 0xFF;
-        final byte[] result = new byte[array.getLength()];
-        array.copyTo(result, 0, result.length);
+        final byte[] result = array.getCopy();
         int index = result.length - 1;
         while (index >= 0) {
             int v = result[index] & 0xFF;

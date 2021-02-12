@@ -23,6 +23,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -208,8 +209,8 @@ class SegmentStoreAdapter extends StoreAdapter {
         ensureRunning();
         val au = Arrays.asList(
                 new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.Replace, 1),
-                new AttributeUpdate(new UUID(EVENT_SEQ_NO_PREFIX, event.getOwnerId()), AttributeUpdateType.Replace, event.getSequence()),
-                new AttributeUpdate(new UUID(EVENT_RK_PREFIX, event.getOwnerId()), AttributeUpdateType.Replace, event.getRoutingKey()));
+                new AttributeUpdate(AttributeId.uuid(EVENT_SEQ_NO_PREFIX, event.getOwnerId()), AttributeUpdateType.Replace, event.getSequence()),
+                new AttributeUpdate(AttributeId.uuid(EVENT_RK_PREFIX, event.getOwnerId()), AttributeUpdateType.Replace, event.getRoutingKey()));
         return Futures.toVoid(this.streamSegmentStore.append(streamName, new ByteBufWrapper(event.getWriteBuffer()), au, timeout)
                                                      .exceptionally(ex -> attemptReconcile(ex, streamName, timeout)));
     }

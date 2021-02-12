@@ -17,13 +17,13 @@ package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.common.MathHelpers;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Random;
-import java.util.UUID;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -61,7 +61,7 @@ public class StreamSegmentAppendOperationTests extends OperationTestsBase<Stream
         val result = new ArrayList<AttributeUpdate>();
         long currentValue = 0;
         for (AttributeUpdateType ut : AttributeUpdateType.values()) {
-            result.add(new AttributeUpdate(UUID.randomUUID(), ut, ++currentValue, currentValue));
+            result.add(new AttributeUpdate(AttributeId.randomUUID(), ut, ++currentValue, currentValue));
         }
 
         return result;
