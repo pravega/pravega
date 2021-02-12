@@ -271,6 +271,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         if (!this.recoveryMode) {
+            // Attribute validation must occur first. If an append is invalid due to both bad attributes and offsets,
+            // the attribute validation takes precedence.
+            preProcessAttributes(operation.getAttributeUpdates());
+
             // Offset check (if append-with-offset).
             long operationOffset = operation.getStreamSegmentOffset();
             if (operationOffset >= 0) {
@@ -282,9 +286,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 // No pre-assigned offset. Put the Append at the end of the Segment.
                 operation.setStreamSegmentOffset(this.length);
             }
-
-            // Attribute validation.
-            preProcessAttributes(operation.getAttributeUpdates());
         }
     }
 

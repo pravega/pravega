@@ -40,6 +40,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private String jksKeyFile;
     private String jksTrustFile;
     private String keyPasswordFile;
+    private boolean enableMetrics;
+    private boolean enableInfluxDB;
+    private int metricsReportInterval;
 
     @Getter
     private final InProcPravegaCluster inProcPravegaCluster;
@@ -57,7 +60,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .controllerCount(1)
                     .isInProcSegmentStore(true)
                     .segmentStoreCount(1)
-                    .containerCount(4)
+                    .containerCount(1)
                     .restServerPort(restServerPort)
                     .enableRestServer(enableRestServer)
                     .enableMetrics(false)
@@ -72,13 +75,15 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .passwdFile(passwdFile)
                     .userName(userName)
                     .passwd(passwd)
+                    .enableMetrics(enableMetrics)
+                    .enableInfluxDB(enableInfluxDB)
+                    .metricsReportInterval(metricsReportInterval)
                     .build();
             this.inProcPravegaCluster.setControllerPorts(new int[]{controllerPort});
             this.inProcPravegaCluster.setSegmentStorePorts(new int[]{segmentStorePort});
             return new LocalPravegaEmulator(zkPort, controllerPort, segmentStorePort, restServerPort, enableRestServer,
                     enableAuth, enableTls, certFile, passwd, userName, passwdFile, keyFile, enableTlsReload,
-                    jksKeyFile, jksTrustFile, keyPasswordFile,
-                    inProcPravegaCluster);
+                    jksKeyFile, jksTrustFile, keyPasswordFile, enableMetrics, enableInfluxDB, metricsReportInterval, inProcPravegaCluster);
         }
     }
 
@@ -99,6 +104,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .enableRestServer(conf.isEnableRestServer())
                     .enableAuth(conf.isEnableAuth())
                     .enableTls(conf.isEnableTls())
+                    .enableMetrics(conf.isEnableMetrics())
+                    .enableInfluxDB(conf.isEnableInfluxDB())
+                    .metricsReportInterval(conf.getMetricsReportInterval())
                     .certFile(conf.getCertFile())
                     .keyFile(conf.getKeyFile())
                     .enableTlsReload(conf.isEnableSegmentStoreTlsReload())

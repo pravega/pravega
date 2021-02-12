@@ -15,22 +15,23 @@ import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
-import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
+import io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
+import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -116,7 +117,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
         if (reply instanceof AppendSetup) {
             return (AppendSetup) reply;
         } else {
-            throw handleUnexpectedReply(reply);
+            throw handleUnexpectedReply(reply, "AppendSetup");
         }
     }
 
@@ -126,12 +127,12 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
         } else if (reply instanceof ConditionalCheckFailed) {
             return false;
         } else {
-            throw handleUnexpectedReply(reply);
+            throw handleUnexpectedReply(reply, "DataAppended");
         }
     }
 
     @VisibleForTesting
-    RuntimeException handleUnexpectedReply(Reply reply) {
+    RuntimeException handleUnexpectedReply(Reply reply, String expectation) {
         closeConnection(reply.toString());
         if (reply instanceof WireCommands.NoSuchSegment) {
             throw new NoSuchSegmentException(reply.toString());
@@ -139,6 +140,10 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
             throw Exceptions.sneakyThrow(new SegmentSealedException(reply.toString()));
         } else if (reply instanceof WrongHost) {
             throw Exceptions.sneakyThrow(new ConnectionFailedException(reply.toString()));
+        } else if (reply instanceof InvalidEventNumber) {
+            InvalidEventNumber ien = (InvalidEventNumber) reply;
+            throw Exceptions.sneakyThrow(new ConnectionFailedException(ien.getWriterId() + 
+                    "Got stale data from setupAppend on segment " + segmentId + " for ConditionalOutputStream. Event number was " + ien.getEventNumber()));
         } else if (reply instanceof AuthTokenCheckFailed) {
             AuthTokenCheckFailed authTokenCheckFailed = (WireCommands.AuthTokenCheckFailed) reply;
             if (authTokenCheckFailed.isTokenExpired()) {
@@ -148,7 +153,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                 throw Exceptions.sneakyThrow(new AuthenticationException(authTokenCheckFailed.toString()));
             }
         } else {
-            throw Exceptions.sneakyThrow(new ConnectionFailedException("Unexpected reply of " + reply + " when expecting an AppendSetup"));
+            throw Exceptions.sneakyThrow(new ConnectionFailedException("Unexpected reply of " + reply + " when expecting an " + expectation));
         }
     }
     
