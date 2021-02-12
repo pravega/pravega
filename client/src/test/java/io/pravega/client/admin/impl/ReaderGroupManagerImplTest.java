@@ -35,8 +35,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -143,11 +142,15 @@ public class ReaderGroupManagerImplTest {
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
         when(state.getConfig()).thenReturn(config);
-        when(controller.deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId(), config.getGeneration()))
+
+        ReaderGroupConfig expectedConfig = config.toBuilder().readerGroupId(UUID.randomUUID()).generation(0L).build();
+        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
+               .thenReturn(CompletableFuture.completedFuture(expectedConfig));
+        when(controller.deleteReaderGroup(anyString(), anyString(), any(UUID.class), anyLong()))
                 .thenReturn(CompletableFuture.completedFuture(true));
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
-        verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId(), config.getGeneration());
+        verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, expectedConfig.getReaderGroupId(), expectedConfig.getGeneration());
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {
