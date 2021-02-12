@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -28,10 +29,10 @@ import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
-import io.pravega.controller.store.Version;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -42,6 +43,7 @@ import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -441,23 +443,42 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
                            .thenCompose(tableName -> storeHelper.getKeysPaginated(tableName, token, 10));
         AssertExtensions.assertFutureThrows("Table should not exist", tableCheckSupplier.get(), 
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        Supplier<CompletableFuture<Map.Entry<ByteBuf, List<String>>>> kvttableCheckSupplier = 
+                () -> scope.getKVTablesInScopeTableName()
+                           .thenCompose(tableName -> storeHelper.getKeysPaginated(tableName, token, 10));
+        AssertExtensions.assertFutureThrows("Table should not exist", kvttableCheckSupplier.get(), 
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
-        UUID rgId = UUID.randomUUID();
-        String rgName = "rg1";
-        Supplier<CompletableFuture<Version>> rgTableCheckSupplier =
+        Supplier<CompletableFuture<?>> rgTableCheckSupplier =
                 () -> scope.getReaderGroupsInScopeTableName()
-                        .thenCompose(tableName -> storeHelper.addNewEntry(tableName, rgName, getIdInBytes(rgId)));
+                           .thenCompose(tableName -> storeHelper.getKeysPaginated(tableName, token, 10));
         AssertExtensions.assertFutureThrows("RG Table should not exist", rgTableCheckSupplier.get(),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
+        assertEquals(Collections.emptyList(), scope.listStreamsInScope().join());
+        
+        Pair<List<String>, String> listStreams = scope.listStreams(10, "", executor).join();
+        assertEquals(Collections.emptyList(), listStreams.getKey());
+        assertTrue(Strings.isNullOrEmpty(listStreams.getValue()));
+        
+        Pair<List<String>, String> listKvts = scope.listKeyValueTables(10, "", executor).join();
+        assertEquals(Collections.emptyList(), listKvts.getKey());
+        assertTrue(Strings.isNullOrEmpty(listKvts.getValue()));
+        
+        scope.addStreamToScope("stream").join();
+        assertEquals("stream", scope.listStreamsInScope().join().get(0));
+        assertTrue(Futures.await(tableCheckSupplier.get()));
+
+        UUID rgId = UUID.randomUUID();
+        String rgName = "rg1";
+
         scope.addReaderGroupToScope(rgName, rgId).join();
         assertEquals(rgId, scope.getReaderGroupId(rgName).join());
+        assertTrue(Futures.await(rgTableCheckSupplier.get()));
 
-        status = store.createScope(scopeName).join();
-        assertEquals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS, status.getStatus());
-        
-        // verify that table is created. 
-        assertTrue(Futures.await(tableCheckSupplier.get()));
+        scope.addKVTableToScope("kvt", UUID.randomUUID().toString().getBytes()).join();
+        assertEquals("kvt", scope.listKeyValueTables(10, "", executor).join().getKey().get(0));
+        assertTrue(Futures.await(kvttableCheckSupplier.get()));
         
         // create scope idempotent
         status = store.createScope(scopeName).join();
@@ -470,6 +491,48 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         AssertExtensions.assertFutureThrows("Create scope should have thrown exception",
                 scopeObj.createScope(), 
                 e -> Exceptions.unwrap(e).equals(unknown));
+    }
+    
+    @Test
+    public void testDeleteScopeWithEntries() {
+        PravegaTablesStreamMetadataStore store = (PravegaTablesStreamMetadataStore) this.store;
+        PravegaTablesStoreHelper storeHelper = store.getStoreHelper();
+
+        String scopeName = "newScopedelete";
+        Controller.CreateScopeStatus status = store.createScope(scopeName).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, status.getStatus());
+        
+        // verify that streams in scope table does not exist
+        PravegaTablesScope scope = (PravegaTablesScope) store.getScope(scopeName);
+
+        String stream = "stream";
+        scope.addStreamToScope(stream).join();
+        assertEquals(stream, scope.listStreamsInScope().join().get(0));
+
+        UUID rgId = UUID.randomUUID();
+        String rg = "rg";
+        scope.addReaderGroupToScope(rg, rgId).join();
+        assertEquals(rgId, scope.getReaderGroupId(rg).join());
+
+        String kvt = "kvt";
+        scope.addKVTableToScope(kvt, UUID.randomUUID().toString().getBytes()).join();
+        assertEquals(kvt, scope.listKeyValueTables(10, "", executor).join().getKey().get(0));
+
+        AssertExtensions.assertFutureThrows("delete scope should have failed", scope.deleteScope(),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException);
+
+        scope.removeStreamFromScope(stream).join();
+        AssertExtensions.assertFutureThrows("delete scope should have failed", scope.deleteScope(),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException);
+        
+        scope.removeKVTableFromScope(kvt).join();
+        AssertExtensions.assertFutureThrows("delete scope should have failed", scope.deleteScope(),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException);
+        
+        scope.removeReaderGroupFromScope(rg).join();
+        // now that we have deleted entries from all tables, the delete scope should succeed
+        scope.deleteScope().join();
+
     }
 
     private byte[] getIdInBytes(UUID id) {
