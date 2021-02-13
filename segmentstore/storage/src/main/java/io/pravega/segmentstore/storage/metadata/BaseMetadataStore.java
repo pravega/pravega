@@ -51,6 +51,9 @@ import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.GE
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_BUFFER;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_CACHE;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_TXN;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_BUFFER_SIZE;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_CACHE_MISS_RATE;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_CACHE_SIZE;
 
 /**
  * Implements base metadata store that provides core functionality of metadata store by encapsulating underlying key value store.
@@ -368,13 +371,20 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     // Step 4: Update buffer.
                     val committedVersion = version.incrementAndGet();
                     val toAdd = new HashMap<String, TransactionData>();
+                    int delta = 0;
                     for (String key : modifiedKeys) {
                         TransactionData data = txnData.get(key);
                         data.setVersion(committedVersion);
                         toAdd.put(key, data);
+                        if (data.isCreated()) {
+                            delta++;
+                        }
+                        if (data.isDeleted()) {
+                            delta--;
+                        }
                     }
                     bufferedTxnData.putAll(toAdd);
-                    bufferCount.addAndGet(toAdd.size());
+                    bufferCount.addAndGet(delta);
                 }, executor);
     }
 
@@ -767,6 +777,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 .key(metadata.getKey())
                 .value(metadata)
                 .version(txn.getVersion())
+                .created(true)
                 .build());
     }
 
@@ -790,7 +801,16 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         }
         data.setValue(null);
         data.setPersisted(false);
+        data.setDeleted(true);
         data.setVersion(txn.getVersion());
+    }
+
+
+    @Override
+    public void report() {
+        StorageMetadataMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_BUFFER_SIZE, this.bufferCount);
+        StorageMetadataMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_CACHE_SIZE, this.cache.size());
+        StorageMetadataMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_CACHE_MISS_RATE, this.cache.stats().missRate());
     }
 
     /**
@@ -864,6 +884,16 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
          * Whether this record is pinned to the memory.
          */
         private boolean pinned;
+
+        /**
+         * Whether this record is persisted or not.
+         */
+        private boolean created;
+
+        /**
+         * Whether this record is pinned to the memory.
+         */
+        private boolean deleted;
 
         /**
          * Key of the record.

@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.metadata;
 
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.Counter;
+import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
@@ -19,6 +20,7 @@ import io.pravega.shared.metrics.StatsLogger;
  * Defines all Metrics used by the {@link BaseMetadataStore} and {@link TableBasedMetadataStore} classes.
  */
 public class StorageMetadataMetrics {
+    static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("ChunkedStorageMetadata");
 
     static final OpStatsLogger GET_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_METADATA_GET_LATENCY);

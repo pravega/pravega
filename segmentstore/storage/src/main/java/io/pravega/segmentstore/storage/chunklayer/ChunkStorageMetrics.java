@@ -20,7 +20,7 @@ import io.pravega.shared.metrics.StatsLogger;
  * Defines all Metrics used by the {@link BaseChunkStorage} class.
  */
 public class ChunkStorageMetrics {
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("ChunkStorage");
 
     static final OpStatsLogger READ_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);

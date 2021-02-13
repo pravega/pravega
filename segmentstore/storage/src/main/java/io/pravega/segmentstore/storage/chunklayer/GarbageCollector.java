@@ -55,7 +55,7 @@ import java.util.function.Supplier;
  * </ol>
  */
 @Slf4j
-public class GarbageCollector extends AbstractThreadPoolService implements AutoCloseable {
+public class GarbageCollector extends AbstractThreadPoolService implements AutoCloseable, StatsReporter {
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     /**
      * Set of garbage chunks.

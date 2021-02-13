@@ -48,6 +48,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
@@ -65,7 +67,7 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
  */
 @Slf4j
 @Beta
-public class ChunkedSegmentStorage implements Storage {
+public class ChunkedSegmentStorage implements Storage, StatsReporter {
     /**
      * Configuration options for this ChunkedSegmentStorage instance.
      */
@@ -139,6 +141,8 @@ public class ChunkedSegmentStorage implements Storage {
     @Getter
     private final GarbageCollector garbageCollector;
 
+    private final ScheduledFuture<?> reporter;
+
     /**
      * Creates a new instance of the ChunkedSegmentStorage class.
      *
@@ -167,6 +171,7 @@ public class ChunkedSegmentStorage implements Storage {
                 config,
                 (ScheduledExecutorService) executor);
         this.closed = new AtomicBoolean(false);
+        this.reporter = ((ScheduledExecutorService) executor).scheduleAtFixedRate(this::report, 1000, 1000, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -644,10 +649,20 @@ public class ChunkedSegmentStorage implements Storage {
     }
 
     @Override
+    public void report() {
+        garbageCollector.report();
+        metadataStore.report();
+        chunkStorage.report();
+        garbageCollector.report();
+        readIndexCache.report();
+    }
+
+    @Override
     public void close() {
         close("metadataStore", this.metadataStore);
         close("garbageCollector", this.garbageCollector);
         close("chunkStorage", this.chunkStorage);
+        this.reporter.cancel(true);
         this.closed.set(true);
     }
 
