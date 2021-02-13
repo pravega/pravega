@@ -1,0 +1,6 @@
+[submodule "documentation/src/docs/pravega-operator"]
+       path = documentation/src/docs/pravega-operator
+       url = https://github.com/pravega/pravega-operator.git
+[submodule "documentation/src/docs/flink-connectors"]
+       path = documentation/src/docs/flink-connectors
+       url = https://github.com/pravega/flink-connectors.git

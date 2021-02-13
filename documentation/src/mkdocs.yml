@@ -43,7 +43,22 @@ markdown_extensions:
 
 nav:
   - Overview: 'index.md'
-  - Getting Started: 'getting-started.md'
+  - Getting Started:
+      - 'Quick Start Guide': 'getting-started/quick-start.md'
+      - 'Admin Guide':
+          - 'Manual Installation': 'pravega-operator/doc/manual-installation.md'
+          - 'Minikube Setup': 'pravega-operator/doc/minikube_setup.md'
+          - 'Upgrade Operator': 'pravega-operator/doc/operator-upgrade.md'
+          - 'Upgrade Cluster': 'pravega-operator/doc/upgrade-cluster.md'
+          - 'Rollback Cluster': 'pravega-operator/doc/rollback-cluster.md'
+          - 'Configurations': 'pravega-operator/doc/configuration.md'
+          - 'RBAC': 'pravega-operator/doc/rbac.md'
+          - 'Long Term Storage': 'pravega-operator/doc/longtermstorage.md'
+          - 'Pravega Options': 'pravega-operator/doc/pravega-options.md'
+          - 'TLS': 'pravega-operator/doc/tls.md'
+          - 'External Access': 'pravega-operator/doc/external-access.md'
+          - 'TroubleShooting': 'pravega-operator/doc/troubleshooting.md'
+      - 'Dev Guide': 'getting-started/dev-guide.md'
   - Understanding Pravega:
       - 'Pravega Concepts': 'pravega-concepts.md'
       - 'Terminology': 'terminology.md'
@@ -61,6 +76,17 @@ nav:
       - 'Java API Reference': 'javadoc.md'
       - 'REST API - Controller': 'rest/restapis.md'
       - 'Pravega Connectors': 'connectors.md'
+      - 'Flink Connectors':
+        - Overview: 'flink-connectors/documentation/src/docs/index.md'
+        - Getting Started: 'flink-connectors/documentation/src/docs/getting-started.md'
+        - Quick Start: 'flink-connectors/documentation/src/docs/quickstart.md'
+        - Features:
+            - 'Streaming': 'flink-connectors/documentation/src/docs/streaming.md'
+            - 'Batch': 'flink-connectors/documentation/src/docs/batch.md'
+            - 'Table API': 'flink-connectors/documentation/src/docs/table-api.md'
+        - Metrics: 'flink-connectors/documentation/src/docs/metrics.md'
+        - Configurations: 'flink-connectors/documentation/src/docs/configurations.md'
+        - Serialization: 'flink-connectors/documentation/src/docs/serialization.md'
       - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
       - 'Working with Reader Group notifications': 'reader-group-notifications.md'
       - 'Working with State Synchronizer': 'state-synchronizer.md'
