@@ -120,14 +120,14 @@ public final class MetricsNames {
     public static final String SLTS_CONCAT_LATENCY = PREFIX + "segmentstore.storage.slts.concat_latency_ms";        // Histogram
     public static final String SLTS_TRUNCATE_LATENCY = PREFIX + "segmentstore.storage.slts.truncate_latency_ms";    // Histogram
 
-    public static final String SLTS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.read_index_scan_latency_ms";              // Histogram
-    public static final String SLTS_READ_INDEX_NUM_SCANNED = PREFIX + "segmentstore.storage.slts.read_index_num_scanned";                   // Histogram
-    public static final String SLTS_SYS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.system_read_index_scan_latency_ms";   // Histogram
-    public static final String SLTS_SYS_READ_INDEX_NUM_SCANNED = PREFIX + "segmentstore.storage.slts.system_read_index_num_scanned";        // Histogram
+    public static final String SLTS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.read_index.scan_latency_ms";              // Histogram
+    public static final String SLTS_READ_INDEX_NUM_SCANNED = PREFIX + "segmentstore.storage.slts.read_index.num_scanned";                   // Histogram
+    public static final String SLTS_SYS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.read_index.system_scan_latency_ms";   // Histogram
+    public static final String SLTS_SYS_READ_INDEX_NUM_SCANNED = PREFIX + "segmentstore.storage.slts.read_index.system_num_scanned";        // Histogram
 
-    public static final String SLTS_READ_INDEX_SEGMENT_INDEX_SIZE = PREFIX + "storage.slts.read_index_segment_index_size";     // Gauge
-    public static final String SLTS_READ_INDEX_CHUNK_INDEX_SIZE = PREFIX + "storage.slts.read_index_chunks_index_size";        // Gauge
-    public static final String SLTS_READ_INDEX_SEGMENT_MISS_RATE = PREFIX + "storage.slts.read_index_segment_miss_rate";       // Gauge
+    public static final String SLTS_READ_INDEX_SEGMENT_INDEX_SIZE = PREFIX + "segmentstore.storage.slts.read_index.segment_index_size";     // Gauge
+    public static final String SLTS_READ_INDEX_CHUNK_INDEX_SIZE = PREFIX + "segmentstore.storage.slts.read_index.chunks_index_size";        // Gauge
+    public static final String SLTS_READ_INDEX_SEGMENT_MISS_RATE = PREFIX + "segmentstore.storage.slts.read_index.segment_miss_rate";       // Gauge
 
     public static final String SLTS_READ_BYTES = PREFIX + "segmentstore.storage.slts.read_bytes";          // Counter
     public static final String SLTS_WRITE_BYTES = PREFIX + "segmentstore.storage.slts.write_bytes";        // Counter
