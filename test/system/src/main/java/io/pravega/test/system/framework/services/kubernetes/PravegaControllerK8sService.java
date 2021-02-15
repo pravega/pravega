@@ -10,6 +10,7 @@
 package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.collect.ImmutableMap;
+import io.kubernetes.client.openapi.models.V1ContainerStatus;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
@@ -63,7 +64,7 @@ public class PravegaControllerK8sService extends AbstractService {
                         .thenApply(statuses -> statuses.stream()
                                                        .filter(podStatus -> podStatus.getContainerStatuses()
                                                                                      .stream()
-                                                                                     .allMatch(st -> st.getState().getRunning() != null))
+                                                                                     .allMatch(V1ContainerStatus::getReady))
                                                        .count())
                         .thenApply(runCount -> runCount >= DEFAULT_CONTROLLER_COUNT)
                         .exceptionally(t -> {
