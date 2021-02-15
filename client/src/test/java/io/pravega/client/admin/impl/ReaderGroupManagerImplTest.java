@@ -41,7 +41,6 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
 
@@ -58,7 +57,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.spy;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ReaderGroupManagerImplTest {
@@ -120,7 +118,8 @@ public class ReaderGroupManagerImplTest {
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
         controller.createScope(scope).join();
-        controller.createRGStream(scope, groupName, stream, streamConfig).join();
+        controller.createStream(scope, stream, streamConfig).join();
+        controller.createRGStream(scope, groupName).join();
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
@@ -134,23 +133,14 @@ public class ReaderGroupManagerImplTest {
         assertEquals(ReaderGroupConfig.DEFAULT_GENERATION, rgConfig.getGeneration());
         @Cleanup
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
-                new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(), new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+                new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(), new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer(),
+                SynchronizerConfig.builder().build());
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, rgConfig);
-        StateSynchronizer<ReaderGroupState> spiedSynchronizer = spy(stateSynchronizer);
-        SynchronizerClientFactory spiedClientFactory = spy(clientFactory);
-        Mockito.doReturn(spiedSynchronizer).when(spiedClientFactory).createStateSynchronizer(anyString(), any(Serializer.class),
-                any(Serializer.class), any(SynchronizerConfig.class));
+
         stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(rgConfig, segments, Collections.emptyMap(), false));
-        Mockito.doReturn(state).when(spiedSynchronizer).getState();
-        Mockito.doNothing().when(spiedSynchronizer).initialize(any(InitialUpdate.class));
-        Mockito.doNothing().when(spiedSynchronizer).updateState(any(StateSynchronizer.UpdateGenerator.class));
-        when(state.getConfig()).thenReturn(rgConfig);
-        ReaderGroupManagerImpl rgManager = new ReaderGroupManagerImpl("scope", controller, (AbstractClientFactoryImpl) spiedClientFactory);
+        ReaderGroupManagerImpl rgManager = new ReaderGroupManagerImpl("scope", controller, (AbstractClientFactoryImpl) clientFactory);
 
         rgManager.createReaderGroup(groupName, rgConfig);
-        verify(spiedSynchronizer, times(1)).initialize(any(InitialUpdate.class));
-        verify(spiedSynchronizer, times(1)).updateState(any(StateSynchronizer.UpdateGenerator.class));
-
     }
 
     @Test

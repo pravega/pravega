@@ -180,12 +180,10 @@ public class MockController implements Controller {
     }
 
     @Synchronized
-    public CompletableFuture<Boolean> createRGStream(String scope, String rgName, String streamName, StreamConfiguration streamConfig) {
+    public CompletableFuture<Boolean> createRGStream(String scope, String rgName) {
         String rgStream = NameUtils.getStreamForReaderGroup(rgName);
         StreamConfiguration rgStreamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
-
-        return createStreamInternal(scope, rgStream, rgStreamConfig)
-                .thenCompose(v -> createStreamInternal(scope, streamName, streamConfig));
+        return createStreamInternal(scope, rgStream, rgStreamConfig);
     }
 
     @Synchronized
