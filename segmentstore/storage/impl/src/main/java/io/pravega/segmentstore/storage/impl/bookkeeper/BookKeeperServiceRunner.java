@@ -115,6 +115,34 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     }
 
     /**
+     * Suspends processing for the BookieService with the given index.
+     *
+     * @param bookieIndex The index of the bookie to stop.
+     */
+    public void suspendBookie(int bookieIndex) {
+        Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
+        Preconditions.checkState(this.servers.get(0) != null, "Bookie does not exists.");
+        val bk = this.servers.get(bookieIndex);
+        log.info("Bookie {} is suspending processing.", bookieIndex);
+        bk.suspendProcessing();
+        log.info("Bookie {} suspended processing.", bookieIndex);
+    }
+
+    /**
+     * Resumes processing for the BookieService with the given index.
+     *
+     * @param bookieIndex The index of the bookie to stop.
+     */
+    public void resumeBookie(int bookieIndex) {
+        Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
+        Preconditions.checkState(this.servers.get(0) != null, "Bookie does not exists.");
+        val bk = this.servers.get(bookieIndex);
+        log.info("Bookie {} is resuming processing.", bookieIndex);
+        bk.resumeProcessing();
+        log.info("Bookie {} resumed processing.", bookieIndex);
+    }
+
+    /**
      * Restarts the BookieService with the given index.
      *
      * @param bookieIndex The index of the bookie to restart.
