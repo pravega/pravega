@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.storage.hdfs.HDFSClusterHelpers;
@@ -21,6 +22,7 @@ import lombok.val;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
 
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
@@ -74,10 +76,22 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withStorageFactory(setup -> useChunkedSegmentStorage ?
-                        new HDFSSimpleStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor())
+                        new HDFSSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                                setup.getConfig(HDFSStorageConfig::builder),
+                                setup.getStorageExecutor())
                         : new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), getBookkeeper().getZkClient(), setup.getCoreExecutor()));
     }
 
+    /**
+     * SegmentStore is used to create some segments, write data to them and let them flush to the storage.
+     * This test only uses this storage to restore the container metadata segments in a new durable data log. Segment
+     * properties are matched for verification after the restoration.
+     * @throws Exception If an exception occurred.
+     */
+    @Test
+    public void testDataRecovery() throws Exception {
+        testSegmentRestoration();
+    }
     //endregion
 }

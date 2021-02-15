@@ -17,9 +17,9 @@
 # - github.com/apache/bookkeeper/blob/branch-4.9/docker/Dockerfile
 #
 
-FROM apache/bookkeeper:4.9.2
+FROM apache/bookkeeper:4.11.1
 
-ARG BK_VERSION=4.9.2
+ARG BK_VERSION=4.11.1
 ARG DISTRO_NAME=bookkeeper-all-${BK_VERSION}-bin
 
 RUN set -x \
@@ -35,11 +35,6 @@ RUN set -x \
     && tar -xzf "$DISTRO_NAME.tar.gz" \
     && cp -r bookkeeper-all-${BK_VERSION}/* /opt/bookkeeper/ \
     && rm -rf "bookkeeper-all-${BK_VERSION}" "$DISTRO_NAME.tar.gz" "$DISTRO_NAME.tar.gz.asc" "$DISTRO_NAME.tar.gz.sha512" \
-    # install zookeeper shell
-    && wget -q https://bootstrap.pypa.io/get-pip.py \
-    && python get-pip.py \
-    && pip install zk-shell \
-    && rm -rf get-pip.py \
     && yum clean all
 
 WORKDIR /opt/bookkeeper

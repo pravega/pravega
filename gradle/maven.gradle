@@ -42,7 +42,7 @@ plugins.withId('maven') {
                 pom.artifactId = "pravega" + project.path.replace(':', '-')
                 pom.project {
                     name "Pravega"
-                    url "http://pravega.io"
+                    url "https://pravega.io"
                     description "Streaming Storage Platform"
                     scm {
                         url 'https://github.com/pravega/pravega/tree/master'

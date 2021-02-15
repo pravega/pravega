@@ -37,8 +37,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
-
 
 @Slf4j
 public class ControllerWrapper implements AutoCloseable {
@@ -90,6 +90,33 @@ public class ControllerWrapper implements AutoCloseable {
                              final int containerCount, int restPort,
                              boolean enableAuth, String passwordAuthHandlerInputFilePath,
                              String tokenSigningKey, int accessTokenTtlInSeconds) {
+        this(connectionString, disableEventProcessor, disableControllerCluster, controllerPort,
+                serviceHost, servicePort, containerCount, restPort,
+                enableAuth, passwordAuthHandlerInputFilePath, tokenSigningKey,
+                true, 600);
+    }
+
+    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
+                             final boolean disableControllerCluster,
+                             final int controllerPort, final String serviceHost, final int servicePort,
+                             final int containerCount, int restPort,
+                             boolean enableAuth, String passwordAuthHandlerInputFilePath,
+                             String tokenSigningKey, boolean isRGWritesWithReadPermEnabled,
+                             int accessTokenTtlInSeconds) {
+        this (connectionString, disableEventProcessor, disableControllerCluster, controllerPort, serviceHost,
+                servicePort, containerCount, restPort, enableAuth, passwordAuthHandlerInputFilePath, tokenSigningKey,
+                isRGWritesWithReadPermEnabled, accessTokenTtlInSeconds, false, "", "", "", "");
+    }
+
+    @Builder
+    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
+                             final boolean disableControllerCluster,
+                             final int controllerPort, final String serviceHost, final int servicePort,
+                             final int containerCount, int restPort,
+                             boolean enableAuth, String passwordAuthHandlerInputFilePath,
+                             String tokenSigningKey, boolean isRGWritesWithReadPermEnabled,
+                             int accessTokenTtlInSeconds, boolean enableTls, String serverCertificatePath,
+                             String serverKeyPath, String serverKeystorePath, String serverKeystorePasswordPath) {
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(connectionString)
                 .initialSleepInterval(500)
@@ -143,11 +170,20 @@ public class ControllerWrapper implements AutoCloseable {
                 .authorizationEnabled(enableAuth)
                 .tokenSigningKey(tokenSigningKey)
                 .accessTokenTTLInSeconds(accessTokenTtlInSeconds)
+                .isRGWritesWithReadPermEnabled(isRGWritesWithReadPermEnabled)
                 .userPasswordFile(passwordAuthHandlerInputFilePath)
+                .tlsEnabled(enableTls)
+                .tlsTrustStore(serverCertificatePath)
+                .tlsCertFile(serverCertificatePath)
+                .tlsKeyFile(serverKeyPath)
                 .build();
 
         Optional<RESTServerConfig> restServerConfig = restPort > 0 ?
-                Optional.of(RESTServerConfigImpl.builder().host("localhost").port(restPort).build()) :
+                Optional.of(RESTServerConfigImpl.builder().host("localhost").port(restPort)
+                        .tlsEnabled(enableTls)
+                        .keyFilePath(serverKeystorePath)
+                        .keyFilePasswordPath(serverKeystorePasswordPath)
+                        .build()) :
                 Optional.<RESTServerConfig>empty();
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()

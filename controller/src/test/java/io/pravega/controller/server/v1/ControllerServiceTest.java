@@ -24,7 +24,7 @@ import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
@@ -55,7 +55,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import org.apache.curator.framework.CuratorFramework;
@@ -85,10 +84,10 @@ public class ControllerServiceTest {
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
 
     private final StreamMetadataStore streamStore = spy(StreamStoreFactory.createInMemoryStore(executor));
-    private final KVTableMetadataStore kvtStore = spy(KVTableStoreFactory.createInMemoryStore(executor));
+    private final KVTableMetadataStore kvtStore = spy(KVTableStoreFactory.createInMemoryStore(streamStore, executor));
 
     private StreamMetadataTasks streamMetadataTasks;
     private TableMetadataTasks kvtMetadataTasks;

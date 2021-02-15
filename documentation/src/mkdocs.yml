@@ -7,7 +7,7 @@
 #    http://www.apache.org/licenses/LICENSE-2.0
 
 site_name: 'Exploring Pravega'
-site_url: 'http://pravega.io/'
+site_url: 'https://pravega.io/'
 site_description: 'Documentation to help you get familiar with Pravega'
 
 repo_url: 'https://github.com/pravega/pravega'

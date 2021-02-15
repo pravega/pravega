@@ -11,9 +11,7 @@ package io.pravega.controller.task;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.task.TaskStoreFactory;
-
 import java.io.IOException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -25,7 +23,7 @@ public class InMemoryTaskMetadataStoreTests extends TaskMetadataStoreTests {
 
     @Override
     public void setupTaskStore() throws Exception {
-        executor = Executors.newScheduledThreadPool(10);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
         taskMetadataStore = TaskStoreFactory.createInMemoryStore(executor);
     }
 

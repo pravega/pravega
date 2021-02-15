@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.io.BufferViewSink;
+import io.pravega.common.io.DirectDataOutput;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
@@ -28,7 +28,7 @@ import lombok.Getter;
  * Data written with this class can be read back using DataFrameInputStream.
  */
 @NotThreadSafe
-class DataFrameOutputStream extends OutputStream implements BufferViewSink {
+class DataFrameOutputStream extends OutputStream implements DirectDataOutput {
     //region Members
 
     private final Consumer<DataFrame> dataFrameCompleteCallback;
@@ -60,7 +60,64 @@ class DataFrameOutputStream extends OutputStream implements BufferViewSink {
 
     //endregion
 
-    //region OutputStream Implementation
+    //region OutputStream and DirectDataOutput Implementation
+
+    @Override
+    public void writeShort(int shortValue) throws IOException {
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
+
+        int attemptCount = 0;
+        while (attemptCount < 2) {
+            // If append() says it wrote 0 bytes, it means the current frame is full. Seal it and create a new one.
+            if (this.currentFrame.append((short) shortValue) == 0) {
+                swapNewFrame();
+                attemptCount++;
+            } else {
+                return;
+            }
+        }
+
+        throw new SerializationException("Unable to make progress in serializing to DataFrame.");
+    }
+
+    @Override
+    public void writeInt(int intValue) throws IOException {
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
+
+        int attemptCount = 0;
+        while (attemptCount < 2) {
+            // If append() says it wrote 0 bytes, it means the current frame is full. Seal it and create a new one.
+            if (this.currentFrame.append(intValue) == 0) {
+                swapNewFrame();
+                attemptCount++;
+            } else {
+                return;
+            }
+        }
+
+        throw new SerializationException("Unable to make progress in serializing to DataFrame.");
+    }
+
+    @Override
+    public void writeLong(long longValue) throws IOException {
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
+
+        int attemptCount = 0;
+        while (attemptCount < 2) {
+            // If append() says it wrote 0 bytes, it means the current frame is full. Seal it and create a new one.
+            if (this.currentFrame.append(longValue) == 0) {
+                swapNewFrame();
+                attemptCount++;
+            } else {
+                return;
+            }
+        }
+
+        throw new SerializationException("Unable to make progress in serializing to DataFrame.");
+    }
 
     @Override
     public void write(int b) throws IOException {
@@ -68,23 +125,17 @@ class DataFrameOutputStream extends OutputStream implements BufferViewSink {
         Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
 
         int attemptCount = 0;
-        int totalBytesWritten = 0;
-        while (totalBytesWritten == 0 && attemptCount < 2) {
-            // We attempt to write 1 byte. If append() says it wrote 0 bytes, it means the current frame is full. Seal it and create a new one.
-            totalBytesWritten += this.currentFrame.append((byte) b);
-            if (totalBytesWritten == 0) {
-                this.currentFrame.endEntry(false); // Close the current entry, and indicate it is not the last one of the record.
-                flush();
-                createNewFrame();
-                startNewRecordInCurrentFrame(false);
+        while (attemptCount < 2) {
+            // If append() says it wrote 0 bytes, it means the current frame is full. Seal it and create a new one.
+            if (this.currentFrame.append((byte) b) == 0) {
+                swapNewFrame();
+                attemptCount++;
+            } else {
+                return;
             }
-
-            attemptCount++;
         }
 
-        if (totalBytesWritten == 0) {
-            throw new SerializationException("Unable to make progress in serializing to DataFrame.");
-        }
+        throw new SerializationException("Unable to make progress in serializing to DataFrame.");
     }
 
     @Override
@@ -109,10 +160,7 @@ class DataFrameOutputStream extends OutputStream implements BufferViewSink {
 
             if (reader.available() > 0) {
                 // We were only able to write this partially because the current frame is full. Seal it and create a new one.
-                this.currentFrame.endEntry(false);
-                flush();
-                createNewFrame();
-                startNewRecordInCurrentFrame(false);
+                swapNewFrame();
             }
         }
     }
@@ -207,6 +255,13 @@ class DataFrameOutputStream extends OutputStream implements BufferViewSink {
         Exceptions.checkNotClosed(this.closed, this);
         this.currentFrame = null;
         this.hasDataInCurrentFrame = false;
+    }
+
+    private void swapNewFrame() throws IOException {
+        this.currentFrame.endEntry(false); // Close the current entry, and indicate it is not the last one of the record.
+        flush();
+        createNewFrame();
+        startNewRecordInCurrentFrame(false);
     }
 
     private void createNewFrame() {

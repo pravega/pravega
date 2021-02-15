@@ -20,12 +20,14 @@ import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.grpc.netty.NettyChannelBuilder;
 import io.pravega.common.tracing.RequestTracker;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test to check the correct management of tracing request headers by the client/server interceptors.
@@ -46,6 +48,7 @@ public class RPCTracingHelpersTest {
         ClientCall.Listener<Object> listener = Mockito.mock(ClientCall.Listener.class);
         ServerCall serverCall = Mockito.mock(ServerCall.class);
         ServerCallHandler serverCallHandler = Mockito.mock(ServerCallHandler.class);
+        @Cleanup("shutdown")
         ManagedChannel channel = NettyChannelBuilder.forTarget("localhost").build();
         MethodDescriptor method = MethodDescriptor.newBuilder()
                                                   .setFullMethodName("createStream")
@@ -80,5 +83,55 @@ public class RPCTracingHelpersTest {
         serverInterceptor.interceptCall(serverCall, headers, serverCallHandler);
         assertEquals(1, requestTracker.getNumDescriptors());
         assertEquals(requestId, requestTracker.getRequestIdFor(requestDescriptor));
+    }
+
+    @Test
+    public void toSanitizeStringReplacesAuthHeaderInTheMiddle() {
+        Metadata metadata = new Metadata();
+        metadata.put(Metadata.Key.of("firstHeader", Metadata.ASCII_STRING_MARSHALLER), "dummy-value");
+
+        // dXNlcm5hbWU6c3VwZXItc2VjcmV0LXBhc3N3b3Jk is base64 encoded value of `test-user:super-secret-password`
+        metadata.put(Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER),
+                "Basic dGVzdC11c2VyOnN1cGVyLXNlY3JldC1wYXNzd29yZA==");
+        metadata.put(Metadata.Key.of("lastHeader", Metadata.ASCII_STRING_MARSHALLER),
+                "dummy-value");
+
+        assertTrue(metadata.toString().contains("authorization=Basic dGVzdC11c2VyOnN1cGVyLXNlY3JldC1wYXNzd29yZA==,"));
+
+        String sanitizedString = RPCTracingHelpers.toSanitizedString(metadata);
+        assertFalse(sanitizedString.contains("authorization=Basic dGVzdC11c2VyOnN1cGVyLXNlY3JldC1wYXNzd29yZA==,"));
+        assertTrue(sanitizedString.contains("authorization=xxxxx,"));
+    }
+
+    @Test
+    public void toSanitizeStringReplacesAuthHeaderInTheEnd() {
+        Metadata metadata = new Metadata();
+        metadata.put(Metadata.Key.of("first", Metadata.ASCII_STRING_MARSHALLER), "dummy-value");
+        metadata.put(Metadata.Key.of("middle", Metadata.ASCII_STRING_MARSHALLER),
+                "dummy-value");
+
+        // dXNlcm5hbWU6c3VwZXItc2VjcmV0LXBhc3N3b3Jk is base64 encoded value of `test-user:super-secret-password`
+        metadata.put(Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER),
+                "Basic dGVzdC11c2VyOnN1cGVyLXNlY3JldC1wYXNzd29yZA==");
+
+        assertTrue(metadata.toString().contains("authorization=Basic dGVzdC11c2VyOnN1cGVyLXNlY3JldC1wYXNzd29yZA==)"));
+        String sanitizedString = RPCTracingHelpers.toSanitizedString(metadata);
+        assertFalse(sanitizedString.contains("authorization=Basic dGVzdC11c2VyOnN1cGVyLXNlY3JldC1wYXNzd29yZA==)"));
+        assertTrue(sanitizedString.contains("authorization=xxxxx)"));
+    }
+
+    @Test
+    public void toSanitizeStringReplacesNothingIfAuthorizationHeaderIsMissing() {
+        Metadata metadata = new Metadata();
+        metadata.put(Metadata.Key.of("first", Metadata.ASCII_STRING_MARSHALLER), "dummy-value");
+        metadata.put(Metadata.Key.of("middle", Metadata.ASCII_STRING_MARSHALLER), "dummy-value");
+        metadata.put(Metadata.Key.of("last", Metadata.ASCII_STRING_MARSHALLER), "dummy-value");
+
+        assertEquals(metadata.toString(), RPCTracingHelpers.toSanitizedString(metadata));
+    }
+
+    @Test
+    public void toSanitizeStringReturnsNullIfMetadataIsNull() {
+        assertEquals("null", RPCTracingHelpers.toSanitizedString(null));
     }
 }

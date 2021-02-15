@@ -83,7 +83,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
     private long newSequenceNumber;
     @Getter
     private final long transactionId;
-    private final String traceObjectId;
     private boolean processedCheckpoint;
     @Getter
     private boolean sealed; // This refers to the UpdateTransaction, and not to the individual Segment's status.
@@ -106,8 +105,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         this.recoveryMode = this.baseMetadata.isRecoveryMode();
         this.maximumActiveSegmentCount = this.baseMetadata.getMaximumActiveSegmentCount();
         this.baseNewSegmentCount = getNewSegmentCount(baseMetadata);
-
-        this.traceObjectId = String.format("MetadataUpdate[%d-%d]", this.containerId, transactionId);
         this.segmentUpdates = new HashMap<>();
         this.newTruncationPoints = new ArrayList<>();
         this.newSegments = new HashMap<>();
@@ -402,11 +399,13 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                     // But we can (should) only process at most one MetadataCheckpoint per recovery. Any additional
                     // ones are redundant (used just for Truncation purposes) and contain the same information as
                     // if we processed every operation in order, up to them.
-                    log.debug("{}: Skipping MetadataCheckpointOperation with SequenceNumber {} because we already have metadata changes.", this.traceObjectId, operation.getSequenceNumber());
+                    log.debug("MetadataUpdate[{}-{}}]: Skipping MetadataCheckpointOperation with SequenceNumber {} because we already have metadata changes.",
+                            this.containerId, this.transactionId, operation.getSequenceNumber());
                     return;
                 }
 
-                log.info("{}: Recovering MetadataCheckpointOperation with SequenceNumber {}.", this.traceObjectId, operation.getSequenceNumber());
+                log.info("MetadataUpdate[{}-{}}]: Recovering MetadataCheckpointOperation with SequenceNumber {}.",
+                        this.containerId, this.transactionId, operation.getSequenceNumber());
                 clear();
 
                 // This is not retrieved from serialization, but rather from the operation itself.
@@ -468,6 +467,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         }
 
         metadata.updateAttributes(mapping.getAttributes());
+        metadata.refreshType();
     }
 
     //endregion
@@ -582,8 +582,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
     }
 
     private void checkNotSealed() {
-        Preconditions.checkState(!this.sealed, "%s has been sealed and can no longer accept changes.",
-                this.traceObjectId);
+        Preconditions.checkState(!this.sealed, "MetadataUpdate[%s-%s}] has been sealed and can no longer accept changes.",
+                this.containerId, this.transactionId);
     }
 
     //endregion

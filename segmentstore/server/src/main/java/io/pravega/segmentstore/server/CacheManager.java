@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.segmentstore.storage.cache.CacheState;
@@ -129,6 +130,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 assert false : "CacheManager closed with " + pendingBytes + " outstanding bytes."; // This will fail any unit tests.
             }
             log.info("{} Closed.", TRACE_OBJECT_ID);
+            this.metrics.close();
         }
     }
 
@@ -278,6 +280,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         // adjust the oldest anymore or we are unable to trigger any changes to the clients.
         boolean reducedInIteration;
         boolean reducedOverall = false;
+        Timer iterationDuration = new Timer();
         do {
             reducedInIteration = updateClients();
             if (reducedInIteration) {
@@ -298,7 +301,9 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 }
             }
         } while (reducedInIteration && oldestChanged);
-        this.metrics.report(this.lastCacheState.get(), currentStatus == null ? 0 : currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
+        this.metrics.report(this.lastCacheState.get(),
+                currentStatus == null ? 0 : currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration(),
+                iterationDuration.getElapsedMillis());
         return reducedOverall;
     }
 
@@ -316,7 +321,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 }
             } catch (ObjectClosedException ex) {
                 // This object was closed but it was not unregistered. Do it now.
-                log.warn("{} Detected closed client {}.", TRACE_OBJECT_ID, c);
+                log.info("{} Detected closed client {}.", TRACE_OBJECT_ID, c);
                 toUnregister.add(c);
                 continue;
             }

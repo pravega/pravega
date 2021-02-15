@@ -15,12 +15,14 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.ManualTimer;
 import io.pravega.segmentstore.server.MetadataBuilder;
@@ -42,6 +44,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,6 +54,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -78,6 +82,7 @@ public class ContainerMetadataUpdateTransactionTests {
     private static final AttributeUpdateType[] ATTRIBUTE_UPDATE_TYPES = new AttributeUpdateType[]{
             AttributeUpdateType.Replace, AttributeUpdateType.Accumulate};
     private static final Supplier<Long> NEXT_ATTRIBUTE_VALUE = System::nanoTime;
+    private static final SegmentType DEFAULT_TYPE = SegmentType.STREAM_SEGMENT;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(30);
     private ManualTimer timeProvider;
@@ -235,6 +240,14 @@ public class ContainerMetadataUpdateTransactionTests {
                 "preProcessOperations accepted an append with the wrong offset.",
                 () -> txn.preProcessOperation(badAppendOp),
                 ex -> ex instanceof BadOffsetException);
+
+        // Append #4 (wrong offset + wrong attribute). AS PER SEGMENT STORE CONTRACT, BadAttributeUpdateException takes precedence.
+        badAppendOp.getAttributeUpdates().add(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.ReplaceIfEquals, 1, 1234));
+        AssertExtensions.assertThrows(
+                "preProcessOperations failed with wrong exception when append has both bad offset and bad attribute.",
+                () -> txn.preProcessOperation(badAppendOp),
+                ex -> ex instanceof BadAttributeUpdateException);
+
         AssertExtensions.assertThrows(
                 "acceptOperation accepted an append that was rejected during preProcessing.",
                 () -> txn.acceptOperation(badAppendOp),
@@ -254,7 +267,16 @@ public class ContainerMetadataUpdateTransactionTests {
      */
     @Test
     public void testStreamSegmentAppendWithBadAttributes() throws Exception {
-        testWithBadAttributes(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates));
+        Consumer<Operation> checkAfterSuccess = op -> {
+            val a = (StreamSegmentAppendOperation) op;
+            Assert.assertEquals("Expected SegmentOffset to have been updated.", SEGMENT_LENGTH, a.getStreamSegmentOffset());
+        };
+        Consumer<Operation> checkAfterRejection = op -> {
+            val a = (StreamSegmentAppendOperation) op;
+            AssertExtensions.assertLessThan("Not expected SegmentOffset to have been updated.", 0, a.getStreamSegmentOffset());
+        };
+        testWithBadAttributes(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates),
+                checkAfterSuccess, checkAfterRejection);
     }
 
     //endregion
@@ -275,6 +297,25 @@ public class ContainerMetadataUpdateTransactionTests {
     @Test
     public void testUpdateAttributesWithBadValues() throws Exception {
         testWithBadAttributes(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
+    }
+
+    /**
+     * Tests the ability of the ContainerMetadataUpdateTransaction to reject UpdateAttributeOperations that attempt to
+     * modify immutable Attributes
+     */
+    @Test
+    public void testUpdateAttributesImmutable() {
+        final UUID immutableAttribute = Attributes.ATTRIBUTE_SEGMENT_TYPE;
+        Assert.assertTrue(Attributes.isUnmodifiable(immutableAttribute));
+
+        UpdateableContainerMetadata metadata = createMetadata();
+        val txn = createUpdateTransaction(metadata);
+        val coreUpdate = new UpdateAttributesOperation(SEGMENT_ID,
+                Collections.singleton(new AttributeUpdate(immutableAttribute, AttributeUpdateType.Replace, 1L)));
+        AssertExtensions.assertThrows(
+                "Immutable attribute update succeeded.",
+                () -> txn.preProcessOperation(coreUpdate),
+                ex -> ex instanceof MetadataUpdateException);
     }
 
     /**
@@ -346,6 +387,7 @@ public class ContainerMetadataUpdateTransactionTests {
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 1));
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.Replace, 1)); // Need to initialize to something.
         val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
+        expectedValues.put(Attributes.ATTRIBUTE_SEGMENT_TYPE, DEFAULT_TYPE.getValue());
 
         Operation op = createOperation.apply(attributeUpdates);
         txn.preProcessOperation(op);
@@ -402,23 +444,36 @@ public class ContainerMetadataUpdateTransactionTests {
     }
 
     private void testWithBadAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation) throws Exception {
+        testWithBadAttributes(createOperation, null, null);
+    }
+
+    private void testWithBadAttributes(Function<Collection<AttributeUpdate>, Operation> createOperation,
+                                       Consumer<Operation> checkAfterSuccess, Consumer<Operation> checkAfterRejection) throws Exception {
         final UUID attributeNoUpdate = UUID.randomUUID();
         final UUID attributeReplaceIfGreater = UUID.randomUUID();
         final UUID attributeReplaceIfEquals = UUID.randomUUID();
         final UUID attributeReplaceIfEqualsNullValue = UUID.randomUUID();
+        if (checkAfterSuccess == null) {
+            checkAfterSuccess = TestUtils::doNothing;
+        }
+        if (checkAfterRejection == null) {
+            checkAfterRejection = TestUtils::doNothing;
+        }
 
         UpdateableContainerMetadata metadata = createMetadata();
         val txn = createUpdateTransaction(metadata);
         BiFunction<Throwable, Boolean, Boolean> exceptionChecker = (ex, expectNoPreviousValue) ->
-            (ex instanceof BadAttributeUpdateException) && ((BadAttributeUpdateException) ex).isPreviousValueMissing() == expectNoPreviousValue;
+                (ex instanceof BadAttributeUpdateException) && ((BadAttributeUpdateException) ex).isPreviousValueMissing() == expectNoPreviousValue;
 
         // Values not set
         Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.ReplaceIfEquals, 0, 0));
+        val op1 = createOperation.apply(attributeUpdates);
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to CAS-update an attribute with no previous value.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                () -> txn.preProcessOperation(op1),
                 ex -> exceptionChecker.apply(ex, true));
+        checkAfterRejection.accept(op1);
 
         // Append #1.
         attributeUpdates.clear();
@@ -427,42 +482,52 @@ public class ContainerMetadataUpdateTransactionTests {
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.Replace, 2)); // Initial Add.
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEqualsNullValue, AttributeUpdateType.None, Attributes.NULL_ATTRIBUTE_VALUE));
         val expectedValues = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
+        expectedValues.put(Attributes.ATTRIBUTE_SEGMENT_TYPE, DEFAULT_TYPE.getValue());
 
         Operation op = createOperation.apply(attributeUpdates);
         txn.preProcessOperation(op);
         txn.acceptOperation(op);
+        checkAfterSuccess.accept(op);
 
         // ReplaceIfEquals fails when the current attribute value is NULL_ATTRIBUTE_VALUE (this should not set the IsPreviousValueMissing flag).
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEqualsNullValue, AttributeUpdateType.ReplaceIfEquals, 1, 1));
+        val op2 = createOperation.apply(attributeUpdates);
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to CAS-update an attribute with no previous value.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                () -> txn.preProcessOperation(op2),
                 ex -> exceptionChecker.apply(ex, false));
+        checkAfterRejection.accept(op2);
 
         // Append #2: Try to update attribute that cannot be updated.
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 3));
+        val op3 = createOperation.apply(attributeUpdates);
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an unmodifiable attribute.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                () -> txn.preProcessOperation(op3),
                 ex -> exceptionChecker.apply(ex, false));
+        checkAfterRejection.accept(op2);
 
         // Append #3: Try to update attribute with bad value for ReplaceIfGreater attribute.
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 1));
+        val op4 = createOperation.apply(attributeUpdates);
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an attribute with the wrong value for ReplaceIfGreater.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                () -> txn.preProcessOperation(op4),
                 ex -> exceptionChecker.apply(ex, false));
+        checkAfterRejection.accept(op4);
 
         // Append #4: Try to update attribute with bad value for ReplaceIfEquals attribute.
         attributeUpdates.clear();
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 3, 3));
+        val op5 = createOperation.apply(attributeUpdates);
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an attribute with the wrong comparison value for ReplaceIfGreater.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                () -> txn.preProcessOperation(op5),
                 ex -> exceptionChecker.apply(ex, false));
+        checkAfterRejection.accept(op5);
 
         // Reset the attribute update list to its original state so we can do the final verification.
         attributeUpdates.clear();
@@ -588,6 +653,7 @@ public class ContainerMetadataUpdateTransactionTests {
         txn.commit(metadata);
 
         // Check attributes.
+        DEFAULT_TYPE.intoAttributes(segmentAttributes);
         SegmentMetadataComparer.assertSameAttributes("Unexpected set of attributes after commit.", segmentAttributes, segmentMetadata);
     }
 
@@ -868,8 +934,19 @@ public class ContainerMetadataUpdateTransactionTests {
         metadata.enterRecoveryMode();
         val txn1 = createUpdateTransaction(metadata);
 
-        // Brand new StreamSegment.
-        StreamSegmentMapOperation mapOp = createMap();
+        // Brand new Table Segment. Play around with Segment Type to verify that it is properly propagated to the SegmentMetadata.
+        val initialAttributes = createAttributes();
+        DEFAULT_TYPE.intoAttributes(initialAttributes);
+        initialAttributes.put(TableAttributes.INDEX_OFFSET, 0L);
+        val expectedSegmentType = SegmentType.builder(DEFAULT_TYPE).tableSegment().build();
+        val mapOp = new StreamSegmentMapOperation(StreamSegmentInformation.builder()
+                .name(SEGMENT_NAME)
+                .length(SEGMENT_LENGTH)
+                .startOffset(SEGMENT_LENGTH / 2)
+                .sealed(true)
+                .attributes(initialAttributes)
+                .build());
+
         txn1.preProcessOperation(mapOp);
         Assert.assertEquals("preProcessOperation did modify the StreamSegmentId on the operation in recovery mode.",
                 ContainerMetadata.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
@@ -907,8 +984,11 @@ public class ContainerMetadataUpdateTransactionTests {
 
         val segmentMetadata = metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
         Assert.assertFalse("Not expecting segment to be pinned yet.", segmentMetadata.isPinned());
+
+        val expectedAttributes = new HashMap<>(mapOp.getAttributes());
+        expectedSegmentType.intoAttributes(expectedAttributes);
         AssertExtensions.assertMapEquals("Unexpected attributes in SegmentMetadata after call to commit().",
-                mapOp.getAttributes(), segmentMetadata.getAttributes());
+                expectedAttributes, segmentMetadata.getAttributes());
 
         // StreamSegmentName already exists (metadata) and we try to map with new id.
         AssertExtensions.assertThrows(
@@ -1303,9 +1383,11 @@ public class ContainerMetadataUpdateTransactionTests {
         SegmentMetadata transactionMetadata = targetMetadata.getStreamSegmentMetadata(SEALED_SOURCE_ID);
         Assert.assertTrue("Unexpected value for isSealed in Source metadata after commit.", transactionMetadata.isSealed());
         Assert.assertTrue("Unexpected value for isMerged in Source metadata after commit.", transactionMetadata.isMerged());
-        int expectedParentAttributeCount = appendAttributeCount + (baseMetadata == targetMetadata ? 1 : 0);
+        int expectedParentAttributeCount = appendAttributeCount + (baseMetadata == targetMetadata ? 1 : 0) + 1;
         Assert.assertEquals("Unexpected number of attributes for Target segment.", expectedParentAttributeCount, parentMetadata.getAttributes().size());
-        Assert.assertEquals("Unexpected number of attributes for Source.", 0, transactionMetadata.getAttributes().size());
+        Assert.assertEquals(DEFAULT_TYPE.getValue(), (long) parentMetadata.getAttributes().get(Attributes.ATTRIBUTE_SEGMENT_TYPE));
+        Assert.assertEquals("Unexpected number of attributes for Source.", 1, transactionMetadata.getAttributes().size());
+        Assert.assertEquals(DEFAULT_TYPE.getValue(), (long) transactionMetadata.getAttributes().get(Attributes.ATTRIBUTE_SEGMENT_TYPE));
         checkLastKnownSequenceNumber("Unexpected lastUsed for Source after commit.", expectedLastUsedTransaction, transactionMetadata);
     }
 
@@ -1454,15 +1536,18 @@ public class ContainerMetadataUpdateTransactionTests {
         UpdateableSegmentMetadata segmentMetadata = metadata.mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID);
         segmentMetadata.setLength(SEGMENT_LENGTH);
         segmentMetadata.setStorageLength(SEGMENT_LENGTH - 1); // Different from Length.
+        segmentMetadata.refreshType();
 
         segmentMetadata = metadata.mapStreamSegmentId(SEALED_SOURCE_NAME, SEALED_SOURCE_ID);
         segmentMetadata.setLength(SEALED_SOURCE_LENGTH);
         segmentMetadata.setStorageLength(SEALED_SOURCE_LENGTH);
         segmentMetadata.markSealed();
+        segmentMetadata.refreshType();
 
         segmentMetadata = metadata.mapStreamSegmentId(NOTSEALED_SOURCE_NAME, NOTSEALED_SOURCE_ID);
         segmentMetadata.setLength(0);
         segmentMetadata.setStorageLength(0);
+        segmentMetadata.refreshType();
 
         return metadata;
     }

@@ -17,6 +17,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -31,7 +32,6 @@ import io.pravega.test.common.TestingServerStarter;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -83,7 +83,8 @@ public class EndToEndAutoScaleDownTest {
             map.put(0.0, 0.33);
             map.put(0.33, 0.66);
             map.put(0.66, 1.0);
-            ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+            @Cleanup("shutdownNow")
+            ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
             controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().get();
 
             Retry.withExpBackoff(10, 10, 100, 10000)
@@ -98,7 +99,7 @@ public class EndToEndAutoScaleDownTest {
                                 } else {
                                     throw new NotDoneException();
                                 }
-                            }), Executors.newSingleThreadScheduledExecutor())
+                            }), executor)
                     .exceptionally(e -> {
                         System.err.println("Failure");
                         log.error("Failure");

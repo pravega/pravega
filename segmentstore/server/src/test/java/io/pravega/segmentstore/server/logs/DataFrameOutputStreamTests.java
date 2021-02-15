@@ -9,17 +9,23 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
@@ -166,6 +172,60 @@ public class DataFrameOutputStreamTests {
     }
 
     /**
+     * Tests {@link DataFrameOutputStream#writeShort}.
+     */
+    @Test
+    public void testWriteShort() throws Exception {
+        testWritePrimitiveTypes(i -> i, DataFrameOutputStream::writeShort, DataOutputStream::writeShort);
+    }
+
+    /**
+     * Tests {@link DataFrameOutputStream#writeInt}.
+     */
+    @Test
+    public void testWriteInt() throws Exception {
+        testWritePrimitiveTypes(i -> i * i, DataFrameOutputStream::writeInt, DataOutputStream::writeInt);
+    }
+
+    /**
+     * Tests {@link DataFrameOutputStream#writeLong}.
+     */
+    @Test
+    public void testWriteLong() throws Exception {
+        testWritePrimitiveTypes(i -> (long) Math.pow(i, 3), DataFrameOutputStream::writeLong, DataOutputStream::writeLong);
+    }
+
+    private <T> void testWritePrimitiveTypes(Function<Integer, T> toPrimitiveType, OutputStreamWriter<T> writer,
+                                             OutputStreamExpectedWriter<T> expectedWriter) throws Exception {
+        int maxFrameSize = 511; // Very small frame, so we can test switching over to new frames.
+        val values = IntStream.range(0, Short.MAX_VALUE).boxed().map(toPrimitiveType).collect(Collectors.toList());
+        @Cleanup
+        val expectedRecord = new ByteBufferOutputStream();
+        @Cleanup
+        val expectedRecordWriter = new DataOutputStream(expectedRecord);
+
+        // Callback for when a frame is written.
+        ArrayList<DataFrame> writtenFrames = new ArrayList<>();
+        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, writtenFrames::add)) {
+            // Write a single record, and dump all values in it.
+            s.startNewRecord();
+            for (val v : values) {
+                writer.accept(s, v);
+                expectedWriter.accept(expectedRecordWriter, v);
+            }
+            s.endRecord();
+
+            // Seal whatever is left at the end.
+            s.flush();
+            expectedRecordWriter.flush();
+        }
+
+        AssertExtensions.assertGreaterThan("No frame has been created during the test.", 0, writtenFrames.size());
+        val readFrames = writtenFrames.stream().map(this::readFrame).collect(Collectors.toList());
+        DataFrameTestHelpers.checkReadRecords(readFrames, Collections.singletonList(expectedRecord.getData()), b -> b);
+    }
+
+    /**
      * Tests the ability to write records using byte[] writes only.
      */
     @Test
@@ -304,4 +364,13 @@ public class DataFrameOutputStreamTests {
         return DataFrame.read(dataFrame.getData().getReader(), dataFrame.getLength(), dataFrame.getAddress());
     }
 
+    @FunctionalInterface
+    private interface OutputStreamWriter<T> {
+        void accept(DataFrameOutputStream dfos, T value) throws IOException;
+    }
+
+    @FunctionalInterface
+    private interface OutputStreamExpectedWriter<T> {
+        void accept(DataOutputStream dos, T value) throws IOException;
+    }
 }

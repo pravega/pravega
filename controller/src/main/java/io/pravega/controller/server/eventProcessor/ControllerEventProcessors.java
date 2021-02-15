@@ -10,14 +10,18 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
@@ -40,30 +44,39 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
-import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
+import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.kvtable.KVTableMetadataStore;
+import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -71,7 +84,7 @@ import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
 
 @Slf4j
-public class ControllerEventProcessors extends AbstractIdleService implements FailoverSweeper {
+public class ControllerEventProcessors extends AbstractIdleService implements FailoverSweeper, AutoCloseable {
 
     public static final EventSerializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new EventSerializer<>();
     public static final EventSerializer<AbortEvent> ABORT_EVENT_SERIALIZER = new EventSerializer<>();
@@ -81,6 +94,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private static final long DELAY = 100;
     private static final int MULTIPLIER = 10;
     private static final long MAX_DELAY = 10000;
+    private static final long TRUNCATION_INTERVAL_MILLIS = Duration.ofMinutes(10).toMillis();
 
     private final String objectId;
     private final ControllerEventProcessorConfig config;
@@ -99,6 +113,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final AbortRequestHandler abortRequestHandler;
     private final TableRequestHandler kvtRequestHandler;
     private final long rebalanceIntervalMillis;
+    private final AtomicLong truncationInterval;
     private ScheduledExecutorService rebalanceExecutor;
 
     public ControllerEventProcessors(final String host,
@@ -144,6 +159,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamMetadataStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                new CreateReaderGroupTask(streamMetadataTasks, streamMetadataStore, executor),
+                new DeleteReaderGroupTask(streamMetadataTasks, streamMetadataStore, executor),
+                new UpdateReaderGroupTask(streamMetadataTasks, streamMetadataStore, executor),
                 streamMetadataStore,
                 executor);
         this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
@@ -153,6 +171,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                                             kvtMetadataStore, executor);
         this.executor = executor;
         this.rebalanceIntervalMillis = config.getRebalanceIntervalMillis();
+        this.truncationInterval = new AtomicLong(TRUNCATION_INTERVAL_MILLIS);
     }
 
     @Override
@@ -160,7 +179,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Starting controller event processors");
-            rebalanceExecutor = Executors.newSingleThreadScheduledExecutor();
+            rebalanceExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "event-processor");
             initialize();
             log.info("Controller event processors startUp complete");
         } finally {
@@ -175,6 +194,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             log.info("Stopping controller event processors");
             stopEventProcessors();
             rebalanceExecutor.shutdownNow();
+            this.clientFactory.close();
             log.info("Controller event processors shutDown complete");
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
@@ -288,7 +308,69 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             streamMetadataTasks.initializeStreamWriters(clientFactory, config.getRequestStreamName());
             streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config);
             tableMetadataTasks.initializeStreamWriters(clientFactory, config.getKvtStreamName());
+
+            long delay = truncationInterval.get();
+            Futures.loop(this::isRunning, () -> Futures.delayedFuture(
+                    () -> truncate(config.getRequestStreamName(), config.getRequestReaderGroupName(), streamMetadataTasks), delay, executor), executor);
+            Futures.loop(this::isRunning, () -> Futures.delayedFuture(
+                    () -> truncate(config.getCommitStreamName(), config.getCommitReaderGroupName(), streamMetadataTasks), delay, executor), executor);
+            Futures.loop(this::isRunning, () -> Futures.delayedFuture(
+                    () -> truncate(config.getAbortStreamName(), config.getAbortReaderGroupName(), streamMetadataTasks), delay, executor), executor);
+            Futures.loop(this::isRunning, () -> Futures.delayedFuture(
+                    () -> truncate(config.getKvtStreamName(), config.getKvtReaderGroupName(), streamMetadataTasks), delay, executor), executor);
         }, executor);
+    }
+
+    @VisibleForTesting
+    CompletableFuture<Void> truncate(String streamName, String readergroupName, StreamMetadataTasks streamMetadataTasks) {
+        Preconditions.checkState(isRunning());
+        try {
+            // 1. get all processes from checkpoint store 
+            // 2. get the all checkpoints for all readers in the readergroup for the stream.
+            // 3. consolidate all checkpoints to create a stream cut. 
+            // 4. submit a truncation job for the stream
+            Map<String, Position> positions = new HashMap<>();
+            for (String process : checkpointStore.getProcesses()) {
+                positions.putAll(checkpointStore.getPositions(process, readergroupName));
+            }
+            Map<Long, Long> streamcut = positions
+                    .entrySet().stream().map(x -> x.getValue() == null ? Collections.<Long, Long>emptyMap() : convertPosition(x))
+                    .reduce(Collections.emptyMap(), (x, y) -> {
+                        Map<Long, Long> result = new HashMap<>(x);
+                        y.forEach((a, b) -> {
+                            if (x.containsKey(a)) {
+                                result.put(a, Math.max(x.get(a), b));
+                            } else {
+                                result.put(a, b);
+                            }
+                        });
+                        return result;
+                    });
+            // Start a truncation job, but handle its exception cases by simply logging it. We will not fail the future
+            // so that the loop can continue in the next iteration and attempt to truncate the stream. 
+            return streamMetadataTasks.startTruncation(config.getScopeName(), streamName, streamcut, null, 0L)
+                                      .handle((r, e) -> {
+                                          if (e != null) {
+                                              log.warn("Submission for truncation for stream {} failed. Will be retried in next iteration.",
+                                                      streamName);
+                                          } else if (r) {
+                                              log.debug("truncation for stream {} at streamcut {} submitted.", streamName, streamcut);
+                                          } else {
+                                              log.debug("truncation for stream {} at streamcut {} rejected.", streamName, streamcut);
+                                          }
+                                          return null;
+                                      });
+        } catch (Exception e) {
+            // we will catch and log all exceptions and return a completed future so that the truncation is attempted in the
+            // next iteration
+            Throwable unwrap = Exceptions.unwrap(e);
+            log.warn("Encountered exception attempting to truncate stream {}. {}: {}", streamName, unwrap.getClass().getName(), unwrap.getMessage());
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    private Map<Long, Long> convertPosition(Map.Entry<String, Position> x) {
+        return ((PositionImpl) x.getValue().asImpl()).getOwnedSegmentsWithOffsets().entrySet().stream().collect(Collectors.toMap(y -> y.getKey().getSegmentId(), y -> y.getValue()));
     }
 
     private CompletableFuture<Void> handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
@@ -498,6 +580,21 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         if (kvtRequestEventProcessors != null) {
             log.info("Awaiting termination of kvt request event processors");
             kvtRequestEventProcessors.awaitTerminated();
+        }
+    }
+    
+    @VisibleForTesting
+    void setTruncationInterval(long interval) {
+        truncationInterval.set(interval);
+    }
+
+    @Override
+    public void close() {
+        this.clientFactory.close();
+        try {
+            this.stopAsync().awaitTerminated(config.getShutdownTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException ex) {
+            log.error("Timeout expired while waiting for service to shut down.", ex);
         }
     }
 }

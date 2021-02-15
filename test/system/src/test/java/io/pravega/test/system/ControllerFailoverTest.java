@@ -10,13 +10,14 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.system.framework.Environment;
@@ -29,7 +30,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -54,7 +54,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(3 * 60);
 
-    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
     private Service controllerService = null;
     private Service segmentStoreService = null;
     private URI controllerURIDirect = null;
@@ -85,7 +85,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         // Fetch all the RPC endpoints and construct the client URIs.
         final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
-        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
+        controllerURIDirect = URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerUris.get(0));
@@ -96,6 +96,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         // This test scales the controller instances to 0.
         // Scale down the segment store instances to 0 to ensure the next tests starts with a clean slate.
         segmentStoreService.scaleService(0);
+        ExecutorServiceHelpers.shutdown(executorService);
     }
 
     @Test
@@ -140,7 +141,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority)
                 .collect(Collectors.toList());
 
-        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
+        controllerURIDirect = URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         ClientConfig clientConf = Utils.buildClientConfig(controllerURIDirect);

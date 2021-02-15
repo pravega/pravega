@@ -23,7 +23,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -65,6 +65,10 @@ import lombok.val;
 public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
+    /**
+     * Default value used for when no offset is provided for a remove or put call.
+     */
+    private static final int NO_OFFSET = -1;
     private static final int MAX_BATCH_SIZE = 32 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
     /**
      * The default value to supply to a {@link WriterTableProcessor} to indicate how big compactions need to be.
@@ -76,12 +80,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * The default Segment Attributes to set for every new Table Segment. These values will override the corresponding
      * defaults from {@link TableAttributes#DEFAULT_VALUES}.
      */
-    private static final Map<UUID, Long> DEFAULT_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
+    @VisibleForTesting
+    static final Map<UUID, Long> DEFAULT_COMPACTION_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
             Attributes.ROLLOVER_SIZE, 4L * DEFAULT_MAX_COMPACTION_SIZE);
-    /**
-     * Default value used for when no offset is provided for a remove or put call.
-     */
-    private static final int NO_OFFSET = -1;
 
     private final SegmentContainer segmentContainer;
     private final ScheduledExecutorService executor;
@@ -168,10 +169,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region TableStore Implementation
 
     @Override
-    public CompletableFuture<Void> createSegment(@NonNull String segmentName, boolean sorted, Duration timeout) {
+    public CompletableFuture<Void> createSegment(@NonNull String segmentName, SegmentType segmentType, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
-        if (sorted) {
+        attributes.putAll(DEFAULT_COMPACTION_ATTRIBUTES);
+        if (segmentType.isSortedTableSegment()) {
             attributes.put(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE);
         }
 
@@ -181,10 +183,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         // will need to accept external configuration that defines at least MIN_UTILIZATION.
         val attributeUpdates = attributes
                 .entrySet().stream()
-                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, DEFAULT_ATTRIBUTES.getOrDefault(e.getKey(), e.getValue())))
+                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
-        logRequest("createSegment", segmentName);
-        return this.segmentContainer.createStreamSegment(segmentName, attributeUpdates, timeout);
+        segmentType = SegmentType.builder(segmentType).tableSegment().build(); // Ensure at least a TableSegment type.
+        logRequest("createSegment", segmentName, segmentType);
+        return this.segmentContainer.createStreamSegment(segmentName, segmentType, attributeUpdates, timeout);
     }
 
     @Override
@@ -315,27 +318,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 builder.includeResult(CompletableFuture.completedFuture(null));
             } else {
                 // Find the sought entry in the segment, based on its key.
-                // We first attempt an optimistic read, which involves fewer steps, and only invalidate the cache and read
-                // directly from the index if unable to find anything and there is a chance the sought key actually exists.
-                // Encountering a truncated Segment offset indicates that the Segment may have recently been compacted and
-                // we are using a stale cache value.
                 BufferView key = builder.getKeys().get(i);
-                builder.includeResult(Futures
-                        .exceptionallyExpecting(bucketReader.find(key, offset, timer), ex -> ex instanceof StreamSegmentTruncatedException, null)
-                        .thenComposeAsync(entry -> {
-                            if (entry != null) {
-                                // We found an entry; need to figure out if it was a deletion or not.
-                                return CompletableFuture.completedFuture(maybeDeleted(entry));
-                            } else {
-                                // We have a valid TableBucket but were unable to locate the key using the cache, either
-                                // because the cache points to a truncated offset or because we are unable to determine
-                                // if the TableBucket has been rearranged due to a compaction. The rearrangement is a rare
-                                // occurrence and can only happen if more than one Key is mapped to a bucket (collision).
-                                return this.keyIndex.getBucketOffsetDirect(segment, keyHash, timer)
-                                        .thenComposeAsync(newOffset -> bucketReader.find(key, newOffset, timer), this.executor)
-                                        .thenApply(this::maybeDeleted);
-                            }
-                        }, this.executor));
+                builder.includeResult(this.keyIndex.findBucketEntry(segment, bucketReader, key, offset, timer).thenApply(this::maybeDeleted));
             }
         }
 
@@ -472,14 +456,16 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     if (ContainerSortedKeyIndex.isSortedTableSegment(properties)) {
                         throw new UnsupportedOperationException("Unable to use a delta iterator on a sorted TableSegment.");
                     }
+                    if (fromPosition > properties.getLength()) {
+                        throw new IllegalArgumentException("fromPosition can not exceed the length of the TableSegment.");
+                    }
                     long compactionOffset = properties.getAttributes().getOrDefault(TableAttributes.COMPACTION_OFFSET, 0L);
                     // All of the most recent keys will exist beyond the compactionOffset.
                     long startOffset = Math.max(fromPosition, compactionOffset);
                     // We should clear if the starting position may have been truncated out due to compaction.
                     boolean shouldClear = fromPosition < compactionOffset;
                     // Maximum length of the TableSegment we want to read until.
-                    int maxLength = (int) (properties.getLength() - startOffset);
-
+                    int maxBytesToRead = (int) (properties.getLength() - startOffset);
                     TableEntryDeltaIterator.ConvertResult<IteratorItem<T>> converter = item -> {
                         return CompletableFuture.completedFuture(new IteratorItemImpl<T>(
                                 item.getKey().serialize(),
@@ -489,9 +475,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                             .segment(segment)
                             .entrySerializer(serializer)
                             .executor(executor)
-                            .maxLength(maxLength)
+                            .maxBytesToRead(maxBytesToRead)
                             .startOffset(startOffset)
-                            .currentBatchOffset(startOffset)
+                            .currentBatchOffset(fromPosition)
                             .fetchTimeout(fetchTimeout)
                             .resultConverter(converter)
                             .shouldClear(shouldClear)

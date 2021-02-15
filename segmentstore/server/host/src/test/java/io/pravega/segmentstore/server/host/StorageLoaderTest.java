@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -16,6 +17,7 @@ import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageLayoutType;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
@@ -28,10 +30,10 @@ import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
 import io.pravega.storage.hdfs.HDFSStorageFactory;
+import java.util.concurrent.ScheduledExecutorService;
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.Test;
-
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,14 +46,15 @@ public class StorageLoaderTest {
 
     @Test
     public void testNoOpWithInMemoryStorage() throws Exception {
-        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(StorageExtraConfig.builder()
-                            .with(StorageExtraConfig.STORAGE_NO_OP_MODE, true))
+                        .with(StorageExtraConfig.STORAGE_NO_OP_MODE, true))
                 .include(ServiceConfig.builder()
-                            .with(ServiceConfig.CONTAINER_COUNT, 1)
-                            .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY));
+                        .with(ServiceConfig.CONTAINER_COUNT, 1)
+                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, ServiceConfig.StorageType.INMEMORY));
 
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(configBuilder.build())
                 .withStorageFactory(setup -> {
@@ -97,7 +100,7 @@ public class StorageLoaderTest {
         val extraConfig = StorageExtraConfig.builder()
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
-        when(configSetup.getConfig(any())).thenReturn(extraConfig, FileSystemStorageConfig.builder().build());
+        when(configSetup.getConfig(any())).thenReturn(extraConfig, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, FileSystemStorageConfig.builder().build());
 
         val factory  = getStorageFactory(configSetup, storageType, "FILESYSTEM", StorageLayoutType.CHUNKED_STORAGE);
         assertTrue(factory instanceof FileSystemSimpleStorageFactory);
@@ -122,7 +125,7 @@ public class StorageLoaderTest {
         val extraConfig = StorageExtraConfig.builder()
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
-        when(configSetup.getConfig(any())).thenReturn(extraConfig, HDFSStorageConfig.builder().build());
+        when(configSetup.getConfig(any())).thenReturn(extraConfig, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, HDFSStorageConfig.builder().build());
         val factory = getStorageFactory(configSetup, storageType, "HDFS", StorageLayoutType.CHUNKED_STORAGE);
         assertTrue(factory instanceof HDFSSimpleStorageFactory);
     }
@@ -158,14 +161,15 @@ public class StorageLoaderTest {
         val extraConfig = StorageExtraConfig.builder()
                 .with(StorageExtraConfig.STORAGE_NO_OP_MODE, false)
                 .build();
-        when(configSetup.getConfig(any())).thenReturn(extraConfig, config);
+        when(configSetup.getConfig(any())).thenReturn(extraConfig, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
 
         val factory = getStorageFactory(configSetup, storageType, "EXTENDEDS3", StorageLayoutType.CHUNKED_STORAGE);
         assertTrue(factory instanceof ExtendedS3SimpleStorageFactory);
     }
 
     private StorageFactory getStorageFactory(ConfigSetup setup, ServiceConfig.StorageType storageType, String name, StorageLayoutType storageLayoutType) throws DurableDataLogException {
-        ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         StorageLoader loader = new StorageLoader();
         return loader.load(setup, name, storageLayoutType, executor);
     }

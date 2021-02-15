@@ -130,6 +130,12 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
+    @Override
+    public void keepAlive(WireCommands.KeepAlive keepAlive) {
+        log.debug("Received a keepAlive from connection: {}", connection);
+        connection.send(keepAlive);
+    }
+
     /**
      * Setup an append so that subsequent append calls can occur.
      * This requires validating that the segment exists.
@@ -157,20 +163,22 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         // Get the last Event Number for this writer from the Store. This operation (cache=true) will automatically put
         // the value in the Store's cache so it's faster to access later.
-        store.getAttributes(newSegment, Collections.singleton(writer), true, TIMEOUT)
-                .whenComplete((attributes, u) -> {
-                    try {
-                        if (u != null) {
-                            handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
-                        } else {
-                            long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
-                            this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
-                            connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
-                        }
-                    } catch (Throwable e) {
-                        handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
-                    }
-                });
+        Futures.exceptionallyComposeExpecting(
+                store.getAttributes(newSegment, Collections.singleton(writer), true, TIMEOUT),
+                e -> e instanceof StreamSegmentSealedException, () -> store.getAttributes(newSegment, Collections.singleton(writer), false, TIMEOUT))
+                        .whenComplete((attributes, u) -> {
+                            try {
+                                if (u != null) {
+                                    handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
+                                } else {
+                                    long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
+                                    this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
+                                    connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
+                                }
+                            } catch (Throwable e) {
+                                handleException(writer, setupAppend.getRequestId(), newSegment, "handling setupAppend result", e);
+                            }
+                        });
     }
 
     @VisibleForTesting
@@ -245,8 +253,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         Preconditions.checkNotNull(state, "state");
         boolean success = exception == null;
         try {
-            boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
-
             if (success) {
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
@@ -266,7 +272,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             append.getSegment(), append.getWriterId(), state.getLowestFailedEventNumber(), append.getEventNumber());
                 }
             } else {
-                if (conditionalFailed) {
+                if (append.isConditional() && Exceptions.unwrap(exception) instanceof BadOffsetException) {
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
                     synchronized (state.getAckLock()) {
                         // Revert the state to the last known good one. This is needed because we do not close the connection

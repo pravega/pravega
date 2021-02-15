@@ -55,16 +55,16 @@ import lombok.NonNull;
  * <ul>
  * <li> Unconditional Updates will insert and/or overwrite any existing values for the given Key, regardless of whether
  * that Key previously existed or not, and regardless of what that Key's version is. Such updates can be performed using
- * {@link #put(String, KeyT, ValueT)} or {@link #putAll(String, Iterable)}.
+ * {@link #put(String, Object, Object)} or {@link #putAll(String, Iterable)}.
  * <li> Conditional Updates will only overwrite an existing value if the specified {@link Version} matches the one that
- * is currently present on the server. Conditional inserts can be performed using {@link #putIfAbsent(String, KeyT, ValueT)}
+ * is currently present on the server. Conditional inserts can be performed using {@link #putIfAbsent(String, Object, Object)}
  * and will only succeed if the given Key does not already exist in the given Key Family. Conditional updates can be
- * performed using {@link #replace(String, KeyT, ValueT, Version)}.
+ * performed using {@link #replace(String, Object, Object, Version)}.
  * <li> Unconditional Removals will remove a Key regardless of what that Key's version is. The operation will also
  * succeed (albeit with no effect) if the Key does not exist. Such removals can be performed using
- * {@link #remove(String, KeyT)}.
+ * {@link #remove(String, Object)}.
  * <li> Conditional Removals will remove a Key only if the specified {@link Version} matches the one that is currently
- * present on the server. Such removals can be performed using {@link #remove(String, KeyT, Version)}.
+ * present on the server. Such removals can be performed using {@link #remove(String, Object, Version)}.
  * <li> Multi-key updates allow mixing different types of updates in the same update batch. Some entries may be conditioned
  * on their Keys not existing at all ({@link TableEntry#getKey()}{@link TableKey#getVersion()} equals
  * {@link Version#NOT_EXISTS}), some may be conditioned on specific versions and some may not have condition attached at
@@ -142,7 +142,7 @@ public interface KeyValueTable<KeyT, ValueT> extends AutoCloseable {
      * into this {@link KeyValueTable}. All changes are performed atomically (either all or none will be accepted).
      *
      * @param keyFamily The Key Family for the all provided Table Entries.
-     * @param entries   An {@link Iterable} of {@link Map.Entry} instances to insert or update.
+     * @param entries   An {@link Iterable} of {@link java.util.Map.Entry} instances to insert or update.
      * @return A CompletableFuture that, when completed, will contain a List of {@link Version} instances which
      * represent the versions for the inserted/updated keys. The size of this list will be the same as the number of
      * items in entries and the versions will be in the same order as the entries.

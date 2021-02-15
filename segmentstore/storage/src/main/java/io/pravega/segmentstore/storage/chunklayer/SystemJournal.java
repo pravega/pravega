@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -19,7 +20,6 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
-import io.pravega.segmentstore.storage.metadata.StorageMetadataException;
 import io.pravega.shared.NameUtils;
 import lombok.Builder;
 import lombok.Data;
@@ -29,6 +29,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
@@ -36,6 +37,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.google.common.base.Strings.emptyToNull;
@@ -48,24 +51,25 @@ import static com.google.common.base.Strings.nullToEmpty;
  * This creates a circular dependency while reading or writing the data about these segments from the metadata segments.
  * System journal is a mechanism to break this circular dependency by having independent log of all layout changes to system segments.
  * During bootstrap all the system journal files are read and processed to re-create the state of the storage system segments.
- * Currently only two actions are considered viz. Addition of new chunks {@link ChunkAddedRecord} and truncation of segments {@link TruncationRecord}.
- * In addition to these two records, log also contains system snapshot records {@link SystemSnapshotRecord} which contains the state
- * of each storage system segments ({@link SegmentSnapshotRecord}) after replaying all available logs at the time of snapshots.
+ * Currently only two actions are considered viz. Addition of new chunks {@link SystemJournal.ChunkAddedRecord} and truncation of segments
+ * {@link SystemJournal.TruncationRecord}.
+ * In addition to these two records, log also contains system snapshot records {@link SystemJournal.SystemSnapshotRecord} which contains the state
+ * of each storage system segments ({@link SystemJournal.SegmentSnapshotRecord}) after replaying all available logs at the time of snapshots.
  * These snapshot records help avoid replaying entire log evey time. Each container instance records snapshot immediately after bootstrap.
  * To avoid data corruption, each instance writes to its own distinct log file/object.
  * The bootstrap algorithm also correctly ignores invalid log entries written by running instance which is no longer owner of the given container.
- * To prevent applying partial changes resulting from unexpected crash, the log records are written as {@link SystemJournalRecordBatch}.
+ * To prevent applying partial changes resulting from unexpected crash, the log records are written as {@link SystemJournal.SystemJournalRecordBatch}.
  * In such cases either a full batch is read and applied completely or no records in the batch are applied.
  */
 @Slf4j
 public class SystemJournal {
     /**
-     * Serializer for {@link SystemJournalRecordBatch}.
+     * Serializer for {@link SystemJournal.SystemJournalRecordBatch}.
      */
     private static final SystemJournalRecordBatch.SystemJournalRecordBatchSerializer BATCH_SERIALIZER = new SystemJournalRecordBatch.SystemJournalRecordBatchSerializer();
 
     /**
-     * Serializer for {@link SystemSnapshotRecord}.
+     * Serializer for {@link SystemJournal.SystemSnapshotRecord}.
      */
     private static final SystemSnapshotRecord.Serializer SYSTEM_SNAPSHOT_SERIALIZER = new SystemSnapshotRecord.Serializer();
 
@@ -81,7 +85,7 @@ public class SystemJournal {
      * Epoch of the current instance.
      */
     @Getter
-    private final long epoch;
+    private volatile long epoch;
 
     /**
      * Container id of the owner container.
@@ -93,7 +97,11 @@ public class SystemJournal {
      * Index of current journal file.
      */
     @Getter
+    @GuardedBy("lock")
     private int currentFileIndex;
+
+    @GuardedBy("lock")
+    private boolean newChunkRequired;
 
     /**
      * String prefix for all system segments.
@@ -110,7 +118,14 @@ public class SystemJournal {
     /**
      * Offset at which next log will be written.
      */
-    private long systemJournalOffset;
+    @GuardedBy("lock")
+    private volatile long systemJournalOffset;
+
+    /**
+     * Handle to current journal file.
+     */
+    @GuardedBy("lock")
+    private volatile ChunkHandle currentHandle;
 
     /**
      * Configuration {@link ChunkedSegmentStorageConfig} for the {@link ChunkedSegmentStorage}.
@@ -124,22 +139,17 @@ public class SystemJournal {
      * Constructs an instance of {@link SystemJournal}.
      *
      * @param containerId   Container id of the owner container.
-     * @param epoch         Epoch of the current container instance.
      * @param chunkStorage  ChunkStorage instance to use for writing all logs.
      * @param metadataStore ChunkMetadataStore for owner container.
      * @param config        Configuration options for this ChunkedSegmentStorage instance.
-     * @throws Exception In case of any errors.
      */
-    public SystemJournal(int containerId, long epoch, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, ChunkedSegmentStorageConfig config) throws Exception {
+    public SystemJournal(int containerId, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, ChunkedSegmentStorageConfig config) {
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
         this.metadataStore = Preconditions.checkNotNull(metadataStore, "metadataStore");
         this.config = Preconditions.checkNotNull(config, "config");
         this.containerId = containerId;
-        this.epoch = epoch;
         this.systemSegments = getChunkStorageSystemSegments(containerId);
         this.systemSegmentsPrefix = NameUtils.INTERNAL_SCOPE_NAME;
-
-        Preconditions.checkState(!chunkStorage.exists(getSystemJournalChunkName()));
     }
 
     /**
@@ -148,17 +158,21 @@ public class SystemJournal {
      * @throws Exception Exception if any.
      */
     public void initialize() throws Exception {
-        chunkStorage.create(getSystemJournalChunkName());
+        if (chunkStorage.supportsAppend()) {
+            chunkStorage.create(getSystemJournalChunkName()).get();
+        }
     }
 
     /**
      * Bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
+     * @param epoch      Epoch of the current container instance.
      * @throws Exception Exception in case of any error.
      */
-    public void bootstrap() throws Exception {
+    public CompletableFuture<Void> bootstrap(long epoch) throws Exception {
+        this.epoch = epoch;
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
-        try (val txn = metadataStore.beginTransaction()) {
+        try (val txn = metadataStore.beginTransaction(false, getSystemSegments())) {
             // Keep track of offsets at which chunks were added to the system segments.
             val chunkStartOffsets = new HashMap<String, Long>();
 
@@ -183,7 +197,7 @@ public class SystemJournal {
             validateAndSaveSnapshot(txn);
 
             // Step 5: Finally commit all data.
-            txn.commit(true, true);
+            return txn.commit(true, true);
         }
     }
 
@@ -192,8 +206,10 @@ public class SystemJournal {
      *
      * @param record Record to persist.
      * @throws ChunkStorageException Exception if any.
+     * @throws ExecutionException Exception in case of any error.
+     * @throws InterruptedException Exception in case of any error.
      */
-    public void commitRecord(SystemJournalRecord record) throws ChunkStorageException {
+    public void commitRecord(SystemJournalRecord record) throws ChunkStorageException, ExecutionException, InterruptedException {
         commitRecords(Collections.singletonList(record));
     }
 
@@ -202,13 +218,12 @@ public class SystemJournal {
      *
      * @param records List of records to log to.
      * @throws ChunkStorageException Exception in case of any error.
+     * @throws ExecutionException Exception in case of any error.
+     * @throws InterruptedException Exception in case of any error.
      */
-    public void commitRecords(Collection<SystemJournalRecord> records) throws ChunkStorageException {
+    public void commitRecords(Collection<SystemJournalRecord> records) throws ChunkStorageException, ExecutionException, InterruptedException {
         Preconditions.checkState(null != records);
         Preconditions.checkState(records.size() > 0);
-
-        // Open the underlying chunk to write.
-        ChunkHandle h = getChunkHandleForSystemJournal();
 
         SystemJournalRecordBatch batch = SystemJournalRecordBatch.builder().systemJournalRecords(records).build();
         ByteArraySegment bytes;
@@ -219,34 +234,48 @@ public class SystemJournal {
         }
         // Persist
         synchronized (lock) {
-            val bytesWritten = chunkStorage.write(h, systemJournalOffset, bytes.getLength(),
-                    new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength()));
-            Preconditions.checkState(bytesWritten == bytes.getLength());
-            systemJournalOffset += bytesWritten;
-            // Add a new log file if required.
-            if (!chunkStorage.supportsAppend() || config.isAppendsDisabled()) {
-                currentFileIndex++;
-                systemJournalOffset = 0;
+            boolean done = false;
+            while (!done) {
+                try {
+                    writeToJournal(bytes);
+                    done = true;
+                } catch (ExecutionException e) {
+                    val ex = Exceptions.unwrap(e);
+                    // In case of partial write during previous failure, this time we'll get InvalidOffsetException.
+                    // In that case we start a new journal file and retry.
+                    if (!(ex instanceof InvalidOffsetException)) {
+                        throw e;
+                    }
+                }
+                // Add a new log file if required.
+                if (!chunkStorage.supportsAppend() || !config.isAppendEnabled() || !done) {
+                    newChunkRequired = true;
+                }
             }
         }
-        log.debug("SystemJournal[{}] Logging system log records - file={}, batch={}.", containerId, h.getChunkName(), batch);
+        log.debug("SystemJournal[{}] Logging system log records - file={}, batch={}.", containerId, currentHandle.getChunkName(), batch);
     }
 
     /**
      * Find and apply latest snapshot.
      */
     private long applyLatestSnapshot(MetadataTransaction txn, HashMap<String, Long> chunkStartOffsets) throws Exception {
-        long epochToCheck = epoch - 1;
-        String snapshotFile = null;
+        long epochToCheck;
+        String snapshotFile;
         boolean found = false;
 
         // Find latest epoch with snapshot.
         for (epochToCheck = epoch - 1; epochToCheck >= 0; epochToCheck--) {
             snapshotFile = getSystemJournalChunkName(containerId, epochToCheck, 0);
-            if (chunkStorage.exists(snapshotFile)) {
-                // Read contents.
-                byte[] contents = getContents(snapshotFile);
-                SystemSnapshotRecord systemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(contents);
+            if (chunkStorage.exists(snapshotFile).get()) {
+                SystemSnapshotRecord systemSnapshot = null;
+                try {
+                    // Read contents.
+                    byte[] contents = getContents(snapshotFile);
+                    systemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(contents);
+                } catch (EOFException e) {
+                    log.warn("SystemJournal[{}] Incomplete snapshot found, skipping {}.", containerId, snapshotFile);
+                }
                 if (null != systemSnapshot) {
                     log.debug("SystemJournal[{}] Processing system log snapshot {}.", containerId, systemSnapshot);
                     // Initialize the segments and their chunks.
@@ -301,14 +330,14 @@ public class SystemJournal {
     /**
      * Read contents from file.
      */
-    private byte[] getContents(String snapshotFile) throws ChunkStorageException {
-        val info = chunkStorage.getInfo(snapshotFile);
-        val h = chunkStorage.openRead(snapshotFile);
+    private byte[] getContents(String snapshotFile) throws ExecutionException, InterruptedException {
+        val info = chunkStorage.getInfo(snapshotFile).get();
+        val h = ChunkHandle.readHandle(snapshotFile);
         byte[] contents = new byte[Math.toIntExact(info.getLength())];
         long fromOffset = 0;
         int remaining = contents.length;
         while (remaining > 0) {
-            int bytesRead = chunkStorage.read(h, fromOffset, remaining, contents, Math.toIntExact(fromOffset));
+            int bytesRead = chunkStorage.read(h, fromOffset, remaining, contents, Math.toIntExact(fromOffset)).get();
             remaining -= bytesRead;
             fromOffset += bytesRead;
         }
@@ -322,11 +351,11 @@ public class SystemJournal {
                                           long epochToStartScanning,
                                           HashMap<String, Long> chunkStartOffsets,
                                           HashMap<String, Long> finalTruncateOffsets,
-                                          HashMap<String, Long> finalFirstChunkStartsAtOffsets) throws ChunkStorageException, IOException, StorageMetadataException {
+                                          HashMap<String, Long> finalFirstChunkStartsAtOffsets) throws Exception {
         for (long epochToRecover = epochToStartScanning; epochToRecover < epoch; epochToRecover++) {
             // Start scan with file index 1.
             int fileIndexToRecover = 1;
-            while (chunkStorage.exists(getSystemJournalChunkName(containerId, epochToRecover, fileIndexToRecover))) {
+            while (chunkStorage.exists(getSystemJournalChunkName(containerId, epochToRecover, fileIndexToRecover)).get()) {
                 // Read contents.
                 val systemLogName = getSystemJournalChunkName(containerId, epochToRecover, fileIndexToRecover);
                 byte[] contents = getContents(systemLogName);
@@ -372,16 +401,16 @@ public class SystemJournal {
     /**
      * Adjusts the lengths of last chunks for each segment.
      */
-    private void adjustLastChunkLengths(MetadataTransaction txn) throws StorageMetadataException, ChunkStorageException {
+    private void adjustLastChunkLengths(MetadataTransaction txn) throws Exception {
         for (String systemSegment : systemSegments) {
-            SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(systemSegment);
+            SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(systemSegment).get();
             segmentMetadata.checkInvariants();
             // Update length of last chunk in metadata to what we actually find on LTS.
             if (null != segmentMetadata.getLastChunk()) {
-                val chunkInfo = chunkStorage.getInfo(segmentMetadata.getLastChunk());
+                val chunkInfo = chunkStorage.getInfo(segmentMetadata.getLastChunk()).get();
                 long length = chunkInfo.getLength();
 
-                ChunkMetadata lastChunk = (ChunkMetadata) txn.get(segmentMetadata.getLastChunk());
+                ChunkMetadata lastChunk = (ChunkMetadata) txn.get(segmentMetadata.getLastChunk()).get();
                 Preconditions.checkState(null != lastChunk);
                 lastChunk.setLength(length);
                 txn.update(lastChunk);
@@ -396,7 +425,7 @@ public class SystemJournal {
     /**
      * Apply last effective truncate offsets.
      */
-    private void applyFinalTruncateOffsets(MetadataTransaction txn, HashMap<String, Long> finalTruncateOffsets, HashMap<String, Long> finalFirstChunkStartsAtOffsets) throws StorageMetadataException {
+    private void applyFinalTruncateOffsets(MetadataTransaction txn, HashMap<String, Long> finalTruncateOffsets, HashMap<String, Long> finalFirstChunkStartsAtOffsets) throws Exception {
         for (String systemSegment : systemSegments) {
             if (finalTruncateOffsets.containsKey(systemSegment)) {
                 val truncateAt = finalTruncateOffsets.get(systemSegment);
@@ -409,11 +438,11 @@ public class SystemJournal {
     /**
      * Apply chunk addition.
      */
-    private void applyChunkAddition(MetadataTransaction txn, HashMap<String, Long> chunkStartOffsets, String segmentName, String oldChunkName, String newChunkName, long offset) throws StorageMetadataException {
+    private void applyChunkAddition(MetadataTransaction txn, HashMap<String, Long> chunkStartOffsets, String segmentName, String oldChunkName, String newChunkName, long offset) throws Exception {
         Preconditions.checkState(null != oldChunkName);
         Preconditions.checkState(null != newChunkName && !newChunkName.isEmpty());
 
-        SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(segmentName);
+        SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(segmentName).get();
         segmentMetadata.checkInvariants();
 
         // set length.
@@ -422,13 +451,14 @@ public class SystemJournal {
         val newChunkMetadata = ChunkMetadata.builder()
                 .name(newChunkName)
                 .build();
+        newChunkMetadata.setActive(true);
         txn.create(newChunkMetadata);
         txn.markPinned(newChunkMetadata);
 
         chunkStartOffsets.put(newChunkName, offset);
         // Set first and last pointers.
         if (!oldChunkName.isEmpty()) {
-            ChunkMetadata oldChunk = (ChunkMetadata) txn.get(oldChunkName);
+            ChunkMetadata oldChunk = (ChunkMetadata) txn.get(oldChunkName).get();
             Preconditions.checkState(null != oldChunk);
 
             // In case the old segment store was still writing some zombie chunks when ownership changed
@@ -436,10 +466,10 @@ public class SystemJournal {
             // Note that chunk with oldChunkName is still valid, it is the chunks after this that become invalid.
             String toDelete = oldChunk.getNextChunk();
             while (toDelete != null) {
-                ChunkMetadata chunkToDelete = (ChunkMetadata) txn.get(toDelete);
+                ChunkMetadata chunkToDelete = (ChunkMetadata) txn.get(toDelete).get();
                 txn.delete(toDelete);
                 toDelete = chunkToDelete.getNextChunk();
-                segmentMetadata.decrementChunkCount();
+                segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() - 1);
             }
 
             // Set next chunk
@@ -456,7 +486,7 @@ public class SystemJournal {
         }
         segmentMetadata.setLastChunk(newChunkName);
         segmentMetadata.setLastChunkStartOffset(offset);
-        segmentMetadata.incrementChunkCount();
+        segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() + 1);
         segmentMetadata.checkInvariants();
         // Save the segment metadata.
         txn.update(segmentMetadata);
@@ -470,28 +500,17 @@ public class SystemJournal {
         return NameUtils.getSystemJournalFileName(containerId, epoch, currentFileIndex);
     }
 
-    private ChunkHandle getChunkHandleForSystemJournal() throws ChunkStorageException {
-        ChunkHandle h;
-        val systemLogName = getSystemJournalChunkName();
-        try {
-            h = chunkStorage.openWrite(systemLogName);
-        } catch (ChunkNotFoundException e) {
-            h = chunkStorage.create(systemLogName);
-        }
-        return h;
-    }
-
     /**
      * Apply truncate action to the segment metadata.
      */
-    private void applyTruncate(MetadataTransaction txn, String segmentName, long truncateAt, long firstChunkStartsAt) throws StorageMetadataException {
-        SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(segmentName);
+    private void applyTruncate(MetadataTransaction txn, String segmentName, long truncateAt, long firstChunkStartsAt) throws Exception {
+        SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(segmentName).get();
         segmentMetadata.checkInvariants();
         String currentChunkName = segmentMetadata.getFirstChunk();
         ChunkMetadata currentMetadata;
         long startOffset = segmentMetadata.getFirstChunkStartOffset();
         while (null != currentChunkName) {
-            currentMetadata = (ChunkMetadata) txn.get(currentChunkName);
+            currentMetadata = (ChunkMetadata) txn.get(currentChunkName).get();
             // If for given chunk start <= truncateAt < end  then we have found the chunk that will be the first chunk.
             if ((startOffset <= truncateAt) && (startOffset + currentMetadata.getLength() > truncateAt)) {
                 break;
@@ -501,7 +520,7 @@ public class SystemJournal {
             // move to next chunk
             currentChunkName = currentMetadata.getNextChunk();
             txn.delete(currentMetadata.getName());
-            segmentMetadata.decrementChunkCount();
+            segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() - 1);
         }
         Preconditions.checkState(firstChunkStartsAt == startOffset);
         segmentMetadata.setFirstChunk(currentChunkName);
@@ -523,7 +542,7 @@ public class SystemJournal {
 
         for (String systemSegment : systemSegments) {
             // Find segment metadata.
-            SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(systemSegment);
+            SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(systemSegment).get();
             segmentMetadata.checkInvariants();
 
             SegmentSnapshotRecord segmentSnapshot = SegmentSnapshotRecord.builder()
@@ -533,13 +552,13 @@ public class SystemJournal {
 
             // Enumerate all chunks.
             String currentChunkName = segmentMetadata.getFirstChunk();
-            ChunkMetadata currentMetadata = null;
+            ChunkMetadata currentMetadata;
             long dataSize = 0;
             long chunkCount = 0;
             while (null != currentChunkName) {
-                currentMetadata = (ChunkMetadata) txn.get(currentChunkName);
+                currentMetadata = (ChunkMetadata) txn.get(currentChunkName).get();
 
-                val chunkInfo = chunkStorage.getInfo(currentChunkName);
+                val chunkInfo = chunkStorage.getInfo(currentChunkName).get();
                 dataSize += currentMetadata.getLength();
                 chunkCount++;
                 Preconditions.checkState(chunkInfo.getLength() >= currentMetadata.getLength(),
@@ -560,20 +579,44 @@ public class SystemJournal {
 
         // Write snapshot
         val snapshotFile = getSystemJournalChunkName(containerId, epoch, 0);
-        ChunkHandle h = chunkStorage.create(snapshotFile);
+
         ByteArraySegment bytes;
         try {
             bytes = SYSTEM_SNAPSHOT_SERIALIZER.serialize(systemSnapshot);
         } catch (IOException e) {
             throw new ChunkStorageException(getSystemJournalChunkName(), "Unable to serialize", e);
         }
-        // Persist
         synchronized (lock) {
-            val bytesWritten = chunkStorage.write(h, systemJournalOffset, bytes.getLength(),
-                    new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength()));
-            Preconditions.checkState(bytesWritten == bytes.getLength());
+            currentHandle = chunkStorage.createWithContent(snapshotFile,
+                        bytes.getLength(),
+                        new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())).get();
+            // Start new journal.
+            newChunkRequired = true;
         }
-        currentFileIndex++;
+
+    }
+
+    /**
+     * Writes given ByteArraySegment to journal.
+     * @param bytes Bytes to write.
+     */
+    private void writeToJournal(ByteArraySegment bytes) throws ExecutionException, InterruptedException {
+
+        if (newChunkRequired) {
+            currentFileIndex++;
+            systemJournalOffset = 0;
+            currentHandle = chunkStorage.createWithContent(getSystemJournalChunkName(containerId, epoch, currentFileIndex), bytes.getLength(),
+                    new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())).get();
+            systemJournalOffset += bytes.getLength();
+            newChunkRequired = false;
+        } else {
+            Preconditions.checkState(chunkStorage.supportsAppend() && config.isAppendEnabled());
+            val bytesWritten = chunkStorage.write(currentHandle, systemJournalOffset, bytes.getLength(),
+                    new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())).get();
+            Preconditions.checkState(bytesWritten == bytes.getLength(),
+                    "Bytes written do not match expected length. Actual=%d, expected=%d", bytesWritten, bytes.getLength());
+            systemJournalOffset += bytesWritten;
+        }
     }
 
     /**

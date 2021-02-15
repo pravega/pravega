@@ -10,7 +10,6 @@
 package io.pravega.test.system;
 
 import com.google.common.base.Preconditions;
-import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.EventRead;
@@ -34,6 +33,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -56,7 +56,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
 
     static final String RK_VALUE_SEPARATOR = ":";
     static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
-    static final int WRITER_MAX_RETRY_ATTEMPTS = 20;
+    static final int WRITER_MAX_RETRY_ATTEMPTS = 30;
     static final int NUM_EVENTS_PER_TRANSACTION = 50;
     static final int RK_RENEWAL_RATE_TRANSACTION = NUM_EVENTS_PER_TRANSACTION / 2;
     static final int TRANSACTION_TIMEOUT = 119 * 1000;
@@ -92,8 +92,8 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
         final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
-        final ConcurrentSet<UUID> committingTxn = new ConcurrentSet<>();
-        final ConcurrentSet<UUID> abortedTxn = new ConcurrentSet<>();
+        final ConcurrentSkipListSet<UUID> committingTxn = new ConcurrentSkipListSet<>();
+        final ConcurrentSkipListSet<UUID> abortedTxn = new ConcurrentSkipListSet<>();
         final boolean txnWrite;
 
         final AtomicLong writtenEvents = new AtomicLong();

@@ -18,7 +18,7 @@ import org.junit.Test;
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
@@ -70,7 +70,7 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
      * Note: The timeout being used for the test is kept rather large so that there is ample time for the expected
      * exception to be raised even in case of abnormal delays in test environments.
      */
-    @Test(timeout = 300000)
+    @Test(timeout = 30000)
     public void testCreateStreamFailsWithInvalidClientConfig() {
        ClientConfig clientConfig = ClientConfig.builder()
                 .credentials(new DefaultCredentials("", ""))

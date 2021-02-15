@@ -27,7 +27,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.test.integration.demo.ClusterWrapper;
 
@@ -64,9 +64,9 @@ public class DelegationTokenTest {
     }
 
     private void writeAnEvent(int tokenTtlInSeconds) throws ExecutionException, InterruptedException {
-        ClusterWrapper pravegaCluster = new ClusterWrapper(true, tokenTtlInSeconds);
+        ClusterWrapper pravegaCluster = ClusterWrapper.builder().authEnabled(true).tokenTtlInSeconds(600).build();
         try {
-            pravegaCluster.initialize();
+            pravegaCluster.start();
 
             String scope = "testscope";
             String streamName = "teststream";
@@ -84,7 +84,7 @@ public class DelegationTokenTest {
             @Cleanup
             EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
 
-            //@Cleanup
+            @Cleanup
             EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                     new JavaSerializer<String>(),
                     EventWriterConfig.builder().build());
@@ -109,9 +109,9 @@ public class DelegationTokenTest {
     public void testDelegationTokenGetsRenewedAfterExpiry() throws InterruptedException {
         // Delegation token renewal threshold is 5 seconds, so we are using 6 seconds as Token TTL so that token doesn't
         // get renewed before each use.
-        ClusterWrapper pravegaCluster = new ClusterWrapper(true, 6);
+        ClusterWrapper pravegaCluster = ClusterWrapper.builder().authEnabled(true).tokenTtlInSeconds(6).build();
         try {
-            pravegaCluster.initialize();
+            pravegaCluster.start();
 
             final String scope = "testscope";
             final String streamName = "teststream";
@@ -141,6 +141,7 @@ public class DelegationTokenTest {
                     log.debug("Done writing message '{}' to stream '{} / {}'", msg, scope, streamName);
                 }
             };
+            @Cleanup("interrupt")
             Thread writerThread = new Thread(runnable);
             writerThread.start();
 
@@ -197,12 +198,11 @@ public class DelegationTokenTest {
         // Delegation token renewal threshold is 5 seconds, so we are using 6 seconds as Token TTL so that token doesn't
         // get renewed before each use.
         @Cleanup
-        ClusterWrapper pravegaCluster = new ClusterWrapper(true, 6);
-        pravegaCluster.initialize();
+        ClusterWrapper pravegaCluster = ClusterWrapper.builder().authEnabled(true).tokenTtlInSeconds(6).build();
+        pravegaCluster.start();
 
         final String scope = "testscope";
         final String streamName = "teststream";
-        final int numSegments = 1;
 
         final ClientConfig clientConfig = ClientConfig.builder()
                                                       .controllerURI(URI.create(pravegaCluster.controllerUri()))

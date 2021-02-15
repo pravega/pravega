@@ -130,11 +130,13 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public void shutdown() {
 
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public List<Runnable> shutdownNow() {
             return null;
         }
@@ -861,6 +863,22 @@ public class AppendEncodeDecodeTest extends LeakDetectorTestSuite {
         Append readAppend1 = (Append) received.get(0);
         assertEquals((long) readAppend1.expectedLength, append1.expectedOffset);
         assertEquals(event.getAsByteBuf(), readAppend1.getData());
+    }
+
+    @Test
+    public void testConditionalBlockEnd() throws Exception {
+        @Cleanup("release")
+        val received = new ReceivedCommands();
+        setupAppend(streamName, writerId, fakeNetwork);
+
+        val data = Unpooled.wrappedBuffer(new byte[appendBlockSize]);
+        val append1 = new WireCommands.ConditionalBlockEnd(writerId, 10, 123, data, 1);
+        encoder.encode(ctx, append1, fakeNetwork);
+        read(fakeNetwork, received);
+        assertEquals(1, received.size());
+        Append readAppend1 = (Append) received.get(0);
+        assertEquals((long) readAppend1.expectedLength, append1.expectedOffset);
+        assertEquals(data, readAppend1.getData());
     }
 
     private void setupAppend(String testStream, UUID writerId, ByteBuf fakeNetwork) throws Exception {

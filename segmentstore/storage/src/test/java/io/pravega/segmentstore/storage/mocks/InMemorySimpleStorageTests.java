@@ -15,38 +15,34 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
+import org.junit.Assert;
 
-import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
 /**
  * Unit tests for {@link InMemorySimpleStorage} using {@link SimpleStorageTests}.
  */
 public class InMemorySimpleStorageTests extends SimpleStorageTests {
-    private static ChunkStorage getChunkStorageProvider() throws IOException {
-        return new InMemoryChunkStorage();
-    }
-
-    protected ChunkStorage getChunkStorage() throws Exception {
-        return getChunkStorageProvider();
+    protected ChunkStorage getChunkStorage() {
+        return new InMemoryChunkStorage(executorService());
     }
 
     /**
      * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkedRollingStorageTests}.
      */
     public static class InMemorySimpleStorageRollingStorageTests extends ChunkedRollingStorageTests {
-        protected ChunkStorage getChunkStorage() throws Exception {
-            return getChunkStorageProvider();
+        protected ChunkStorage getChunkStorage() {
+            return new InMemoryChunkStorage(executorService());
         }
     }
 
     /**
      * Unit tests for {@link InMemorySimpleStorage} using {@link ChunkStorageTests}.
      */
-    public static class InMemorySimpleStorageProviderTests extends ChunkStorageTests {
+    public static class InMemoryChunkStorageTests extends ChunkStorageTests {
         @Override
-        protected ChunkStorage createChunkStorage() throws Exception {
-            return getChunkStorageProvider();
+        protected ChunkStorage createChunkStorage() {
+            return new InMemoryChunkStorage(executorService());
         }
     }
 
@@ -56,8 +52,8 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
     public static class InMemorySimpleStorage extends ChunkedSegmentStorageTests {
 
         @Override
-        public ChunkStorage createChunkStorageProvider() throws Exception {
-            return InMemorySimpleStorageTests.getChunkStorageProvider();
+        public ChunkStorage createChunkStorage() {
+            return new InMemoryChunkStorage(executorService());
         }
 
         @Override
@@ -70,6 +66,28 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
             return new InMemorySimpleStorageTestContext(executorService(), config);
         }
 
+        @Override
+        protected void populate(byte[] data) {
+            rnd.nextBytes(data);
+        }
+
+        @Override
+        protected void checkData(byte[] expected, byte[] output) {
+            Assert.assertArrayEquals(expected, output);
+        }
+
+        @Override
+        public void testReadHugeChunks() {
+            // Do not execute this test because it creates very large chunks (few multiples of Integer.MAX_VALUE).
+            // Allocating such huge byte arrays is not desirable with InMemoryChunkStorage.
+        }
+
+        @Override
+        public void testConcatHugeChunks(){
+            // Do not execute this test because it creates very large chunks (few multiples of Integer.MAX_VALUE).
+            // Allocating such huge byte arrays is not desirable with InMemoryChunkStorage.
+        }
+
         public class InMemorySimpleStorageTestContext extends ChunkedSegmentStorageTests.TestContext {
             InMemorySimpleStorageTestContext(ExecutorService executorService) throws Exception {
                 super(executorService);
@@ -80,8 +98,8 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
             }
 
             @Override
-            public ChunkStorage createChunkStorageProvider() throws Exception {
-                return InMemorySimpleStorageTests.getChunkStorageProvider();
+            public ChunkStorage createChunkStorage() {
+                return new InMemoryChunkStorage(executorService());
             }
         }
     }

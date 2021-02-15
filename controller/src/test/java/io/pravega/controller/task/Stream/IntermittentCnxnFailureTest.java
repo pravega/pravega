@@ -23,7 +23,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -43,12 +43,10 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.TestingServerStarter;
-
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.curator.framework.CuratorFramework;
@@ -75,7 +73,7 @@ public class IntermittentCnxnFailureTest {
 
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
 
     private ControllerService controllerService;
 
@@ -99,6 +97,7 @@ public class IntermittentCnxnFailureTest {
     @Before
     public void setup() throws Exception {
         MetricsConfig metricsConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .build();
         metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(60));

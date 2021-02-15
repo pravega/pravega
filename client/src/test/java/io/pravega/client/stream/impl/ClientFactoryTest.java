@@ -82,13 +82,14 @@ public class ClientFactoryTest {
         NavigableMap<Double, SegmentWithRange> segments = new TreeMap<>();
         Segment segment = new Segment(scope, stream, 0L);
         segments.put(1.0, new SegmentWithRange(segment, 0.0, 1.0));
-        StreamSegments currentSegments = new StreamSegments(segments, "");
+        StreamSegments currentSegments = new StreamSegments(segments);
         SegmentOutputStream outStream = mock(SegmentOutputStream.class);
         when(controllerClient.getCurrentSegments(scope, stream))
                 .thenReturn(CompletableFuture.completedFuture(currentSegments));
         when(outFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outStream);
 
         EventWriterConfig writerConfig = EventWriterConfig.builder().build();
+        @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<String>(), writerConfig);
         assertEquals(writerConfig, writer.getConfig());
     }
@@ -100,13 +101,15 @@ public class ClientFactoryTest {
         // setup mocks
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controllerClient, connectionFactory);
-        StreamSegments currentSegments = new StreamSegments(new TreeMap<>(), "");
+        StreamSegments currentSegments = new StreamSegments(new TreeMap<>());
         when(controllerClient.getCurrentSegments(scope, stream))
                 .thenReturn(CompletableFuture.completedFuture(currentSegments));
 
         EventWriterConfig writerConfig = EventWriterConfig.builder().build();
+        @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(stream, new JavaSerializer<String>(), writerConfig);
         assertEquals(writerConfig, writer.getConfig());
+        writer.close();
     }
 
     @Test

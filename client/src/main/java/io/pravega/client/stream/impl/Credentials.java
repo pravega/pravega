@@ -9,25 +9,18 @@
  */
 package io.pravega.client.stream.impl;
 
-import java.io.Serializable;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
- * This interface represents the credentials passed to Pravega for authentication and authorizing the access.
+ * This legacy interface represented the credentials passed to Pravega for authentication and authorizing the
+ * access. It is retained temporarily for compatibility with older implementations only. Use
+ * {@link io.pravega.shared.security.auth.Credentials} instead.
  *
- * All implementations must support Java serialization.
+ * @deprecated As of Pravega release 0.9, replaced by {@link io.pravega.shared.security.auth.Credentials}.
  */
-public interface Credentials extends Serializable {
-    /**
-     * Returns the authentication type.
-     * Pravega can support multiple authentication types in a single deployment.
-     *
-     * @return the authentication type expected by the these credentials.
-     */
-    String getAuthenticationType();
-
-    /**
-     * Returns the authorization token to be sent to Pravega.
-     * @return A token in token68-compatible format (as defined by RFC 7235).
-     */
-    String getAuthenticationToken();
+@Deprecated
+@SuppressFBWarnings(value = "NM_SAME_SIMPLE_NAME_AS_INTERFACE",
+        justification = "Interface with same name retained for compatibility with older implementations")
+public interface Credentials extends io.pravega.shared.security.auth.Credentials {
 }
+

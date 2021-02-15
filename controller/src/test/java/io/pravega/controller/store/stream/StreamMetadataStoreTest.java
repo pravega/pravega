@@ -15,6 +15,11 @@ import com.google.common.collect.Lists;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -26,26 +31,20 @@ import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.RecordHelper;
+import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
+import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
-import org.apache.commons.lang3.tuple.Pair;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
-
-import static io.pravega.shared.NameUtils.computeSegmentId;
-
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
@@ -62,11 +61,18 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.tuple.Pair;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
+import static io.pravega.shared.NameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -89,7 +95,7 @@ public abstract class StreamMetadataStoreTest {
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StreamMetadataStore store;
     protected BucketStore bucketStore;
-    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected final String scope = "scope";
     protected final String stream1 = "stream1";
     protected final String stream2 = "stream2";
@@ -831,7 +837,7 @@ public abstract class StreamMetadataStoreTest {
         EpochTransitionRecord response2 = versioned2.getObject();
         assertEquals(activeEpoch.getEpoch(), response2.getActiveEpoch());
 
-        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
         record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
@@ -889,7 +895,7 @@ public abstract class StreamMetadataStoreTest {
 
         store.sealTransaction(scope, stream, tx15.getId(), true, Optional.of(tx15.getVersion()), "", Long.MIN_VALUE, null, executor).get();
 
-        record = store.startCommitTransactions(scope, stream, null, executor).join();
+        record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).get();
         record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
@@ -946,7 +952,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(1, response.getActiveEpoch());
 
         EpochRecord activeEpoch = store.getActiveEpoch(scope, stream, null, true, executor).join();
-        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
         record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
@@ -1022,7 +1028,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(positions.get(3L), tx02);
         
         // verify that when we retrieve transactions from lowest epoch we get tx00
-        List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch().join();
+        List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100).join();
         List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
         assertEquals(1, ordered.size());
         assertEquals(tx00, ordered.get(0));
@@ -1056,7 +1062,7 @@ public abstract class StreamMetadataStoreTest {
                 "", Long.MIN_VALUE, null, executor).get();
         
         // verify that we still get tx00 only 
-        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch().join();
+        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100).join();
         ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
         assertEquals(1, ordered.size());
         assertEquals(tx00, ordered.get(0));
@@ -1071,7 +1077,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(positions.get(5L), tx11);
         assertEquals(positions.get(6L), tx12);
 
-        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
         
         // verify that after including transaction tx00 in the record, we no longer keep its reference in the ordered
         positions = streamObj.getAllOrderedCommittingTxns().join();
@@ -1098,7 +1104,7 @@ public abstract class StreamMetadataStoreTest {
         
         // after committing, we should have committed tx00 while having purged references for tx01 and tx02
         // getting ordered list should return txn on epoch 1 in the order in which we issued commits
-        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch().join();
+        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100).join();
         ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
         assertEquals(3, ordered.size());
         assertEquals(tx10, ordered.get(0));
@@ -1115,7 +1121,7 @@ public abstract class StreamMetadataStoreTest {
 
         // we will issue next round of commit, which will commit txns on epoch 1. 
         activeEpoch = store.getActiveEpoch(scope, stream, null, true, executor).join();
-        record = store.startCommitTransactions(scope, stream, null, executor).join();
+        record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
         // verify that the order in record is same
         assertEquals(record.getObject().getTransactionsToCommit(), ordered);
         
@@ -1132,7 +1138,7 @@ public abstract class StreamMetadataStoreTest {
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
 
         // references for tx00 should be removed from orderer
-        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch().join();
+        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100).join();
         ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
         assertEquals(0, ordered.size());
 
@@ -1140,6 +1146,109 @@ public abstract class StreamMetadataStoreTest {
         positions = streamObj.getAllOrderedCommittingTxns().join();
         assertEquals(1, positions.size());
         assertEquals(positions.get(3L), tx02);
+    }
+    
+    @Test
+    public void txnCommitBatchLimitTest() throws Exception {
+        final String scope = "txnCommitBatch";
+        final String stream = "txnCommitBatch";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        long scaleTs = System.currentTimeMillis();
+        SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.5, 0.75);
+        SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.75, 1.0);
+        List<Long> scale1SealedSegments = Collections.singletonList(1L);
+
+        // create 3 transactions on epoch 0 --> tx00, tx01, tx02 and mark them as committing.. 
+        UUID tx00 = store.generateTransactionId(scope, stream, null, executor).join();
+        store.createTransaction(scope, stream, tx00,
+                100, 100, null, executor).get();
+        UUID tx01 = store.generateTransactionId(scope, stream, null, executor).join();
+        store.createTransaction(scope, stream, tx01,
+                100, 100, null, executor).get();
+        UUID tx02 = store.generateTransactionId(scope, stream, null, executor).join();
+        store.createTransaction(scope, stream, tx02,
+                100, 100, null, executor).get();
+
+        // committing
+        store.sealTransaction(scope, stream, tx00, true, Optional.empty(),
+                "", Long.MIN_VALUE, null, executor).get();
+        store.sealTransaction(scope, stream, tx01, true, Optional.empty(),
+                "", Long.MIN_VALUE, null, executor).get();
+        store.sealTransaction(scope, stream, tx02, true, Optional.empty(),
+                "", Long.MIN_VALUE, null, executor).get();
+
+        PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
+        
+        // verify that when we retrieve transactions from lowest epoch we get tx00, tx01
+        List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(2).join();
+        List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+        assertEquals(2, ordered.size());
+        assertEquals(tx00, ordered.get(0));
+        assertEquals(tx01, ordered.get(1));
+
+        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(1000).join();
+        ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+        assertEquals(3, ordered.size());
+        assertEquals(tx00, ordered.get(0));
+        assertEquals(tx01, ordered.get(1));
+        assertEquals(tx02, ordered.get(2));
+        
+        // commit tx00 and tx01
+        ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, tx00, null, executor).join();
+        ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, tx01, null, executor).join();
+
+        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(1000).join();
+        ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+        assertEquals(1, ordered.size());
+        assertEquals(tx02, ordered.get(0));
+        
+        // scale and create transaction on new epoch too. 
+    }
+    
+    @Test
+    public void txnCommitBatchLimitOrderTest() throws Exception {
+        final String scope = "txnCommitBatch2";
+        final String stream = "txnCommitBatch2";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+        
+        // create 3 transactions on epoch 0 --> tx00, tx01, tx02 and mark them as committing.. 
+        List<UUID> txns = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            UUID tx = store.generateTransactionId(scope, stream, null, executor).join();
+            store.createTransaction(scope, stream, tx,
+                    100, 100, null, executor).join();
+            store.sealTransaction(scope, stream, tx, true, Optional.empty(),
+                    "", Long.MIN_VALUE, null, executor).join();
+            txns.add(tx);
+        }
+
+        PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
+        
+        while (!txns.isEmpty()) {
+            int limit = 5;
+            List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(limit).join();
+            List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+            assertEquals(limit, ordered.size());
+            for (int i = 0; i < limit; i++) {
+                assertEquals(txns.remove(0), ordered.get(i));
+                ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, ordered.get(i), null, executor).join();
+            }
+        }
     }
 
     private void scale(String scope, String stream, long scaleTs, List<Map.Entry<Double, Double>> newSegments, List<Long> scale1SealedSegments) {
@@ -1325,6 +1434,211 @@ public abstract class StreamMetadataStoreTest {
         bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor).get();
         streams = bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).get();
         assertTrue(!streams.contains(String.format("%s/%s", scope, stream)));
+    }
+
+    @Test
+    public void strictlyGreaterThanTest() throws Exception {
+        final String scope = "ScopeRetain3";
+        final String stream = "StreamRetain";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
+                .retentionType(RetentionPolicy.RetentionType.TIME)
+                .retentionParam(Duration.ofDays(2).toMillis())
+                .build();
+        final StreamConfiguration configuration = StreamConfiguration.builder()
+                .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        Map<Long, Long> map1 = new HashMap<>();
+        map1.put(0L, 10L);
+        map1.put(1L, 10L);
+
+        Map<Long, Long> streamCut = new HashMap<>();
+
+        streamCut.put(0L, 0L);
+        streamCut.put(1L, 10L);
+        assertFalse(store.streamCutStrictlyGreaterThan(scope, stream, streamCut, map1, null, executor).join());
+
+        streamCut.put(0L, 10L);
+        streamCut.put(1L, 10L);
+        assertTrue(store.streamCutStrictlyGreaterThan(scope, stream, streamCut, map1, null, executor).join());
+
+        streamCut.put(0L, 1L);
+        streamCut.put(1L, 11L);
+        assertFalse(store.streamCutStrictlyGreaterThan(scope, stream, streamCut, map1, null, executor).join());
+
+        streamCut.put(0L, 20L);
+        streamCut.put(1L, 20L);
+        assertTrue(store.streamCutStrictlyGreaterThan(scope, stream, streamCut, map1, null, executor).join());
+    }
+
+    @Test
+    public void streamCutReferenceRecordBeforeTest() throws Exception {
+        final String scope = "ScopeRetain2";
+        final String stream = "StreamRetain";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
+                .retentionType(RetentionPolicy.RetentionType.TIME)
+                .retentionParam(Duration.ofDays(2).toMillis())
+                .build();
+        final StreamConfiguration configuration = StreamConfiguration.builder()
+                .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        Map<Long, Long> map1 = new HashMap<>();
+        map1.put(0L, 1L);
+        map1.put(1L, 1L);
+        long recordingTime = 1;
+        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime, Long.MIN_VALUE, ImmutableMap.copyOf(map1));
+        store.addStreamCutToRetentionSet(scope, stream, streamCut1, null, executor).get();
+
+        Map<Long, Long> map2 = new HashMap<>();
+        map2.put(0L, 10L);
+        map2.put(1L, 10L);
+        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime + 10, Long.MIN_VALUE, ImmutableMap.copyOf(map2));
+        store.addStreamCutToRetentionSet(scope, stream, streamCut2, null, executor).get();
+
+        Map<Long, Long> map3 = new HashMap<>();
+        map3.put(0L, 20L);
+        map3.put(1L, 20L);
+        StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime + 20, Long.MIN_VALUE, ImmutableMap.copyOf(map3));
+        store.addStreamCutToRetentionSet(scope, stream, streamCut3, null, executor).get();
+
+        Map<Long, Long> streamCut = new HashMap<>();
+
+        RetentionSet retentionSet = store.getRetentionSet(scope, stream, null, executor).join();
+
+        // 0/0, 1/1 ..there should be nothing before it
+        streamCut.put(0L, 0L);
+        streamCut.put(1L, 1L);
+        StreamCutReferenceRecord beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertNull(beforeRef);
+
+        // 0/1, 1/1 .. sc1
+        streamCut.put(0L, 1L);
+        streamCut.put(1L, 1L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut1.getRecordingTime());
+
+        // 0/5, 1/5 .. sc1
+        streamCut.put(0L, 1L);
+        streamCut.put(1L, 1L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut1.getRecordingTime());
+
+        // 0/0, 1/5 .. nothing
+        streamCut.put(0L, 0L);
+        streamCut.put(1L, 5L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertNull(beforeRef);
+
+        // 0/10, 1/10 ... sc2
+        streamCut.put(0L, 10L);
+        streamCut.put(1L, 10L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut2.getRecordingTime());
+
+        // 0/9, 1/15 ... sc1
+        streamCut.put(0L, 9L);
+        streamCut.put(1L, 15L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut1.getRecordingTime());
+
+        // 0/19, 1/20 ... sc2
+        streamCut.put(0L, 19L);
+        streamCut.put(1L, 20L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut2.getRecordingTime());
+
+        // 0/20, 1/20 ... sc3
+        streamCut.put(0L, 20L);
+        streamCut.put(1L, 20L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut3.getRecordingTime());
+
+        // 0/21, 1/21 ... sc3
+        streamCut.put(0L, 21L);
+        streamCut.put(1L, 21L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut3.getRecordingTime());
+
+        // now add another entry so that we have even number of records and and repeat the test
+        // but here we make sure we are still using map3 but adding the time. we should always pick the latest if there
+        // are subsequent streamcutrecords with identical streamcuts.
+        StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime + 30, Long.MIN_VALUE, ImmutableMap.copyOf(map3));
+        store.addStreamCutToRetentionSet(scope, stream, streamCut4, null, executor).get();
+
+        retentionSet = store.getRetentionSet(scope, stream, null, executor).join();
+
+        // 0/0, 1/1 ..there should be nothing before it
+        streamCut.put(0L, 0L);
+        streamCut.put(1L, 1L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertNull(beforeRef);
+
+        // 0/1, 1/1 .. 0/1, 1/1
+        streamCut.put(0L, 1L);
+        streamCut.put(1L, 1L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut1.getRecordingTime());
+
+        // 0/5, 1/5 .. 0/1, 1/1
+        streamCut.put(0L, 5L);
+        streamCut.put(1L, 5L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut1.getRecordingTime());
+
+        // 0/0, 1/5 .. nothing
+        streamCut.put(0L, 0L);
+        streamCut.put(1L, 5L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertNull(beforeRef);
+
+        // 0/10, 1/10 ... 0/10, 1/10
+        streamCut.put(0L, 10L);
+        streamCut.put(1L, 10L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut2.getRecordingTime());
+
+        // 0/9, 1/15 ... 0/1, 1/1
+        streamCut.put(0L, 9L);
+        streamCut.put(1L, 15L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut1.getRecordingTime());
+
+        // 0/19, 1/20 ... 0/10, 1/10
+        streamCut.put(0L, 19L);
+        streamCut.put(1L, 20L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut2.getRecordingTime());
+
+        // 0/20, 1/20 ... 0/20, 1/20
+        streamCut.put(0L, 20L);
+        streamCut.put(1L, 20L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut4.getRecordingTime());
+
+        // 0/21, 1/21 ... 0/20, 1/20
+        streamCut.put(0L, 21L);
+        streamCut.put(1L, 21L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut4.getRecordingTime());
+
+        // 0/31, 1/31 ... 0/30, 1/30
+        streamCut.put(0L, 30L);
+        streamCut.put(1L, 30L);
+        beforeRef = store.findStreamCutReferenceRecordBefore(scope, stream, streamCut, retentionSet, null, executor).join();
+        assertEquals(beforeRef.getRecordingTime(), streamCut4.getRecordingTime());
     }
 
     @Test
@@ -1576,7 +1890,7 @@ public abstract class StreamMetadataStoreTest {
         String writer1 = "writer1";
         long time = 1L;
         store.sealTransaction(scope, stream, txnId, true, Optional.of(tx01.getVersion()), writer1, time, null, executor).join();
-        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
         store.recordCommitOffsets(scope, stream, txnId, Collections.singletonMap(0L, 1L), null, executor).join();
         store.completeCommitTransactions(scope, stream, record, null, executor).join();
 
@@ -1622,6 +1936,53 @@ public abstract class StreamMetadataStoreTest {
         segmentId = NameUtils.computeSegmentId(2, 2);
         epoch = store.getSegmentSealedEpoch(scope, stream, segmentId, null, executor).join();
         assertEquals(epoch, -1);
+    }
+
+    @Test
+    public void testReaderGroups() throws Exception {
+        final String scopeRGTest = "scopeRGTest";
+        final String streamRGTest = "streamRGTest";
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        Controller.CreateScopeStatus createScopeStatus = store.createScope(scopeRGTest).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
+
+        store.createStream(scopeRGTest, streamRGTest, configuration, start, null, executor).join();
+        store.setState(scopeRGTest, streamRGTest, State.ACTIVE, null, executor).join();
+        final String rgName = "readerGroupRGTest";
+        final UUID rgId = UUID.randomUUID();
+        final Segment seg0 = new Segment(scopeRGTest, streamRGTest, 0L);
+        final Segment seg1 = new Segment(scopeRGTest, streamRGTest, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(scopeRGTest, streamRGTest),
+                new StreamCutImpl(Stream.of(scopeRGTest, streamRGTest), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(scopeRGTest, streamRGTest),
+                new StreamCutImpl(Stream.of(scopeRGTest, streamRGTest), endStreamCut));
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .generation(0L)
+                .readerGroupId(rgId)
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        final RGOperationContext rgContext = store.createRGContext(scopeRGTest, rgName);
+        store.addReaderGroupToScope(scopeRGTest, rgName, rgConfig.getReaderGroupId()).join();
+        store.createReaderGroup(scopeRGTest, rgName, rgConfig, System.currentTimeMillis(), rgContext, executor).join();
+        UUID readerGroupId = store.getReaderGroupId(scopeRGTest, rgName).get();
+        assertEquals(rgId, readerGroupId);
+        ReaderGroupConfigRecord cfgRecord = store.getReaderGroupConfigRecord(scopeRGTest, rgName, rgContext, executor).join().getObject();
+        assertEquals(false, cfgRecord.isUpdating());
+        assertEquals(rgConfig.getGeneration(), cfgRecord.getGeneration());
+        assertEquals(rgConfig.getAutomaticCheckpointIntervalMillis(), cfgRecord.getAutomaticCheckpointIntervalMillis());
+        assertEquals(rgConfig.getGroupRefreshTimeMillis(), cfgRecord.getGroupRefreshTimeMillis());
+        assertEquals(rgConfig.getStartingStreamCuts().size(), cfgRecord.getStartingStreamCuts().size());
+        VersionedMetadata<ReaderGroupState> rgState = store.getVersionedReaderGroupState(scopeRGTest, rgName, true, rgContext, executor).get();
+        assertEquals(ReaderGroupState.CREATING, rgState.getObject());
     }
     
     private void createAndScaleStream(StreamMetadataStore store, String scope, String stream, int times) {

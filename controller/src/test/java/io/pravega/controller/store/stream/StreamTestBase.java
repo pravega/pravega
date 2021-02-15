@@ -14,6 +14,7 @@ import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -29,13 +30,6 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import static io.pravega.shared.NameUtils.computeSegmentId;
-import static io.pravega.shared.NameUtils.getEpoch;
-
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,27 +42,40 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
+import static io.pravega.shared.NameUtils.computeSegmentId;
+import static io.pravega.shared.NameUtils.getEpoch;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public abstract class StreamTestBase {
-    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(5);
+    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
 
     @Before
     public abstract void setup() throws Exception;
+
+    @After
+    public void tearDownExecutor() {
+        ExecutorServiceHelpers.shutdown(executor);
+    }
 
     @After
     public abstract void tearDown() throws Exception;
@@ -121,7 +128,7 @@ public abstract class StreamTestBase {
     }
 
     private void rollTransactions(Stream stream, long time, int epoch, int activeEpoch, Map<Long, Long> txnSizeMap, Map<Long, Long> activeSizeMap) {
-        stream.startCommittingTransactions()
+        stream.startCommittingTransactions(100)
                                         .thenCompose(ctr ->
                                                 stream.getVersionedState()
                                                       .thenCompose(state -> stream.updateVersionedState(state, State.COMMITTING_TXN))
@@ -651,7 +658,7 @@ public abstract class StreamTestBase {
         List<StreamSegmentRecord> activeSegmentsBefore = stream.getActiveSegments().join();
 
         // start commit transactions
-        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions().join();
+        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(100).join();
         stream.getVersionedState().thenCompose(s -> stream.updateVersionedState(s, State.COMMITTING_TXN)).join();
 
         // start rolling transaction
@@ -853,10 +860,10 @@ public abstract class StreamTestBase {
                 () -> stream.startTruncation(streamCut4), e -> e instanceof IllegalArgumentException);
 
         Map<Long, Long> streamCut5 = new HashMap<>();
-        streamCut3.put(twoSegmentId, 10L);
-        streamCut3.put(fourSegmentId, 10L);
-        streamCut3.put(fiveSegmentId, 10L);
-        streamCut3.put(startingSegmentNumber + 0L, 10L);
+        streamCut5.put(twoSegmentId, 10L);
+        streamCut5.put(fourSegmentId, 10L);
+        streamCut5.put(fiveSegmentId, 10L);
+        streamCut5.put(startingSegmentNumber + 0L, 10L);
         AssertExtensions.assertSuppliedFutureThrows("",
                 () -> stream.startTruncation(streamCut5), e -> e instanceof IllegalArgumentException);
     }
@@ -1508,7 +1515,7 @@ public abstract class StreamTestBase {
         String writer1 = "writer1";
         long time = 1L;
         streamObj.sealTransaction(txnId, true, Optional.of(tx01.getVersion()), writer1, time).join();
-        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions().join();
+        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions(100).join();
         streamObj.recordCommitOffsets(txnId, Collections.singletonMap(0L, 1L)).join();
         streamObj.generateMarksForTransactions(record.getObject()).join();
 
@@ -1556,7 +1563,7 @@ public abstract class StreamTestBase {
         VersionedTransactionData tx04 = streamObj.createTransaction(txnId4, 100, 100).join();
         streamObj.sealTransaction(txnId4, true, Optional.of(tx04.getVersion()), writer, time + 4L).join();
 
-        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions().join();
+        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions(100).join();
         streamObj.recordCommitOffsets(txnId1, Collections.singletonMap(0L, 1L)).join();
         streamObj.recordCommitOffsets(txnId2, Collections.singletonMap(0L, 2L)).join();
         streamObj.recordCommitOffsets(txnId3, Collections.singletonMap(0L, 3L)).join();

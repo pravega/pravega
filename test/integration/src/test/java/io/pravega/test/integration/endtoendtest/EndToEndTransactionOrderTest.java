@@ -9,12 +9,12 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
-import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventWriterConfig;
@@ -26,9 +26,9 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.mock.MockClientFactory;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -53,11 +53,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Triple;
@@ -79,12 +80,12 @@ public class EndToEndTransactionOrderTest {
     final int controllerPort = TestUtils.getAvailableListenPort();
     final String serviceHost = "localhost";
     final int servicePort = TestUtils.getAvailableListenPort();
-    ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     ConcurrentHashMap<String, List<UUID>> writersList = new ConcurrentHashMap<>();
     ConcurrentHashMap<Integer, UUID> eventToTxnMap = new ConcurrentHashMap<>();
     ConcurrentHashMap<UUID, String> txnToWriter = new ConcurrentHashMap<>();
     AtomicInteger counter = new AtomicInteger();
-    ConcurrentSet<UUID> uncommitted = new ConcurrentSet<>();
+    ConcurrentSkipListSet<UUID> uncommitted = new ConcurrentSkipListSet<>();
     TestingServer zkTestServer;
     ControllerWrapper controllerWrapper;
     Controller controller;
@@ -163,6 +164,7 @@ public class EndToEndTransactionOrderTest {
         connectionFactory.close();
         server.close();
         zkTestServer.close();
+        ExecutorServiceHelpers.shutdown(executor);
     }
     
     @Test(timeout = 100000)
@@ -178,7 +180,8 @@ public class EndToEndTransactionOrderTest {
         Stream s = new StreamImpl("test", "test");
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 1.0);
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "order");
 
         controller.scaleStream(s, Collections.singletonList(0L), map, executor).getFuture().get();
 
@@ -213,7 +216,7 @@ public class EndToEndTransactionOrderTest {
         }
     }
 
-    private CompletableFuture<Void> waitTillCommitted(Controller controller, Stream s, UUID key, ConcurrentSet<UUID> uncommitted) {
+    private CompletableFuture<Void> waitTillCommitted(Controller controller, Stream s, UUID key, ConcurrentSkipListSet<UUID> uncommitted) {
         AtomicBoolean committed = new AtomicBoolean(false);
         AtomicInteger counter = new AtomicInteger(0);
         // check 6 times with 5 second gap until transaction is committed. if it is not committed, declare it uncommitted

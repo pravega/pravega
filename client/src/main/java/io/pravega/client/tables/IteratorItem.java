@@ -25,10 +25,18 @@ public class IteratorItem<T> {
      * Gets an {@link IteratorState} that can be used to reinvoke {@link KeyValueTable#entryIterator} or
      * {@link KeyValueTable#keyIterator} if a previous iteration has been interrupted (by losing the pointer to the
      * {@link AsyncIterator}), system restart, etc.
+     *
+     * @param state {@link IteratorState} that can be used to reinvoke {@link KeyValueTable#entryIterator} or
+     * {@link KeyValueTable#keyIterator} if a previous iteration has been interrupted.
+     * @return {@link IteratorState} that can be used to reinvoke {@link KeyValueTable#entryIterator} or
+     * {@link KeyValueTable#keyIterator} if a previous iteration has been interrupted
      */
     private final IteratorState state;
     /**
      * A List of items that are contained in this instance.
+     *
+     * @param items List of items that are contained in this instance.
+     * @return List of items that are contained in this instance.
      */
     private final List<T> items;
 }

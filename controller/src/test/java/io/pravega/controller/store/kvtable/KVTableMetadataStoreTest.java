@@ -16,21 +16,20 @@ import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import org.apache.commons.lang3.tuple.Pair;
-import org.junit.Rule;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.After;
-import org.junit.rules.Timeout;
 import java.util.List;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.tuple.Pair;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Stream metadata test.
@@ -42,7 +41,7 @@ public abstract class KVTableMetadataStoreTest {
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected KVTableMetadataStore store;
     protected StreamMetadataStore streamStore;
-    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected final String scope = "storescope";
     protected final String kvtable1 = "kvt1";
     protected final String kvtable2 = "kvt2";
@@ -146,7 +145,6 @@ public abstract class KVTableMetadataStoreTest {
         store.createKeyValueTable(scopeName, kvtName, config, start, null, executor).get();
         store.setState(scopeName, kvtName, KVTableState.ACTIVE, null, executor).get();
         assertTrue(store.checkTableExists(scopeName, kvtName).join());
-
         store.deleteKeyValueTable(scopeName, kvtName, null, executor).get();
         assertFalse(store.checkTableExists(scopeName, kvtName).join());
     }

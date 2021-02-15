@@ -20,6 +20,7 @@ import io.pravega.common.Exceptions;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import io.pravega.shared.security.token.JsonWebToken;
 import io.pravega.shared.security.token.JwtParser;
@@ -28,6 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class TokenVerifierImpl implements DelegationTokenVerifier {
+
+    private static final Pattern RESOURCE_PARTS_TO_REPLACE = Pattern.compile("prn::|/scope:|stream:");
 
     private final byte[] tokenSigningKey;
 
@@ -57,8 +60,8 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
                     .findFirst();
 
         if (!matchingClaim.isPresent()) {
-            log.debug(String.format("No matching claim found for resource [%s] and permission [%s] in token [%s].",
-                        resource, expectedLevel, token));
+            log.debug(String.format("No matching claim found for resource [%s] and permission [%s] in token.",
+                        resource, expectedLevel));
 
             throw new InvalidClaimException(String.format(
                         "No matching claim found for resource: [%s] and permission: [%s] in the delegation token.",
@@ -75,6 +78,11 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
      * @return
      */
     private boolean resourceMatchesClaimKey(String claimKey, String resource) {
+        log.trace("claimKey = {}, resourceKey = {}", claimKey, resource);
+
+        // Replace `prn::`, `/scope:` and `stream:` with an empty string.
+        claimKey = RESOURCE_PARTS_TO_REPLACE.matcher(claimKey).replaceAll("");
+
         /*
          * Examples of the conditions when the claimKey (key of the key-value pair claim) matches the resource are:
          *      1) claimKey = "myscope", resource = "myscope"
@@ -82,9 +90,11 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
          *      3) claimKey = "_system/_requeststream", resource = "_system/_requeststream/0.#epoch.0"
          *      4) claimKey = "*" (the wildcard character)
          */
-        return resource.equals(claimKey) // example 1
-               || claimKey.endsWith("/") && resource.startsWith(claimKey) // example 2
-               || resource.startsWith(claimKey + "/") // example 3
-               || claimKey.equals("*"); // 4
+        boolean result = resource.equals(claimKey) // example 1
+                || claimKey.endsWith("/") && resource.startsWith(claimKey) // example 2
+                || resource.startsWith(claimKey + "/") // example 3
+                || claimKey.equals("*");
+        log.trace("claimKey: [{}], resource: [{}], result: [{}]", claimKey, resource, result);
+        return result;
     }
 }

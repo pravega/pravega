@@ -14,6 +14,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.test.common.AssertExtensions;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import lombok.Cleanup;
@@ -33,12 +34,33 @@ public class StreamSegmentReadResultTests {
     public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
+     * Tests the ability to properly set Copy-on-Read.
+     */
+    @Test
+    public void testCopyOnRead() {
+        AtomicBoolean expectedMakeCopy = new AtomicBoolean(true);
+        StreamSegmentReadResult.NextEntrySupplier nes = (offset, length, makeCopy) -> {
+            Assert.assertEquals(expectedMakeCopy.get(), makeCopy);
+            return TestReadResultEntry.endOfSegment(offset, length);
+        };
+        @Cleanup
+        StreamSegmentReadResult r1 = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
+        r1.next();
+
+        @Cleanup
+        StreamSegmentReadResult r2 = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
+        r2.setCopyOnRead(false);
+        expectedMakeCopy.set(false);
+        r2.next();
+    }
+
+    /**
      * Tests the next() method which ends when the result is fully consumed (via offsets).
      */
     @Test
     public void testNextFullyConsumed() {
         AtomicReference<TestReadResultEntry> nextEntry = new AtomicReference<>();
-        StreamSegmentReadResult.NextEntrySupplier nes = (offset, length) -> nextEntry.get();
+        StreamSegmentReadResult.NextEntrySupplier nes = (offset, length, makeCopy) -> nextEntry.get();
 
         // We issue a read with length = MAX_RESULT_LENGTH, and return items, 1 byte at a time.
         @Cleanup
@@ -93,7 +115,7 @@ public class StreamSegmentReadResultTests {
 
     private void testNextTerminal(BiFunction<Long, Integer, TestReadResultEntry> terminalEntryCreator) {
         AtomicReference<TestReadResultEntry> nextEntry = new AtomicReference<>();
-        StreamSegmentReadResult.NextEntrySupplier nes = (offset, length) -> nextEntry.get();
+        StreamSegmentReadResult.NextEntrySupplier nes = (offset, length, makeCopy) -> nextEntry.get();
 
         // We issue a read with length = MAX_RESULT_LENGTH, and return only half the items, 1 byte at a time.
         @Cleanup
@@ -127,7 +149,7 @@ public class StreamSegmentReadResultTests {
     @Test
     public void testClose() {
         AtomicReference<TestReadResultEntry> nextEntry = new AtomicReference<>();
-        StreamSegmentReadResult.NextEntrySupplier nes = (offset, length) -> nextEntry.get();
+        StreamSegmentReadResult.NextEntrySupplier nes = (offset, length, makeCopy) -> nextEntry.get();
 
         // We issue a read with length = MAX_RESULT_LENGTH, but we only get to read one item from it.
         StreamSegmentReadResult r = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
@@ -148,9 +170,9 @@ public class StreamSegmentReadResultTests {
      * Tests the ability to only return a next item if the previous returned item hasn't been consumed yet.
      */
     @Test
-    public void testNextWaitOnPrevious() throws Exception {
+    public void testNextWaitOnPrevious() {
         AtomicReference<TestReadResultEntry> nextEntry = new AtomicReference<>();
-        StreamSegmentReadResult.NextEntrySupplier nes = (offset, length) -> nextEntry.get();
+        StreamSegmentReadResult.NextEntrySupplier nes = (offset, length, makeCopy) -> nextEntry.get();
 
         // We issue a read, get one item, do not consume it, and then read a second time.
         @Cleanup

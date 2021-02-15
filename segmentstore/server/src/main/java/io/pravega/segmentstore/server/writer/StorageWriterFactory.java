@@ -15,6 +15,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -24,14 +25,16 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
+import io.pravega.segmentstore.server.logs.PriorityCalculator;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.Storage;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -107,13 +110,15 @@ public class StorageWriterFactory implements WriterFactory {
         }
 
         @Override
-        public CompletableFuture<Void> notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, Duration timeout) {
+        public CompletableFuture<Void> notifyAttributesPersisted(long segmentId, SegmentType segmentType, long rootPointer,
+                                                                 long lastSequenceNumber, Duration timeout) {
             List<AttributeUpdate> updates = Arrays.asList(
                     new AttributeUpdate(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, AttributeUpdateType.ReplaceIfGreater, rootPointer),
                     new AttributeUpdate(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, AttributeUpdateType.Replace, lastSequenceNumber));
             UpdateAttributesOperation op = new UpdateAttributesOperation(segmentId, updates);
             op.setInternal(true); // This is internally generated, so we want to ensure it's accepted even on a sealed segment.
-            return this.operationLog.add(op, timeout);
+            OperationPriority priority = PriorityCalculator.getPriority(segmentType, op.getType());
+            return this.operationLog.add(op, priority, timeout);
         }
 
         @Override
@@ -130,9 +135,9 @@ public class StorageWriterFactory implements WriterFactory {
         }
 
         @Override
-        public CompletableFuture<Iterator<Operation>> read(long afterSequence, int maxCount, Duration timeout) {
-            log.debug("{}: Read (AfterSeqNo={}, MaxCount={}).", this.traceObjectId, afterSequence, maxCount);
-            return this.operationLog.read(afterSequence, maxCount, timeout);
+        public CompletableFuture<Queue<Operation>> read(int maxCount, Duration timeout) {
+            log.debug("{}: Read (MaxCount={}).", this.traceObjectId, maxCount);
+            return this.operationLog.read(maxCount, timeout);
         }
 
         @Override

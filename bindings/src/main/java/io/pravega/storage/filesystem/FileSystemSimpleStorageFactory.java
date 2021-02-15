@@ -9,10 +9,12 @@
  */
 package io.pravega.storage.filesystem;
 
+import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
@@ -22,19 +24,32 @@ import java.util.concurrent.ExecutorService;
  * Factory for FileSystem {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link FileSystemChunkStorage}.
  */
 @RequiredArgsConstructor
-public class FileSystemSimpleStorageFactory implements StorageFactory {
+public class FileSystemSimpleStorageFactory implements SimpleStorageFactory {
+    @NonNull
+    private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
+
     @NonNull
     private final FileSystemStorageConfig config;
 
     @NonNull
+    @Getter
     private final ExecutorService executor;
 
     @Override
-    public Storage createStorageAdapter() {
-        ChunkedSegmentStorage storageProvider = new ChunkedSegmentStorage(
-                new FileSystemChunkStorage(this.config),
+    public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
+                new FileSystemChunkStorage(this.config, this.executor),
+                metadataStore,
                 this.executor,
-                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
-        return storageProvider;
+                this.chunkedSegmentStorageConfig);
+        return chunkedSegmentStorage;
+    }
+
+    /**
+     * Creates a new instance of a Storage adapter.
+     */
+    @Override
+    public Storage createStorageAdapter() {
+        throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
     }
 }

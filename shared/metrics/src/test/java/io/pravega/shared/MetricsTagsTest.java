@@ -183,6 +183,15 @@ public class MetricsTagsTest {
         }
     }
 
+    @Test
+    public void testReaderGroupTags() {
+        String[] tags = readerGroupTags("scope", "rg");
+        assertEquals(MetricsTags.TAG_SCOPE, tags[0]);
+        assertEquals("scope", tags[1]);
+        assertEquals(TAG_READER_GROUP, tags[2]);
+        assertEquals("rg", tags[3]);
+    }
+
     private void checkExceptionTags(String[] tags, String expectedClassTag, String expectedExceptionTag) {
         Assert.assertEquals(4, tags.length);
         Assert.assertEquals(MetricsTags.TAG_CLASS, tags[0]);
