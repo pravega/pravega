@@ -548,11 +548,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         } finally {
             closeReader(reader);
         }
-        if (validEvents == limit) {
-            log.info("Reader {} finished reading {} events.", reader, validEvents);
-        } else {
-            log.warn("Reader {} read only {} events but was expected to read {} events.", reader, validEvents, limit);
-        }
+        log.info("Reader {} finished reading {} events (limit was {}).", reader, validEvents, limit);
         return validEvents;
     }
 
