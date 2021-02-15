@@ -86,8 +86,8 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, controllerConfig);
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
         ReaderGroupConfig syncConfig = synchronizer.getState().getConfig();
-        if (syncConfig.getReaderGroupId() == ReaderGroupConfig.DEFAULT_UUID
-        && syncConfig.getGeneration() == ReaderGroupConfig.DEFAULT_GENERATION) {
+        if (ReaderGroupConfig.DEFAULT_UUID.equals(syncConfig.getReaderGroupId())
+        && ReaderGroupConfig.DEFAULT_GENERATION == syncConfig.getGeneration()) {
             // migrate RG from version < 0.9 to 0.9+
             synchronizer.updateState((s, updates) -> {
               updates.add(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));

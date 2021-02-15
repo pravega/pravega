@@ -178,7 +178,16 @@ public class MockController implements Controller {
         return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams,
                 this::getSegmentsForStream, Segment::getScopedName, this::createSegment);
     }
-    
+
+    @Synchronized
+    public CompletableFuture<Boolean> createRGStream(String scope, String rgName, String streamName, StreamConfiguration streamConfig) {
+        String rgStream = NameUtils.getStreamForReaderGroup(rgName);
+        StreamConfiguration rgStreamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+
+        return createStreamInternal(scope, rgStream, rgStreamConfig)
+                .thenCompose(v -> createStreamInternal(scope, streamName, streamConfig));
+    }
+
     @Synchronized
     List<Segment> getSegmentsForStream(Stream stream) {
         StreamConfiguration config = getStreamConfiguration(stream);
