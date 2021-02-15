@@ -130,6 +130,12 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
+    @Override
+    public void keepAlive(WireCommands.KeepAlive keepAlive) {
+        log.debug("Received a keepAlive from connection: {}", connection);
+        connection.send(keepAlive);
+    }
+
     /**
      * Setup an append so that subsequent append calls can occur.
      * This requires validating that the segment exists.
@@ -247,8 +253,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         Preconditions.checkNotNull(state, "state");
         boolean success = exception == null;
         try {
-            boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
-
             if (success) {
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
@@ -268,7 +272,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             append.getSegment(), append.getWriterId(), state.getLowestFailedEventNumber(), append.getEventNumber());
                 }
             } else {
-                if (conditionalFailed) {
+                if (append.isConditional() && Exceptions.unwrap(exception) instanceof BadOffsetException) {
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
                     synchronized (state.getAckLock()) {
                         // Revert the state to the last known good one. This is needed because we do not close the connection
