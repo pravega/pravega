@@ -25,9 +25,11 @@ import io.pravega.client.stream.impl.StreamCutImpl;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import static org.junit.Assert.assertEquals;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
+
 
 import java.util.HashMap;
 import java.util.Map;
@@ -95,13 +97,14 @@ public class ReaderGroupManagerImplTest {
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
-        ReaderGroupConfig expectedConfig = config.toBuilder().readerGroupId(UUID.randomUUID()).generation(0L).build();
         when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
-                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
+                .thenReturn(CompletableFuture.completedFuture(config));
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
         when(state.getConfig()).thenReturn(config);
+        assertEquals(ReaderGroupConfig.DEFAULT_UUID, config.getReaderGroupId());
+        assertEquals(ReaderGroupConfig.DEFAULT_GENERATION, config.getGeneration());
         // Create a ReaderGroup
         readerGroupManager.createReaderGroup(GROUP_NAME, config);
         verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class),

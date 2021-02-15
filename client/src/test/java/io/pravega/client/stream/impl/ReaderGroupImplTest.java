@@ -135,6 +135,30 @@ public class ReaderGroupImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    public void resetReaderGroupMigration() {
+        final UUID rgId = UUID.randomUUID();
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
+                StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2))
+                .put(createStream("s2"), createStreamCut("s2", 3)).build())
+                .build();
+        ReaderGroupConfig expectedConfig = config.toBuilder().readerGroupId(rgId).generation(0L).build();
+        when(state.getConfig()).thenReturn(config);
+        when(synchronizer.getState()).thenReturn(state);
+        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
+                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
+        when(controller.updateReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class))).thenReturn(CompletableFuture.completedFuture(1L));
+
+        readerGroup.resetReaderGroup(config);
+
+        verify(synchronizer, times(1)).fetchUpdates();
+        verify(controller, times(1)).updateReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class));
+        verify(controller, times(1)).createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class));
+        verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     public void resetReadersToCheckpoint() {
         final UUID readerGroupId = UUID.randomUUID();
         Map<Segment, Long> positions = new HashMap<>();
