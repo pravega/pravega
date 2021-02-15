@@ -153,33 +153,33 @@ public class ReadTest extends LeakDetectorTestSuite {
         String segmentName = "testReceivingReadCall";
         int entries = 10;
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-        UUID clientId = UUID.randomUUID();
 
         StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
         // fill segment store with 10 entries; the total data size is 100 bytes.
         fillStoreForSegment(segmentName, data, entries, segmentStore);
         @Cleanup
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
+
         ByteBuf actual = Unpooled.buffer(entries * data.length);
-        SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.writerIndex(), 1000, "", 1L));
         while (actual.writerIndex() < actual.capacity()) {
+            SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.writerIndex(), 10000, "", 1L));
             assertEquals(segmentName, result.getSegment());
             assertEquals(result.getOffset(), actual.writerIndex());
             assertFalse(result.isEndOfSegment());
             actual.writeBytes(result.getData());
+            // release the ByteBuf and ensure it is deallocated.
+            assertTrue(result.getData().release());
             if (actual.writerIndex() < actual.capacity()) {
                 // Prevent entering a tight loop by giving the store a bit of time to process al the appends internally
                 // before trying again.
                 Thread.sleep(10);
-                // Fetch the data again.
-                result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.writerIndex(), 1000, "", 2L));
             } else {
+                // Verify the last read result has the the atTail flag set to true.
+                assertTrue(result.isAtTail());
                 // mark the channel as finished
                 assertFalse(channel.finish());
             }
         }
-        // Verify the last read result has the the atTail flag set to true.
-        assertTrue(result.isAtTail());
         ByteBuf expected = Unpooled.buffer(entries * data.length);
         for (int i = 0; i < entries; i++) {
             expected.writeBytes(data);
@@ -188,9 +188,9 @@ public class ReadTest extends LeakDetectorTestSuite {
         expected.writerIndex(expected.capacity()).resetReaderIndex();
         actual.writerIndex(actual.capacity()).resetReaderIndex();
         assertEquals(expected, actual);
-        //Cleanup.
-        actual.release();
-        expected.release();
+        // Release the ByteBuf and ensure it is deallocated.
+        assertTrue(actual.release());
+        assertTrue(expected.release());
     }
 
     @Test(timeout = 10000)
