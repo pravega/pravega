@@ -81,6 +81,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -91,7 +92,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+@Slf4j
 public class ReadTest extends LeakDetectorTestSuite {
 
     private static final int TIMEOUT_MILLIS = 60000;
@@ -153,28 +156,30 @@ public class ReadTest extends LeakDetectorTestSuite {
         UUID clientId = UUID.randomUUID();
 
         StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
-
+        // fill segment store with 10 entries; the total data size is 100 bytes.
         fillStoreForSegment(segmentName, data, entries, segmentStore);
         @Cleanup
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
-
         ByteBuf actual = Unpooled.buffer(entries * data.length);
+        SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.writerIndex(), 1000, "", 1L));
         while (actual.writerIndex() < actual.capacity()) {
-            SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.writerIndex(), 10000, "", 1L));
             assertEquals(segmentName, result.getSegment());
             assertEquals(result.getOffset(), actual.writerIndex());
             assertFalse(result.isEndOfSegment());
             actual.writeBytes(result.getData());
             if (actual.writerIndex() < actual.capacity()) {
-                assertFalse(result.isAtTail());
                 // Prevent entering a tight loop by giving the store a bit of time to process al the appends internally
                 // before trying again.
                 Thread.sleep(10);
+                // Fetch the data again.
+                result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.writerIndex(), 1000, "", 2L));
             } else {
-                assertTrue(result.isAtTail());
+                // mark the channel as finished
+                assertFalse(channel.finish());
             }
         }
-
+        // Verify the last read result has the the atTail flag set to true.
+        assertTrue(result.isAtTail());
         ByteBuf expected = Unpooled.buffer(entries * data.length);
         for (int i = 0; i < entries; i++) {
             expected.writeBytes(data);
@@ -183,6 +188,9 @@ public class ReadTest extends LeakDetectorTestSuite {
         expected.writerIndex(expected.capacity()).resetReaderIndex();
         actual.writerIndex(actual.capacity()).resetReaderIndex();
         assertEquals(expected, actual);
+        //Cleanup.
+        actual.release();
+        expected.release();
     }
 
     @Test(timeout = 10000)
