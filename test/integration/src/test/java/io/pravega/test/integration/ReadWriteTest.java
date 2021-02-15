@@ -205,10 +205,9 @@ public class ReadWriteTest {
             
             //set stop read flag to true
             stopReadFlag.set(true);
-            ExecutorServiceHelpers.shutdown(readerPool);
-            
             //wait for readers completion
             Futures.allOf(readerList).get();
+            ExecutorServiceHelpers.shutdown(readerPool);
 
             //delete readergroup
             log.info("Deleting readergroup {}", readerGroupName);
