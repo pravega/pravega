@@ -66,7 +66,7 @@ Initial configuration:
 
 Type "help" for list of commands, or "exit" to exit.
 ```
-The values can be changed using `config set property=...` to change the value. Make sure to update `controller-uri:<pravega-cluster-name>-pravega-controller.<namespace>:<port>`
+The values can be changed using `config set property=...`. Make sure to update `controller-uri:<pravega-cluster-name>-pravega-controller.<namespace>:<port>`
 
 From that point onwards, you can check the available commands typing `help`:
 ```
@@ -142,8 +142,7 @@ config list
     pretty-print=true
 ```
 
-
-Once the config file is updated, you can run commands.
+Once the config is updated, you can run commands.
 
 ## Support
 If you find any issue or you have any suggestion, please report an issue to [this repository](https://github.com/pravega/pravega/issues).

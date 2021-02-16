@@ -52,7 +52,7 @@ You can run the Pravega Admin CLI as follows:
 ```
 ./bin/pravega-admin
 ```
-The config values can be changed at the `conf/admin-cli.properties` to permanently change the config, or use `config set property=...` to change temporarily change the config for command line session only.
+The config values can be changed permanently at `conf/admin-cli.properties`, or use `config set property=...` to temporarily change the config for command line session only.
 The initial configuration:
 ```
 Pravega Admin CLI.
