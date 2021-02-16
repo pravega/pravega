@@ -80,6 +80,8 @@ class ZKCheckpointStore implements CheckpointStore {
     public Map<String, Position> getPositions(String process, String readerGroup) throws CheckpointStoreException {
         Map<String, Position> map = new HashMap<>();
         String path = getReaderGroupPath(process, readerGroup);
+        ReaderGroupData rgData = groupDataSerializer.deserialize(ByteBuffer.wrap(getData(path)));
+        rgData.getReaderIds().forEach(x -> map.put(x, null));
         for (String child : getChildren(path)) {
             Position position = null;
             byte[] data = getData(path + "/" + child);
