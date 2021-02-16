@@ -39,6 +39,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.Getter;
@@ -2508,16 +2509,16 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         protected ChunkedSegmentStorage chunkedSegmentStorage;
 
         @Getter
-        protected Executor executor;
+        protected ScheduledExecutorService executor;
 
         protected TestContext() {
         }
 
-        public TestContext(Executor executor) throws Exception {
+        public TestContext(ScheduledExecutorService executor) throws Exception {
             this(executor, ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         }
 
-        public TestContext(Executor executor, ChunkedSegmentStorageConfig config) throws Exception {
+        public TestContext(ScheduledExecutorService executor, ChunkedSegmentStorageConfig config) throws Exception {
             this.executor = executor;
             this.config = config;
             chunkStorage = createChunkStorage();
