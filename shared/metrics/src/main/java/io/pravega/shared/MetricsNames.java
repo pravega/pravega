@@ -137,20 +137,22 @@ public final class MetricsNames {
     public static final String SLTS_CONCAT_COUNT = PREFIX + "segmentstore.storage.slts.concat_count";      // Counter
     public static final String SLTS_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.truncate_count";  // Counter
 
+    public static final String SLTS_GC_QUEUE_SIZE = PREFIX + "segmentstore.storage.slts.GC_queue_record_count";  // Counter
+
     // SLTS Metadata stats
     public static final String STORAGE_METADATA_GET_LATENCY = PREFIX + "segmentstore.storage.metadata_get_latency_ms";                  // Histogram
     public static final String STORAGE_METADATA_COMMIT_LATENCY = PREFIX + "segmentstore.storage.metadata_commit_latency_ms";            // Histogram
     public static final String STORAGE_METADATA_TABLE_GET_LATENCY = PREFIX + "segmentstore.storage.metadata_table_get_latency_ms";      // Histogram
     public static final String STORAGE_METADATA_TABLE_WRITE_LATENCY = PREFIX + "segmentstore.storage.metadata_table_write_latency_ms";  // Histogram
 
-    public static final String STORAGE_METADATA_FOUND_IN_TXN = PREFIX + "segmentstore.storage.metadata_found_in_txn";       // Counter
-    public static final String STORAGE_METADATA_FOUND_IN_BUFFER = PREFIX + "segmentstore.storage.metadata_found_in_buffer"; // Counter
-    public static final String STORAGE_METADATA_FOUND_IN_CACHE = PREFIX + "segmentstore.storage.metadata_found_in_cache";   // Counter
-    public static final String STORAGE_METADATA_FOUND_IN_STORE = PREFIX + "segmentstore.storage.metadata_found_in_store";   // Counter
-    public static final String STORAGE_METADATA_NOT_FOUND = PREFIX + "segmentstore.storage.metadata_not_found";             // Counter
+    public static final String STORAGE_METADATA_TXN_HIT_COUNT = PREFIX + "segmentstore.storage.metadata_txn_hit_count";       // Counter
+    public static final String STORAGE_METADATA_BUFFER_HIT_COUNT = PREFIX + "segmentstore.storage.metadata_buffer_hit_count"; // Counter
+    public static final String STORAGE_METADATA_CACHE_HIT_COUNT = PREFIX + "segmentstore.storage.metadata_cache_hit_count";   // Counter
+    public static final String STORAGE_METADATA_STORE_HIT_COUNT = PREFIX + "segmentstore.storage.metadata_store_hit_count";   // Counter
+    public static final String STORAGE_METADATA_MISS_COUNT = PREFIX + "segmentstore.storage.metadata_miss_count";             // Counter
 
-    public static final String STORAGE_METADATA_BUFFER_SIZE = PREFIX + "segmentstore.storage.metadata_buffer_size";         // Gauge
-    public static final String STORAGE_METADATA_CACHE_SIZE = PREFIX + "segmentstore.storage.metadata_cache_size";           // Gauge
+    public static final String STORAGE_METADATA_BUFFER_SIZE = PREFIX + "segmentstore.storage.metadata_buffer_record_count";         // Gauge
+    public static final String STORAGE_METADATA_CACHE_SIZE = PREFIX + "segmentstore.storage.metadata_cache_record_count";           // Gauge
     public static final String STORAGE_METADATA_CACHE_MISS_RATE = PREFIX + "segmentstore.storage.metadata_cache_miss_rate"; // Gauge
 
     // Cache stats

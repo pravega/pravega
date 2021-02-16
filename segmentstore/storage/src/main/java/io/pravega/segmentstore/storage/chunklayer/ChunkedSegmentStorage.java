@@ -149,10 +149,10 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * @param containerId   container id.
      * @param chunkStorage  ChunkStorage instance.
      * @param metadataStore Metadata store.
-     * @param executor      An Executor for async operations.
+     * @param executor      A {@link ScheduledExecutorService} for async operations.
      * @param config        Configuration options for this ChunkedSegmentStorage instance.
      */
-    public ChunkedSegmentStorage(int containerId, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, Executor executor, ChunkedSegmentStorageConfig config) {
+    public ChunkedSegmentStorage(int containerId, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, ScheduledExecutorService executor, ChunkedSegmentStorageConfig config) {
         this.containerId = containerId;
         this.config = Preconditions.checkNotNull(config, "config");
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
@@ -169,9 +169,9 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                 chunkStorage,
                 metadataStore,
                 config,
-                (ScheduledExecutorService) executor);
+                executor);
         this.closed = new AtomicBoolean(false);
-        this.reporter = ((ScheduledExecutorService) executor).scheduleAtFixedRate(this::report, 1000, 1000, TimeUnit.MILLISECONDS);
+        this.reporter = executor.scheduleAtFixedRate(this::report, 1000, 1000, TimeUnit.MILLISECONDS);
     }
 
     /**

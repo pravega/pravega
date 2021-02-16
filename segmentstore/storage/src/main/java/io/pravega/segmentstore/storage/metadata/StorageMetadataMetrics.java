@@ -26,11 +26,11 @@ public class StorageMetadataMetrics {
     static final OpStatsLogger GET_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_METADATA_GET_LATENCY);
     static final OpStatsLogger COMMIT_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_METADATA_COMMIT_LATENCY);
 
-    static final Counter METADATA_FOUND_IN_TXN = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_FOUND_IN_TXN);
-    static final Counter METADATA_FOUND_IN_BUFFER = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_FOUND_IN_BUFFER);
-    static final Counter METADATA_FOUND_IN_CACHE = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_FOUND_IN_CACHE);
-    static final Counter METADATA_FOUND_IN_STORE = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_FOUND_IN_STORE);
-    static final Counter METADATA_NOT_FOUND = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_NOT_FOUND);
+    static final Counter METADATA_FOUND_IN_TXN = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_TXN_HIT_COUNT);
+    static final Counter METADATA_FOUND_IN_BUFFER = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_BUFFER_HIT_COUNT);
+    static final Counter METADATA_FOUND_IN_CACHE = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_CACHE_HIT_COUNT);
+    static final Counter METADATA_FOUND_IN_STORE = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_STORE_HIT_COUNT);
+    static final Counter METADATA_NOT_FOUND = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_MISS_COUNT);
 
     static final OpStatsLogger TABLE_GET_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_METADATA_TABLE_GET_LATENCY);
     static final OpStatsLogger TABLE_WRITE_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_METADATA_TABLE_WRITE_LATENCY);

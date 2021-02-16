@@ -509,6 +509,11 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         this.closed.set(true);
     }
 
+    @Override
+    public void report() {
+        // Nothing to report yet.
+    }
+
     /**
      * Retrieves the ChunkInfo for given name.
      *

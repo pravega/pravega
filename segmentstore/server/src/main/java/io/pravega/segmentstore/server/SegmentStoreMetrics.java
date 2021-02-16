@@ -112,6 +112,7 @@ public final class SegmentStoreMetrics {
             this.reporter.cancel(true);
             this.queueSize.close();
             this.activeThreads.close();
+            this.storageQueueSize.close();
             this.storageActiveThreads.close();
         }
 

@@ -13,6 +13,8 @@ package io.pravega.segmentstore.storage.chunklayer;
  * Contract for components that reports stats.
  */
 public interface StatsReporter {
-    default void report() {
-    }
+    /**
+     * Reports the Stats for the component.
+     */
+    void report();
 }
