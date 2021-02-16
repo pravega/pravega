@@ -1562,7 +1562,7 @@ public abstract class StreamMetadataTasksTest {
         String subscriber1 = "subscriber1";
         CompletableFuture<Controller.CreateReaderGroupResponse> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, consumpRGConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         // create a retention set that has 5 values
         // retention policy where min = 2, max = 10. 
@@ -1648,7 +1648,7 @@ public abstract class StreamMetadataTasksTest {
         String subscriber1 = "subscriber1";
         CompletableFuture<Controller.CreateReaderGroupResponse> createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber1, consumpRGConfig, System.currentTimeMillis());
         assertTrue(Futures.await(processEvent(requestEventWriter)));
-        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createStatus.join().getStatus());
 
         // create a retention set that has 5 values
         // s0: 10: seg0/1, seg1/5 ==> time retained if truncated at = 10 <= min
