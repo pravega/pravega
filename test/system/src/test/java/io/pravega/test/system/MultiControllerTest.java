@@ -109,7 +109,7 @@ public class MultiControllerTest extends AbstractSystemTest {
      */
     @Test(timeout = 300000)
     public void multiControllerTest() throws Exception {
-
+        System.exit(1);
         log.info("Start execution of multiControllerTest");
 
         log.info("Test tcp:// with 2 controller instances running");

@@ -103,6 +103,7 @@ public class OffsetTruncationTest extends AbstractReadWriteTest {
      */
     @Test
     public void offsetTruncationTest() {
+        System.exit(1);
         final int totalEvents = 200;
         final int truncatedEvents = 50;
 

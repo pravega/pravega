@@ -94,6 +94,7 @@ public class MultiSegmentStoreTest extends AbstractSystemTest {
 
     @Test
     public void testMultiSegmentStores() throws InterruptedException, ExecutionException {
+        System.exit(1);
         // Test Sanity.
         log.info("Test with 1 segment store running");
         testReadWrite();

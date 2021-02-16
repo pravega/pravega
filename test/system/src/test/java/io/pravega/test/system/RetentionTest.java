@@ -106,6 +106,7 @@ public class RetentionTest extends AbstractSystemTest {
 
     @Test
     public void retentionTest() throws Exception {
+        System.exit(1);
         CompletableFuture.allOf(retentionTest(STREAM_TIME, false), retentionTest(STREAM_SIZE, true));
     }
     

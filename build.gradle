@@ -1065,7 +1065,10 @@ project('test:system') {
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
 
         maxParallelForks = 1
-        failFast = true
+
+        if (System.getProperty("failFast", "false") == "true") {
+            failFast = true
+        }
     }
 
     task execShellScript(type: Exec) {

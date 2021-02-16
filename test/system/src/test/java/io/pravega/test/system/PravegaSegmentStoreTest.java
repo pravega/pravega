@@ -62,6 +62,7 @@ public class PravegaSegmentStoreTest {
      */
     @Test
     public void segmentStoreTest() {
+        System.exit(1);
         log.debug("Start execution of segmentStoreTest");
         Service seg = Utils.createPravegaSegmentStoreService(null, null);
         List<URI> segUri = seg.getServiceDetails();
