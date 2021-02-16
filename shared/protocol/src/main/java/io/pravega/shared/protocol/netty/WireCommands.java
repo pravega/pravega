@@ -349,6 +349,7 @@ public final class WireCommands {
     }
 
     @Data
+    @EqualsAndHashCode(exclude = "serverStackTrace")
     public static final class InvalidEventNumber implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.INVALID_EVENT_NUMBER;
         final UUID writerId;

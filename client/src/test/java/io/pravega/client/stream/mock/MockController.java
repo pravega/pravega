@@ -262,9 +262,10 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
-        return createInScope(scopeName, getScopedReaderGroupName(scopeName, getStreamForReaderGroup(rgName)), config, s -> s.readerGroups,
+    public CompletableFuture<ReaderGroupConfig> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+        createInScope(scopeName, getScopedReaderGroupName(scopeName, getStreamForReaderGroup(rgName)), config, s -> s.readerGroups,
                 this::getSegmentsForReaderGroup, Segment::getScopedName, this::createSegment);
+        return CompletableFuture.completedFuture(config);
     }
 
     @Override
