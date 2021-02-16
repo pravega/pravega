@@ -125,7 +125,6 @@ public class WatermarkingTest extends AbstractSystemTest {
 
     @Test
     public void watermarkingTests() throws Exception {
-        System.exit(1);
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);

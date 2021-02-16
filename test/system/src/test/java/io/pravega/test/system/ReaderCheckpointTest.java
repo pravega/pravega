@@ -100,7 +100,6 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
 
     @Test
     public void readerCheckpointTest() {
-        System.exit(1);
         controllerURI = fetchControllerURI();
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
 

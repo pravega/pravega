@@ -79,7 +79,6 @@ public class PravegaTest extends AbstractReadWriteTest {
      */
     @Test
     public void simpleTest() {
-        System.exit(1);
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);

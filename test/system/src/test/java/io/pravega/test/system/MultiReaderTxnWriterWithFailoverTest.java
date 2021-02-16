@@ -129,7 +129,6 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
 
     @Test
     public void multiReaderTxnWriterWithFailOverTest() throws Exception {
-        System.exit(1);
         createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
         createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
 

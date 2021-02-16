@@ -59,7 +59,6 @@ public class PravegaControllerTest {
      */
     @Test
     public void controllerTest() {
-        System.exit(1);
         log.debug("Start execution of controllerTest");
         Service con = Utils.createPravegaControllerService(null);
         List<URI> conUri = con.getServiceDetails();
