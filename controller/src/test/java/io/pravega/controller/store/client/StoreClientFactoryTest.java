@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.state.ConnectionState;
 import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.KeeperException;
 import org.junit.After;
@@ -27,6 +28,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+
 
 public class StoreClientFactoryTest extends ThreadPooledTestSuite {
     TestingServer zkServer;
@@ -59,17 +61,17 @@ public class StoreClientFactoryTest extends ThreadPooledTestSuite {
             return !sessionExpiry.isDone();
         };
         Consumer<Void> expirationHandler = x -> sessionExpiry.complete(null);
-
         CuratorFramework client = StoreClientFactory.createZKClient(ZKClientConfigImpl.builder().connectionString(zkServer.getConnectString())
-                .namespace("test").maxRetries(10).initialSleepInterval(10).secureConnectionToZooKeeper(false).sessionTimeoutMs(15000).build(),
+                        .namespace("test").maxRetries(10).initialSleepInterval(10).secureConnectionToZooKeeper(false).sessionTimeoutMs(15000).build(),
                 canRetrySupplier, expirationHandler);
-        
+
         client.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
-        
+
         sessionExpiry.join();
 
-        assertFalse(client.getZookeeperClient().getZooKeeper().getState().isConnected());
-
+        // verify that we fail with session expiry and we fail without retrying.
+        AssertExtensions.assertEventuallyThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath("/test"),
+                2000, 30000L);
         assertTrue(expirationRetryCounter.get() > 0);
     }
 
