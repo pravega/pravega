@@ -161,7 +161,7 @@ public class StreamMetricsTest {
 
         String streamScopedName = NameUtils.getScopedStreamName(scopeName, streamName);
         ReaderGroupConfig rgConfig = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream(streamScopedName).generation(0L)
+                .stream(streamScopedName)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .build();
         // Here, the system scope and streams are already created.

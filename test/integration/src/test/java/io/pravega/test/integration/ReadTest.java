@@ -388,8 +388,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().groupRefreshTimeMillis(1000)
-                .readerGroupId(UUID.randomUUID()).generation(0L).stream(Stream.of(scope, streamName)).build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().groupRefreshTimeMillis(1000).stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         // Create a Stream with 2 segments.
         streamManager.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build());
