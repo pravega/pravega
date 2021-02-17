@@ -1187,6 +1187,7 @@ public abstract class ControllerServiceImplTest {
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        config = ReaderGroupConfig.cloneConfig(config, rgId, 0L);
         ResultObserver<CreateReaderGroupResponse> result = new ResultObserver<>();
 
         this.controllerService.createReaderGroup(ModelHelper.decode(scope, rgName, config), result);
