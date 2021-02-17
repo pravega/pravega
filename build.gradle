@@ -960,8 +960,8 @@ project('test:system') {
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
-        excludedTests = System.getProperty('excludeSystemTests', '').split(',').toList()
-        includedTests = System.getProperty('includeSystemTests', '').split(',').toList()
+        def excludedTests = System.getProperty('excludeSystemTests', '').split(',').toList()
+        def includedTests = System.getProperty('includeSystemTests', '').split(',').toList()
         // Let included tests take precedence if both are specified.
         if (!includedTests.isEmpty()) {
             includes = includedTests
@@ -1025,8 +1025,8 @@ project('test:system') {
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
 
-        excludedTests = System.getProperty('excludeSystemTests', '').split(',').toList()
-        includedTests = System.getProperty('includeSystemTests', '').split(',').toList()
+        def excludedTests = System.getProperty('excludeSystemTests', '').split(',').toList()
+        def includedTests = System.getProperty('includeSystemTests', '').split(',').toList()
         // Let included tests take precedence if both are specified.
         if (!includedTests.isEmpty()) {
             includes = includedTests
