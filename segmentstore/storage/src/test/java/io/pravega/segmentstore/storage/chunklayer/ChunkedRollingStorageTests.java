@@ -15,7 +15,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Unit tests for  {@link ChunkedSegmentStorage} and {@link ChunkStorage} based implementation that exercise scenarios
@@ -34,7 +34,7 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
     @Override
     protected Storage createStorage() throws Exception {
         useOldLayout = false;
-        Executor executor = executorService();
+        ScheduledExecutorService executor = executorService();
         // Initialize
         synchronized (ChunkedRollingStorageTests.class) {
             if (null == chunkStorage) {
