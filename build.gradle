@@ -968,6 +968,7 @@ project('test:system') {
         } else if (!excludedTests.isEmpty()) {
             excludes = excludedTests
         }
+
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
@@ -1033,6 +1034,7 @@ project('test:system') {
         } else if (!excludedTests.isEmpty()) {
             excludes = excludedTests
         }
+
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
 
