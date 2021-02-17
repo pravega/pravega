@@ -466,12 +466,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
         // Flush DurableLog to Long Term Storage
-        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
-        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            futures.add(componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT));
-        }
-        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        flushToStorage(pravegaRunner.segmentStoreRunner.serviceBuilder);
 
         pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
         pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
@@ -503,6 +498,15 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             readEventsFromStream(clientRunner.clientFactory, clientRunner.readerGroupManager);
             log.info("Read all events again to verify that segments were recovered.");
         }
+    }
+
+    private void flushToStorage(ServiceBuilder serviceBuilder) throws Exception {
+        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(serviceBuilder);
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (int containerId = 0; containerId < componentSetup.getContainerRegistry().getContainerCount(); containerId++) {
+            futures.add(componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT));
+        }
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private void createBookKeeperLogFactory() throws DurableDataLogException {
@@ -622,12 +626,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
         // Flush DurableLog to Long Term Storage
-        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
-        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            futures.add(componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT));
-        }
-        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        flushToStorage(pravegaRunner.segmentStoreRunner.serviceBuilder);
 
         // Get the long term storage from the running pravega instance
         @Cleanup
@@ -754,12 +753,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
         // Flush DurableLog to Long Term Storage
-        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
-        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            futures.add(componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT));
-        }
-        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        flushToStorage(pravegaRunner.segmentStoreRunner.serviceBuilder);
 
         // Get the long term storage from the running pravega instance
         @Cleanup
