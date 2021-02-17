@@ -67,8 +67,8 @@ import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
-import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
+import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.NameUtils;
@@ -164,7 +164,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private final AtomicLong timer = new AtomicLong();
 
     private StorageFactory storageFactory;
-    private BookKeeperLogFactory dataLogFactory;
+    private InMemoryDurableDataLogFactory dataLogFactory;
 
     @After
     public void tearDown() throws Exception {
@@ -263,7 +263,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         private final StreamSegmentStore streamSegmentStore;
         private final TableStore tableStore;
 
-        SegmentStoreRunner(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory, int containerCount)
+        SegmentStoreRunner(StorageFactory storageFactory, InMemoryDurableDataLogFactory dataLogFactory, int containerCount)
                 throws DurableDataLogException {
             ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                     .builder()
@@ -360,7 +360,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
             restartControllerAndSegmentStore(storageFactory, null);
         }
 
-        public void restartControllerAndSegmentStore(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory)
+        public void restartControllerAndSegmentStore(StorageFactory storageFactory, InMemoryDurableDataLogFactory dataLogFactory)
                 throws DurableDataLogException, InterruptedException {
             this.segmentStoreRunner = new SegmentStoreRunner(storageFactory, dataLogFactory, this.containerCount);
             this.controllerRunner = new ControllerRunner(this.bookKeeperRunner.bkPort, this.segmentStoreRunner.servicePort, containerCount);
@@ -467,9 +467,11 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Flush DurableLog to Long Term Storage
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int containerId = 0; containerId < containerCount; containerId++) {
-            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
+            futures.add(componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT));
         }
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         pravegaRunner.segmentStoreRunner.close(); // Shutdown SegmentStore
         pravegaRunner.bookKeeperRunner.close(); // Shutdown BookKeeper & ZooKeeper
@@ -485,7 +487,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // start a new BookKeeper and ZooKeeper.
         pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
-        createBookKeeperLogFactory(pravegaRunner);
+        createBookKeeperLogFactory();
         log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Recover segments
@@ -503,17 +505,15 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         }
     }
 
-    private void createBookKeeperLogFactory(PravegaRunner pravegaRunner) throws DurableDataLogException {
-        this.dataLogFactory = new BookKeeperLogFactory(pravegaRunner.bookKeeperRunner.bkConfig.get(),
-                pravegaRunner.bookKeeperRunner.zkClient.get(),
-                executorService());
+    private void createBookKeeperLogFactory() throws DurableDataLogException {
+        this.dataLogFactory = new InMemoryDurableDataLogFactory(executorService());
         this.dataLogFactory.initialize();
     }
 
     // Creates debug segment container instances, puts them in a map and returns it.
     private Map<Integer, DebugStreamSegmentContainer> startDebugSegmentContainers(DebugStreamSegmentContainerTests.TestContext
                                                                                           context, int containerCount,
-                                                                                  BookKeeperLogFactory dataLogFactory,
+                                                                                  InMemoryDurableDataLogFactory dataLogFactory,
                                                                                   StorageFactory storageFactory) throws Exception {
         // Start a debug segment container corresponding to the given container Id and put it in the Hashmap with the Id.
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap = new HashMap<>();
@@ -535,12 +535,14 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     // Closes the debug segment container instances in the given map after waiting for the metadata segment to be flushed to
     // the given storage.
     private void stopDebugSegmentContainersPostFlush(int containerCount, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap)
-            throws Exception {
+    throws Exception {
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int containerId = 0; containerId < containerCount; containerId++) {
-            debugStreamSegmentContainerMap.get(containerId).flushToStorage(TIMEOUT).join();
-            Services.stopAsync(debugStreamSegmentContainerMap.get(containerId), executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            debugStreamSegmentContainerMap.get(containerId).close();
+            int finalContainerId = containerId;
+            futures.add(debugStreamSegmentContainerMap.get(containerId).flushToStorage(TIMEOUT).thenRun(
+                    () -> debugStreamSegmentContainerMap.get(finalContainerId).close()));
         }
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     // Writes events to the streams with/without transactions.
@@ -621,9 +623,11 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Flush DurableLog to Long Term Storage
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int containerId = 0; containerId < containerCount; containerId++) {
-            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
+            futures.add(componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT));
         }
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Get the long term storage from the running pravega instance
         @Cleanup
@@ -639,7 +643,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // start a new BookKeeper and ZooKeeper.
         pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
-        createBookKeeperLogFactory(pravegaRunner);
+        createBookKeeperLogFactory();
         log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Recover segments
@@ -686,8 +690,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         // Waits for metadata segments to be flushed to Long Term Storage and then stops the debug segment containers
         stopDebugSegmentContainersPostFlush(containerCount, debugStreamSegmentContainerMap);
         log.info("Segments have been recovered.");
-
-        this.dataLogFactory.close();
     }
 
     /**
@@ -753,9 +755,11 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // Flush DurableLog to Long Term Storage
         ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.segmentStoreRunner.serviceBuilder);
+        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int containerId = 0; containerId < containerCount; containerId++) {
-            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
+            futures.add(componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT));
         }
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Get the long term storage from the running pravega instance
         @Cleanup
@@ -771,7 +775,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
         // start a new BookKeeper and ZooKeeper.
         pravegaRunner.bookKeeperRunner = new BookKeeperRunner(instanceId++, bookieCount);
-        createBookKeeperLogFactory(pravegaRunner);
+        createBookKeeperLogFactory();
         log.info("Started a new BookKeeper and ZooKeeper.");
 
         // Recover segments
