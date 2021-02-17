@@ -490,15 +490,15 @@ public class ControllerGrpcAuthFocusedTest {
         String readerGroup = "group";
         final UUID rgId = UUID.randomUUID();
         ReaderGroupConfig oldConfig = ReaderGroupConfig.builder()
-                .readerGroupId(rgId).generation(0L)
                 .stream(NameUtils.getScopedStreamName(scope, stream1)).build();
+        oldConfig = ReaderGroupConfig.cloneConfig(oldConfig, rgId, 0L);
         createScopeAndStreamsStrict(scope, Arrays.asList(stream1, stream2), prepareFromFixedScaleTypePolicy(2));
         createReaderGroupStrict(scope, readerGroup, oldConfig);
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStubStrict(UserNames.ADMIN, DEFAULT_PASSWORD);
-        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup,
-                ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream2))
-                        .readerGroupId(oldConfig.getReaderGroupId()).generation(0L).build());
+        ReaderGroupConfig rgConf = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream2)).build();
+        rgConf = ReaderGroupConfig.cloneConfig(rgConf, oldConfig.getReaderGroupId(), 0L);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup, rgConf);
 
         //Act
         Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
@@ -516,14 +516,16 @@ public class ControllerGrpcAuthFocusedTest {
         String readerGroup = "group";
         UUID rgId = UUID.randomUUID();
         ReaderGroupConfig oldConfig = ReaderGroupConfig.builder()
-                .readerGroupId(rgId).generation(0L)
                 .stream(NameUtils.getScopedStreamName(scope, stream1)).build();
+        oldConfig = ReaderGroupConfig.cloneConfig(oldConfig, rgId, 0L);
         createScopeAndStreams(scope, Arrays.asList(stream1, stream2), prepareFromFixedScaleTypePolicy(2));
         createReaderGroup(scope, readerGroup, oldConfig);
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStub(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
-        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup, ReaderGroupConfig.builder()
-                .stream(NameUtils.getScopedStreamName(scope, stream2)).readerGroupId(rgId).generation(0L).build());
+        ReaderGroupConfig rgConf = ReaderGroupConfig.builder()
+                .stream(NameUtils.getScopedStreamName(scope, stream2)).build();
+        rgConf = ReaderGroupConfig.cloneConfig(rgConf, rgId, 0L);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, readerGroup, rgConf);
 
         //Act
         Controller.UpdateReaderGroupResponse status = blockingStub.updateReaderGroup(config);
@@ -541,9 +543,10 @@ public class ControllerGrpcAuthFocusedTest {
         createScopeAndStreamStrict(scope, stream, prepareFromFixedScaleTypePolicy(2));
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
                 prepareBlockingCallStubStrict(UserNames.SCOPE_READER1_READ, DEFAULT_PASSWORD);
-        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group",
-                ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream))
-                        .readerGroupId(rgId).generation(0L).build());
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream))
+                .build();
+        rgConfig = ReaderGroupConfig.cloneConfig(rgConfig, rgId, 0L);
+        Controller.ReaderGroupConfiguration config = ModelHelper.decode(scope, "group", rgConfig);
 
         //Verify
         thrown.expect(StatusRuntimeException.class);

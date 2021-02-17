@@ -338,15 +338,23 @@ public class StreamMetadataTasks extends TaskBase {
                  .thenCompose(complete -> {
                      if (!complete) {
                          //3. Create Reader Group Metadata inside Scope and submit the event
-                         return eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, config, requestId, createTimestamp),
+                         return validateReaderGroupId(config)
+                                 .thenCompose(conf -> eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, config, requestId, createTimestamp),
                                  () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId()))
                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
-                                         .thenCompose(done -> buildCreateSuccessResponse(scope, rgName)));
+                                         .thenCompose(done -> buildCreateSuccessResponse(scope, rgName))));
                      }
                      return buildCreateSuccessResponse(scope, rgName);
                  });
          });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+    }
+
+    private CompletableFuture<ReaderGroupConfig> validateReaderGroupId(ReaderGroupConfig config) {
+        if (ReaderGroupConfig.DEFAULT_UUID.equals(config.getReaderGroupId())) {
+            return CompletableFuture.completedFuture(ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L));
+        }
+        return CompletableFuture.completedFuture(config);
     }
 
     public CompletableFuture<Boolean> isRGCreationComplete(String scope, String rgName) {
