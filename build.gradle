@@ -1064,9 +1064,8 @@ project('test:system') {
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
 
-        configFilePath = System.getProperty("configFile")
-        if (configFilePath != null) {
-            String configs = new File(configFilePath).text
+        if (System.getProperty("configFile") != null) {
+            String configs = new File(System.getProperty("configFile")).text
             System.setProperty("configs", configs)
         }
         maxParallelForks = 1
