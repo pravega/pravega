@@ -964,9 +964,9 @@ project('test:system') {
         def includedTests = System.getProperty('includeSystemTests')
         // Let included tests take precedence if both are specified.
         if (includedTests != null) {
-            includes = includedTests.split(',').collect { it.trim() }
+            includes = includedTests.split(',').collect { getSystemTestClass(it) }
         } else if (excludedTests != null ) {
-            excludes = excludedTests.split(',').collect { it.trim() }
+            excludes = excludedTests.split(',').collect { getSystemTestClass(it) }
         }
 
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
@@ -1030,9 +1030,9 @@ project('test:system') {
         def includedTests = System.getProperty('includeSystemTests')
         // Let included tests take precedence if both are specified.
         if (includedTests != null) {
-            includes = includedTests.split(',').collect { it.trim() }
+            includes = includedTests.split(',').collect { getSystemTestClass(it) }
         } else if (excludedTests != null ) {
-            excludes = excludedTests.split(',').collect { it.trim() }
+            excludes = excludedTests.split(',').collect { getSystemTestClass(it) }
         }
 
         testClassesDirs = sourceSets.test.output.classesDirs
@@ -1196,6 +1196,21 @@ def getProjectVersion() {
 
 def getDefaultJavaVersion() {
     return "11"
+}
+
+def getSystemTestClass(arg) {
+    if (arg == null) {
+        return arg
+    }
+
+    def str = arg.trim()
+    if (!str.contains('/') && !str.contains('\\')) {
+        str = '**/' + str
+    }
+    if (!str.endsWith('.class')) {
+        str += '.class'
+    }
+    return str
 }
 
 subprojects {
