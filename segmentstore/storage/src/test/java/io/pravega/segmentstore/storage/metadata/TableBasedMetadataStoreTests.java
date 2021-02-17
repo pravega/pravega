@@ -16,7 +16,8 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryTableStore;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+
 import lombok.val;
 import org.junit.Before;
 
@@ -90,7 +91,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
             TableBasedMetadataTestContext() {
             }
 
-            TableBasedMetadataTestContext(ExecutorService executorService) throws Exception {
+            TableBasedMetadataTestContext(ScheduledExecutorService executorService) throws Exception {
                 super(executorService);
             }
 
