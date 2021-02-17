@@ -39,6 +39,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.Getter;
@@ -995,16 +996,27 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof StreamSegmentNotExistsException);
     }
 
+    @Test
+    public void testOpenWriteAfterFailoverWithNoDataNoAppend() throws Exception {
+        testOpenWriteAfterFailoverWithNoData(false);
+    }
+
+    @Test
+    public void testOpenWriteAfterFailoverWithNoData() throws Exception {
+        testOpenWriteAfterFailoverWithNoData(true);
+    }
+
     /**
      * Test failover scenario on empty segment.
      *
      * @throws Exception
      */
-    @Test
-    public void testOpenWriteAfterFailoverWithNoData() throws Exception {
+    public void testOpenWriteAfterFailoverWithNoData(boolean shouldAppend) throws Exception {
         String testSegmentName = "foo";
         @Cleanup
-        TestContext testContext = getTestContext();
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .appendEnabled(shouldAppend)
+                .build());
         testContext.chunkedSegmentStorage.initialize(2);
         int maxRollingLength = 1;
         int ownerEpoch = 1;
@@ -1019,16 +1031,26 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         Assert.assertEquals(0, metadataAfter.getLength());
     }
 
+    public void testOpenReadAfterFailoverWithNoDataNoAppend() throws Exception {
+        testOpenReadAfterFailoverWithNoData(false);
+    }
+
+    @Test
+    public void testOpenReadAfterFailoverWithNoData() throws Exception {
+        testOpenReadAfterFailoverWithNoData(true);
+    }
+
     /**
      * Test failover scenario on empty segment.
      *
      * @throws Exception
      */
-    @Test
-    public void testOpenReadAfterFailoverWithNoData() throws Exception {
+    public void testOpenReadAfterFailoverWithNoData(boolean shouldAppend) throws Exception {
         String testSegmentName = "foo";
         @Cleanup
-        TestContext testContext = getTestContext();
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .appendEnabled(shouldAppend)
+                .build());
         testContext.chunkedSegmentStorage.initialize(2);
         int maxRollingLength = 1;
         int ownerEpoch = 1;
@@ -1087,7 +1109,19 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         long[] chunks = new long[]{10};
         int lastChunkLengthInStorage = 12;
 
-        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage);
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, true);
+
+    }
+
+    @Test
+    public void testOpenWriteAfterFailoverWithSingleChunkNoAppend() throws Exception {
+        String testSegmentName = "foo";
+        int ownerEpoch = 2;
+        int maxRollingLength = OWNER_EPOCH;
+        long[] chunks = new long[]{10};
+        int lastChunkLengthInStorage = 10;
+
+        testOpenWriteAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false);
 
     }
 
@@ -1097,6 +1131,18 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
      * @throws Exception
      */
     @Test
+    public void testOpenReadAfterFailoverWithSingleChunkNoAppend() throws Exception {
+        String testSegmentName = "foo";
+        int ownerEpoch = 2;
+        int maxRollingLength = OWNER_EPOCH;
+        long[] chunks = new long[]{10};
+        int lastChunkLengthInStorage = 10;
+
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, false);
+
+    }
+
+    @Test
     public void testOpenReadAfterFailoverWithSingleChunk() throws Exception {
         String testSegmentName = "foo";
         int ownerEpoch = 2;
@@ -1104,13 +1150,15 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         long[] chunks = new long[]{10};
         int lastChunkLengthInStorage = 12;
 
-        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage);
+        testOpenReadAfterFailover(testSegmentName, ownerEpoch, maxRollingLength, chunks, lastChunkLengthInStorage, true);
 
     }
 
-    private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage) throws Exception {
+    private void testOpenWriteAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, boolean shouldAppend) throws Exception {
         @Cleanup
-        TestContext testContext = getTestContext();
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .appendEnabled(shouldAppend)
+                .build());
         testContext.chunkedSegmentStorage.initialize(ownerEpoch);
         val inserted = testContext.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1, chunks);
         // Set bigger offset
@@ -1126,9 +1174,11 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         TestUtils.checkChunksExistInStorage(testContext.chunkStorage, testContext.metadataStore, testSegmentName);
     }
 
-    private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage) throws Exception {
+    private void testOpenReadAfterFailover(String testSegmentName, int ownerEpoch, int maxRollingLength, long[] chunks, int lastChunkLengthInStorage, boolean shouldAppend) throws Exception {
         @Cleanup
-        TestContext testContext = getTestContext();
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .appendEnabled(shouldAppend)
+                .build());
         testContext.chunkedSegmentStorage.initialize(ownerEpoch);
         val inserted = testContext.insertMetadata(testSegmentName, maxRollingLength, ownerEpoch - 1, chunks);
         // Set bigger offset
@@ -2459,16 +2509,16 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         protected ChunkedSegmentStorage chunkedSegmentStorage;
 
         @Getter
-        protected Executor executor;
+        protected ScheduledExecutorService executor;
 
         protected TestContext() {
         }
 
-        public TestContext(Executor executor) throws Exception {
+        public TestContext(ScheduledExecutorService executor) throws Exception {
             this(executor, ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         }
 
-        public TestContext(Executor executor, ChunkedSegmentStorageConfig config) throws Exception {
+        public TestContext(ScheduledExecutorService executor, ChunkedSegmentStorageConfig config) throws Exception {
             this.executor = executor;
             this.config = config;
             chunkStorage = createChunkStorage();

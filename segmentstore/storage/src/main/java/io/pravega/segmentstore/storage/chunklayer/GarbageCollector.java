@@ -38,6 +38,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import static io.pravega.shared.MetricsNames.SLTS_GC_QUEUE_SIZE;
+
 /**
  * Implements simple garbage collector for cleaning up the deleted chunks.
  * The garbage collector maintains a in memory queue of chunks to delete which is drained by a background task.
@@ -55,7 +57,7 @@ import java.util.function.Supplier;
  * </ol>
  */
 @Slf4j
-public class GarbageCollector extends AbstractThreadPoolService implements AutoCloseable {
+public class GarbageCollector extends AbstractThreadPoolService implements AutoCloseable, StatsReporter {
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     /**
      * Set of garbage chunks.
@@ -168,15 +170,11 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         loopFuture = Futures.loop(
                 this::canRun,
                 () -> delaySupplier.get()
-                        .thenRunAsync(() -> {
-                            log.info("{}: Iteration {} started.", traceObjectId, iterationId.get());
-                        }, executor)
                         .thenComposeAsync(v -> deleteGarbage(true, config.getGarbageCollectionMaxConcurrency()), executor)
                         .handleAsync((v, ex) -> {
                             if (null != ex) {
                                 log.error("{}: Error during doRun.", traceObjectId, ex);
                             }
-                            log.info("{}: Iteration {} ended.", traceObjectId, iterationId.getAndIncrement());
                             return null;
                         }, executor),
                 executor);
@@ -240,7 +238,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
      * @return CompletableFuture which is completed when garbage is deleted.
      */
     CompletableFuture<Boolean> deleteGarbage(boolean isBackground, int maxItems) {
-        log.debug("{}: deleteGarbage - started.", traceObjectId);
+        log.debug("{}: Iteration {} started.", traceObjectId, iterationId.get());
         // Sleep if suspended.
         if (suspended.get() && isBackground) {
             log.info("{}: deleteGarbage - suspended - sleeping for {}.", traceObjectId, config.getGarbageCollectionDelay());
@@ -351,7 +349,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         }
         return Futures.allOf(futures)
                 .thenApplyAsync( v -> {
-                    log.debug("{}: deleteGarbage - finished.", traceObjectId);
+                    log.debug("{}: Iteration {} ended.", traceObjectId, iterationId.getAndIncrement());
                     return true;
                 }, executor);
     }
@@ -366,6 +364,11 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
             closed.set(true);
             super.close();
         }
+    }
+
+    @Override
+    public void report() {
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_GC_QUEUE_SIZE, queueSize.get());
     }
 
     @RequiredArgsConstructor

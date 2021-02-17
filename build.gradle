@@ -1294,6 +1294,8 @@ distributions {
         baseName = "pravega-javadoc"
         contents {
             from (javadocs)
+            from 'LICENSE'
+            from 'NOTICE'
         }
     }
 }
