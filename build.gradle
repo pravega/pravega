@@ -1199,13 +1199,14 @@ def getDefaultJavaVersion() {
 }
 
 def getSystemTestClass(arg) {
-    if (arg == null) {
+    if (arg == null || arg.contains("*")) {
         return arg
     }
 
     def str = arg.trim()
-    if (!str.contains('/') && !str.contains('\\')) {
-        str = '**/' + str
+    def separator = System.getProperty("file.separator", "/")
+    if (!str.contains(separator)) {
+        str = "**" +  separator + str
     }
     if (!str.endsWith('.class')) {
         str += '.class'
