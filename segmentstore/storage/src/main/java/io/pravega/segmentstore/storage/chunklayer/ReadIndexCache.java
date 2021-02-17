@@ -25,11 +25,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentSkipListMap;
 
+import static io.pravega.shared.MetricsNames.SLTS_READ_INDEX_CHUNK_INDEX_SIZE;
+import static io.pravega.shared.MetricsNames.SLTS_READ_INDEX_SEGMENT_INDEX_SIZE;
+import static io.pravega.shared.MetricsNames.SLTS_READ_INDEX_SEGMENT_MISS_RATE;
+
 /**
  * An in-memory implementation of cache for read index that maps chunk start offset to chunk name for recently used segments.
  * The least accessed segments are removed entirely as well as removing chunks that are least recently used.
  */
-class ReadIndexCache {
+class ReadIndexCache implements StatsReporter {
     /**
      * Keeps track of all per segment ReadIndex.
      */
@@ -225,6 +229,13 @@ class ReadIndexCache {
     public void cleanUp() {
         segmentsReadIndexCache.cleanUp();
         indexEntryCache.cleanUp();
+    }
+
+    @Override
+    public void report() {
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_READ_INDEX_SEGMENT_INDEX_SIZE, segmentsReadIndexCache.size());
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_READ_INDEX_SEGMENT_MISS_RATE, segmentsReadIndexCache.stats().missRate());
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_READ_INDEX_CHUNK_INDEX_SIZE, indexEntryCache.size());
     }
 
     /**
