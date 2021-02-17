@@ -1667,7 +1667,7 @@ public class ControllerImpl implements Controller {
                     throw new ControllerFailureException("Failed to delete reader group: " + scopedRGName);
                 case RG_NOT_FOUND:
                     log.warn(requestId, "ReaderGroup not found: {}", scopedRGName);
-                    return false;
+                    throw new IllegalArgumentException("ReaderGroup does not exist: " + scopedRGName);
                 case SUCCESS:
                     log.info(requestId, "Successfully deleted Reader Group: {}", scopedRGName);
                     return true;

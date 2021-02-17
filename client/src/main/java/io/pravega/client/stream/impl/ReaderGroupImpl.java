@@ -215,15 +215,13 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 if (currentConfig.getReaderGroupId() == ReaderGroupConfig.DEFAULT_UUID
                         && currentConfig.getGeneration() == ReaderGroupConfig.DEFAULT_GENERATION) {
                     // Migration code path, for moving a ReaderGroup from version < 0.9 to 0.9+
-                    final ReaderGroupConfig updateConfig = config.toBuilder()
-                            .readerGroupId(UUID.randomUUID())
-                            .generation(0L).build();
+                    final ReaderGroupConfig updateConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+
                     final long nextGen = Futures.getThrowingException(controller.createReaderGroup(scope, getGroupName(), updateConfig)
                        .thenCompose(conf -> {
                        if (!conf.getReaderGroupId().equals(updateConfig.getReaderGroupId())) {
                           return controller.updateReaderGroup(scope, groupName,
-                                  updateConfig.toBuilder().readerGroupId(conf.getReaderGroupId())
-                                          .generation(conf.getGeneration()).build());
+                                  ReaderGroupConfig.cloneConfig(updateConfig, conf.getReaderGroupId(), conf.getGeneration()));
                         } else {
                           // ReaderGroup IDs matched so our create was updated on Controller
                           return CompletableFuture.completedFuture(conf.getGeneration());
@@ -233,9 +231,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 } else {
                     // normal code path
                     // Use the latest generation and reader group Id.
-                    ReaderGroupConfig newConfig = config.toBuilder()
-                            .readerGroupId(currentConfig.getReaderGroupId())
-                            .generation(currentConfig.getGeneration()).build();
+                    ReaderGroupConfig newConfig = ReaderGroupConfig.cloneConfig(config,
+                                    currentConfig.getReaderGroupId(), currentConfig.getGeneration());
                     final long nextGen = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, newConfig));
                     updateConfigInStateSynchronizer(newConfig, nextGen);
                 }
@@ -247,7 +244,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private void updateConfigInStateSynchronizer(ReaderGroupConfig config, long newGen) {
         Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
         synchronizer.updateState((s, updates) -> {
-            updates.add(new ReaderGroupStateInit(config.toBuilder().generation(newGen).build(), segments, getEndSegmentsForStreams(config), false));
+            updates.add(new ReaderGroupStateInit(ReaderGroupConfig.cloneConfig(config,
+                    config.getReaderGroupId(), newGen), segments, getEndSegmentsForStreams(config), false));
         });
     }
 

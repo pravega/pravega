@@ -60,8 +60,6 @@ public class ReaderGroupConfig implements Serializable {
 
     private final UUID readerGroupId;
 
-
-
     /**
      * If a Reader Group wants unconsumed data to be retained in a Stream,
      * the retentionType in {@link ReaderGroupConfig} should be set to
@@ -82,6 +80,19 @@ public class ReaderGroupConfig implements Serializable {
         AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT;
     }
 
+    public static ReaderGroupConfig cloneConfig(final ReaderGroupConfig configToClone, final UUID readerGroupId, final long generation) {
+        return ReaderGroupConfig.builder()
+                .readerGroupId(readerGroupId)
+                .generation(generation)
+                .retentionType(configToClone.getRetentionType())
+                .automaticCheckpointIntervalMillis(configToClone.getAutomaticCheckpointIntervalMillis())
+                .groupRefreshTimeMillis(configToClone.getGroupRefreshTimeMillis())
+                .maxOutstandingCheckpointRequest(configToClone.getMaxOutstandingCheckpointRequest())
+                .startingStreamCuts(configToClone.getStartingStreamCuts())
+                .endingStreamCuts(configToClone.getEndingStreamCuts())
+                .build();
+    }
+
     public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
        private long groupRefreshTimeMillis = 3000; //default value
        private long automaticCheckpointIntervalMillis = 30000; //default value
@@ -91,6 +102,16 @@ public class ReaderGroupConfig implements Serializable {
        private long generation = DEFAULT_GENERATION;
        private UUID readerGroupId = DEFAULT_UUID;
 
+       private ReaderGroupConfigBuilder readerGroupId(UUID initReaderGroupId) {
+           this.readerGroupId = initReaderGroupId;
+           return this;
+       }
+
+       private ReaderGroupConfigBuilder generation(final long gen) {
+           this.generation = gen;
+           return this;
+       }
+       
        /**
         * Disables automatic checkpointing. Checkpoints need to be
         * generated manually, see this method:

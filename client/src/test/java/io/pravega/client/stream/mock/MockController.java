@@ -294,7 +294,8 @@ public class MockController implements Controller {
         assert scopeMeta != null : "Scope not created";
         assert scopeMeta.readerGroups.containsKey(key) : "ReaderGroup is not created";
         long newGen = scopeMeta.readerGroups.get(key).getGeneration() + 1;
-        scopeMeta.readerGroups.replace(key, scopeMeta.readerGroups.get(key), config.toBuilder().generation(newGen).build());
+        scopeMeta.readerGroups.replace(key, scopeMeta.readerGroups.get(key),
+                ReaderGroupConfig.cloneConfig(config, config.getReaderGroupId(), newGen));
         return CompletableFuture.completedFuture(newGen);
     }
 

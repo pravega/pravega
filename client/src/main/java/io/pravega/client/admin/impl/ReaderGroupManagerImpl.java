@@ -77,7 +77,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         NameUtils.validateReaderGroupName(groupName);
         if (config.getReaderGroupId() == ReaderGroupConfig.DEFAULT_UUID) {
             // make sure we never attempt to create a ReaderGroup with default ReadrGroupId which is 0-0-0
-            config = config.toBuilder().readerGroupId(UUID.randomUUID()).generation(0L).build();
+            config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
         }
         ReaderGroupConfig controllerConfig = getThrowingException(controller.createReaderGroup(scope, groupName, config));
         @Cleanup
@@ -106,7 +106,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
             && ReaderGroupConfig.DEFAULT_GENERATION == syncConfig.getGeneration()) {
             // migrate RG case
             getAndHandleExceptions(controller.createReaderGroup(scope, groupName,
-                    syncConfig.toBuilder().readerGroupId(UUID.randomUUID()).generation(0L).build())
+                    ReaderGroupConfig.cloneConfig(syncConfig, UUID.randomUUID(), 0L))
                     .thenCompose(conf -> controller.deleteReaderGroup(scope, groupName, conf.getReaderGroupId(),
                             conf.getGeneration())), RuntimeException::new);
         } else {

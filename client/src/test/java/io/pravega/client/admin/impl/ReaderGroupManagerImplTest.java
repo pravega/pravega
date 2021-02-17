@@ -92,7 +92,7 @@ public class ReaderGroupManagerImplTest {
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
-        ReaderGroupConfig expectedConfig = config.toBuilder().readerGroupId(UUID.randomUUID()).generation(0L).build();
+        ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
         when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class))).thenReturn(CompletableFuture.completedFuture(expectedConfig));
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
@@ -150,9 +150,9 @@ public class ReaderGroupManagerImplTest {
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                .readerGroupId(rgId).generation(0L)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
+        config = ReaderGroupConfig.cloneConfig(config, rgId, 0L);
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
@@ -176,7 +176,8 @@ public class ReaderGroupManagerImplTest {
         when(synchronizer.getState()).thenReturn(state);
         when(state.getConfig()).thenReturn(config);
 
-        ReaderGroupConfig expectedConfig = config.toBuilder().readerGroupId(UUID.randomUUID()).generation(0L).build();
+        ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+
         when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
         when(controller.deleteReaderGroup(anyString(), anyString(), any(UUID.class), anyLong()))
