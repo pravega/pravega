@@ -18,7 +18,7 @@ import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
 
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Unit tests for {@link InMemorySimpleStorage} using {@link SimpleStorageTests}.
@@ -95,11 +95,11 @@ public class InMemorySimpleStorageTests extends SimpleStorageTests {
         }
 
         public class InMemorySimpleStorageTestContext extends ChunkedSegmentStorageTests.TestContext {
-            InMemorySimpleStorageTestContext(ExecutorService executorService) throws Exception {
+            InMemorySimpleStorageTestContext(ScheduledExecutorService executorService) throws Exception {
                 super(executorService);
             }
 
-            InMemorySimpleStorageTestContext(ExecutorService executorService, ChunkedSegmentStorageConfig config) throws Exception {
+            InMemorySimpleStorageTestContext(ScheduledExecutorService executorService, ChunkedSegmentStorageConfig config) throws Exception {
                 super(executorService, config);
             }
 

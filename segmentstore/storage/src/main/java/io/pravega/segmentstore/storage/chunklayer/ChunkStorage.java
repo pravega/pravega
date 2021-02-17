@@ -47,7 +47,7 @@ import java.util.concurrent.CompletionException;
  * It is recommended that the implementations should extend {@link BaseChunkStorage}.
  */
 @Beta
-public interface ChunkStorage extends AutoCloseable {
+public interface ChunkStorage extends AutoCloseable, StatsReporter {
     /**
      * Gets a value indicating whether this Storage implementation supports {@link ChunkStorage#truncate(ChunkHandle, long)} operation on underlying storage object.
      *

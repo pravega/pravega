@@ -51,6 +51,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
@@ -68,7 +70,7 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
  */
 @Slf4j
 @Beta
-public class ChunkedSegmentStorage implements Storage {
+public class ChunkedSegmentStorage implements Storage, StatsReporter {
     /**
      * Configuration options for this ChunkedSegmentStorage instance.
      */
@@ -142,16 +144,18 @@ public class ChunkedSegmentStorage implements Storage {
     @Getter
     private final GarbageCollector garbageCollector;
 
+    private final ScheduledFuture<?> reporter;
+
     /**
      * Creates a new instance of the ChunkedSegmentStorage class.
      *
      * @param containerId   container id.
      * @param chunkStorage  ChunkStorage instance.
      * @param metadataStore Metadata store.
-     * @param executor      An Executor for async operations.
+     * @param executor      A {@link ScheduledExecutorService} for async operations.
      * @param config        Configuration options for this ChunkedSegmentStorage instance.
      */
-    public ChunkedSegmentStorage(int containerId, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, Executor executor, ChunkedSegmentStorageConfig config) {
+    public ChunkedSegmentStorage(int containerId, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, ScheduledExecutorService executor, ChunkedSegmentStorageConfig config) {
         this.containerId = containerId;
         this.config = Preconditions.checkNotNull(config, "config");
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
@@ -168,8 +172,9 @@ public class ChunkedSegmentStorage implements Storage {
                 chunkStorage,
                 metadataStore,
                 config,
-                (ScheduledExecutorService) executor);
+                executor);
         this.closed = new AtomicBoolean(false);
+        this.reporter = executor.scheduleAtFixedRate(this::report, 1000, 1000, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -661,10 +666,18 @@ public class ChunkedSegmentStorage implements Storage {
     }
 
     @Override
+    public void report() {
+        garbageCollector.report();
+        metadataStore.report();
+        chunkStorage.report();
+    }
+
+    @Override
     public void close() {
         close("metadataStore", this.metadataStore);
         close("garbageCollector", this.garbageCollector);
         close("chunkStorage", this.chunkStorage);
+        this.reporter.cancel(true);
         this.closed.set(true);
     }
 
