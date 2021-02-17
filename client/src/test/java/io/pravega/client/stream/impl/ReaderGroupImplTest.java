@@ -354,8 +354,8 @@ public class ReaderGroupImplTest {
         when(synchronizer.getState()).thenReturn(state);
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(test)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
-
                 .build();
+        config = ReaderGroupConfig.cloneConfig(config, rgId, 0L);
         when(synchronizer.getState().getConfig()).thenReturn(config);
         when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), NameUtils.getScopedReaderGroupName(SCOPE, GROUP_NAME),
                 config.getReaderGroupId(), 0L, createStreamCut("test", 1)))

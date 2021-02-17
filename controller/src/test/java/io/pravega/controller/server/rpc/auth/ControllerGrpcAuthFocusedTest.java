@@ -394,6 +394,7 @@ public class ControllerGrpcAuthFocusedTest {
         String stream = "test";
         String readerGroup = "group";
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build();
+        config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
         createScopeAndStreamStrict(scope, stream, prepareFromFixedScaleTypePolicy(2));
         createReaderGroupStrict(scope, readerGroup, config);
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
@@ -414,6 +415,7 @@ public class ControllerGrpcAuthFocusedTest {
         String stream = "test";
         String readerGroup = "group";
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(NameUtils.getScopedStreamName(scope, stream)).build();
+        config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
         createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
         createReaderGroup(scope, readerGroup, config);
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
