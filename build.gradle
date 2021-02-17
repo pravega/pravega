@@ -960,13 +960,13 @@ project('test:system') {
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
-        def excludedTests = System.getProperty('excludeSystemTests', '').split(',').toList()
-        def includedTests = System.getProperty('includeSystemTests', '').split(',').toList()
+        def excludedTests = System.getProperty('excludeSystemTests')
+        def includedTests = System.getProperty('includeSystemTests')
         // Let included tests take precedence if both are specified.
-        if (!includedTests.isEmpty()) {
-            includes = includedTests
-        } else if (!excludedTests.isEmpty()) {
-            excludes = excludedTests
+        if (includedTests != null) {
+            includes = includedTests.split(',').collect { it.trim() }
+        } else if (excludedTests != null ) {
+            excludes = excludedTests.split(',').collect { it.trim() }
         }
 
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
@@ -1026,13 +1026,13 @@ project('test:system') {
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
 
-        def excludedTests = System.getProperty('excludeSystemTests', '').split(',').toList()
-        def includedTests = System.getProperty('includeSystemTests', '').split(',').toList()
+        def excludedTests = System.getProperty('excludeSystemTests')
+        def includedTests = System.getProperty('includeSystemTests')
         // Let included tests take precedence if both are specified.
-        if (!includedTests.isEmpty()) {
-            includes = includedTests
-        } else if (!excludedTests.isEmpty()) {
-            excludes = excludedTests
+        if (includedTests != null) {
+            includes = includedTests.split(',').collect { it.trim() }
+        } else if (excludedTests != null ) {
+            excludes = excludedTests.split(',').collect { it.trim() }
         }
 
         testClassesDirs = sourceSets.test.output.classesDirs
