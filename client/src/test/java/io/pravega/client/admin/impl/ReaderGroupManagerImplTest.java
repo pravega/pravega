@@ -10,41 +10,26 @@
 package io.pravega.client.admin.impl;
 
 import com.google.common.collect.ImmutableMap;
-import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.ReaderGroupImpl;
-import io.pravega.client.stream.impl.SegmentWithRange;
-import io.pravega.client.stream.impl.AbstractClientFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamCutImpl;
-import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
-import io.pravega.client.stream.mock.MockController;
-import io.pravega.client.stream.mock.MockSegmentStreamFactory;
-import io.pravega.shared.NameUtils;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
-
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
