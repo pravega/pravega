@@ -74,15 +74,15 @@ more than one instance of Controller service per cluster.
 
 Each Controller instance is capable of working independently and uses a
 shared persistent store as the source of truth for all state-owned and
-managed by Controller service. We currently use Apache ZooKeeper as the
-store for persisting all metadata consistently.  Each instance comprises
+managed by Controller service. We use [Pravega KeyValue Tables](https://github.com/pravega/pravega/wiki/PDP-39-Key-Value-Tables) as the
+store for persisting all metadata consistently. Controller stores metadata about streams in stream specific tables that creates. Each controller instance comprises
 various subsystems which are responsible for performing specific
 operations on different categories of metadata. These subsystems include
 different *API endpoints, metadata store handles, policy managers* and
 *background workers*.
 
-The Controller exposes two endpoints which can be used to interact with
-The Pravega Controller Service. The first port is for providing programmatic
+Each controller instance exposes two endpoints which can be used to interact with
+it. The first port is for providing programmatic
 access for Pravega clients and is implemented as an `RPC` using [gRPC](https://grpc.io/). The
 other endpoint is for administrative operations and is implemented as a
 `REST` endpoint.
@@ -93,7 +93,7 @@ The Controller owns and manages the concept of Stream and is
 responsible for maintaining "metadata" and "lifecycle" operations (_creating, updating, scaling,
 truncating, sealing_ and _deleting Streams_) for each Pravega Stream.
 
-The Stream management can be divided into the following three categories:
+The Stream management can be divided into the following categories:
 
   1. **Stream Abstraction**: A Stream can be viewed as a series of dynamically changing segment sets
 where the Stream transitions from one set of consistent segments to the
@@ -121,6 +121,8 @@ responsible for creating and committing Transactions on a given Stream.
 Upon creating Transactions, Controller also tracks Transaction timeouts
 and aborts transactions whose timeouts have elapsed. Details of
 Transaction management can be found later in the [Transactions](#transaction-manager) section.
+
+  4. [**Watermarks**](http://pravega.io/docs/v0.8.0/watermarking/): Watermarks are a data structure produced by controller that refer to a unique position in the stream and associates time information corresponding to that position. The watermark is computed by controller by coordinating the time and position information reported by different writer applications and generating a time window. 
 
 ## Cluster Management
 
@@ -217,28 +219,17 @@ such as [state](#stream-state) and its [policies](#stream-policy-manager) and on
 Stream via a well-defined
 [interface](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/stream/StreamMetadataStore.java).
 We currently have two concrete implementations of the Stream store
-interface: _in-memory_ and _Zookeeper_ backed stores. Both share a common
-base implementation that relies on Stream objects for providing
-store-type specific implementations for all Stream-specific metadata.
-The base implementation of Stream store creates and caches these Stream
-objects.
+interface: _in-memory_ and _Pravega_Tables_ backed stores. 
+The Pravega tables implementation is intended for production while in memory implementation is for demo and testing purposes and does not provide any durability. 
+The Pravega tables store based implementation stores the stream metadata in tables as key value pairs and is retrieved by stream metadata store and cached for efficient lookups.
 
-The Stream objects implement a store/Stream interface. The concrete
-Stream implementation is specific to the store type and is responsible
-for implementation of store specific methods. We have a common base implementation of all store types
-that provide optimistic concurrency. This base class encapsulates the
-logic for queries against Stream store for all concrete stores that
-support Compare And Swap (CAS). We currently use Zookeeper as our
-underlying store which also supports CAS. We store all Stream metadata
-in a hierarchical fashion under Stream specific **znodes** (ZooKeeper
-data nodes).
+The pravega tables based implementation relies on compare and swap conditional updates capability of pravega tables and relies on optimistic concurrency to perform updates and handles conditional update failures. The metadata is organized in various tables starting with information about scopes and then dedicated tables for each stream in a scope. For each pravega stream its metadata is organized into two classes of tables namely stream metadata table and stream transactions tables. Stream metadata includes information about stream configuration, state, epochs, segments and information and information related to any ongoing workflows on the stream. 
 
-For the ZooKeeper-based store, we structure our metadata into different
-groups to support a variety of queries against this metadata. All Stream
-specific metadata is stored under a scoped/Stream root node. Queries
+
+Queries
 against this metadata include, but not limited to, querying segment sets
 that form the Stream at different points in time, segment specific
-information, segment predecessors and successors. Refer to [Stream metadata](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/stream/StreamMetadataStore.java) interface for details about API exposed by Stream metadata
+information, segment predecessors and successors and additional information about segments like their whether they are open or sealed, whether they are hot or cold and the size of data when they were sealed. Refer to [Stream metadata](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/stream/StreamMetadataStore.java) interface for details about API exposed by Stream metadata
 store.
 
 ### Stream Metadata
@@ -285,7 +276,7 @@ _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_.
 **Note**: To retrieve Stream Segment record given a Stream Segment ID, we first need to extract the creation epoch and then retrieve the Stream Segment record from the epoch record.
 
 #### Stream Configuration
- Znode under which Stream configuration is serialized and persisted. A
+ Stream configuration is stored against the StreamConfiguration key in the metadata table. The value against this key has the Stream configuration serialized and persisted. A
  Stream configuration contains Stream policies that need to be enforced.
  [Scaling policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and [Retention policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java) are supplied by the application at the time of Stream creation and enforced by Controller by monitoring the rate and size of data in the Stream.
 
@@ -303,9 +294,9 @@ _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_.
  choosing the appropriate policy and supplying their desired values.
 
 #### Stream State
- Znode which captures the state of the Stream. It is an enumerator with
+ The stream state is saved as StateRecord in the metadata table. It describes the state of the stream like active or sealed and whenever stream goes through a transition in its lifecycle, the state also describes the transition. StateRecord has an enumerator with
  values from *creating, active, updating, scaling, truncating, sealing,*
- and *sealed*. Once _active_, a Stream transition between performing a
+ and *sealed* representating each of the various states and state transitions. Once _active_, a Stream transition between performing a
  specific operation and remains _active_ until it is sealed. A transition map is
  defined in the
  [State](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/stream/State.java)
@@ -341,21 +332,29 @@ Once the Stream Segments are sealed, the Controller needs to store additional in
 
 The following are the Transaction Related metadata records:
 
-   - **Active Transactions**: Each new Transaction is created under the znode. This stores metadata
- corresponding to each Transaction as *Active Transaction Record*. Once a
- Transaction is completed, a new node is created under the global
- _Completed Transaction_ znode and removed from under the Stream specific
- _Active Transaction_ node.
+   - **Active Transactions**: Each new Transaction is created in the a transactions table created for each epoch in the stream. The metadata
+ for each Transaction is stored in an object called *Active Transaction Record*. Once a
+ Transaction is completed, it is moved to a global
+ table for _Completed Transaction_ and its active transaction record is removed.
 
-   - **Completed Transactions**: All completed transactions for all Streams are moved under a separate znode upon completion (via either commit or abort paths). The completion status of Transaction is recorded under this record. To avoid proliferation of stale Transaction records, we provide a cluster level configuration to specify the duration for which a completed Transaction's record should be preserved. Controller periodically garbage collects all Transactions that were completed before the aforesaid configured duration.
+   - **Completed Transactions**: All completed transactions for all Streams are moved under a separate global table upon completion (via either commit or abort paths). The completion status of Transaction is recorded under this record. To avoid proliferation of stale Transaction records, we provide a cluster level configuration to specify the duration for which a completed Transaction's record should be preserved. Controller periodically garbage collects all Transactions that were completed before the aforesaid configured duration.
 
+#### Retention Set
+
+ Controller periodically generates the tail streamcut on the stream and stores them as a chronological time series in the stream metadata called retention set. This retention set is stored in the metadata table. These streamcuts are used to identify truncation points for application of retention policy for the stream. 
+
+#### Writer Marks
+ Writers report their positions and times in the form of writer marks to controller service which are then stored in the metadata table. One of the controller instances then looks at these marks and consolidates them to produce watermarks. 
+
+#### Subscribers
+ As part of 0.9, a new feature has been included in Pravega to keep track of subscriber readergroups and the stream automatically purges the data only after it has been consumed by all subscribers. To achieve this, readergroups report their positions to controller and controller stores their subscriber streamcuts in subscriber metadata for the stream. It then consolidates these streamcuts to compute a lower bound and truncate at such a lowerbound. 
 
 ### Stream Store Caching
 
 #### In-memory Cache
 Since there could be multiple concurrent requests for a given Stream
 being processed by the same Controller instance, it is suboptimal to read
-the value by querying Zookeeper every time. So we have introduced an
+the value by querying pravega tables every time. So we have introduced an
 **in-memory cache** that each Stream store maintains. It caches retrieved
 metadata per Stream so that there is maximum one copy of the data per
 Stream in the cache. There are two in-memory caches:
@@ -365,7 +364,7 @@ multiple Stream objects in the store_
 - _Cache properties of a Stream in
 the Stream object_.
 
-The cache can contain both mutable and immutable values. Immutable values, by definition are not a problem. For mutable values, we have introduced a notion of [Operation Context](#operation-context) and for each new operation, which ensures that during an operation we lazily load latest value of entities into the cache and then use them for all computations within that [Operation's context](#operation-context).
+The cache can contain both mutable and immutable records. Immutable records, by definition are not a problem. For mutable values, we have introduced a notion of [Operation Context](#operation-context) and for each new operation, which ensures that during an operation we lazily load latest value of entities into the cache and then use them for all computations within that [Operation's context](#operation-context).
 
 
 #### Operation Context
@@ -374,34 +373,6 @@ value is updated during the course of the operation, it is again
 invalidated in the cache so that other concurrent read/update operations
 on the Stream get the new value for their subsequent steps.  
 
-## Stream Buckets
-
-To enable some scenarios, we may need the background workers to
-periodically work on each of the Streams in our cluster to perform
-some specific action on them. The concept of Stream Bucket is to
-distribute this periodic background work across all available
-Controller instances. Controller instances map all available streams in the system into buckets and these buckets are distributed amongst themselves. Hence, all the long-running background work can be uniformly distributed across multiple Controller instances.
-
-**Note**: Number of buckets for a cluster is a fixed (configurable) value for
-the lifetime of a cluster.
-
-Each bucket corresponds to a unique znode in
-Zookeeper. A qualified scoped Stream name is used to compute a
-hash value to assign the Stream to a bucket. All Controller instances, upon
-startup, attempt to take ownership of buckets. Upon _failover_, ownerships
-are transferred, as surviving nodes compete to acquire ownership of
-orphaned buckets. The Controller instance which owns a bucket is
-responsible for all long running scheduled background work corresponding
-to all nodes under the bucket. Presently this entails running periodic
-workflows to capture `StreamCut`(s) (called Retention-Set) for each Stream at desired frequencies.
-
-### Retention Set
-
- One retention set per Stream is stored under the corresponding
- bucket/Stream znode. As we compute  `StreamCut`(s) periodically, we keep
- preserving them under this znode. As some automatic truncation is
- performed, the `StreamCut`(s) that are no longer valid are purged from
- this set.
 
 ## Controller Cluster Listener
 
@@ -537,6 +508,29 @@ processing. However, it allows for concurrent requests from across
 Streams to go on concurrently. Workflows like _scale, truncation, seal,
 update_ and _delete Stream_ are implemented for processing on the request
 Event Processor.
+
+## Periodic Background job framework 
+
+To enable some scenarios, we may need the background workers to
+periodically work on each of the Streams in our cluster to perform
+some specific action on them. We have built a periodic job framework for this purpose which relies on zookeeper which makes use of something called a Stream Bucket which is used to
+distribute this periodic background work across all available
+Controller instances.  
+The unit of load distribution is a bucket which is a znode with a fixed bucket number. Controller instances map all available streams in the system into buckets and these buckets are distributed amongst themselves. Hence, all the long-running background work can be uniformly distributed across multiple Controller instances.
+
+**Note**: Number of buckets is a configuration for a cluster which is fixed for
+the lifetime of a cluster.
+
+Each bucket corresponds to a unique znode in
+Zookeeper. A qualified scoped Stream name is used to compute a
+hash value to assign the Stream to a bucket. All Controller instances, upon
+startup, attempt to take ownership of buckets. Upon _failover_, ownerships
+are transferred, as surviving nodes compete to acquire ownership of
+orphaned buckets. The Controller instance which owns a bucket is
+responsible for all long running scheduled background work corresponding
+to all nodes under the bucket. Presently this entails running periodic
+workflows to capture `StreamCut`(s) (called Retention-Set) for each Stream at desired frequencies.
+
 
 # Roles and Responsibilities
 
@@ -788,7 +782,15 @@ other Controller instances will receive node failed notification and
 attempt to sweep all outstanding Transactions from the failed instance
 and monitor their timeouts from that point onward.
 
-## Segment Container to Host Mapping
+### Watermarks
+
+Controller instantiates periodic background jobs for computing watermarks for streams for which writers are regularly reporting the times and positions. The watermark computation for different streams is distributed across multiple controller instances using the bucket service. Controller service receives request to record positions and times reported by event stream writers using the note time api and stores them in the metadata table. Then the controller instance which is the owner for the bucket where the stream resides runs the watermark computation workflow periodically (every 10 seconds). The writer marks (position and time) are retrieved from the store, consolidated and reduced into a watermark artifact. A watermark is a datastructure that contains a streamcut which is the upper bound on positions reported by all writers. It also contains max and min bounds on the times reported by different writers. The watermarks are emitted into a special revisioned stream which is created along with the user stream. The lifecycle of this stream is closely bound to the user stream and its created and deleted along with user streams. 
+
+##  Cluster Management
+
+Controller is responsible for tracking the service instance nodes for both controller and segment store service and in case of a node failure the work is properly failed over to surviving instances. Controller is responsible for distributing workload across different segment store instances by distributing segment containers to availale segment store nodes
+
+### Segment Container to Host Mapping
 
 The Controller is also responsible for the assignment of Segment Containers to
 Segment Store nodes. The responsibility of maintaining this mapping
@@ -808,3 +810,4 @@ The details about implementation, especially with respect to how the metadata is
 
 - [Pravega](https://pravega.io/)
 - [Code](https://github.com/pravega/pravega/tree/master/controller)
+
