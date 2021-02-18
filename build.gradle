@@ -1065,8 +1065,7 @@ project('test:system') {
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
 
         if (System.getProperty("configFile") != null) {
-            String configs = new File(System.getProperty("configFile")).text
-            System.setProperty("configs", configs)
+            systemProperty "configs", new File(System.getProperty("configFile")).text
         }
         maxParallelForks = 1
     }
