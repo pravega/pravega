@@ -99,24 +99,28 @@ public class RawClient implements AutoCloseable {
     public RawClient(PravegaNodeUri uri, ConnectionPool connectionPool) {
         this.segmentId = null;
         this.connection = new CompletableFuture<>();
-        connectionPool.getClientConnection(flow, uri, responseProcessor, this.connection);
         this.connection.exceptionally(e -> {
             log.warn("Exception observed while attempting to obtain a connection to segment store {}", uri, e);
             throw new CompletionException(new ConnectionFailedException(e));
         });
         Futures.exceptionListener(connection, this::closeConnection);
+        connectionPool.getClientConnection(flow, uri, responseProcessor, this.connection);
     }
 
     public RawClient(Controller controller, ConnectionPool connectionPool, Segment segmentId) {
         this.segmentId = segmentId;
         this.connection = new CompletableFuture<>();
+        this.connection.exceptionally(e -> {
+            log.warn("Exception observed while attempting to obtain a connection to segment {}", segmentId, e);
+            throw new CompletionException(new ConnectionFailedException(e));
+        });
+        Futures.exceptionListener(connection, this::closeConnection);
         controller.getEndpointForSegment(segmentId.getScopedName())
                                     .thenAccept((PravegaNodeUri uri) -> connectionPool.getClientConnection(flow, uri, responseProcessor, this.connection))
                                     .exceptionally(e -> {
-                                        log.warn("Exception observed while attempting to obtain a connection to segment {}", segmentId, e);
-                                        throw new CompletionException(new ConnectionFailedException(e));
+                                        this.connection.completeExceptionally(e);
+                                        return null;
                                     });
-        Futures.exceptionListener(connection, this::closeConnection);
     }
 
     private void reply(Reply reply) {
