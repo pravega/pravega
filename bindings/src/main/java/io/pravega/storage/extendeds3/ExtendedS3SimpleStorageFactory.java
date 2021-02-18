@@ -21,7 +21,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Factory for ExtendedS3 {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link ExtendedS3ChunkStorage}.
@@ -36,7 +36,7 @@ public class ExtendedS3SimpleStorageFactory implements SimpleStorageFactory {
 
     @NonNull
     @Getter
-    private final ExecutorService executor;
+    private final ScheduledExecutorService executor;
 
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {

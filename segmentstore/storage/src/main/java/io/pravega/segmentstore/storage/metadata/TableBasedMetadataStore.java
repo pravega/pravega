@@ -36,6 +36,8 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_STORE;
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_NOT_FOUND;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.TABLE_GET_LATENCY;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.TABLE_WRITE_LATENCY;
 
@@ -95,12 +97,14 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                                     txnData.setDbObject(entry.getKey().getVersion());
                                     txnData.setPersisted(true);
                                     TABLE_GET_LATENCY.reportSuccessEvent(t.getElapsed());
+                                    METADATA_FOUND_IN_STORE.inc();
                                     return txnData;
                                 }
                             } catch (Exception e) {
                                 throw new CompletionException(new StorageMetadataException("Error while reading", e));
                             }
                             TABLE_GET_LATENCY.reportSuccessEvent(t.getElapsed());
+                            METADATA_NOT_FOUND.inc();
                             return TransactionData.builder()
                                     .key(key)
                                     .persisted(true)
