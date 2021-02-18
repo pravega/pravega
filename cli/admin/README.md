@@ -53,7 +53,7 @@ You can run the Pravega Admin CLI as follows:
 ./bin/pravega-admin
 ```
 The config values can be changed permanently at `conf/admin-cli.properties`, or use `config set property=...` to temporarily change the config for command line session only.
-The initial configuration:
+The initial configuration would be as follows:
 ```
 Pravega Admin CLI.
    
@@ -160,8 +160,6 @@ Once in the pod, you can run the Pravega Admin CLI:
 The initial configuration needs to be modified according to the information of your cluster by accessing the properties file (`./conf/admin-cli.properties`) or using `config set` command.
 For example, this is the configuration we used on a new Pravega cluster deployed via Helm chart as described in the [Pravega Operator documentation](https://github.com/pravega/pravega-operator/tree/master/charts/pravega#installing-the-chart):
 ```
-config set cli.controller.rest.uri=pravega-pravega-controller.default:10080
-
 config list
     pravegaservice.container.count=4
     bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
@@ -171,8 +169,8 @@ config list
     cli.store.metadata.backend=segmentstore
     cli.controller.rest.uri=pravega-pravega-controller.default:10080
     cli.security.auth.credentials.username=admin
-    pravegaservice.zk.connect.uri=localhost:2181
-    cli.controller.grpc.uri=tcp://localhost:9090
+    pravegaservice.zk.connect.uri=zookeeper-client:2181
+    cli.controller.grpc.uri=tcp://pravega-pravega-controller.default:9090
 ```
 
 
