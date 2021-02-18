@@ -18,7 +18,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Factory for FileSystem {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link FileSystemChunkStorage}.
@@ -33,7 +33,7 @@ public class FileSystemSimpleStorageFactory implements SimpleStorageFactory {
 
     @NonNull
     @Getter
-    private final ExecutorService executor;
+    private final ScheduledExecutorService executor;
 
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {

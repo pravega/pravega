@@ -59,7 +59,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * obtained an exception will be set on the future.
      * 
      * This method can be called and a new checkpoint can be initiated while another is still in
-     * progress if they have different names. If this method is is called again before the
+     * progress if they have different names. If this method is called again before the
      * checkpoint has completed with the same name the future returned to the second caller will
      * refer to the same checkpoint object as the first.
      * 

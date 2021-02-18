@@ -124,6 +124,8 @@ public class RawClient implements AutoCloseable {
         }
         if (future != null) {
             future.complete(reply);
+        } else {
+            log.info("Could not find any matching request for {}. Ignoring.", reply);
         }
     }
 
