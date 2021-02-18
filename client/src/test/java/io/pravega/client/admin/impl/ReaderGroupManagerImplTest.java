@@ -108,39 +108,23 @@ public class ReaderGroupManagerImplTest {
     @Test
     @SuppressWarnings("unchecked")
     public void testCreateReaderGroupWithMigration() {
-        String scope = "scope";
-        String stream = "stream";
-        String groupName = "rg1";
-        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 12345);
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
-        final StreamConfiguration streamConfig = StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(1))
-                .build();
-        controller.createScope(scope).join();
-        controller.createStream(scope, stream, streamConfig).join();
-        controller.createRGStream(scope, groupName).join();
-        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        @Cleanup
-        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
-
-        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
-                .stream(Stream.of("scope", "stream"))
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2))
+                .put(createStream("s2"), createStreamCut("s2", 3)).build())
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
-
-        assertEquals(ReaderGroupConfig.DEFAULT_UUID, rgConfig.getReaderGroupId());
-        assertEquals(ReaderGroupConfig.DEFAULT_GENERATION, rgConfig.getGeneration());
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
-                new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(), new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer(),
-                SynchronizerConfig.builder().build());
-        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, rgConfig);
-
-        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(rgConfig, segments, Collections.emptyMap(), false));
-        ReaderGroupManagerImpl rgManager = new ReaderGroupManagerImpl("scope", controller, (AbstractClientFactoryImpl) clientFactory);
-
-        rgManager.createReaderGroup(groupName, rgConfig);
+        ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class))).thenReturn(CompletableFuture.completedFuture(expectedConfig));
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
+        when(synchronizer.getState()).thenReturn(state);
+        when(state.getConfig()).thenReturn(config);
+        // Create a ReaderGroup
+        readerGroupManager.createReaderGroup(GROUP_NAME, config);
+        verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class),
+                any(Serializer.class), any(SynchronizerConfig.class));
+        verify(synchronizer, times(1)).initialize(any(InitialUpdate.class));
+        verify(synchronizer, times(1)).updateStateUnconditionally(any(InitialUpdate.class));
     }
 
     @Test

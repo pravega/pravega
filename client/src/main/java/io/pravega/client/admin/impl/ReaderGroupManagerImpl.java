@@ -89,9 +89,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         if (ReaderGroupConfig.DEFAULT_UUID.equals(syncConfig.getReaderGroupId())
         && ReaderGroupConfig.DEFAULT_GENERATION == syncConfig.getGeneration()) {
             // migrate RG from version < 0.9 to 0.9+
-            synchronizer.updateState((s, updates) -> {
-              updates.add(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
-          });
+            synchronizer.updateStateUnconditionally(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
         }
     }
 
