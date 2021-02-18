@@ -67,8 +67,8 @@ public class ReadWriteTest {
     private static final String STREAM_NAME = "testMultiReaderWriterStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final int NUM_WRITERS = 20;
     private static final int NUM_READERS = 20;
-    private static final long TOTAL_NUM_EVENTS = 20000;
-    private static final int NUM_EVENTS_BY_WRITER = 1000;
+    private static final int NUM_EVENTS_BY_WRITER = 500;
+    private static final long TOTAL_NUM_EVENTS = NUM_WRITERS * NUM_EVENTS_BY_WRITER;
     private AtomicLong eventData;
     private AtomicLong eventReadCount;
     private AtomicBoolean stopReadFlag;
@@ -205,10 +205,9 @@ public class ReadWriteTest {
             
             //set stop read flag to true
             stopReadFlag.set(true);
-            ExecutorServiceHelpers.shutdown(readerPool);
-            
             //wait for readers completion
             Futures.allOf(readerList).get();
+            ExecutorServiceHelpers.shutdown(readerPool);
 
             //delete readergroup
             log.info("Deleting readergroup {}", readerGroupName);
@@ -242,7 +241,7 @@ public class ReadWriteTest {
                     EventWriterConfig.builder().build());
             for (int i = 0; i < NUM_EVENTS_BY_WRITER; i++) {
                 long value = data.incrementAndGet();
-                log.info("Writing event {}", value);
+                log.debug("Writing event {}", value);
                 writer.writeEvent(String.valueOf(value), value);
                 writer.flush();
             }
@@ -263,7 +262,7 @@ public class ReadWriteTest {
                     ReaderConfig.builder().build());
             while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
                 final Long longEvent = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
-                log.info("Reading event {}", longEvent);
+                log.debug("Reading event {}", longEvent);
                 if (longEvent != null) {
                     //update if event read is not null.
                     readResult.add(longEvent);

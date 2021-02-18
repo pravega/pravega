@@ -332,7 +332,7 @@ public class SystemJournal {
      */
     private byte[] getContents(String snapshotFile) throws ExecutionException, InterruptedException {
         val info = chunkStorage.getInfo(snapshotFile).get();
-        val h = chunkStorage.openRead(snapshotFile).get();
+        val h = ChunkHandle.readHandle(snapshotFile);
         byte[] contents = new byte[Math.toIntExact(info.getLength())];
         long fromOffset = 0;
         int remaining = contents.length;
@@ -469,7 +469,7 @@ public class SystemJournal {
                 ChunkMetadata chunkToDelete = (ChunkMetadata) txn.get(toDelete).get();
                 txn.delete(toDelete);
                 toDelete = chunkToDelete.getNextChunk();
-                segmentMetadata.decrementChunkCount();
+                segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() - 1);
             }
 
             // Set next chunk
@@ -486,7 +486,7 @@ public class SystemJournal {
         }
         segmentMetadata.setLastChunk(newChunkName);
         segmentMetadata.setLastChunkStartOffset(offset);
-        segmentMetadata.incrementChunkCount();
+        segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() + 1);
         segmentMetadata.checkInvariants();
         // Save the segment metadata.
         txn.update(segmentMetadata);
@@ -520,7 +520,7 @@ public class SystemJournal {
             // move to next chunk
             currentChunkName = currentMetadata.getNextChunk();
             txn.delete(currentMetadata.getName());
-            segmentMetadata.decrementChunkCount();
+            segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() - 1);
         }
         Preconditions.checkState(firstChunkStartsAt == startOffset);
         segmentMetadata.setFirstChunk(currentChunkName);

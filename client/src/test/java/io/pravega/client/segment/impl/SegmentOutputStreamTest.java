@@ -225,7 +225,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         assertTrue(callbackInvoked.get());
     }
 
-
     @Test(timeout = 10000)
     public void testConnectWithMultipleFailures() throws Exception {
         UUID cid = UUID.randomUUID();
@@ -731,7 +730,69 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         inOrder.verifyNoMoreInteractions();
     }
 
-    
+
+    @Test(timeout = 10000)
+    public void testConnectionFailureWithSegmentSealed() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
+                RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+
+        output.reconnect();
+        InOrder inOrder = Mockito.inOrder(connection);
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        // connection is setup .
+        ByteBuffer data = getBuffer("test");
+        CompletableFuture<Void> acked = new CompletableFuture<>();
+        Append append = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId());
+        CompletableFuture<Void> acked2 = new CompletableFuture<>();
+
+        Append append2 = new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId());
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                // simulate in a race with segment is sealed callback and a connection drop.
+                cf.getProcessor(uri).connectionDropped();
+                // wait until the writer reattempts to establish a connection to simulate the race.
+                verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+
+                // the connection object throws a throws a
+                throw new ConnectionFailedException();
+            }
+        }).when(connection).send(append);
+        // trigger the first write
+        output.write(PendingEvent.withoutHeader(null, data, acked));
+
+        AssertExtensions.assertBlocks(() -> {
+            // the below write will be blocked since the connection setup is not complete.
+            output.write(PendingEvent.withoutHeader(null, data, acked2));
+        }, () -> {
+            // simulate a race between segmentIsSealed response and appendSetup.
+            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "Segment is sealed", 1));
+            // invoke the segment is sealed to ensure
+            cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+            // ensure the reconnect is invoked inline.
+            output.reconnect();
+        });
+        CompletableFuture<Void> acked3 = new CompletableFuture<>();
+        output.write(PendingEvent.withoutHeader(null, data, acked3));
+        inOrder.verify(connection).send(append);
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        inOrder.verify(connection).send(any(Append.class));
+        // the setup append should not transmit the inflight events given that the segment is sealed.
+        inOrder.verifyNoMoreInteractions();
+        assertFalse(acked.isDone());
+        assertFalse(acked2.isDone());
+        assertFalse(acked3.isDone());
+    }
+
+
     /**
      * Verifies that if a exception is encountered while flushing data inside of close, the
      * connection is reestablished and the data is retransmitted before close returns.

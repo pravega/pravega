@@ -32,8 +32,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_BYTES;
-import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_LATENCY;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_INDEX_NUM_SCANNED;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_INDEX_SCAN_LATENCY;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYS_READ_INDEX_NUM_SCANNED;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYS_READ_INDEX_SCAN_LATENCY;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_LATENCY;
 
 @Slf4j
 class ReadOperation implements Callable<CompletableFuture<Integer>> {
@@ -177,23 +180,21 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         val chunkBufferOffset = new AtomicInteger(bufferOffset);
         // Note that technically it is possible that read actually request reads less than requested bytes, requiring additional reads on the same chunk.
         // Hence the for loop below.
-        return chunkedSegmentStorage.getChunkStorage().openRead(chunkName)
-                .thenComposeAsync(chunkHandle ->
-                    Futures.loop(
-                            () -> chunkBytesRemaining.get() > 0,
-                            () -> chunkedSegmentStorage.getChunkStorage().read(chunkHandle,
-                                    chunkFromOffset.get(),
-                                    chunkBytesRemaining.get(),
-                                    buffer,
-                                    chunkBufferOffset.get())
-                                    .thenAccept(n -> {
-                                        Preconditions.checkState(n != 0, "Zero bytes read chunk=%s, fromOffset=%d", chunkName, fromOffset);
-                                        chunkBytesRemaining.addAndGet(-n);
-                                        chunkFromOffset.addAndGet(n);
-                                        chunkBufferOffset.addAndGet(n);
-                                    }),
-                            chunkedSegmentStorage.getExecutor()
-                    ), chunkedSegmentStorage.getExecutor());
+        val chunkHandle = ChunkHandle.readHandle(chunkName);
+        return Futures.loop(
+            () -> chunkBytesRemaining.get() > 0,
+            () -> chunkedSegmentStorage.getChunkStorage().read(chunkHandle,
+                    chunkFromOffset.get(),
+                    chunkBytesRemaining.get(),
+                    buffer,
+                    chunkBufferOffset.get())
+                    .thenAccept(n -> {
+                        Preconditions.checkState(n != 0, "Zero bytes read chunk=%s, fromOffset=%d", chunkName, fromOffset);
+                        chunkBytesRemaining.addAndGet(-n);
+                        chunkFromOffset.addAndGet(n);
+                        chunkBufferOffset.addAndGet(n);
+                    }),
+            chunkedSegmentStorage.getExecutor());
     }
 
     private CompletableFuture<Void> findChunkForOffset(MetadataTransaction txn) {
@@ -250,7 +251,13 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                 chunkedSegmentStorage.getExecutor())
                 .thenAcceptAsync(v -> {
                     val elapsed = readIndexTimer.getElapsed();
-                    SLTS_READ_INDEX_SCAN_LATENCY.reportSuccessEvent(elapsed);
+                    if (segmentMetadata.isStorageSystemSegment()) {
+                        SLTS_SYS_READ_INDEX_SCAN_LATENCY.reportSuccessEvent(elapsed);
+                        SLTS_SYS_READ_INDEX_NUM_SCANNED.reportSuccessValue(cntScanned.get());
+                    } else {
+                        SLTS_READ_INDEX_SCAN_LATENCY.reportSuccessEvent(elapsed);
+                        SLTS_READ_INDEX_NUM_SCANNED.reportSuccessValue(cntScanned.get());
+                    }
                     log.debug("{} read - chunk lookup - op={}, segment={}, offset={}, scanned={}, latency={}.",
                             chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
                             handle.getSegmentName(), offset, cntScanned.get(), elapsed.toMillis());

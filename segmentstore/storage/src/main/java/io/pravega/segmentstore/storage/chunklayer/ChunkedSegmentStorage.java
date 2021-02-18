@@ -42,11 +42,14 @@ import java.util.Arrays;
 import java.util.ConcurrentModificationException;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
@@ -64,7 +67,7 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
  */
 @Slf4j
 @Beta
-public class ChunkedSegmentStorage implements Storage {
+public class ChunkedSegmentStorage implements Storage, StatsReporter {
     /**
      * Configuration options for this ChunkedSegmentStorage instance.
      */
@@ -138,16 +141,18 @@ public class ChunkedSegmentStorage implements Storage {
     @Getter
     private final GarbageCollector garbageCollector;
 
+    private final ScheduledFuture<?> reporter;
+
     /**
      * Creates a new instance of the ChunkedSegmentStorage class.
      *
      * @param containerId   container id.
      * @param chunkStorage  ChunkStorage instance.
      * @param metadataStore Metadata store.
-     * @param executor      An Executor for async operations.
+     * @param executor      A {@link ScheduledExecutorService} for async operations.
      * @param config        Configuration options for this ChunkedSegmentStorage instance.
      */
-    public ChunkedSegmentStorage(int containerId, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, Executor executor, ChunkedSegmentStorageConfig config) {
+    public ChunkedSegmentStorage(int containerId, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, ScheduledExecutorService executor, ChunkedSegmentStorageConfig config) {
         this.containerId = containerId;
         this.config = Preconditions.checkNotNull(config, "config");
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
@@ -164,8 +169,9 @@ public class ChunkedSegmentStorage implements Storage {
                 chunkStorage,
                 metadataStore,
                 config,
-                (ScheduledExecutorService) executor);
+                executor);
         this.closed = new AtomicBoolean(false);
+        this.reporter = executor.scheduleAtFixedRate(this::report, 1000, 1000, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -242,7 +248,7 @@ public class ChunkedSegmentStorage implements Storage {
         // Get the last chunk
         val lastChunkName = segmentMetadata.getLastChunk();
         final CompletableFuture<Boolean> f;
-        if (null != lastChunkName) {
+        if (shouldAppend() && null != lastChunkName) {
             f = txn.get(lastChunkName)
                     .thenComposeAsync(storageMetadata -> {
                         val lastChunk = (ChunkMetadata) storageMetadata;
@@ -260,7 +266,8 @@ public class ChunkedSegmentStorage implements Storage {
                                     // Adjust its length;
                                     if (chunkInfo.getLength() != lastChunk.getLength()) {
                                         Preconditions.checkState(chunkInfo.getLength() > lastChunk.getLength(),
-                                                "Length of last chunk on LTS must be greater than what is in metadata.");
+                                                "Length of last chunk on LTS must be greater than what is in metadata. Chunk=%s length=%s",
+                                                lastChunk, chunkInfo.getLength());
                                         // Whatever length you see right now is the final "sealed" length of the last chunk.
                                         lastChunk.setLength(chunkInfo.getLength());
                                         segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + lastChunk.getLength());
@@ -463,7 +470,7 @@ public class ChunkedSegmentStorage implements Storage {
     public CompletableFuture<Void> defrag(MetadataTransaction txn, SegmentMetadata segmentMetadata,
                                            String startChunkName,
                                            String lastChunkName,
-                                           ArrayList<String> chunksToDelete) {
+                                           List<String> chunksToDelete) {
         return new DefragmentOperation(this, txn, segmentMetadata, startChunkName, lastChunkName, chunksToDelete).call();
     }
 
@@ -642,10 +649,18 @@ public class ChunkedSegmentStorage implements Storage {
     }
 
     @Override
+    public void report() {
+        garbageCollector.report();
+        metadataStore.report();
+        chunkStorage.report();
+    }
+
+    @Override
     public void close() {
         close("metadataStore", this.metadataStore);
         close("garbageCollector", this.garbageCollector);
         close("chunkStorage", this.chunkStorage);
+        this.reporter.cancel(true);
         this.closed.set(true);
     }
 
