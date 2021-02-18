@@ -126,7 +126,7 @@ Note that if you are using the standalone deployment, Bookkeeper commands (and o
 available. For this reason, we encourage you to go a step further and deploy a full Pravega cluster to 
 explore the whole functionality of Pravega Admin CLI.
 
-## Pravega CLI on Kubernetes
+## Pravega Admin CLI on Kubernetes
 
 The Pravega Admin CLI needs to be executed from inside the Kubernetes cluster, as it requires to reach the services that form a Pravega cluster.
 
@@ -170,7 +170,7 @@ config list
     cli.controller.rest.uri=pravega-pravega-controller.default:10080
     cli.security.auth.credentials.username=admin
     pravegaservice.zk.connect.uri=zookeeper-client:2181
-    cli.controller.grpc.uri=tcp://pravega-pravega-controller.default:9090
+    cli.controller.grpc.uri=pravega-pravega-controller.default:9090
 ```
 
 
