@@ -18,7 +18,6 @@ package io.pravega.segmentstore.contracts;
 import com.google.common.base.Preconditions;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.AllArgsConstructor;
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -28,7 +27,6 @@ import lombok.Setter;
 @AllArgsConstructor
 @Getter
 @Setter
-@EqualsAndHashCode
 @NotThreadSafe
 public class AttributeUpdate {
     /**
@@ -63,6 +61,32 @@ public class AttributeUpdate {
         this(attributeId, updateType, value, Long.MIN_VALUE);
         Preconditions.checkArgument(updateType != AttributeUpdateType.ReplaceIfEquals,
                 "Cannot use this constructor with ReplaceIfEquals.");
+    }
+
+    /**
+     * Gets a value indicating whether this is a {@link DynamicAttributeUpdate}.
+     *
+     * @return True if dynamic, false otherwise.
+     */
+    public boolean isDynamic() {
+        return false;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof AttributeUpdate) {
+            AttributeUpdate other = (AttributeUpdate) obj;
+            return this.attributeId == other.attributeId
+                    && this.updateType == other.updateType
+                    && this.value == other.value
+                    && this.comparisonValue == other.comparisonValue;
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return this.attributeId.hashCode();
     }
 
     @Override
