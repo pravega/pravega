@@ -22,6 +22,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.shared.NameUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -109,7 +110,6 @@ public class ReaderGroupManagerImplTest {
         verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class),
                 any(Serializer.class), any(SynchronizerConfig.class));
         verify(synchronizer, times(1)).initialize(any(InitialUpdate.class));
-        verify(synchronizer, times(1)).updateStateUnconditionally(any(InitialUpdate.class));
     }
 
     @Test
@@ -134,7 +134,7 @@ public class ReaderGroupManagerImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    public void testDeleteReaderGroupWithMigration() {
+    public void testDeleteRGMigrationConfigOnController() {
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
@@ -147,13 +147,40 @@ public class ReaderGroupManagerImplTest {
 
         ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
 
-        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
+        when(controller.getReaderGroupConfig(anyString(), anyString()))
                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
         when(controller.deleteReaderGroup(anyString(), anyString(), any(UUID.class), anyLong()))
                 .thenReturn(CompletableFuture.completedFuture(true));
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
+        verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
         verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, expectedConfig.getReaderGroupId(), expectedConfig.getGeneration());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testDeleteRGMigrationNoConfigOnController() {
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2))
+                .put(createStream("s2"), createStreamCut("s2", 3)).build())
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .build();
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
+        when(synchronizer.getState()).thenReturn(state);
+        when(state.getConfig()).thenReturn(config);
+
+        ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+
+        when(controller.getReaderGroupConfig(anyString(), anyString()))
+                .thenThrow(new IllegalArgumentException("RG_NOT_FOUND"));
+        when(controller.deleteStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME)))
+                .thenReturn(CompletableFuture.completedFuture(true));
+        // Delete ReaderGroup
+        readerGroupManager.deleteReaderGroup(GROUP_NAME);
+        verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
+        verify(controller, times(1)).deleteStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME));
+        verify(controller, times(0)).deleteReaderGroup(SCOPE, GROUP_NAME, expectedConfig.getReaderGroupId(), expectedConfig.getGeneration());
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {

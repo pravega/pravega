@@ -29,6 +29,9 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.Exceptions;
+import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
 import java.io.IOException;
@@ -36,6 +39,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import lombok.Cleanup;
 import lombok.SneakyThrows;
@@ -44,6 +48,7 @@ import lombok.extern.slf4j.Slf4j;
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 import static io.pravega.common.concurrent.Futures.getThrowingException;
+import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 
 /**
  * A stream manager. Used to bootstrap the client.
@@ -85,12 +90,6 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, controllerConfig);
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
-        ReaderGroupConfig syncConfig = synchronizer.getState().getConfig();
-        if (ReaderGroupConfig.DEFAULT_UUID.equals(syncConfig.getReaderGroupId())
-        && ReaderGroupConfig.DEFAULT_GENERATION == syncConfig.getGeneration()) {
-            // migrate RG from version < 0.9 to 0.9+
-            synchronizer.updateStateUnconditionally(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
-        }
     }
 
     @Override
@@ -103,10 +102,26 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         if (ReaderGroupConfig.DEFAULT_UUID.equals(syncConfig.getReaderGroupId())
             && ReaderGroupConfig.DEFAULT_GENERATION == syncConfig.getGeneration()) {
             // migrate RG case
-            getAndHandleExceptions(controller.createReaderGroup(scope, groupName,
-                    ReaderGroupConfig.cloneConfig(syncConfig, UUID.randomUUID(), 0L))
-                    .thenCompose(conf -> controller.deleteReaderGroup(scope, groupName, conf.getReaderGroupId(),
-                            conf.getGeneration())), RuntimeException::new);
+            getAndHandleExceptions(
+                    Futures.exceptionallyComposeExpecting(controller.getReaderGroupConfig(scope, groupName)
+                    , ex -> Exceptions.unwrap(ex) instanceof IllegalArgumentException,
+                            () -> controller.sealStream(scope, getStreamForReaderGroup(groupName))
+                                            .thenCompose(b -> controller.deleteStream(scope,
+                                                    getStreamForReaderGroup(groupName)))
+                                            .exceptionally(e -> {
+                                                if (e instanceof InvalidStreamException) {
+                                                    return null;
+                                                } else {
+                                                    log.warn("Failed to delete stream", e);
+                                                }
+                                                throw Exceptions.sneakyThrow(e);
+                                            }).thenApply(b -> syncConfig))
+                    .thenCompose(conf -> {
+                        if (!ReaderGroupConfig.DEFAULT_UUID.equals(conf.getReaderGroupId())) {
+                            return controller.deleteReaderGroup(scope, groupName, conf.getReaderGroupId(), conf.getGeneration());
+                        }
+                        return CompletableFuture.completedFuture(null);
+                    }), RuntimeException::new);
         } else {
             // normal delete
             getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, syncConfig.getReaderGroupId(),
