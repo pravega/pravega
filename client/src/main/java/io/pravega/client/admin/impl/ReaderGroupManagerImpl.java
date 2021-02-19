@@ -29,9 +29,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.Exceptions;
-import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
 import java.io.IOException;
@@ -39,7 +37,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 import lombok.Cleanup;
 import lombok.SneakyThrows;
@@ -102,26 +99,18 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         if (ReaderGroupConfig.DEFAULT_UUID.equals(syncConfig.getReaderGroupId())
             && ReaderGroupConfig.DEFAULT_GENERATION == syncConfig.getGeneration()) {
             // migrate RG case
-            getAndHandleExceptions(
-                    Futures.exceptionallyComposeExpecting(controller.getReaderGroupConfig(scope, groupName)
-                    , ex -> Exceptions.unwrap(ex) instanceof IllegalArgumentException,
-                            () -> controller.sealStream(scope, getStreamForReaderGroup(groupName))
-                                            .thenCompose(b -> controller.deleteStream(scope,
-                                                    getStreamForReaderGroup(groupName)))
-                                            .exceptionally(e -> {
-                                                if (e instanceof InvalidStreamException) {
-                                                    return null;
-                                                } else {
-                                                    log.warn("Failed to delete stream", e);
-                                                }
-                                                throw Exceptions.sneakyThrow(e);
-                                            }).thenApply(b -> syncConfig))
-                    .thenCompose(conf -> {
-                        if (!ReaderGroupConfig.DEFAULT_UUID.equals(conf.getReaderGroupId())) {
-                            return controller.deleteReaderGroup(scope, groupName, conf.getReaderGroupId(), conf.getGeneration());
-                        }
-                        return CompletableFuture.completedFuture(null);
-                    }), RuntimeException::new);
+            try {
+                controller.getReaderGroupConfig(scope, groupName)
+                        .thenCompose(conf -> controller.deleteReaderGroup(scope, groupName,
+                                conf.getReaderGroupId(), conf.getGeneration())).join();
+            } catch (IllegalArgumentException ex) {
+                controller.sealStream(scope, getStreamForReaderGroup(groupName))
+                          .thenCompose(b -> controller.deleteStream(scope, getStreamForReaderGroup(groupName)))
+                          .exceptionally(e -> {
+                                log.warn("Failed to delete stream", e);
+                                throw Exceptions.sneakyThrow(e);
+                            }).join();
+            }
         } else {
             // normal delete
             getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, syncConfig.getReaderGroupId(),

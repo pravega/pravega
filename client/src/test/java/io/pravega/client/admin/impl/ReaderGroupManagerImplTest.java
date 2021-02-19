@@ -172,8 +172,10 @@ public class ReaderGroupManagerImplTest {
 
         ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
 
-        when(controller.getReaderGroupConfig(anyString(), anyString()))
-                .thenThrow(new IllegalArgumentException("RG_NOT_FOUND"));
+        when(controller.getReaderGroupConfig(SCOPE, GROUP_NAME))
+                .thenThrow(new IllegalArgumentException());
+        when(controller.sealStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME)))
+                .thenReturn(CompletableFuture.completedFuture(true));
         when(controller.deleteStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME)))
                 .thenReturn(CompletableFuture.completedFuture(true));
         // Delete ReaderGroup
