@@ -539,7 +539,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     // Closes the debug segment container instances in the given map after waiting for the metadata segment to be flushed to
     // the given storage.
     private void stopDebugSegmentContainersPostFlush(int containerCount, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap)
-    throws Exception {
+            throws Exception {
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int containerId = 0; containerId < containerCount; containerId++) {
             int finalContainerId = containerId;
@@ -584,7 +584,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  10. Starts segment store and controller.
      *  11. Let the reader read rest of the 10-N number of events.
      * @throws Exception    In case of an exception occurred while execution.
-    */
+     */
     @Test(timeout = 180000)
     public void testDurableDataLogFailRecoveryReadersPaused() throws Exception {
         int instanceId = 0;
@@ -704,7 +704,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      *  8. Starts segment store and controller.
      *  9. Read all events and verify that all events are below the bounds.
      * @throws Exception    In case of an exception occurred while execution.
-    */
+     */
     @Test(timeout = 180000)
     public void testDurableDataLogFailRecoveryWatermarking() throws Exception {
         int instanceId = 0;
@@ -727,20 +727,15 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         @Cleanup
         ClientRunner clientRunner = new ClientRunner(pravegaRunner.controllerRunner);
 
-        // Create two writers
+        // Create a writer
         @Cleanup
-        TransactionalEventStreamWriter<Long> writer1 = clientRunner.clientFactory
+        TransactionalEventStreamWriter<Long> writer = clientRunner.clientFactory
                 .createTransactionalEventWriter("writer1", STREAM1, new JavaSerializer<>(),
-                        EventWriterConfig.builder().transactionTimeoutTime(TRANSACTION_TIMEOUT.toMillis()).build());
-        @Cleanup
-        TransactionalEventStreamWriter<Long> writer2 = clientRunner.clientFactory
-                .createTransactionalEventWriter("writer2", STREAM1, new JavaSerializer<>(),
                         EventWriterConfig.builder().transactionTimeoutTime(TRANSACTION_TIMEOUT.toMillis()).build());
 
         AtomicBoolean stopFlag = new AtomicBoolean(false);
         // write events
-        CompletableFuture<Void> writer1Future = writeTxEvents(writer1, stopFlag);
-        CompletableFuture<Void> writer2Future = writeTxEvents(writer2, stopFlag);
+        CompletableFuture<Void> writerFuture = writeTxEvents(writer, stopFlag);
 
         // scale the stream several times so that we get complex positions
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
@@ -748,7 +743,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         scale(pravegaRunner.controllerRunner.controller, streamObj, config);
 
         // get watermarks
-        LinkedBlockingQueue<Watermark> watermarks = getWatermarks(pravegaRunner, stopFlag, writer1Future, writer2Future);
+        LinkedBlockingQueue<Watermark> watermarks = getWatermarks(pravegaRunner, stopFlag, writerFuture);
 
         pravegaRunner.controllerRunner.close(); // Shut down the controller
 
@@ -820,8 +815,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Gets watermarks used while writing the events
      */
     private LinkedBlockingQueue<Watermark> getWatermarks(PravegaRunner pravegaRunner, AtomicBoolean stopFlag,
-                                                         CompletableFuture<Void> writer1Future, CompletableFuture<Void>
-                                                                 writer2Future) throws Exception {
+                                                         CompletableFuture<Void> writerFuture) throws Exception {
         @Cleanup
         SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(SCOPE,
                 ClientConfig.builder().controllerURI(pravegaRunner.controllerRunner.controllerURI).build());
@@ -834,8 +828,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
         stopFlag.set(true);
         fetchWaterMarksFuture.join();
-        writer1Future.join();
-        writer2Future.join();
+        writerFuture.join();
         return watermarks;
     }
 
@@ -885,7 +878,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
      * Adds water marks to the watermarks queue.
      */
     private CompletableFuture<Void> fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks,
-                                 AtomicBoolean stop) {
+                                                    AtomicBoolean stop) {
         AtomicReference<Revision> revision = new AtomicReference<>(watermarkReader.fetchOldestRevision());
         return Futures.loop(() -> !stop.get(), () -> Futures.delayedTask(() -> {
             if (stop.get()) {
@@ -959,12 +952,13 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     // Reads the given number of events using the given reader and returns its position
     private Position readNEvents(EventStreamReader<String> reader, int num) {
         Position position = null;
+        EventRead<String> eventRead = null;
         for (int q = 0; q < num;) {
-            EventRead<String> eventRead = reader.readNextEvent(READ_TIMEOUT.toMillis());
+            eventRead = reader.readNextEvent(READ_TIMEOUT.toMillis());
             Assert.assertEquals("Event written and read back don't match", EVENT, eventRead.getEvent());
             q++;
-            position = eventRead.getPosition();
         }
+        position = eventRead.getPosition();
         return position;
     }
 
@@ -988,7 +982,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
                 new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
         for (int i = 0; i < TOTAL_NUM_EVENTS;) {
-            writer.writeEvent("", EVENT).join();
+            writer.writeEvent("", EVENT);
             i++;
         }
         writer.flush();
@@ -1006,7 +1000,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         for (int i = 0; i < TOTAL_NUM_EVENTS; i++) {
             transaction.writeEvent("0", EVENT);
         }
-        transaction.flush();
         transaction.commit();
         txnWriter.close();
     }
