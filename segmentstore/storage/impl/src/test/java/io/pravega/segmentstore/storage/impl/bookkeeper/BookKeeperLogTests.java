@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 import io.pravega.common.ObjectClosedException;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CompositeByteArraySegment;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -245,7 +246,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
             try {
                 // Suspend a bookie (this will trigger write errors).
-                stopFirstBookie();
+                suspendFirstBookie();
 
                 // Issue appends in parallel, without waiting for them.
                 int writeCount = getWriteCount();
@@ -256,7 +257,9 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 }
             } finally {
                 // Resume the bookie with the appends still in flight.
-                restartFirstBookie();
+                resumeFirstBookie();
+                AssertExtensions.assertThrows("Bookies should be running, but they aren't",
+                        BookKeeperLogTests::restartFirstBookie, ex -> ex instanceof IllegalStateException);
             }
 
             // Wait for all writes to complete, then reassemble the data in the order set by LogAddress.
@@ -308,6 +311,10 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                                 }
                             });
                 }
+                AssertExtensions.assertThrows("Bookies shouldn't be running, but they are",
+                        BookKeeperLogTests::suspendFirstBookie, ex -> ex instanceof IllegalStateException);
+                AssertExtensions.assertThrows("Bookies shouldn't be running, but they are",
+                        BookKeeperLogTests::resumeFirstBookie, ex -> ex instanceof IllegalStateException);
             } finally {
                 // Don't forget to resume the bookie, but only AFTER we are done testing.
                 restartFirstBookie();
@@ -706,6 +713,34 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         checkLogReadAfterReconciliation(2);
     }
 
+    @Test
+    public void testBookkeeperClientReCreation() {
+        // Set a timer with a longer period than the inspection period to allow client re-creation.
+        factory.get().setLastBookkeeperClientReset(new OldTimer());
+        BookKeeper oldBookkeeperClient = factory.get().getBookKeeperClient();
+        // Create a log the first time.
+        Assert.assertNull(factory.get().getLogInitializationTracker().get(0));
+        factory.get().createDebugLogWrapper(0);
+        // The first time we create the log the Bookkeeper client should be the same and the record for this log should
+        // be initialized.
+        Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
+        Assert.assertNotNull(factory.get().getLogInitializationTracker().get(0));
+        // From this point onwards, the second attempt to create the same log within the inspection period should lead
+        // to a Bookkeeper client recreation.
+        factory.get().createDebugLogWrapper(0);
+        Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
+        factory.get().createDebugLogWrapper(0);
+        Assert.assertNotEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
+        // Get a reference to the new Bookkeeper client.
+        oldBookkeeperClient = factory.get().getBookKeeperClient();
+        // The timer for this log should have been updated, so even if there are more initialization attempts, they should
+        // not lead to a new Bookkeeper client re-creation until the inspection period expires.
+        factory.get().createDebugLogWrapper(0);
+        Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
+        factory.get().createDebugLogWrapper(0);
+        Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
+    }
+
     private void checkLogReadAfterReconciliation(int expectedLedgerCount) throws Exception {
         val newLog = (BookKeeperLog) createDurableDataLog();
         newLog.enable();
@@ -729,6 +764,14 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
     private void stopFirstBookie() {
         bkService.get().stopBookie(0);
+    }
+
+    private static void suspendFirstBookie() {
+        BK_SERVICE.get().suspendBookie(0);
+    }
+
+    private static void resumeFirstBookie() {
+        BK_SERVICE.get().resumeBookie(0);
     }
 
     @SneakyThrows
@@ -841,6 +884,13 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 throw new KeeperException.BadVersionException();
             }
             return result;
+        }
+    }
+
+    static class OldTimer extends Timer {
+        @Override
+        public long getElapsedNanos() {
+            return Long.MAX_VALUE;
         }
     }
 

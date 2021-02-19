@@ -27,7 +27,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequest
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -61,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -97,7 +96,7 @@ public abstract class ControllerEventProcessorTest {
 
     @Before
     public void setUp() throws Exception {
-        executor = Executors.newScheduledThreadPool(10);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
 
@@ -261,7 +260,7 @@ public abstract class ControllerEventProcessorTest {
         // higher epoch --> no transactions can exist on higher epoch. nothing to do. ignore.
         List<VersionedTransactionData> txnDataList1 = createAndCommitTransactions(3);
         int epoch = txnDataList1.get(0).getEpoch();
-        streamStore.startCommitTransactions(SCOPE, STREAM, null, executor).join();
+        streamStore.startCommitTransactions(SCOPE, STREAM, 100, null, executor).join();
 
         List<VersionedTransactionData> txnDataList2 = createAndCommitTransactions(3);
 
@@ -287,14 +286,14 @@ public abstract class ControllerEventProcessorTest {
     public void testCommitAndStreamProcessorFairness() {
         List<VersionedTransactionData> txnDataList1 = createAndCommitTransactions(3);
         int epoch = txnDataList1.get(0).getEpoch();
-        streamStore.startCommitTransactions(SCOPE, STREAM, null, executor).join();
+        streamStore.startCommitTransactions(SCOPE, STREAM, 100, null, executor).join();
 
         EventStreamWriterMock<ControllerEvent> requestEventWriter = new EventStreamWriterMock<>();
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
-                null, null, null, null, streamStore, executor);
+                null, null, null, null, null, null, null, streamStore, executor);
 
         // set some processor name so that the processing gets postponed
         streamStore.createWaitingRequestIfAbsent(SCOPE, STREAM, "test", null, executor).join();

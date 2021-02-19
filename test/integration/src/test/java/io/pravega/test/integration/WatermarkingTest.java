@@ -53,6 +53,7 @@ import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.time.Duration;
@@ -62,9 +63,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -87,7 +86,7 @@ import static org.junit.Assert.assertTrue;
  * Collection of tests to validate controller bootstrap sequence.
  */
 @Slf4j
-public class WatermarkingTest {
+public class WatermarkingTest extends ThreadPooledTestSuite {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final int servicePort = TestUtils.getAvailableListenPort();
@@ -98,8 +97,11 @@ public class WatermarkingTest {
     private ServiceBuilder serviceBuilder;
     private StreamSegmentStore store;
     private TableStore tableStore;
-    private ScheduledExecutorService executorService;
     private AtomicLong timer = new AtomicLong();
+
+    protected int getThreadPoolSize() {
+        return 5;
+    }
 
     @Before
     public void setup() throws Exception {
@@ -122,7 +124,6 @@ public class WatermarkingTest {
                 controllerPort, serviceHost, servicePort, containerCount);
 
         controllerWrapper.awaitRunning();
-        executorService = Executors.newScheduledThreadPool(5);
         timer.set(0);
     }
 
@@ -140,7 +141,6 @@ public class WatermarkingTest {
         if (zkTestServer != null) {
             zkTestServer.close();
         }
-        executorService.shutdown();
     }
 
     @Test(timeout = 120000)
@@ -151,6 +151,7 @@ public class WatermarkingTest {
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
 
         URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
+        @Cleanup
         StreamManager streamManager = StreamManager.create(controllerUri);
         streamManager.createScope(scope);
         streamManager.createStream(scope, stream, config);
@@ -186,6 +187,7 @@ public class WatermarkingTest {
                 connectionFactory);
 
         String markStream = NameUtils.getMarkStreamForStream(stream);
+        @Cleanup
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
                 new WatermarkSerializer(),
                 SynchronizerConfig.builder().build());
@@ -274,6 +276,7 @@ public class WatermarkingTest {
             StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
 
             URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
+            @Cleanup
             StreamManager streamManager = StreamManager.create(controllerUri);
             streamManager.createScope(scope);
             streamManager.createStream(scope, stream, config);
@@ -295,6 +298,7 @@ public class WatermarkingTest {
             SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
 
             String markStream = NameUtils.getMarkStreamForStream(stream);
+            @Cleanup
             RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
                     new WatermarkSerializer(),
                     SynchronizerConfig.builder().build());
@@ -320,6 +324,7 @@ public class WatermarkingTest {
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
 
         URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
+        @Cleanup
         StreamManager streamManager = StreamManager.create(controllerUri);
         streamManager.createScope(scope);
         streamManager.createStream(scope, stream, config);
@@ -357,6 +362,7 @@ public class WatermarkingTest {
                 connectionFactory);
 
         String markStream = NameUtils.getMarkStreamForStream(stream);
+        @Cleanup
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
                 new WatermarkSerializer(),
                 SynchronizerConfig.builder().build());
@@ -459,6 +465,7 @@ public class WatermarkingTest {
         SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
 
         String markStream = NameUtils.getMarkStreamForStream(streamName);
+        @Cleanup
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
                 new WatermarkSerializer(),
                 SynchronizerConfig.builder().build());
@@ -519,7 +526,7 @@ public class WatermarkingTest {
             Map<Double, Double> map = new HashMap<>();
             map.put(rangeLow, rangeMid);
             map.put(rangeMid, rangeHigh);
-            controller.scaleStream(streamObj, Collections.singletonList(segmentNumber), map, executorService).getFuture().join();
+            controller.scaleStream(streamObj, Collections.singletonList(segmentNumber), map, executorService()).getFuture().join();
         }
     }
 
@@ -529,12 +536,12 @@ public class WatermarkingTest {
         return Futures.loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
             currentTime.set(timer.incrementAndGet());
             return writer.writeEvent(count.toString(), currentTime.get())
-                         .thenAccept(v -> {
-                             if (count.incrementAndGet() % 10 == 0) {
-                                 writer.noteTime(currentTime.get());
-                             }
-                         });
-        }, 1000L, executorService), executorService);
+                    .thenAccept(v -> {
+                        if (count.incrementAndGet() % 10 == 0) {
+                            writer.noteTime(currentTime.get());
+                        }
+                    });
+        }, 1000L, executorService()), executorService());
     }
 
     private CompletableFuture<Void> writeTxEvents(TransactionalEventStreamWriter<Long> writer, AtomicBoolean stopFlag) {
@@ -553,7 +560,7 @@ public class WatermarkingTest {
                     throw new CompletionException(e);
                 }
             });
-        }, 1000L, executorService), executorService);
+        }, 1000L, executorService()), executorService());
     }
 
     private void fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks, AtomicBoolean stop) throws Exception {
@@ -569,7 +576,7 @@ public class WatermarkingTest {
                 revision.set(next.getKey());
             }
             return null;
-        }, Duration.ofSeconds(10), executorService), executorService);
+        }, Duration.ofSeconds(10), executorService()), executorService());
     }
 
 }

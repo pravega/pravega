@@ -11,9 +11,12 @@ package io.pravega.controller.server.rpc.grpc.impl;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.auth.AuthPluginConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.Optional;
+import java.util.Properties;
+
 import lombok.Builder;
 import lombok.Data;
 
@@ -32,6 +35,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final String tlsKeyFile;
     private final String tokenSigningKey;
     private final Integer accessTokenTTLInSeconds;
+    private final boolean isRGWritesWithReadPermEnabled;
     private final String tlsTrustStore;
     private final boolean replyWithStackTraceOnError;
     private final boolean requestTracingEnabled;
@@ -40,7 +44,8 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     public GRPCServerConfigImpl(final int port, final String publishedRPCHost, final Integer publishedRPCPort,
                                 boolean authorizationEnabled, String userPasswordFile, boolean tlsEnabled,
                                 String tlsCertFile, String tlsKeyFile, String tokenSigningKey,
-                                Integer accessTokenTTLInSeconds, String tlsTrustStore,
+                                Integer accessTokenTTLInSeconds, boolean isRGWritesWithReadPermEnabled,
+                                String tlsTrustStore,
                                 boolean replyWithStackTraceOnError, boolean requestTracingEnabled) {
 
         Preconditions.checkArgument(port > 0, "Invalid port.");
@@ -67,6 +72,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.tlsTrustStore = tlsTrustStore;
         this.tokenSigningKey = tokenSigningKey;
         this.accessTokenTTLInSeconds = accessTokenTTLInSeconds;
+        this.isRGWritesWithReadPermEnabled = isRGWritesWithReadPermEnabled;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.requestTracingEnabled = requestTracingEnabled;
     }
@@ -92,6 +98,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
                 .append(String.format("tokenSigningKey is %s, ",
                         Strings.isNullOrEmpty(tokenSigningKey) ? "unspecified" : "specified"))
                 .append(String.format("accessTokenTTLInSeconds: %s, ", accessTokenTTLInSeconds))
+                .append(String.format("isRGWritesWithReadPermEnabled: %b, ", isRGWritesWithReadPermEnabled))
 
                 // TLS config
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))
@@ -108,5 +115,14 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
 
                 .append(")")
                 .toString();
+    }
+
+    @Override
+    public Properties toAuthHandlerProperties() {
+        Properties props = new Properties();
+        if (this.userPasswordFile != null) {
+            props.setProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE, this.userPasswordFile);
+        }
+        return props;
     }
 }

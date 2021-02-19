@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server;
 
+import com.google.common.annotations.Beta;
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.logs.MetadataUpdateException;
@@ -77,8 +79,34 @@ public interface SegmentContainer extends StreamSegmentStore, Container {
      * Gets a registered {@link SegmentContainerExtension} of the given type.
      *
      * @param extensionClass Class of the {@link SegmentContainerExtension}.
-     * @param <T>         Type of the {@link SegmentContainerExtension}.
+     * @param <T>            Type of the {@link SegmentContainerExtension}.
      * @return A registered {@link SegmentContainerExtension} of the requested type.
      */
     <T extends SegmentContainerExtension> T getExtension(Class<T> extensionClass);
+
+    /**
+     * Applies all outstanding operations from the DurableLog into the underlying Storage.
+     *
+     * After this method completes:
+     * - Any operation that was initiated on this {@link SegmentContainer} prior to invoking this method will be applied
+     * to Storage.
+     * - The effect of applying such operations (i.e., Table Segment indices) will be applied to Storage as well.
+     * - The in-memory state of any active Segments will be persisted in the Container's Metadata, which, in turn, will
+     * be persisted entirely in Storage.
+     *
+     * Non-guarantees:
+     * - Any Operations that were initiated after this method was invoked are not guaranteed to be persisted to Storage.
+     * - If this request is interrupted (due to a Container shutdown or system failure), the request may not have been
+     * fully executed and may require a reinvocation.
+     * - This method is provided to aid testing. Its goal is to guarantee the transfer of data to Storage after all external
+     * traffic to the {@link SegmentContainer} has subsided. It is not intended to be used for production environments
+     * and/or where continuous traffic is still expected.
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed successfully. If the
+     * operation failed, it will be completed with the appropriate exception.
+     */
+    @VisibleForTesting
+    @Beta
+    CompletableFuture<Void> flushToStorage(Duration timeout);
 }

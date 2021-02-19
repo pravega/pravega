@@ -305,7 +305,7 @@ public class SegmentHelperMock {
                         if (state.equals(IteratorStateImpl.EMPTY)) {
                             floor = 0L;
                         } else {
-                            floor = BitConverter.readLong(new ByteArraySegment(state.toBytes()), 0);
+                            floor = new ByteArraySegment(state.toBytes()).getLong(0);
                         }
                         AtomicLong token = new AtomicLong(floor);
                         List<TableSegmentKey> list = tablePos.entrySet().stream()
@@ -344,7 +344,7 @@ public class SegmentHelperMock {
                         if (state.equals(IteratorStateImpl.EMPTY)) {
                             floor = 0L;
                         } else {
-                            floor = BitConverter.readLong(new ByteArraySegment(state.toBytes()), 0);
+                            floor = new ByteArraySegment(state.toBytes()).getLong(0);
                         }
                         AtomicLong token = new AtomicLong(floor);
                         List<TableSegmentEntry> list = tablePos.entrySet().stream()

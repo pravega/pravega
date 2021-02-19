@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.common.io.filesystem.FileOperations;
 import io.pravega.common.security.JKSHelper;
 import io.pravega.common.security.ZKTLSUtils;
 import java.io.File;
@@ -29,7 +30,6 @@ import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
-import org.apache.commons.io.FileUtils;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.ZooDefs;
 
@@ -111,6 +111,34 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         log.info("Bookie {} is stopping.", bookieIndex);
         this.servers.set(bookieIndex, null);
         log.info("Bookie {} stopped.", bookieIndex);
+    }
+
+    /**
+     * Suspends processing for the BookieService with the given index.
+     *
+     * @param bookieIndex The index of the bookie to stop.
+     */
+    public void suspendBookie(int bookieIndex) {
+        Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
+        Preconditions.checkState(this.servers.get(0) != null, "Bookie does not exists.");
+        val bk = this.servers.get(bookieIndex);
+        log.info("Bookie {} is suspending processing.", bookieIndex);
+        bk.suspendProcessing();
+        log.info("Bookie {} suspended processing.", bookieIndex);
+    }
+
+    /**
+     * Resumes processing for the BookieService with the given index.
+     *
+     * @param bookieIndex The index of the bookie to stop.
+     */
+    public void resumeBookie(int bookieIndex) {
+        Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
+        Preconditions.checkState(this.servers.get(0) != null, "Bookie does not exists.");
+        val bk = this.servers.get(bookieIndex);
+        log.info("Bookie {} is resuming processing.", bookieIndex);
+        bk.resumeProcessing();
+        log.info("Bookie {} resumed processing.", bookieIndex);
     }
 
     /**
@@ -253,18 +281,9 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         }
     }
 
-    private void cleanupDirectories() throws IOException {
-        cleanupDirectories(this.ledgerDirs);
-        cleanupDirectories(this.journalDirs);
-    }
-
-    private void cleanupDirectories(HashMap<?, File> toDelete) throws IOException {
-        for (File dir : toDelete.values()) {
-            log.info("Cleaning up " + dir);
-            FileUtils.deleteDirectory(dir);
-        }
-
-        toDelete.clear();
+    private void cleanupDirectories() {
+        FileOperations.cleanupDirectories(this.ledgerDirs);
+        FileOperations.cleanupDirectories(this.journalDirs);
     }
 
     //endregion

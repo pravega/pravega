@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.control.impl.ModelHelper;
@@ -501,6 +502,7 @@ public class SegmentHelper implements AutoCloseable {
      * @param state             Last known state of the iterator.
      * @param delegationToken   The token to be presented to the Segment Store.
      * @param clientRequestId   Request id.
+
      * @return A CompletableFuture that will return the next set of {@link TableSegmentKey}s returned from the SegmentStore.
      */
     public CompletableFuture<IteratorItem<TableSegmentKey>> readTableKeys(final String tableName,
@@ -508,7 +510,6 @@ public class SegmentHelper implements AutoCloseable {
                                                                           final IteratorStateImpl state,
                                                                           final String delegationToken,
                                                                           final long clientRequestId) {
-
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
@@ -611,7 +612,7 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     private void closeConnection(Reply reply, RawClient client) {
-        log.info("Closing connection as a result of receiving: {}", reply);
+        log.debug("Closing connection as a result of receiving: {}", reply);
         if (client != null) {
             try {
                 client.close();
@@ -623,23 +624,31 @@ public class SegmentHelper implements AutoCloseable {
 
     private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long requestId, T request) {
         CompletableFuture<Reply> future = Futures.futureWithTimeout(() -> connection.sendRequest(requestId, request), timeout.get(), "request", executorService);
-        return future
-                .exceptionally(e -> {
-                    Throwable unwrap = Exceptions.unwrap(e);
-                    if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
-                        log.warn(requestId, "Connection dropped");
-                        throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
-                    } else if (unwrap instanceof AuthenticationException) {
-                        log.warn(requestId, "Authentication Exception");
-                        throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
-                    } else if (unwrap instanceof TimeoutException) {
-                        log.warn(requestId, "Request timedout.");
-                        throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
-                    } else {
-                        log.error(requestId, "Request failed", e);
-                        throw new CompletionException(e);
-                    }
-                });
+        return future.exceptionally(e -> {
+            processAndRethrowException(requestId, request, e);
+            return null;
+        });
+    }
+
+    @VisibleForTesting
+    <T extends Request & WireCommand> void processAndRethrowException(long requestId, T request, Throwable e) {
+        Throwable unwrap = Exceptions.unwrap(e);
+        if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
+            log.warn(requestId, "Connection dropped");
+            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+        } else if (unwrap instanceof AuthenticationException) {
+            log.warn(requestId, "Authentication Exception");
+            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+        } else if (unwrap instanceof TokenExpiredException) {
+            log.warn(requestId, "Token expired");
+            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+        } else if (unwrap instanceof TimeoutException) {
+            log.warn(requestId, "Request timed out.");
+            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+        } else {
+            log.error(requestId, "Request failed", e);
+            throw new CompletionException(e);
+        }
     }
 
     /**
@@ -662,10 +671,10 @@ public class SegmentHelper implements AutoCloseable {
         Set<Class<? extends Reply>> expectedReplies = EXPECTED_SUCCESS_REPLIES.get(requestType);
         Set<Class<? extends Reply>> expectedFailingReplies = EXPECTED_FAILING_REPLIES.get(requestType);
         if (expectedReplies != null && expectedReplies.contains(reply.getClass())) {
-            log.info(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
+            log.debug(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
                     reply.getClass().getSimpleName(), reply.getRequestId());
         } else if (expectedFailingReplies != null && expectedFailingReplies.contains(reply.getClass())) {
-            log.info(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
+            log.debug(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
                     reply.getClass().getSimpleName(), reply.getRequestId());
             if (reply instanceof WireCommands.NoSuchSegment) {
                 throw new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist);
@@ -677,8 +686,9 @@ public class SegmentHelper implements AutoCloseable {
                 throw new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyBadVersion);
             }
         } else if (reply instanceof WireCommands.AuthTokenCheckFailed) {
-            log.warn(callerRequestId, "Auth Check Failed {} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
-                    reply.getClass().getSimpleName(), reply.getRequestId());
+            log.warn(callerRequestId, "Auth Check Failed {} {} {} {} with error code {}.",
+                    requestType.getSimpleName(), qualifiedStreamSegmentName, reply.getClass().getSimpleName(),
+                    reply.getRequestId(), ((WireCommands.AuthTokenCheckFailed) reply).getErrorCode());
             throw new WireCommandFailedException(new AuthenticationException(reply.toString()),
                     type, WireCommandFailedException.Reason.AuthFailed);
         } else if (reply instanceof WireCommands.WrongHost) {

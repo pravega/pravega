@@ -16,7 +16,6 @@ plugins.withId('java') {
     apply plugin: 'maven'
 
     compileJava {
-        
         options.compilerArgs.addAll([
                 "-Xlint:deprecation",
                 "-Xlint:divzero",
@@ -25,8 +24,15 @@ plugins.withId('java') {
                 "-Xlint:finally",
                 "-Xlint:overrides",
                 "-Xlint:path",
-                "-Werror"
+                "-Werror",
+                "-Xlint:unchecked",
+                "--release",
+                getDefaultJavaVersion()
         ])
+    }
+
+    compileTestJava {
+        options.compilerArgs.addAll(["--release",  getDefaultJavaVersion()])
     }
 
     archivesBaseName = "pravega" + project.path.replace(':', '-')
@@ -77,12 +83,13 @@ plugins.withId('java') {
 
     tasks.withType(Test) {
         systemProperties 'logback.configurationFile' : new File(buildDir,'resources/test/logback.xml').absolutePath
+        systemProperties 'ThreadLeakDetectionLevel' : 'Aggressive' // Catch all ThreadPool Leaks and stop the build if any are found.
         testLogging.showStandardStreams = false
         testLogging.exceptionFormat = "FULL"
         testLogging.showCauses = true
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
-        testLogging.events = ["PASSED", "FAILED"]
+        testLogging.events = ["FAILED"]
         maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 4
         minHeapSize = "128m"
         maxHeapSize = "512m"
@@ -90,6 +97,25 @@ plugins.withId('java') {
         jvmArgsCopy.add("-XX:MaxDirectMemorySize=4g")
         jvmArgsCopy.add("-XX:+HeapDumpOnOutOfMemoryError")
         jvmArgs = jvmArgsCopy
+        def outputCache = new LinkedList<String>()
+
+        beforeTest { descriptor ->
+            logger.lifecycle("\nRunning test: " + descriptor.getClassName() + " > " + descriptor.getDisplayName());
+            outputCache.clear()
+        }
+
+        onOutput { descriptor, event ->
+            outputCache.add(event.getMessage())
+            while (outputCache.size() > 300) outputCache.remove()
+        }
+
+        afterTest { descriptor, result ->
+            if (result.resultType == TestResult.ResultType.FAILURE && outputCache.size() > 0) {
+                println()
+                println("Output of ${descriptor.getClassName()}.${descriptor.getDisplayName()} (Last 300 lines):")
+                outputCache.each { print(" > $it") }
+            }
+        }
     }
 
     dependencies {
@@ -99,3 +125,4 @@ plugins.withId('java') {
         testCompile "org.mockito:mockito-core:${mockitoVersion}"
     }
 }
+

@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -155,7 +154,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     }
 
     @Override
-    public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+    public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.connector
@@ -262,10 +261,10 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * @param lastIndexedOffset The last offset in the Table Segment that was indexed.
      */
     private void flushComplete(long lastIndexedOffset) {
+        log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
         this.aggregator.reset();
         this.aggregator.setLastIndexedOffset(lastIndexedOffset);
         this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset());
-        log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
     }
 
     /**
@@ -282,7 +281,8 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private CompletableFuture<TableWriterFlushResult> flushOnce(DirectSegmentAccess segment, TimeoutTimer timer) {
         // Index all the keys in the segment range pointed to by the aggregator.
         KeyUpdateCollection keyUpdates = readKeysFromSegment(segment, this.aggregator.getFirstOffset(), this.aggregator.getLastOffset(), timer);
-        log.debug("{}: Flush.ReadFromSegment {} UpdateKeys(s).", this.traceObjectId, keyUpdates.getUpdates().size());
+        log.debug("{}: Flush.ReadFromSegment KeyCount={}, UpdateCount={}, HighestCopiedOffset={}, LastIndexedOffset={}.", this.traceObjectId,
+                keyUpdates.getUpdates().size(), keyUpdates.getTotalUpdateCount(), keyUpdates.getHighestCopiedOffset(), keyUpdates.getLastIndexedOffset());
 
         // Group keys by their assigned TableBucket (whether existing or not), then fetch all existing keys
         // for each such bucket and finally (reindex) update the bucket.
@@ -300,7 +300,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                                                     this.executor);
                                 }, this.executor),
                         this.executor)
-                .thenApply(ignored -> new TableWriterFlushResult(keyUpdates.getLastIndexedOffset(), keyUpdates.getHighestCopiedOffset()));
+                .thenApply(updateCount -> new TableWriterFlushResult(keyUpdates.getLastIndexedOffset(), keyUpdates.getHighestCopiedOffset(), updateCount));
     }
 
     @SneakyThrows(DataCorruptionException.class)
@@ -541,10 +541,15 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         }
     }
 
-    @RequiredArgsConstructor
     private static class TableWriterFlushResult extends WriterFlushResult {
         final long lastIndexedOffset;
         final long highestCopiedOffset;
+
+        TableWriterFlushResult(long lastIndexedOffset, long highestCopiedOffset, int updateCount) {
+            this.lastIndexedOffset = lastIndexedOffset;
+            this.highestCopiedOffset = highestCopiedOffset;
+            withFlushedAttributes(updateCount);
+        }
     }
 
     //endregion

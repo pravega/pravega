@@ -22,6 +22,7 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Iterator;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
@@ -74,6 +75,21 @@ public class TruncateableArray implements ArrayView {
         }
 
         throw new AssertionError("unable to locate an inner array based on given input");
+    }
+
+    @Override
+    public short getShort(int index) {
+        throw new UnsupportedOperationException("getShort() not supported.");
+    }
+
+    @Override
+    public int getInt(int index) {
+        throw new UnsupportedOperationException("getInt() not supported.");
+    }
+
+    @Override
+    public long getLong(int index) {
+        throw new UnsupportedOperationException("getLong() not supported.");
     }
 
     @Override
@@ -141,6 +157,11 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
+    public ByteBuffer asByteBuffer() {
+        throw new UnsupportedOperationException("asByteBuffer() not supported.");
+    }
+
+    @Override
     public void copyTo(OutputStream target) {
         throw new UnsupportedOperationException("copyTo() not supported.");
     }
@@ -158,6 +179,11 @@ public class TruncateableArray implements ArrayView {
     @Override
     public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT {
         throw new UnsupportedOperationException("collect() not supported.");
+    }
+
+    @Override
+    public Iterator<ByteBuffer> iterateBuffers() {
+        throw new UnsupportedOperationException("iterateBuffers() not supported.");
     }
 
     @Override
@@ -233,6 +259,26 @@ public class TruncateableArray implements ArrayView {
             assert this.firstArrayOffset == 0 : "first entry offset not reset when no entries exist";
             assert this.length == 0 : "non-zero length when no entries exist";
         }
+    }
+
+    @Override
+    public void set(int index, byte value) {
+        throw new UnsupportedOperationException("set() not supported.");
+    }
+
+    @Override
+    public void setShort(int index, short value) {
+        throw new UnsupportedOperationException("setShort() not supported.");
+    }
+
+    @Override
+    public void setInt(int index, int value) {
+        throw new UnsupportedOperationException("setInt() not supported.");
+    }
+
+    @Override
+    public void setLong(int index, long value) {
+        throw new UnsupportedOperationException("setLong() not supported.");
     }
 
     //endregion

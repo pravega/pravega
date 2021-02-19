@@ -11,7 +11,7 @@ package io.pravega.storage.hdfs;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -97,7 +97,8 @@ public class HDFSStorageTest extends StorageTestBase {
         final long epochCount = 30;
         final int writeSize = 1000;
         final String segmentName = "Segment";
-        val writtenData = new EnhancedByteArrayOutputStream();
+        @Cleanup
+        val writtenData = new ByteBufferOutputStream();
         final Random rnd = new Random(0);
         int currentEpoch = 1;
 
@@ -152,7 +153,7 @@ public class HDFSStorageTest extends StorageTestBase {
             }
         }
 
-        byte[] expectedData = writtenData.toByteArray();
+        byte[] expectedData = writtenData.getData().getCopy();
         byte[] readData = new byte[expectedData.length];
         @Cleanup
         val readStorage = createStorage();

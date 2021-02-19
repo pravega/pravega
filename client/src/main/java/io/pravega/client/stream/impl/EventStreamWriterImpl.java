@@ -23,7 +23,9 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.ByteBufferUtils;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -86,7 +88,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         this.stream = Preconditions.checkNotNull(stream);
         this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
-        this.tokenProvider = DelegationTokenProviderFactory.create(this.controller, this.stream.getScope(), this.stream.getStreamName());
+        this.tokenProvider = DelegationTokenProviderFactory.create(this.controller, this.stream.getScope(),
+                this.stream.getStreamName(), AccessOperation.WRITE);
         this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config, tokenProvider);
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
@@ -117,19 +120,40 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         ByteBuffer data = serializer.serialize(event);
         CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         synchronized (writeFlushLock) {
-            synchronized (writeSealLock) {                
-                SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
-                while (segmentWriter == null) {
-                    log.info("Don't have a writer for segment: {}", selector.getSegmentForEvent(routingKey));
-                    handleMissingLog();
-                    segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
-                }
+            synchronized (writeSealLock) {
+                SegmentOutputStream segmentWriter = getSegmentWriter(routingKey);
                 segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
             }
         }
         return ackFuture;
     }
-    
+
+    @Override
+    public CompletableFuture<Void> writeEvents(String routingKey, List<Type> events) {
+        Preconditions.checkNotNull(routingKey);
+        Preconditions.checkNotNull(events);
+        Exceptions.checkNotClosed(closed.get(), this);
+        List<ByteBuffer> data = events.stream().map(serializer::serialize).collect(Collectors.toList());
+        CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
+        synchronized (writeFlushLock) {
+            synchronized (writeSealLock) {
+                SegmentOutputStream segmentWriter = getSegmentWriter(routingKey);
+                segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
+            }
+        }
+        return ackFuture;
+    }
+
+    private SegmentOutputStream getSegmentWriter(String routingKey) {
+        SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
+        while (segmentWriter == null) {
+            log.info("Don't have a writer for segment: {}", selector.getSegmentForEvent(routingKey));
+            handleMissingLog();
+            segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
+        }
+        return segmentWriter;
+    }
+
     @GuardedBy("writeSealLock")
     private void handleMissingLog() {
         List<PendingEvent> toResend = selector.refreshSegmentEventWriters(segmentSealedCallBack);
@@ -174,6 +198,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                                      // Segment sealed exception observed during a flush. Re-run flush on all the
                                      // available writers.
                                      log.info("Flush on segment {} failed due to {}, it will be retried.", writer.getSegmentName(), e.getMessage());
+                                 } catch (RetriesExhaustedException e1) {
+                                     log.warn("Flush on segment {} failed after all retries", writer.getSegmentName(), e1);
                                  }
                              }
                              toSeal = sealedSegmentQueue.poll();

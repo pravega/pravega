@@ -17,7 +17,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -34,7 +34,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
@@ -131,7 +130,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         zkClient2.start();
 
         @Cleanup("shutdownNow")
-        ScheduledExecutorService executor2 = Executors.newScheduledThreadPool(10);
+        ScheduledExecutorService executor2 = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
         String hostId = UUID.randomUUID().toString();
         
         BucketStore bucketStore2 = StreamStoreFactory.createZKBucketStore(ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1), zkClient2, executor2);
@@ -142,7 +141,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, bucketStore2, 
-                taskMetadataStore, segmentHelper, executor2, hostId, GrpcAuthHelper.getDisabledAuthHelper(), 
+                taskMetadataStore, segmentHelper, executor2, hostId, GrpcAuthHelper.getDisabledAuthHelper(),
                 requestTracker);
 
         String scope = "scope1";

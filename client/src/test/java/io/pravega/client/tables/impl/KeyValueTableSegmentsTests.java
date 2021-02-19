@@ -36,7 +36,7 @@ public class KeyValueTableSegmentsTests {
     public void testGetSegmentForKeyByteBuf() {
         val testCount = 10000;
         val segmentsWithRange = createSegmentMap();
-        val s = new KeyValueTableSegments(segmentsWithRange, null);
+        val s = new KeyValueTableSegments(segmentsWithRange);
         Assert.assertEquals(segmentsWithRange.size(), s.getSegmentCount());
         val hits = new HashMap<Segment, Double>();
         val rnd = new Random(0);
@@ -61,8 +61,8 @@ public class KeyValueTableSegmentsTests {
 
     @Test
     public void testEquals() {
-        val s1 = new KeyValueTableSegments(createSegmentMap(), null);
-        val s2 = new KeyValueTableSegments(createSegmentMap(), null);
+        val s1 = new KeyValueTableSegments(createSegmentMap());
+        val s2 = new KeyValueTableSegments(createSegmentMap());
         Assert.assertEquals(s1.hashCode(), s2.hashCode());
         Assert.assertEquals(s1, s2);
     }

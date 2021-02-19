@@ -45,6 +45,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.segment.impl.SegmentAttribute.NULL_VALUE;
 import static io.pravega.client.segment.impl.SegmentAttribute.RevisionStreamClientMark;
+import static java.lang.String.format;
 
 @Slf4j
 public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> {
@@ -133,7 +134,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             SegmentInfo segmentInfo = meta.getSegmentInfo();
             long endOffset = segmentInfo.getWriteOffset();
             if (startOffset < segmentInfo.getStartingOffset()) {
-                throw new TruncatedDataException("Data at the supplied revision has been truncated.");
+                throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", start, segmentInfo));
             }
             log.debug("Creating iterator from {} until {} for segment {} ", startOffset, endOffset, segment);
             return new StreamIterator(startOffset, endOffset);
@@ -183,7 +184,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 } catch (EndOfSegmentException e) {
                     throw new IllegalStateException("SegmentInputStream: " + in + " shrunk from its original length: " + endOffset);
                 } catch (SegmentTruncatedException e) {
-                    throw new TruncatedDataException(e);
+                    throw new TruncatedDataException(format("Offset at which truncation observed is {%s}", in.getOffset()), e);
                 }
                 offset.set(in.getOffset());
                 revision = new RevisionImpl(segment, offset.get(), 0);

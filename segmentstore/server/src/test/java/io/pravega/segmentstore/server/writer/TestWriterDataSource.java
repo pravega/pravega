@@ -12,17 +12,17 @@ package io.pravega.segmentstore.server.writer;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.logs.InMemoryLog;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -32,8 +32,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
+import java.util.Queue;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -60,7 +60,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //region Members
 
     private final UpdateableContainerMetadata metadata;
-    private final SequencedItemList<Operation> log;
+    private final InMemoryLog log;
     private final ScheduledExecutorService executor;
     private final DataSourceConfig config;
     @GuardedBy("lock")
@@ -72,10 +72,13 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @GuardedBy("lock")
     private CompletableFuture<Void> waitFullyAcked;
     @GuardedBy("lock")
+    private long ackSeqNo;
+    @GuardedBy("lock")
     private CompletableFuture<Void> addProcessed;
     private final AtomicLong lastAddedCheckpoint;
     private final AtomicBoolean ackEffective;
     private final AtomicBoolean closed;
+    private final AtomicLong lastAddedSeqNo;
     @GuardedBy("lock")
     private Consumer<Long> segmentMetadataRequested;
     @GuardedBy("lock")
@@ -116,8 +119,10 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         this.appendData = new HashMap<>();
         this.attributeRootPointers = new HashMap<>();
         this.attributeData = new HashMap<>();
-        this.log = new SequencedItemList<>();
+        this.log = new InMemoryLog();
         this.lastAddedCheckpoint = new AtomicLong(0);
+        this.lastAddedSeqNo = new AtomicLong(0);
+        this.ackSeqNo = 0;
         this.waitFullyAcked = null;
         this.ackEffective = new AtomicBoolean(true);
         this.closed = new AtomicBoolean(false);
@@ -171,10 +176,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             this.metadata.setValidTruncationPoint(operation.getSequenceNumber());
         }
 
-        if (!this.log.add(operation)) {
-            throw new IllegalStateException("Sequence numbers out of order.");
-        }
-
+        this.log.add(operation);
+        this.lastAddedSeqNo.set(operation.getSequenceNumber());
         notifyAddProcessed();
         return operation.getSequenceNumber();
     }
@@ -227,16 +230,16 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                 .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.runAsync(() -> {
                     if (this.ackEffective.get()) {
                         // ackEffective determines whether the ack operation has any effect or not.
-                        this.log.truncate(upToSequenceNumber);
                         this.metadata.removeTruncationMarkers(upToSequenceNumber);
                     }
 
                     // See if anyone is waiting for the DataSource to be emptied out; if so, notify them.
                     CompletableFuture<Void> callback = null;
                     synchronized (this.lock) {
-                        // We need to check both log size and last seq no (that's because of ackEffective that may not actually trim the log).
-                        Operation last = this.log.getLast();
-                        if (this.waitFullyAcked != null && (last == null || last.getSequenceNumber() <= upToSequenceNumber)) {
+                        this.ackSeqNo = upToSequenceNumber;
+
+                        // If someone is waiting for a full ack, check to see if we should notify them.
+                        if (this.waitFullyAcked != null && this.lastAddedSeqNo.get() > 0 && this.lastAddedSeqNo.get() <= this.ackSeqNo) {
                             callback = this.waitFullyAcked;
                             this.waitFullyAcked = null;
                         }
@@ -292,21 +295,22 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public CompletableFuture<Void> notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, Duration timeout) {
+    public CompletableFuture<Void> notifyAttributesPersisted(long segmentId, SegmentType segmentType, long rootPointer, long lastSequenceNumber, Duration timeout) {
         BiFunction<Long, Long, CompletableFuture<Boolean>> interceptor;
         synchronized (this.lock) {
             interceptor = this.notifyAttributesPersistedInterceptor;
         }
 
         if (interceptor == null) {
-            return CompletableFuture.runAsync(() -> notifyAttributesPersisted(segmentId, rootPointer, lastSequenceNumber, true), this.executor);
+            return CompletableFuture.runAsync(() -> notifyAttributesPersisted(segmentId, segmentType, rootPointer, lastSequenceNumber, true), this.executor);
         } else {
             return interceptor.apply(rootPointer, lastSequenceNumber)
-                    .thenAcceptAsync(validate -> notifyAttributesPersisted(segmentId, rootPointer, lastSequenceNumber, validate), this.executor);
+                    .thenAcceptAsync(validate -> notifyAttributesPersisted(segmentId, segmentType, rootPointer, lastSequenceNumber, validate), this.executor);
         }
     }
 
-    private void notifyAttributesPersisted(long segmentId, long rootPointer, long lastSequenceNumber, boolean validateRootPointer) {
+    private void notifyAttributesPersisted(long segmentId, SegmentType segmentType, long rootPointer, long lastSequenceNumber, boolean validateRootPointer) {
+        Preconditions.checkArgument(segmentType.equals(this.metadata.getStreamSegmentMetadata(segmentId).getType()));
         synchronized (this.lock) {
             Long expectedRootPointer = this.attributeRootPointers.getOrDefault(segmentId, Long.MIN_VALUE);
             if (!validateRootPointer || expectedRootPointer == rootPointer) {
@@ -341,7 +345,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public CompletableFuture<Iterator<Operation>> read(long afterSequenceNumber, int maxCount, Duration timeout) {
+    public CompletableFuture<Queue<Operation>> read(int maxCount, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ErrorInjector<Exception> asyncErrorInjector;
         synchronized (this.lock) {
@@ -350,17 +354,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
 
         return ErrorInjector
-                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> {
-                    Iterator<Operation> logReadResult = this.log.read(afterSequenceNumber, maxCount);
-                    if (logReadResult.hasNext()) {
-                        // Result is readily available; return it.
-                        return CompletableFuture.completedFuture(logReadResult);
-                    } else {
-                        // Result is not yet available; wait for an add and then retry the read.
-                        return waitForAdd(afterSequenceNumber, timeout)
-                                .thenComposeAsync(v1 -> this.read(afterSequenceNumber, maxCount, timeout), this.executor);
-                    }
-                });
+                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> this.log.take(maxCount, timeout, this.executor));
     }
 
     @Override
@@ -510,7 +504,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         synchronized (this.lock) {
             if (this.waitFullyAcked == null) {
                 // Nobody else is waiting for the DataSource to empty out.
-                if (this.log.getLast() == null) {
+                if (this.ackSeqNo >= this.lastAddedSeqNo.get()) {
                     // We are already empty; return a completed future.
                     return CompletableFuture.completedFuture(null);
                 } else {
@@ -536,33 +530,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //endregion
 
     //region Helpers
-
-    private CompletableFuture<Void> waitForAdd(long currentSeqNo, Duration timeout) {
-        CompletableFuture<Void> result;
-        synchronized (this.lock) {
-            Operation last = this.log.getLast();
-            if (last != null && last.getSequenceNumber() > currentSeqNo) {
-                // An add has already been processed that meets or exceeds the given sequence number.
-                result = CompletableFuture.completedFuture(null);
-            } else {
-                if (this.addProcessed == null) {
-                    // We need to wait for an add, and nobody else is waiting for it too.
-                    this.addProcessed = Futures.futureWithTimeout(timeout, this.executor);
-                    Futures.onTimeout(this.addProcessed, ex -> {
-                        synchronized (this.lock) {
-                            if (this.addProcessed.isCompletedExceptionally()) {
-                                this.addProcessed = null;
-                            }
-                        }
-                    });
-                }
-
-                result = this.addProcessed;
-            }
-        }
-
-        return result;
-    }
 
     private void notifyAddProcessed() {
         CompletableFuture<Void> f;

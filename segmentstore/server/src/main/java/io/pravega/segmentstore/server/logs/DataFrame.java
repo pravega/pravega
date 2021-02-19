@@ -38,7 +38,7 @@ public class DataFrame {
     //region Members
 
     static final int MIN_ENTRY_LENGTH_NEEDED = EntryHeader.HEADER_SIZE + 1;
-    private static final int BUFFER_BLOCK_SIZE = 128 * 1024; // 128KB
+    private static final CompositeByteArraySegment.BufferLayout BUFFER_LAYOUT = new CompositeByteArraySegment.BufferLayout(17); // 128KB
     private static final byte CURRENT_VERSION = 0;
     private final CompositeArrayView data;
     private WriteFrameHeader header;
@@ -89,7 +89,7 @@ public class DataFrame {
      *                that the frame may use to organize records.
      */
     static DataFrame ofSize(int maxSize) {
-        return new DataFrame(new CompositeByteArraySegment(maxSize, BUFFER_BLOCK_SIZE));
+        return new DataFrame(new CompositeByteArraySegment(maxSize, BUFFER_LAYOUT));
     }
 
     //endregion
@@ -210,11 +210,71 @@ public class DataFrame {
     int append(byte b) {
         ensureAppendConditions();
         if (getAvailableLength() >= 1) {
-            this.contents.set(writePosition, b);
-            writePosition++;
+            this.contents.set(this.writePosition, b);
+            this.writePosition++;
             return 1;
         } else {
-            // Current DataFrame is full. we can't write anymore.
+            // Current DataFrame is full. We can't write anymore.
+            return 0;
+        }
+    }
+
+    /**
+     * Appends a short (2 bytes) to the DataFrame. The entire Short will either be accepted or rejected (no partial
+     * serializations).
+     *
+     * @param shortValue The Short to append.
+     * @return The number of bytes written. If zero, then the frame is full or cannot fit the required bytes for this value.
+     * @throws IllegalStateException If the frame is sealed or no entry has been started.
+     */
+    int append(short shortValue) {
+        ensureAppendConditions();
+        if (getAvailableLength() >= Short.BYTES) {
+            this.contents.setShort(this.writePosition, shortValue);
+            this.writePosition += Short.BYTES;
+            return Short.BYTES;
+        } else {
+            // Current DataFrame is full. We can't write anymore.
+            return 0;
+        }
+    }
+
+    /**
+     * Appends an int (4 bytes) to the DataFrame. The entire Integer will either be accepted or rejected (no partial
+     * serializations).
+     *
+     * @param intValue The Integer to append.
+     * @return The number of bytes written. If zero, then the frame is full or cannot fit the required bytes for this value.
+     * @throws IllegalStateException If the frame is sealed or no entry has been started.
+     */
+    int append(int intValue) {
+        ensureAppendConditions();
+        if (getAvailableLength() >= Integer.BYTES) {
+            this.contents.setInt(this.writePosition, intValue);
+            this.writePosition += Integer.BYTES;
+            return Integer.BYTES;
+        } else {
+            // Current DataFrame is full. We can't write anymore.
+            return 0;
+        }
+    }
+
+    /**
+     * Appends a Long (8 bytes) to the DataFrame. The entire Long will either be accepted or rejected (no partial
+     * serializations).
+     *
+     * @param longValue The Long to append.
+     * @return The number of bytes written. If zero, then the frame is full or cannot fit the required bytes for this value.
+     * @throws IllegalStateException If the frame is sealed or no entry has been started.
+     */
+    int append(long longValue) {
+        ensureAppendConditions();
+        if (getAvailableLength() >= Long.BYTES) {
+            this.contents.setLong(this.writePosition, longValue);
+            this.writePosition += Long.BYTES;
+            return Long.BYTES;
+        } else {
+            // Current DataFrame is full. We can't write anymore.
             return 0;
         }
     }
@@ -343,7 +403,7 @@ public class DataFrame {
             Preconditions.checkState(this.data != null, "Cannot serialize a read-only EntryHeader.");
 
             // Write length.
-            BitConverter.writeInt(this.data, 0, getEntryLength());
+            this.data.setInt(0, getEntryLength());
 
             // Write flags.
             byte flags = isFirstRecordEntry() ? FIRST_ENTRY_MASK : 0;
@@ -426,7 +486,8 @@ public class DataFrame {
             int bufferOffset = 0;
             this.buffer.set(bufferOffset, getVersion());
             bufferOffset += Byte.BYTES;
-            bufferOffset += BitConverter.writeInt(this.buffer, bufferOffset, getContentLength());
+            this.buffer.setInt(bufferOffset, getContentLength());
+            bufferOffset += Integer.BYTES;
             this.buffer.set(bufferOffset, encodeFlags());
         }
     }

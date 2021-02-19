@@ -22,7 +22,7 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.CreateTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.DeleteTableTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.kvtable.TableRequestHandler;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.AbstractKVTableMetadataStore;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
@@ -38,12 +38,12 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import lombok.Data;
 import lombok.Getter;
+import org.apache.commons.lang3.NotImplementedException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -61,7 +61,7 @@ public abstract class TableMetadataTasksTest {
     protected KVTableMetadataStore kvtStore;
     protected TableMetadataTasks kvtMetadataTasks;
     protected SegmentHelper segmentHelperMock;
-    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
 
     private final String kvtable1 = "kvtable1";
     private boolean isScopeCreated;
@@ -149,7 +149,7 @@ public abstract class TableMetadataTasksTest {
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
 
         assertEquals(Controller.DeleteKVTableStatus.Status.SUCCESS, future.get());
-
+        assertTrue(kvtMetadataTasks.isDeleted(SCOPE, kvtable1, null).join());
         assertFalse(kvtStore.checkTableExists(SCOPE, kvtable1).join());
     }
 
@@ -212,6 +212,11 @@ public abstract class TableMetadataTasksTest {
         @Override
         public CompletableFuture<Void> writeEvent(String routingKey, ControllerEvent event) {
             return writeEvent(event);
+        }
+
+        @Override
+        public CompletableFuture<Void> writeEvents(String routingKey, List<ControllerEvent> events) {
+            throw new NotImplementedException("mock doesnt require this");
         }
 
         @Override

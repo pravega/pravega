@@ -29,6 +29,7 @@ import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.security.auth.AccessOperation;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
@@ -127,6 +128,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.close();
             }
+            inner.clear(); // clear all references to SegmentTransaction to enable garbage collection.
             Futures.getThrowingException(controller.commitTransaction(stream, writerId, timestamp, txId));
             pinger.stopPing(txId);
             closed.set(true);
@@ -144,6 +146,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
                         log.debug("Got exception while writing to transaction on abort: {}", e.getMessage());
                     }
                 }
+                inner.clear(); // clear all references to SegmentTransaction to enable garbage collection.
                 Futures.getThrowingException(controller.abortTransaction(stream, txId));
                 closed.set(true);
             }
@@ -184,8 +187,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         DelegationTokenProvider tokenProvider = null;
         for (Segment s : txnSegments.getStreamSegments().getSegments()) {
             if (tokenProvider == null) {
-                tokenProvider = DelegationTokenProviderFactory.create(
-                        txnSegments.getStreamSegments().getDelegationToken(), controller, s);
+                tokenProvider = DelegationTokenProviderFactory.create(controller, s, AccessOperation.WRITE);
             }
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId,
                     config, tokenProvider);
@@ -215,7 +217,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         DelegationTokenProvider tokenProvider = null;
         for (Segment s : segments.getSegments()) {
             if (tokenProvider == null) {
-                tokenProvider = DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, s);
+                tokenProvider = DelegationTokenProviderFactory.create(controller, s, AccessOperation.WRITE);
             }
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config,
                     tokenProvider);

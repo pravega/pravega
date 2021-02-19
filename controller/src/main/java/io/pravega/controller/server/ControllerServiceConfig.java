@@ -103,4 +103,10 @@ public interface ControllerServiceConfig {
      * @return Duration for retention frequency.
      */
     Duration getRetentionFrequency();
+
+    /**
+     * How long to await a graceful shutdown.
+     * @return Graceful shutdown timeout.
+     */
+    Duration getShutdownTimeout();
 }

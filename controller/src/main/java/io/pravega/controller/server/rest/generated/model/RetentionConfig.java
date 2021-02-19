@@ -67,6 +67,12 @@ public class RetentionConfig   {
   @JsonProperty("timeBasedRetention")
   private TimeBasedRetention timeBasedRetention = null;
 
+  @JsonProperty("maxValue")
+  private Long maxValue = null;
+
+  @JsonProperty("maxTimeBasedRetention")
+  private TimeBasedRetention maxTimeBasedRetention = null;
+
   public RetentionConfig type(TypeEnum type) {
     this.type = type;
     return this;
@@ -92,10 +98,7 @@ public class RetentionConfig   {
   }
 
   /**
-   * Get Value
-   * Value Represents number of days when type=LIMITED_DAYS
-   * and retention size in MB when type=LIMITED_SIZE_MB
-   * If type=LIMITED_DAYS and value=0, timeBasedRetention has the retention time.
+   * Get value
    * @return value
    **/
   @JsonProperty("value")
@@ -114,7 +117,7 @@ public class RetentionConfig   {
   }
 
   /**
-   * Get retention duration in days, hours and minutes.
+   * Get timeBasedRetention
    * @return timeBasedRetention
    **/
   @JsonProperty("timeBasedRetention")
@@ -125,6 +128,44 @@ public class RetentionConfig   {
 
   public void setTimeBasedRetention(TimeBasedRetention timeBasedRetention) {
     this.timeBasedRetention = timeBasedRetention;
+  }
+
+  public RetentionConfig maxValue(Long maxValue) {
+    this.maxValue = maxValue;
+    return this;
+  }
+
+  /**
+   * Get maxValue
+   * @return maxValue
+   **/
+  @JsonProperty("maxValue")
+  @ApiModelProperty(value = "")
+  public Long getMaxValue() {
+    return maxValue;
+  }
+
+  public void setMaxValue(Long maxValue) {
+    this.maxValue = maxValue;
+  }
+
+  public RetentionConfig maxTimeBasedRetention(TimeBasedRetention maxTimeBasedRetention) {
+    this.maxTimeBasedRetention = maxTimeBasedRetention;
+    return this;
+  }
+
+  /**
+   * Get maxTimeBasedRetention
+   * @return maxTimeBasedRetention
+   **/
+  @JsonProperty("maxTimeBasedRetention")
+  @ApiModelProperty(value = "")
+  public TimeBasedRetention getMaxTimeBasedRetention() {
+    return maxTimeBasedRetention;
+  }
+
+  public void setMaxTimeBasedRetention(TimeBasedRetention maxTimeBasedRetention) {
+    this.maxTimeBasedRetention = maxTimeBasedRetention;
   }
 
 
@@ -139,12 +180,14 @@ public class RetentionConfig   {
     RetentionConfig retentionConfig = (RetentionConfig) o;
     return Objects.equals(this.type, retentionConfig.type) &&
         Objects.equals(this.value, retentionConfig.value) &&
-        Objects.equals(this.timeBasedRetention, retentionConfig.timeBasedRetention);
+        Objects.equals(this.timeBasedRetention, retentionConfig.timeBasedRetention) &&
+        Objects.equals(this.maxValue, retentionConfig.maxValue) &&
+        Objects.equals(this.maxTimeBasedRetention, retentionConfig.maxTimeBasedRetention);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(type, value, timeBasedRetention);
+    return Objects.hash(type, value, timeBasedRetention, maxValue, maxTimeBasedRetention);
   }
 
 
@@ -156,6 +199,8 @@ public class RetentionConfig   {
     sb.append("    type: ").append(toIndentedString(type)).append("\n");
     sb.append("    value: ").append(toIndentedString(value)).append("\n");
     sb.append("    timeBasedRetention: ").append(toIndentedString(timeBasedRetention)).append("\n");
+    sb.append("    maxValue: ").append(toIndentedString(maxValue)).append("\n");
+    sb.append("    maxTimeBasedRetention: ").append(toIndentedString(maxTimeBasedRetention)).append("\n");
     sb.append("}");
     return sb.toString();
   }

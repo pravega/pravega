@@ -190,14 +190,16 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
     /**
      * Flushes the contents of the Aggregator to the Storage.
      *
+     * @param force   If true, force-flushes everything accumulated in the {@link AttributeAggregator}, regardless of
+     *                the value returned by {@link #mustFlush()}.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain a summary of the flush operation. If any errors
      * occurred during the flush, the Future will be completed with the appropriate exception.
      */
     @Override
-    public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+    public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
         Exceptions.checkNotClosed(isClosed(), this);
-        if (!mustFlush()) {
+        if (!force && !mustFlush()) {
             return CompletableFuture.completedFuture(new WriterFlushResult());
         }
 
@@ -210,8 +212,8 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         return result.thenApply(v -> {
             if (this.state.size() > 0) {
-                log.debug("{}: Flushed. Count={}, SeqNo={}-{}.", this.traceObjectId, this.state.size(),
-                        this.state.getFirstSequenceNumber(), this.state.getLastSequenceNumber());
+                log.debug("{}: Flushed. Count={}, SeqNo={}-{}, Forced={}.", this.traceObjectId, this.state.size(),
+                        this.state.getFirstSequenceNumber(), this.state.getLastSequenceNumber(), force);
             }
 
             WriterFlushResult r = new WriterFlushResult();
@@ -250,7 +252,8 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
                     () -> {
                         RootPointerInfo rpi = this.lastRootPointer.get();
                         log.debug("{}: Updating Root Pointer info to {}.", this.traceObjectId, rpi);
-                        return this.dataSource.notifyAttributesPersisted(this.metadata.getId(), rpi.getRootPointer(), rpi.getLastSequenceNumber(), this.config.getFlushTimeout())
+                        return this.dataSource.notifyAttributesPersisted(this.metadata.getId(), this.metadata.getType(),
+                                       rpi.getRootPointer(), rpi.getLastSequenceNumber(), this.config.getFlushTimeout())
                                 .whenCompleteAsync((r, ex) -> {
                                     if (ex != null) {
                                         logAttributesPersistedError(ex, rpi);
