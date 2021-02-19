@@ -420,7 +420,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         val ac1 = interceptAppend(store, streamSegmentName, 0, updateEventNumber(clientId, 1), CompletableFuture.completedFuture((long) data.length));
         // First conditional Append.
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), 0L, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), 0L, 1L));
 
         //Simulate a connection drop on the client side and the client resends a SetupAppend followed by conditional Append.
         val ac2 = interceptAppend(store, streamSegmentName, data.length, updateEventNumber(clientId, 2, 1, 1),
