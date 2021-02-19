@@ -79,32 +79,10 @@ public class ReaderGroupManagerImplTest {
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
         ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
-        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class))).thenReturn(CompletableFuture.completedFuture(expectedConfig));
+        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
+                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
-        when(synchronizer.getState()).thenReturn(state);
-        when(state.getConfig()).thenReturn(expectedConfig);
-        // Create a ReaderGroup
-        readerGroupManager.createReaderGroup(GROUP_NAME, config);
-        verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class),
-                any(Serializer.class), any(SynchronizerConfig.class));
-        verify(synchronizer, times(1)).initialize(any(InitialUpdate.class));
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    public void testCreateReaderGroupWithMigration() {
-        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
-                .put(createStream("s1"), createStreamCut("s1", 2))
-                .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
-                .build();
-        ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
-        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class))).thenReturn(CompletableFuture.completedFuture(expectedConfig));
-        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
-                any(SynchronizerConfig.class))).thenReturn(synchronizer);
-        when(synchronizer.getState()).thenReturn(state);
-        when(state.getConfig()).thenReturn(config);
         // Create a ReaderGroup
         readerGroupManager.createReaderGroup(GROUP_NAME, config);
         verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class),
