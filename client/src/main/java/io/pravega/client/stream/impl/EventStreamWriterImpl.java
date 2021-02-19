@@ -270,6 +270,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             // A background thread should be waking up to process things. Give it a moment.
             Exceptions.handleInterrupted(() -> Thread.sleep(10));
         }
+        //This lock is only acquired to block this thread if there is a seal going on already.
+        //This code does not actually need the lock for anything.
         synchronized (writeSealLock) {
             // Nothing needs to be done here.
             // When the lock is released the sealing should be complete.
@@ -294,6 +296,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                         // Segment sealed exception observed during a close. Re-run close on all the available writers.
                         success = false;
                         log.warn("Close failed due to {}, it will be retried.", e.getMessage());
+                        tryWaitForSuccessors();
                     }
                 }
             }
