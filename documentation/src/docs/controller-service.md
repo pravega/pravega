@@ -12,6 +12,7 @@ You may obtain a copy of the License at
 *  [Introduction](#introduction)
 *  [Architecture](#architecture)
     - [Stream Management](#stream-management)
+    - [Key Value Tables Management](#keyValue-management)
     - [Cluster Management](#cluster-management)
 * [System Diagram](#system-diagram)
 * [Components](#components)
@@ -124,6 +125,11 @@ Transaction management can be found later in the [Transactions](#transaction-man
 
   4. [**Watermarks**](http://pravega.io/docs/v0.8.0/watermarking/): Watermarks are a data structure produced by controller that refer to a unique position in the stream and associates time information corresponding to that position. The watermark is computed by controller by coordinating the time and position information reported by different writer applications and generating a time window. 
 
+## Key-Value-Tables Management
+
+Apart from stream abstraction controller is also the source of thruth for the other storage primitive offered by pravega - Key Value Tables. Just like a stream, a key value table is also distributed and paritioned using a table segment. A table segment has same properties as a stream segment, but with the data is formatted as keys and values and indexed on the keys. It provides APIs to perform CRUD operations on keys. Controller uses table segments to create a higher level abstraction which creates a distributed key value table. Each table is partitioned and the user data is distributed across different partitions using a hashing scheme. It also introduces a concept of key family which is used to ensure that all keys from the same key family are always mapped to the same partition.   
+Controller maintains the metadata about the key value tables and is responsible for its lifecycle. Presently key value tables do not support any user defined policies like scaling or retention. So controller's role is limited to provisioning table segments for the table and managing its lifecycle which includes operations like create seal and delete tables.   
+
 ## Cluster Management
 
 The Controller is responsible for managing the Segment Store cluster. Controller manages the
@@ -221,7 +227,7 @@ Stream via a well-defined
 We currently have two concrete implementations of the Stream store
 interface: _in-memory_ and _Pravega_Tables_ backed stores. 
 The Pravega tables implementation is intended for production while in memory implementation is for demo and testing purposes and does not provide any durability. 
-The Pravega tables store based implementation stores the stream metadata in tables as key value pairs and is retrieved by stream metadata store and cached for efficient lookups.
+The Pravega tables store based implementation stores the stream metadata in pravega table segments as key value pairs and is retrieved by stream metadata store and cached for efficient lookups. Pravega Table segments will henceforth be refered to as tables. This should not be confused with KeyValue tables which is a higher level abstraction built over table segments. 
 
 The pravega tables based implementation relies on compare and swap conditional updates capability of pravega tables and relies on optimistic concurrency to perform updates and handles conditional update failures. The metadata is organized in various tables starting with information about scopes and then dedicated tables for each stream in a scope. For each pravega stream its metadata is organized into two classes of tables namely stream metadata table and stream transactions tables. Stream metadata includes information about stream configuration, state, epochs, segments and information and information related to any ongoing workflows on the stream. 
 
@@ -354,7 +360,7 @@ The following are the Transaction Related metadata records:
 #### In-memory Cache
 Since there could be multiple concurrent requests for a given Stream
 being processed by the same Controller instance, it is suboptimal to read
-the value by querying pravega tables every time. So we have introduced an
+the value by querying pravega table segments every time. So we have introduced an
 **in-memory cache** that each Stream store maintains. It caches retrieved
 metadata per Stream so that there is maximum one copy of the data per
 Stream in the cache. There are two in-memory caches:
@@ -373,6 +379,19 @@ value is updated during the course of the operation, it is again
 invalidated in the cache so that other concurrent read/update operations
 on the Stream get the new value for their subsequent steps.  
 
+### Key Value Table Metadata Store
+Just like stream metadata store, pravega key value tables have their own metadata which is accessed using key value table metadata store (kvt metadata store). Although KVT  presently only support static partitioning, we have defined the metadata schema which can support scaling in future. This means we maintain KVT Epoch Records which include KVT Segments. All of this is stored in dedicated metadata tables (table segments) per key value table.
+
+- **KVT Epoch Records:**  
+_KVTEpoch: ⟨time, list-of-segments-in-epoch⟩_.
+We store the series of _active_ Table Segments as they transition from one epoch to another. Presently there is only one epoch record for each KVT. 
+
+- **KVT Segment Records:**
+_KVT Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_.
+ Each KVT segment refers to a table segment in segment store. The Controller stores KVT Segment information within each epoch record. The additional metadata about each table segment that controller maintains with KVT Segment includes keySpace-start and keySpace-end which is used for paritioning keys across different KVT segments. 
+
+- **KVT State:**
+_KVT State is an enum that describes various states in the lifecycle of KV table. It ranges from CREATING, ACTIVE, DELETING. 
 
 ## Controller Cluster Listener
 
@@ -785,6 +804,17 @@ and monitor their timeouts from that point onward.
 ### Watermarks
 
 Controller instantiates periodic background jobs for computing watermarks for streams for which writers are regularly reporting the times and positions. The watermark computation for different streams is distributed across multiple controller instances using the bucket service. Controller service receives request to record positions and times reported by event stream writers using the note time api and stores them in the metadata table. Then the controller instance which is the owner for the bucket where the stream resides runs the watermark computation workflow periodically (every 10 seconds). The writer marks (position and time) are retrieved from the store, consolidated and reduced into a watermark artifact. A watermark is a datastructure that contains a streamcut which is the upper bound on positions reported by all writers. It also contains max and min bounds on the times reported by different writers. The watermarks are emitted into a special revisioned stream which is created along with the user stream. The lifecycle of this stream is closely bound to the user stream and its created and deleted along with user streams. 
+
+## KVT Operations
+
+Just as for streams, controller also runs all control plane operations for Key Value tables. This includes provisoning, sealing and deleting key value tables. These operations are also performed on the asynchronous event processing framework. A dedicated instance of EventProcessor is brought up for processing KV table requests which uses a new internal table-request-stream. Requests on this stream are distributed across different controller instances using kv table name as the routing key and each partition is spread across different controller instances. 
+
+### Create KVTable
+
+Create KVTable is modeled as a task on the event processor. When a request from user is received, a new event is posted into kvt-request-stream and picked asynchronously for  processing. As part of create KV table, the task creates the number of table segments specified in the KeyValueTablesConfiguration.numberOfPartitions and sets the state of the table as Active. 
+
+### Delete KVTable
+Delete KVTable is also modeled as a task on the event processor. When a request from user to delete the KV table is received, a new event is posted into kvt-request-stream and picked asynchronously for processing. As part of delete KV table, the task removes all table segments and all metadata that was created for the KV table. 
 
 ##  Cluster Management
 
