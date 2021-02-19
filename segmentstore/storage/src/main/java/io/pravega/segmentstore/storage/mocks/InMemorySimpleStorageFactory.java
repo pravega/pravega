@@ -18,7 +18,6 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import lombok.Getter;
 
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -58,7 +57,7 @@ public class InMemorySimpleStorageFactory implements SimpleStorageFactory {
         throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
     }
 
-    static Storage newStorage(int containerId, Executor executor, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore) {
+    static Storage newStorage(int containerId, ScheduledExecutorService executor, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore) {
         ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
                 chunkStorage,
                 metadataStore,
