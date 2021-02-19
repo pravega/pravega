@@ -26,7 +26,7 @@ import org.junit.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 
@@ -49,7 +49,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      */
     @Override
     protected Storage createStorage() throws Exception {
-        Executor executor = executorService();
+        ScheduledExecutorService executor = executorService();
         synchronized (SimpleStorageTests.class) {
             if (null == chunkStorage) {
                 chunkMetadataStore = getMetadataStore();
@@ -72,7 +72,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      * @throws Exception Exceptions in case of any errors.
      */
     protected Storage forkStorage(ChunkedSegmentStorage storage) throws Exception {
-        Executor executor = executorService();
+        ScheduledExecutorService executor = executorService();
         ChunkedSegmentStorage forkedChunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, storage.getChunkStorage(),
                 getCloneMetadataStore(storage.getMetadataStore()),
                 executor,
