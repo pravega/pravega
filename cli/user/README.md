@@ -66,6 +66,7 @@ Initial configuration:
 
 Type "help" for list of commands, or "exit" to exit.
 ```
+The values can be changed using `config set property=...`. Make sure to update `controller-uri:<pravega-cluster-name>-pravega-controller.<namespace>:<port>`
 
 From that point onwards, you can check the available commands typing `help`:
 ```
@@ -94,7 +95,54 @@ All available commands:
 	stream read scoped-stream-name [group-similar] [timeout-in-seconds]: Reads all Events from a Stream and then tails the Stream.
 ```
 
+You can try out commands such as:
+```
+> scope create example
+Scope 'example' created successfully.
+```
+
 For more info on how the Pravega User CLI works, please visit [this page](https://github.com/pravega/pravega/wiki/Pravega-User-CLI).
+
+## Pravega User CLI
+
+The Pravega User CLI can be used from inside the Kubernetes cluster (including the Segment Store pod that has the CLI tool built-in), or externally if your Pravega cluster publicly exposes the Controller/Segment Store endpoints.
+
+From the available options, we now show how to use the Pravega User CLI from inside the Kubernetes cluster, by using the built-in tool in the Pravega server instances.
+
+You can access a Segment Store pod in the following way:
+````
+kubectl exec pravega-pravega-segment-store-0 -it bash
+````
+
+Run existing Pravega User CLI:
+```
+./bin/pravega-cli
+    OpenJDK 64-Bit Server VM warning: Option MaxRAMFraction was deprecated in version 10.0 and will likely be removed in a future release.
+    Pravega User CLI Tool.
+        Usage instructions: https://github.com/pravega/pravega/wiki/Pravega-User-CLI
+    
+    Initial configuration:
+        controller-uri=localhost:9090
+        default-segment-count=4
+        timeout-millis=60000
+        max-list-items=1000
+        pretty-print=true
+```
+
+The `controller-uri` in the initial configuration needs to be modified by using `config set` command. For example:
+```
+config set controller-uri=pravega-pravega-controller.default:10080
+
+config list
+    Initial configuration:
+    controller-uri=pravega-pravega-controller.default:10080
+    default-segment-count=4
+    timeout-millis=60000
+    max-list-items=1000
+    pretty-print=true
+```
+
+Once the config is updated, you can run commands.
 
 ## Support
 If you find any issue or you have any suggestion, please report an issue to [this repository](https://github.com/pravega/pravega/issues).
