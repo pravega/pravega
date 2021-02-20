@@ -12,6 +12,7 @@ package io.pravega.shared.metrics;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.junit.Assert;
@@ -22,9 +23,12 @@ public class MeterRegisterTest {
     private void initMetrics() {
         MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATSD_REPORTER, false).build();
         metricsConfig.setDynamicCacheEvictionDuration(Duration.ofMinutes(5));
-        MetricsProvider.initialize(metricsConfig);
+        MetricsProvider.initialize(metricsConfig);       
         StatsProvider statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.startWithoutExporting();
+        CompositeMeterRegistry composite = Metrics.globalRegistry;
+        SimpleMeterRegistry simple = new SimpleMeterRegistry();
+        composite.add(simple);
     }
     
     @Test
