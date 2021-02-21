@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
 
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.COMMIT_LATENCY;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.GET_LATENCY;
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_BUFFER_EVICTED_COUNT;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_BUFFER;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_CACHE;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_TXN;
@@ -496,6 +497,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     }
                 }
                 bufferCount.addAndGet(-1 * count);
+                METADATA_BUFFER_EVICTED_COUNT.add(count);
                 log.debug("{} entries evicted from transaction buffer.", count);
             }
             isEvictionRunning.set(false);

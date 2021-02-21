@@ -927,7 +927,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         if (metadataStore instanceof InMemoryMetadataStore) {
             metadataStore.setMaxEntriesInCache(10);
             metadataStore.setMaxEntriesInTxnBuffer(10);
-            for (int i=0; i < 10000; i++) {
+            for (int i = 0; i < 10000; i++) {
                 try (MetadataTransaction txn = metadataStore.beginTransaction(false, "Txn" + i)) {
                     txn.create(new MockStorageMetadata("Txn" + i, "Value" + i));
                     txn.commit().get();
