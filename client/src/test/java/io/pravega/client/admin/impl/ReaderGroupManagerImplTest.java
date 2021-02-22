@@ -20,6 +20,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.ReaderGroupNotFoundException;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.shared.NameUtils;
@@ -151,7 +152,7 @@ public class ReaderGroupManagerImplTest {
         ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
 
         when(controller.getReaderGroupConfig(SCOPE, GROUP_NAME))
-                .thenThrow(new IllegalArgumentException());
+                .thenThrow(new ReaderGroupNotFoundException(NameUtils.getScopedReaderGroupName(SCOPE, GROUP_NAME)));
         when(controller.sealStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME)))
                 .thenReturn(CompletableFuture.completedFuture(true));
         when(controller.deleteStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME)))
