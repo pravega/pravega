@@ -1004,23 +1004,24 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        long traceId = LoggerHelpers.traceEnter(log, "getCurrentSegments", scope, stream);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "getCurrentSegments", scope, stream, requestId);
 
         final CompletableFuture<SegmentRanges> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(traceId, "getCurrentSegments", scope, stream);
-            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+            RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(requestId, "getCurrentSegments", scope, stream);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getCurrentSegments", scope, stream)
                   .getCurrentSegments(ModelHelper.createStreamInfo(scope, stream, AccessOperation.NONE), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(this::getStreamSegments)
                      .whenComplete((x, e) -> {
                          if (e != null) {
-                             log.warn("getCurrentSegments for {}/{} failed: ", scope, stream, e);
+                             log.warn(requestId, "getCurrentSegments for {}/{} failed: ", scope, stream, e);
                          }
                          if (x.getNumberOfSegments() == 0 ) {
-                             log.warn("getCurrentSegments for {}/{} returned zero segments since the Stream is sealed", scope, stream);
+                             log.warn(requestId, "getCurrentSegments for {}/{} returned zero segments since the Stream is sealed", scope, stream);
                          }
-                         LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
+                         LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId, requestId);
                      });
     }
 
@@ -1866,6 +1867,10 @@ public class ControllerImpl implements Controller {
         void updateReaderGroup(ReaderGroupConfiguration rgConfig, RPCAsyncCallback<UpdateReaderGroupResponse> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .updateReaderGroup(rgConfig, callback);
+        }
+
+        void getCurrentSegments(StreamInfo streamInfo, RPCAsyncCallback<SegmentRanges> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getCurrentSegments(streamInfo, callback);
         }
     }
 }

@@ -409,7 +409,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getCurrentSegments(StreamInfo request, StreamObserver<SegmentRanges> responseObserver) {
         final String scope = request.getScope();
         final String stream = request.getStream();
-        log.info("getCurrentSegments called for stream {}/{}.", scope, stream);
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getCurrentSegments",
+                request.getScope(), request.getStream());
+
+        log.info(requestTag.getRequestId(), "getCurrentSegments called for stream {}/{}.", scope, stream);
         String resource = StreamAuthParams.toResourceString(scope, stream);
 
         final boolean isDelegationTokenRequested = !request.getAccessOperation().equals(StreamInfo.AccessOperation.NONE);
@@ -434,7 +437,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                 return builder.build();
                             });
                 },
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @VisibleForTesting
