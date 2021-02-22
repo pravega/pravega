@@ -14,13 +14,9 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.Unpooled;
+import io.pravega.common.Exceptions;
 import io.pravega.shared.metrics.MetricNotifier;
-import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
-import io.pravega.shared.protocol.netty.InvalidMessageException;
-import io.pravega.shared.protocol.netty.ReplyProcessor;
-import io.pravega.shared.protocol.netty.WireCommand;
-import io.pravega.shared.protocol.netty.WireCommandType;
+import io.pravega.shared.protocol.netty.*;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
@@ -83,6 +79,7 @@ public class CommandEncoder {
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ReplyProcessor callback;
+    private final PravegaNodeUri location;
 
     @RequiredArgsConstructor
     @VisibleForTesting
@@ -184,17 +181,19 @@ public class CommandEncoder {
     
     @Synchronized
     public void write(WireCommand msg) throws IOException {
-        checkIfClosed();
+        Exceptions.checkNotClosed(this.closed.get(), this);
+
         if (msg instanceof SetupAppend) {
             breakCurrentAppend();
             flushAllToBuffer();
             if (setupSegments.size() >= MAX_SETUP_SEGMENTS_SIZE) {
+                log.debug("CommandEncoder {} setupSegments map reached maximum size of {}", this.location, MAX_SETUP_SEGMENTS_SIZE);
                 flushBuffer();
                 closed.compareAndSet(false, true);
                 if (callback != null) {
                     callback.connectionDropped();
                 }
-                throw new IOException("CommandEncoder closed");
+                throw new IOException("CommandEncoder " + this.location + " closed due to memory limit reached");
             }
             writeMessage((SetupAppend) msg, buffer);
             SetupAppend setup = (SetupAppend) msg;
@@ -216,7 +215,8 @@ public class CommandEncoder {
     
     @Synchronized
     public void write(Append append) throws IOException {
-        checkIfClosed();
+        Exceptions.checkNotClosed(this.closed.get(), this);
+
         Session session = setupSegments.get(new SimpleImmutableEntry<>(append.getSegment(), append.getWriterId()));
         validateAppend(append, session);
         final ByteBuf data = append.getData().slice();
@@ -439,11 +439,5 @@ public class CommandEncoder {
             closeQuietly(output, log, "Closing output failed");
         }
         return result;
-    }
-
-    private void checkIfClosed() throws IOException {
-        if (closed.get()) {
-            throw new IOException("CommandEncoder already closed");
-        }
     }
 }
