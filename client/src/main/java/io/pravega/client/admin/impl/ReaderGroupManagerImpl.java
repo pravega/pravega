@@ -29,6 +29,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.client.stream.impl.ReaderGroupNotFoundException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
@@ -103,7 +104,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                 controller.getReaderGroupConfig(scope, groupName)
                         .thenCompose(conf -> controller.deleteReaderGroup(scope, groupName,
                                 conf.getReaderGroupId(), conf.getGeneration())).join();
-            } catch (IllegalArgumentException ex) {
+            } catch (ReaderGroupNotFoundException ex) {
                 controller.sealStream(scope, getStreamForReaderGroup(groupName))
                           .thenCompose(b -> controller.deleteStream(scope, getStreamForReaderGroup(groupName)))
                           .exceptionally(e -> {

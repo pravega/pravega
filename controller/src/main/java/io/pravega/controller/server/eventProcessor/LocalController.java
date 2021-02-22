@@ -22,13 +22,7 @@ import io.pravega.client.control.impl.CancellableRequest;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ModelHelper;
-import io.pravega.client.stream.impl.SegmentWithRange;
-import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.client.stream.impl.StreamSegmentSuccessors;
-import io.pravega.client.stream.impl.StreamSegments;
-import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
-import io.pravega.client.stream.impl.TxnSegments;
-import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.stream.impl.*;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
@@ -220,7 +214,7 @@ public class LocalController implements Controller {
                 case INVALID_CONFIG:
                     throw new IllegalArgumentException("Invalid Reader Group Config: " + scopedRGName);
                 case RG_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + scopedRGName);
+                    throw new ReaderGroupNotFoundException("Scope does not exist: " + scopedRGName);
                 case SUCCESS:
                     return x.getGeneration();
                 default:
@@ -238,7 +232,7 @@ public class LocalController implements Controller {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to get Config for ReaderGroup: " + scopedRGName);
                 case RG_NOT_FOUND:
-                    throw new IllegalArgumentException("Could not find Reader Group: " + scopedRGName);
+                    throw new ReaderGroupNotFoundException("Could not find Reader Group: " + scopedRGName);
                 case SUCCESS:
                     return ModelHelper.encode(x.getConfig());
                 default:
@@ -257,7 +251,7 @@ public class LocalController implements Controller {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
                 case RG_NOT_FOUND:
-                    throw new IllegalArgumentException("Reader group not found: " + scopedRGName);
+                    throw new ReaderGroupNotFoundException("Reader group not found: " + scopedRGName);
                 case SUCCESS:
                     return true;
                 default:
