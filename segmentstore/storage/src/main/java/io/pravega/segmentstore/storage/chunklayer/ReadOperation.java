@@ -32,8 +32,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_BYTES;
-import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_LATENCY;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_INDEX_NUM_SCANNED;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_INDEX_SCAN_LATENCY;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYS_READ_INDEX_NUM_SCANNED;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYS_READ_INDEX_SCAN_LATENCY;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_LATENCY;
 
 @Slf4j
 class ReadOperation implements Callable<CompletableFuture<Integer>> {
@@ -248,7 +251,13 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                 chunkedSegmentStorage.getExecutor())
                 .thenAcceptAsync(v -> {
                     val elapsed = readIndexTimer.getElapsed();
-                    SLTS_READ_INDEX_SCAN_LATENCY.reportSuccessEvent(elapsed);
+                    if (segmentMetadata.isStorageSystemSegment()) {
+                        SLTS_SYS_READ_INDEX_SCAN_LATENCY.reportSuccessEvent(elapsed);
+                        SLTS_SYS_READ_INDEX_NUM_SCANNED.reportSuccessValue(cntScanned.get());
+                    } else {
+                        SLTS_READ_INDEX_SCAN_LATENCY.reportSuccessEvent(elapsed);
+                        SLTS_READ_INDEX_NUM_SCANNED.reportSuccessValue(cntScanned.get());
+                    }
                     log.debug("{} read - chunk lookup - op={}, segment={}, offset={}, scanned={}, latency={}.",
                             chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
                             handle.getSegmentName(), offset, cntScanned.get(), elapsed.toMillis());
