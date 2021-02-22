@@ -108,7 +108,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                 controller.sealStream(scope, getStreamForReaderGroup(groupName))
                           .thenCompose(b -> controller.deleteStream(scope, getStreamForReaderGroup(groupName)))
                           .exceptionally(e -> {
-                                log.warn("Failed to delete stream", e);
+                                log.warn("Failed to delete ReaderGroup Stream {}", getStreamForReaderGroup(groupName), e);
                                 throw Exceptions.sneakyThrow(e);
                             }).join();
             }
