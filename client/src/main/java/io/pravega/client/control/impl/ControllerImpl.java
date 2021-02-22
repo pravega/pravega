@@ -1636,7 +1636,7 @@ public class ControllerImpl implements Controller {
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn(requestId, "getReaderGroupConfig failed for Reader Group: ", scopedRGName, e);
+                log.warn(requestId, "getReaderGroupConfig failed for Reader Group: {}", scopedRGName, e);
             }
             LoggerHelpers.traceLeave(log, "getReaderGroupConfig", traceId, scope, rgName, requestId);
         });
@@ -1677,7 +1677,7 @@ public class ControllerImpl implements Controller {
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn(requestId, "deleteReaderGroup failed for Reader Group: ", scopedRGName, e);
+                log.warn(requestId, "deleteReaderGroup failed for Reader Group: {}", scopedRGName, e);
             }
             LoggerHelpers.traceLeave(log, "deleteReaderGroup", traceId, scope, rgName, requestId);
         });
