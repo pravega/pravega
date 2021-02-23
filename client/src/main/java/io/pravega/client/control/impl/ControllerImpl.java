@@ -1089,7 +1089,7 @@ public class ControllerImpl implements Controller {
         return result.thenApply(ModelHelper::encode)
                 .whenComplete((x, e) -> {
                     if (e != null) {
-                        log.warn(requestId,"getEndpointForSegment {} failed: ", qualifiedSegmentName, e);
+                        log.warn(requestId, "getEndpointForSegment {} failed: ", qualifiedSegmentName, e);
                     }
                     LoggerHelpers.traceLeave(log, "getEndpointForSegment", traceId, requestId);
                 });
@@ -1280,7 +1280,7 @@ public class ControllerImpl implements Controller {
         return result.thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txId))
                 .whenComplete((x, e) -> {
                     if (e != null) {
-                        log.warn(requestId, "checkTransactionStatus for transaction {} on  stream {} failed ", txId , stream, e);
+                        log.warn(requestId, "checkTransactionStatus for transaction {} on  stream {} failed ", txId, stream, e);
                     }
                     LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId, txId, requestId);
                 });

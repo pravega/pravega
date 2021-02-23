@@ -83,7 +83,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                         if (client == null || client.isClosed()) {
                             client = new RawClient(controller, connectionPool, segmentId);
                             long requestId = client.getFlow().getNextSequenceNumber();
-                            log.debug("Setting up appends on segment {} for ConditionalOutputStream.", segmentId);
+                            log.debug("Setting up appends on segment {} for ConditionalOutputStream with writer id {}", segmentId, writerId);
 
                             CompletableFuture<Reply> reply = tokenProvider.retrieveToken().thenCompose(token -> {
                                 SetupAppend setup = new SetupAppend(requestId, writerId,
@@ -107,7 +107,6 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
 
     @Override
     public void close() {
-        log.info("Closing segment metadata connection for {}", segmentId);
         if (closed.compareAndSet(false, true)) {
             closeConnection("Closed call");
         }
@@ -133,6 +132,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
 
     @VisibleForTesting
     RuntimeException handleUnexpectedReply(Reply reply, String expectation) {
+        log.warn("Unexpected reply {} observed instead of {} for conditional writer {}", reply, expectation, writerId);
         closeConnection(reply.toString());
         if (reply instanceof WireCommands.NoSuchSegment) {
             throw new NoSuchSegmentException(reply.toString());
@@ -159,9 +159,9 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     
     private void closeConnection(String message) {
         if (closed.get()) {
-            log.debug("Closing connection as a result of receiving: {} for segment: {}", message, segmentId);
+            log.debug("Closing connection as a result of receiving: {} for segment: {} and conditional writerId: {}", message, segmentId, writerId);
         } else {
-            log.warn("Closing connection as a result of receiving: {} for segment: {}", message, segmentId);
+            log.warn("Closing connection as a result of receiving: {} for segment: {} and conditional writerId: {}", message, segmentId, writerId);
         }
         RawClient c;
         synchronized (lock) {
@@ -172,7 +172,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
             try {
                 c.close();
             } catch (Exception e) {
-                log.warn("Exception tearing down connection: ", e);
+                log.warn("Exception tearing down connection for writerId: {} ", writerId, e);
             }
         }
     }
