@@ -207,13 +207,12 @@ public class ControllerService {
         return streamMetadataTasks.getReaderGroupConfig(scope, rgName, null);
     }
 
-    public CompletableFuture<DeleteReaderGroupStatus> deleteReaderGroup(String scope, String rgName, String readerGroupId, final long generation) {
+    public CompletableFuture<DeleteReaderGroupStatus> deleteReaderGroup(String scope, String rgName, String readerGroupId) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
         Preconditions.checkNotNull(readerGroupId, "ReaderGroup Id is null");
-        Preconditions.checkArgument(generation >= 0 );
         Timer timer = new Timer();
-        return streamMetadataTasks.deleteReaderGroup(scope, rgName, readerGroupId, generation, null)
+        return streamMetadataTasks.deleteReaderGroup(scope, rgName, readerGroupId, null)
                 .thenApplyAsync(status -> {
                     reportDeleteReaderGroupMetrics(scope, rgName, status, timer.getElapsed());
                     return DeleteReaderGroupStatus.newBuilder().setStatus(status).build();
