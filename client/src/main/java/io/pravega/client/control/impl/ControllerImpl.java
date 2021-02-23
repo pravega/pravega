@@ -1075,7 +1075,8 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<NodeUri> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<NodeUri> callback = new RPCAsyncCallback<>(requestId, "getEndpointForSegment", qualifiedSegmentName);
             Segment segment = Segment.fromScopedName(qualifiedSegmentName);
-            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getURI", qualifiedSegmentName)
+            // Ensure only the scoped name of the segment is passed, this ensures tracking for transactionsegments.
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getURI", segment.getScopedName())
                     .getURI(ModelHelper.createSegmentId(segment.getScope(),
                             segment.getStreamName(),
                             segment.getSegmentId()),
