@@ -1644,12 +1644,11 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteReaderGroup(final String scope, final String rgName,
-                                                        final UUID readerGroupId, final long generation) {
+                                                        final UUID readerGroupId) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(rgName, "rgName");
         Preconditions.checkNotNull(readerGroupId, "rgId");
-        Preconditions.checkArgument( generation >= 0 );
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "deleteReaderGroup", scope, rgName, requestId);
         final String scopedRGName = NameUtils.getScopedReaderGroupName(scope, rgName);
@@ -1657,7 +1656,7 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<DeleteReaderGroupStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DeleteReaderGroupStatus> callback = new RPCAsyncCallback<>(requestId, "deleteReaderGroup", scope, rgName);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "deleteReaderGroup", scope, rgName)
-                    .deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope, rgName, readerGroupId.toString(), generation), callback);
+                    .deleteReaderGroup(ModelHelper.createReaderGroupInfo(scope, rgName, readerGroupId.toString(), 0L), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {

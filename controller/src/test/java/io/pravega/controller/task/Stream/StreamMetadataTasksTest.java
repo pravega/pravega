@@ -519,7 +519,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(3, listSubscribersResponse.getSubscribersCount());
 
         CompletableFuture<DeleteReaderGroupStatus.Status> deleteStatus = streamMetadataTasks.deleteReaderGroup(SCOPE, "rg2",
-                rgIdSub2.toString(), responseRG2.getConfig().getGeneration(), null);
+                rgIdSub2.toString(), null);
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(DeleteReaderGroupStatus.Status.SUCCESS, deleteStatus.join());
 
