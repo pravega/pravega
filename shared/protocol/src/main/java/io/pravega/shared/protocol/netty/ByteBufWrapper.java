@@ -100,6 +100,11 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
     }
 
     @Override
+    public int getAllocatedLength() {
+        return this.buf.capacity();
+    }
+
+    @Override
     public Reader getBufferViewReader() {
         return new ByteBufReader(this.buf.duplicate());
     }
