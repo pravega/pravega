@@ -986,27 +986,31 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void noteTimestampFromWriter(Controller.TimestampFromWriter request, StreamObserver<Controller.TimestampResponse> responseObserver) {
         StreamInfo streamInfo = request.getPosition().getStreamInfo();
-        log.info("noteWriterMark called for stream {}/{}, writer={} time={}", streamInfo.getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "noteTimestampFromWriter", streamInfo.getScope(), streamInfo.getStream(), request.getWriter());
+        log.info(requestTag.getRequestId(), "noteWriterMark called for stream {}/{}, writer={} time={}", streamInfo.getScope(),
                 streamInfo.getStream(), request.getWriter(), request.getTimestamp());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken  -> controllerService.noteTimestampFromWriter(streamInfo.getScope(),
                         streamInfo.getStream(), request.getWriter(), request.getTimestamp(), request.getPosition().getCutMap()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
     public void removeWriter(Controller.RemoveWriterRequest request, StreamObserver<Controller.RemoveWriterResponse> responseObserver) {
         StreamInfo streamInfo = request.getStream();
-        log.info("writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "removeWriter", streamInfo.getScope(), streamInfo.getStream(), request.getWriter());
+        log.info(requestTag.getRequestId(), "writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
                 streamInfo.getStream(), request.getWriter());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken  -> controllerService.removeWriter(streamInfo.getScope(),
                         streamInfo.getStream(), request.getWriter()),
-                responseObserver);
+                responseObserver, requestTag);
     }
     // endregion
     

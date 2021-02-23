@@ -1292,24 +1292,26 @@ public class ControllerImpl implements Controller {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(writer, "writer");
         Preconditions.checkNotNull(lastWrittenPosition, "lastWrittenPosition");
-        long traceId = LoggerHelpers.traceEnter(log, "noteTimestampFromWriter", writer, stream);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "noteTimestampFromWriter", writer, stream, requestId);
 
         final CompletableFuture<TimestampResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TimestampResponse> callback = new RPCAsyncCallback<>(traceId, "lastWrittenPosition", writer, stream, timestamp);
-            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).noteTimestampFromWriter(TimestampFromWriter.newBuilder()
-                                                              .setWriter(writer)
-                                                              .setTimestamp(timestamp)
-                                                              .setPosition(ModelHelper.createStreamCut(stream, lastWrittenPosition))
-                                                              .build(),
-                                           callback);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "noteTimestampFromWriter", stream.getScope(), stream.getStreamName(), writer)
+                    .noteTimestampFromWriter(TimestampFromWriter.newBuilder()
+                                    .setWriter(writer)
+                                    .setTimestamp(timestamp)
+                                    .setPosition(ModelHelper.createStreamCut(stream, lastWrittenPosition))
+                                    .build(),
+                            callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(response -> {
-            LoggerHelpers.traceLeave(log, "noteTimestampFromWriter", traceId);
+            LoggerHelpers.traceLeave(log, "noteTimestampFromWriter", traceId, writer, stream, requestId);
             if (response.getResult().equals(TimestampResponse.Status.SUCCESS)) {
                 return null;
             }
-            log.warn("Writer " + writer + " failed to note time because: " + response.getResult()
+            log.warn(requestId, "Writer " + writer + " failed to note time because: " + response.getResult()
                     + " time was: " + timestamp + " position=" + lastWrittenPosition);
             throw new RuntimeException("failed to note time because: " + response.getResult());
         });
@@ -1320,23 +1322,23 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(writerId, "writerId");
-        long traceId = LoggerHelpers.traceEnter(log, "writerShutdown", writerId, stream);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "removeWriter", writerId, stream, requestId);
         final CompletableFuture<RemoveWriterResponse> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<RemoveWriterResponse> callback = new RPCAsyncCallback<>(traceId, "writerShutdown", writerId, stream);
-            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).removeWriter(RemoveWriterRequest.newBuilder()
-                                                       .setWriter(writerId)
-                                                       .setStream(ModelHelper.createStreamInfo(stream.getScope(),
-                                                                                               stream.getStreamName()))
-                                                       .build(),
-                                  callback);
+            RPCAsyncCallback<RemoveWriterResponse> callback = new RPCAsyncCallback<>(traceId, "removeWriter", writerId, stream);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "removeWriter", stream.getScope(), stream.getStreamName(), writerId)
+                    .removeWriter(RemoveWriterRequest.newBuilder()
+                            .setWriter(writerId)
+                            .setStream(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                            .build(), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(response -> {
-            LoggerHelpers.traceLeave(log, "writerShutdown", traceId);
+            LoggerHelpers.traceLeave(log, "removeWriter", traceId, writerId, stream, requestId);
             if (response.getResult().equals(RemoveWriterResponse.Status.SUCCESS)) {
                 return null;
             }
-            log.warn("Notifying the controller of writer shutdown failed for writer: " + writerId + " because of "
+            log.warn(requestId, "Notifying the controller of writer shutdown failed for writer: " + writerId + " because of "
                     + response.getResult());
             throw new RuntimeException("Unable to remove writer due to: " + response.getResult());
         });
@@ -1907,6 +1909,14 @@ public class ControllerImpl implements Controller {
 
         public void checkTransactionState(TxnRequest request, RPCAsyncCallback<TxnState> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).checkTransactionState(request, callback);
+        }
+
+        public void noteTimestampFromWriter(TimestampFromWriter request, RPCAsyncCallback<TimestampResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).noteTimestampFromWriter(request, callback);
+        }
+
+        public void removeWriter(RemoveWriterRequest request, RPCAsyncCallback<RemoveWriterResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).removeWriter(request, callback);
         }
     }
 }
