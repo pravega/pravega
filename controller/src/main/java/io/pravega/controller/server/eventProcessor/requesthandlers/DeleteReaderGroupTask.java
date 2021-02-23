@@ -53,7 +53,6 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
       String readerGroup = request.getRgName();
       long requestId = request.getRequestId();
       UUID readerGroupId = request.getReaderGroupId();
-      long generation = request.getGeneration();
       final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
       return streamMetadataStore.getReaderGroupId(scope, readerGroup)
               .thenCompose(id -> {
@@ -63,10 +62,6 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
                }
                return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
                        .thenCompose(configRecord -> {
-                       if (configRecord.getObject().getGeneration() != generation) {
-                           log.warn("Skipping processing of Reader Group delete request {} as generation did not match.", requestId);
-                           return CompletableFuture.completedFuture(null);
-                       }
                        if (!ReaderGroupConfig.StreamDataRetention.values()[configRecord.getObject().getRetentionTypeOrdinal()]
                               .equals(ReaderGroupConfig.StreamDataRetention.NONE)) {
                               String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
