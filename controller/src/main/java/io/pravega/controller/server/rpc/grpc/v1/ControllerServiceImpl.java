@@ -703,8 +703,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createTransaction(CreateTxnRequest request, StreamObserver<Controller.CreateTxnResponse> responseObserver) {
-        log.info("createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createTransaction",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), Long.toString(request.getLease()));
+        log.info(requestTag.getRequestId(), "createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
+
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
@@ -716,7 +719,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                                                                       .setTxnId(ModelHelper.decode(pair.getKey()))
                                                                                       .addAllActiveSegments(pair.getValue())
                                                                                       .build()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
@@ -752,7 +755,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
         final UUID txnId = ModelHelper.encode(request.getTxnId());
-        log.info("pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "pingTransaction",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), txnId.toString());
+        log.info(requestTag.getRequestId(), "pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
@@ -761,13 +766,15 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getStreamInfo().getStream(),
                         txnId,
                         request.getLease()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
         final UUID txnId = ModelHelper.encode(request.getTxnId());
-        log.info("checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "checkTransactionState",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), txnId.toString());
+        log.info(requestTag.getRequestId(), "checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
@@ -775,7 +782,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 delegationToken -> controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         txnId),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override

@@ -1121,24 +1121,25 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
-        long traceId = LoggerHelpers.traceEnter(log, "createTransaction", stream, lease);
-
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "createTransaction", stream, lease, requestId);
         final CompletableFuture<CreateTxnResponse> result = this.retryConfig.runAsync(() -> {
+
             RPCAsyncCallback<CreateTxnResponse> callback = new RPCAsyncCallback<>(traceId, "createTransaction", stream, lease);
-            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).createTransaction(
-                    CreateTxnRequest.newBuilder()
-                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                            .setLease(lease)
-                            .build(),
-                    callback);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "createTransaction", stream.getScope(), stream.getStreamName(), Long.toString(lease))
+                    .createTransaction(CreateTxnRequest.newBuilder()
+                                    .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                    .setLease(lease)
+                                    .build(),
+                            callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(this::convert)
                 .whenComplete((x, e) -> {
                     if (e != null) {
-                        log.warn("createTransaction on stream {} failed: ", stream.getStreamName(), e);
+                        log.warn(requestId, "createTransaction on stream {} failed: ", stream.getStreamName(), e);
                     }
-                    LoggerHelpers.traceLeave(log, "createTransaction", traceId);
+                    LoggerHelpers.traceLeave(log, "createTransaction", traceId, requestId);
                 });
     }
 
@@ -1156,11 +1157,13 @@ public class ControllerImpl implements Controller {
     @Override
     public CompletableFuture<Transaction.PingStatus> pingTransaction(final Stream stream, final UUID txId, final long lease) {
         Exceptions.checkNotClosed(closed.get(), this);
-        long traceId = LoggerHelpers.traceEnter(log, "pingTransaction", stream, txId, lease);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "pingTransaction", stream, txId, lease, requestId);
 
         final CompletableFuture<PingTxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<PingTxnStatus> callback = new RPCAsyncCallback<>(traceId, "pingTransaction", txId, lease);
-            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).pingTransaction(PingTxnRequest.newBuilder()
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "pingTransaction", stream.getScope(), stream.getStreamName(), txId.toString())
+                    .pingTransaction(PingTxnRequest.newBuilder()
                                                  .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                                                  .setTxnId(ModelHelper.decode(txId))
                                                  .setLease(lease).build(), callback);
@@ -1174,9 +1177,9 @@ public class ControllerImpl implements Controller {
             }
         }).whenComplete((s, e) -> {
             if (e != null) {
-                log.warn("PingTransaction {} failed:", txId, e);
+                log.warn(requestId, "PingTransaction {} failed:", txId, e);
             }
-            LoggerHelpers.traceLeave(log, "pingTransaction", traceId);
+            LoggerHelpers.traceLeave(log, "pingTransaction", traceId, requestId);
         });
     }
 
@@ -1186,7 +1189,7 @@ public class ControllerImpl implements Controller {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(txId, "txId");
         long traceId = LoggerHelpers.traceEnter(log, "commitTransaction", stream, txId);
-
+        log.info("Commit transaction {} invoked on Stream {} for writerId {} with timestamp {}", txId, stream, writerId, timestamp);
         final CompletableFuture<TxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>(traceId, "commitTransaction", stream, writerId, timestamp, txId);
             TxnRequest.Builder txnRequest = TxnRequest.newBuilder()
@@ -1203,18 +1206,19 @@ public class ControllerImpl implements Controller {
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(txnStatus -> {
+            LoggerHelpers.traceLeave(log, "commitTransaction", traceId, stream, txId);
             if (txnStatus.getStatus().equals(TxnStatus.Status.STREAM_NOT_FOUND)) {
-                log.warn("Stream not found: {}", stream.getStreamName());
+                log.warn("Stream {} not found while trying to commit transaction {}", stream.getStreamName(), txId);
                 throw new InvalidStreamException("Stream no longer exists: " + stream);
             }
             if (txnStatus.getStatus().equals(TxnStatus.Status.TRANSACTION_NOT_FOUND)) {
-                log.warn("transaction not found: {}", txId);
+                log.warn("transaction not found: {} on stream {}", txId, stream);
                 throw Exceptions.sneakyThrow(new TxnFailedException("Transaction was already either committed or aborted"));
             }
             if (txnStatus.getStatus().equals(TxnStatus.Status.SUCCESS)) {                
                 return null;
             }
-            log.warn("Unable to commit transaction {} commit status is {}", txId, txnStatus.getStatus());
+            log.warn("Unable to commit transaction {} on stream {}, commit status is {}", txId, stream, txnStatus.getStatus());
             throw Exceptions.sneakyThrow(new TxnFailedException("Commit transaction failed with status: " + txnStatus.getStatus()));
         });
     }
@@ -1225,6 +1229,7 @@ public class ControllerImpl implements Controller {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(txId, "txId");
         long traceId = LoggerHelpers.traceEnter(log, "abortTransaction", stream, txId);
+        log.info("Abort transaction {} invoked on stream {}", txId, stream);
 
         final CompletableFuture<TxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>(traceId, "abortTransaction", stream, txId);
@@ -1237,19 +1242,19 @@ public class ControllerImpl implements Controller {
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(txnStatus -> {
-            LoggerHelpers.traceLeave(log, "abortTransaction", traceId);
+            LoggerHelpers.traceLeave(log, "abortTransaction", traceId, stream, txId);
             if (txnStatus.getStatus().equals(TxnStatus.Status.STREAM_NOT_FOUND)) {
-                log.warn("Stream not found: {}", stream.getStreamName());
+                log.warn("Stream {} not found while trying to abort transaction {}", stream, txId);
                 throw new InvalidStreamException("Stream no longer exists: " + stream);
             }
             if (txnStatus.getStatus().equals(TxnStatus.Status.TRANSACTION_NOT_FOUND)) {
-                log.warn("transaction not found: {}", txId);
+                log.warn("transaction {} not found on stream {}", txId, stream);
                 throw Exceptions.sneakyThrow(new TxnFailedException("Transaction was already either committed or aborted"));
             }
             if (txnStatus.getStatus().equals(TxnStatus.Status.SUCCESS)) {                
                 return null;
             }
-            log.warn("Unable to abort transaction {} abort status is {} ", txId, txnStatus.getStatus());
+            log.warn("Unable to abort transaction {} on stream {}, abort status is {} ", txId, stream, txnStatus.getStatus());
             throw new RuntimeException("Error aborting transaction: " + txnStatus.getStatus());
         });
     }
@@ -1259,13 +1264,14 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(txId, "txId");
-        long traceId = LoggerHelpers.traceEnter(log, "checkTransactionStatus", stream, txId);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "checkTransactionStatus", stream, txId, requestId);
 
         final CompletableFuture<TxnState> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnState> callback = new RPCAsyncCallback<>(traceId, "checkTransactionStatus", stream, txId);
-            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).checkTransactionState(TxnRequest.newBuilder()
-                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                    stream.getStreamName()))
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "checkTransactionState", stream.getScope(), stream.getStreamName(), txId.toString())
+                    .checkTransactionState(TxnRequest.newBuilder()
+                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                             .setTxnId(ModelHelper.decode(txId))
                             .build(),
                     callback);
@@ -1274,9 +1280,9 @@ public class ControllerImpl implements Controller {
         return result.thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txId))
                 .whenComplete((x, e) -> {
                     if (e != null) {
-                        log.warn("checkTransactionStatus on " + stream + " " + txId + " failed: ", e);
+                        log.warn(requestId, "checkTransactionStatus for transaction {} on  stream {} failed ", txId , stream, e);
                     }
-                    LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId);
+                    LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId, txId, requestId);
                 });
     }
 
@@ -1889,6 +1895,18 @@ public class ControllerImpl implements Controller {
 
         public void getEpochSegments(GetEpochSegmentsRequest request, RPCAsyncCallback<SegmentRanges> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getEpochSegments(request, callback);
+        }
+
+        public void createTransaction(CreateTxnRequest request, RPCAsyncCallback<CreateTxnResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).createTransaction(request, callback);
+        }
+
+        public void pingTransaction(PingTxnRequest request, RPCAsyncCallback<PingTxnStatus> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).pingTransaction(request, callback);
+        }
+
+        public void checkTransactionState(TxnRequest request, RPCAsyncCallback<TxnState> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).checkTransactionState(request, callback);
         }
     }
 }
