@@ -77,6 +77,8 @@ public class ReaderGroupStreamFileParsingCommand extends AdminCommand {
                 writer.write(state.toString());
                 writer.newLine();
             }
+        } catch (RuntimeException e) {
+            System.err.println("Runtime exception " + e.getMessage());
         } catch (Exception e) {
             System.err.println(e.getMessage());
         }
