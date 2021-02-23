@@ -250,8 +250,8 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteReaderGroup(final String scopeName, final String rgName,
-                                                        final UUID readerGroupId, final long generation) {
-        return this.controller.deleteReaderGroup(scopeName, rgName, readerGroupId.toString(), generation).thenApply(x -> {
+                                                        final UUID readerGroupId) {
+        return this.controller.deleteReaderGroup(scopeName, rgName, readerGroupId.toString()).thenApply(x -> {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
