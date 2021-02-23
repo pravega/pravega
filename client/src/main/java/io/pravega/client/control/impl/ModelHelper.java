@@ -249,7 +249,7 @@ public final class ModelHelper {
     }
 
     /**
-     * Helper method to convery stream cut to map of segment to position.
+     * Helper method to convert stream cut to map of segment to position.
      * @param streamCut Stream cut
      * @return map of segment to position
      */

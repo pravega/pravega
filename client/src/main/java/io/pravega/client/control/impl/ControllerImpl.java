@@ -150,7 +150,7 @@ public class ControllerImpl implements Controller {
     // The internal retry object to handle RPC failures.
     private final Retry.RetryAndThrowConditionally retryConfig;
 
-    // The executor supplied by the appication to handle internal retries.
+    // The executor supplied by the application to handle internal retries.
     private final ScheduledExecutorService executor;
 
     // Flag to indicate if the client is closed.
