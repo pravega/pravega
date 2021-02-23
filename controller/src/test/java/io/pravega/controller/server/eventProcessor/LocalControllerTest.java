@@ -14,6 +14,7 @@ import com.google.common.collect.Lists;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.control.impl.ReaderGroupConfigRejectedException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -459,9 +460,9 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
                         .setStatus(Controller.UpdateReaderGroupResponse.Status.INVALID_CONFIG).build()));
-        assertThrows("Expected IllegalArgumentException",
+        assertThrows("Expected ReaderGroupConfigRejectedException",
                 () -> this.testController.updateReaderGroup("scope", "subscriber", config).join(),
-                ex -> ex instanceof IllegalArgumentException);
+                ex -> ex instanceof ReaderGroupConfigRejectedException);
 
         when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
