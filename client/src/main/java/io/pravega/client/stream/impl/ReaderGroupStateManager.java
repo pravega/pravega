@@ -187,16 +187,23 @@ public class ReaderGroupStateManager {
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         boolean result = sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
+                log.error("Reader " + readerId + " is offline according to the state but is attempting to update it.");
                 reinitRequired.set(true);
-            } else {
-                log.debug("Marking segment {} as completed in reader group. CurrentState is: {}", segmentCompleted, state);
-                reinitRequired.set(false);
-                //This check guards against another checkpoint having started.
-                if (state.getCheckpointForReader(readerId) == null) {
-                    updates.add(new SegmentCompleted(readerId, segmentCompleted, segmentToPredecessor));
-                    return true;
-                }
+                return false;
+            } 
+            if (!state.getSegments(readerId).contains(segmentCompleted.getSegment())) {
+                log.error("Reader " + readerId + " is does not own the segment " + segmentCompleted + "but is attempting to release it.");
+                reinitRequired.set(true);
+                return false;
             }
+            
+            log.debug("Marking segment {} as completed in reader group. CurrentState is: {}", segmentCompleted, state);
+            reinitRequired.set(false);
+            //This check guards against another checkpoint having started.
+            if (state.getCheckpointForReader(readerId) == null) {
+                updates.add(new SegmentCompleted(readerId, segmentCompleted, segmentToPredecessor));
+                return true;
+            } 
             return false;
         });
         if (reinitRequired.get()) {
@@ -490,7 +497,12 @@ public class ReaderGroupStateManager {
                 reinitRequired.set(true);
             } else {
                 reinitRequired.set(false);
-                updates.add(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
+                String cpName = state.getCheckpointForReader(readerId);
+                if (checkpointName.equals(cpName)) {
+                    updates.add(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
+                } else {
+                    log.warn("{} was asked to checkpoint for {} but the state says its next checkpoint should be {}", readerId, checkpointName, cpName);
+                }
             }
         });
         if (reinitRequired.get()) {

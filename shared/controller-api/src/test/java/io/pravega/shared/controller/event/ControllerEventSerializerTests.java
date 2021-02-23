@@ -97,7 +97,7 @@ public class ControllerEventSerializerTests {
 
     @Test
     public void testDeleteReaderGroupEvent() {
-        testClass(() -> new DeleteReaderGroupEvent(SCOPE, READER_GROUP, 123L, UUID.randomUUID(), 0L));
+        testClass(() -> new DeleteReaderGroupEvent(SCOPE, READER_GROUP, 123L, UUID.randomUUID()));
     }
 
     @Test

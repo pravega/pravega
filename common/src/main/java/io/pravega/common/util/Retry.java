@@ -187,7 +187,11 @@ public final class Retry {
                     Exceptions.handleInterrupted(() -> Thread.sleep(sleepFor));
 
                     delay = Math.min(params.maxDelay, params.multiplier * delay);
-                    log.debug("Retrying command {} Retry #{}, timestamp={}", r.toString(), attemptNumber, Instant.now());
+                    log.debug("Retrying command {} due to \"{}\" Retry #{}, timestamp={}",
+                              r.toString(),
+                              last.getMessage(),
+                              attemptNumber,
+                              Instant.now());
                 }
             }
             throw new RetriesExhaustedException(last);

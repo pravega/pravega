@@ -9,15 +9,12 @@
  */
 package io.pravega.controller.store.client;
 
-import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -27,8 +24,6 @@ import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
 
 public class StoreClientFactoryTest extends ThreadPooledTestSuite {
     TestingServer zkServer;
@@ -46,48 +41,6 @@ public class StoreClientFactoryTest extends ThreadPooledTestSuite {
     @After
     public void tearDown() throws IOException {
         zkServer.stop();
-    }
-    
-    @Test(timeout = 60000)
-    public void testZkSessionExpiryRetry() throws Exception {
-        CompletableFuture<Void> sessionExpiry = new CompletableFuture<>();
-        AtomicInteger expirationRetryCounter = new AtomicInteger();
-
-        Supplier<Boolean> canRetrySupplier = () -> {
-            if (sessionExpiry.isDone()) {
-                expirationRetryCounter.incrementAndGet();
-            }
-
-            return !sessionExpiry.isDone();
-        };
-        Consumer<Void> expirationHandler = x -> sessionExpiry.complete(null);
-
-        CuratorFramework client = StoreClientFactory.createZKClient(ZKClientConfigImpl.builder().connectionString(zkServer.getConnectString())
-                .namespace("test").maxRetries(10).initialSleepInterval(10).secureConnectionToZooKeeper(false).sessionTimeoutMs(15000).build(),
-                canRetrySupplier, expirationHandler);
-        
-        client.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
-        
-        sessionExpiry.join();
-
-        Supplier<Boolean> isAliveSupplier = () -> {
-            try {
-                return client.getZookeeperClient().getZooKeeper().getState().isAlive();
-            } catch (Exception e) {
-                throw new CompletionException(e);
-            }
-        };
-
-        Futures.loop(isAliveSupplier,
-                () -> Futures.delayedFuture(Duration.ofMillis(100), executorService()), executorService()).join();
-        
-        // verify that we fail with session expiry and we fail without retrying.
-        AssertExtensions.assertThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath("/test"));
-
-        // after session expiration we should only ever get one attempt at retry
-        // Note: curator is calling all retry loops thrice (so if we give retrycount as `N`, curator calls the retryPolicy
-        // 3 * (N + 1) times. Hence we are getting expiration counter as `3` instead of `1`.
-        assertEquals(3, expirationRetryCounter.get());
     }
 
     /**
