@@ -9,37 +9,37 @@
  */
 package io.pravega.shared.metrics;
 
-import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class MeterRegisterTest {
+    
+    private final CompositeMeterRegistry registry = new CompositeMeterRegistry();
 
     private void initMetrics() {
-        MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATSD_REPORTER, false).build();
-        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofMinutes(5));
-        MetricsProvider.initialize(metricsConfig);       
-        StatsProvider statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.startWithoutExporting();
-        CompositeMeterRegistry composite = Metrics.globalRegistry;
         SimpleMeterRegistry simple = new SimpleMeterRegistry();
-        composite.add(simple);
+        registry.clear();
+        registry.add(simple);
+    }
+    
+    @After
+    public void tearDown() {
+        registry.close();
     }
     
     @Test
     public void testMeterRegister() {
         initMetrics();
-        CompositeMeterRegistry registry = Metrics.globalRegistry;
         Timer success = Timer.builder("name").tags().publishPercentiles(OpStatsData.PERCENTILE_ARRAY).register(registry);
         success.record(100, TimeUnit.MILLISECONDS);
         success.record(100, TimeUnit.MILLISECONDS);
         Assert.assertEquals(2, success.count());
-        Timer latencyValues = MetricRegistryUtils.getTimer("name");
+        Timer latencyValues = registry.find("name").timer();
         Assert.assertNotNull(latencyValues);
         Assert.assertEquals(2, latencyValues.count());
     }
@@ -47,13 +47,12 @@ public class MeterRegisterTest {
     @Test
     public void testMeterReRegister() {
         initMetrics();
-        CompositeMeterRegistry registry = Metrics.globalRegistry;
         Timer success = Timer.builder("name").tags().publishPercentiles(OpStatsData.PERCENTILE_ARRAY).register(registry);
         success.record(100, TimeUnit.MILLISECONDS);
         success.record(100, TimeUnit.MILLISECONDS);
         success.close();
         
-        Timer latencyValues = MetricRegistryUtils.getTimer("name");
+        Timer latencyValues = registry.find("name").timer();
         Assert.assertNotNull(latencyValues);
         Assert.assertEquals(2, latencyValues.count());
         
@@ -63,7 +62,7 @@ public class MeterRegisterTest {
         success.record(100, TimeUnit.MILLISECONDS);
         success.record(100, TimeUnit.MILLISECONDS);
 
-        latencyValues = MetricRegistryUtils.getTimer("name");
+        latencyValues = registry.find("name").timer();
         Assert.assertNotNull(latencyValues);
         Assert.assertEquals(3, latencyValues.count());
     }
