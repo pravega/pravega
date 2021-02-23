@@ -15,10 +15,13 @@ import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -114,8 +117,10 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         checkChunkName(chunkName);
 
         val traceId = LoggerHelpers.traceEnter(log, "exists", chunkName);
+        val opContext = new OperationContext();
+
         // Call concrete implementation.
-        val returnFuture = checkExistsAsync(chunkName);
+        val returnFuture = checkExistsAsync(chunkName, opContext);
         if (log.isTraceEnabled()) {
             returnFuture.thenAcceptAsync(retValue -> LoggerHelpers.traceLeave(log, "exists", traceId, chunkName), executor);
         }
@@ -138,17 +143,43 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         checkChunkName(chunkName);
 
         val traceId = LoggerHelpers.traceEnter(log, "create", chunkName);
-        val timer = new Timer();
+        val opContext = new OperationContext();
 
         // Call concrete implementation.
-        val returnFuture = doCreateAsync(chunkName);
+        val returnFuture = doCreateAsync(chunkName, opContext);
         returnFuture.thenAcceptAsync(handle -> {
             // Record metrics.
-            val elapsed = timer.getElapsed();
+            val elapsed = opContext.getInclusiveLatency();
             ChunkStorageMetrics.CREATE_LATENCY.reportSuccessEvent(elapsed);
             ChunkStorageMetrics.CREATE_COUNT.inc();
             log.debug("Create - chunk={}, latency={}.", chunkName, elapsed.toMillis());
             LoggerHelpers.traceLeave(log, "create", traceId, chunkName);
+        }, executor);
+        return returnFuture;
+    }
+
+    @Override
+    final public CompletableFuture<ChunkHandle> createWithContent(String chunkName, int length, InputStream data) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        // Validate parameters
+        checkChunkName(chunkName);
+        Preconditions.checkArgument(null != data, "data must not be null");
+        Preconditions.checkArgument(length > 0, "length must be non-zero and non-negative");
+
+        val traceId = LoggerHelpers.traceEnter(log, "CreateWithContent", chunkName);
+        val opContext = new OperationContext();
+
+        // Call concrete implementation.
+        val returnFuture = doCreateWithContentAsync(chunkName, length, data, opContext);
+        returnFuture.thenAcceptAsync(handle -> {
+            // Record metrics.
+            val elapsed = opContext.getInclusiveLatency();
+            // Write metrics for create
+            ChunkStorageMetrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
+            ChunkStorageMetrics.WRITE_BYTES.add(length);
+            ChunkStorageMetrics.CREATE_COUNT.inc();
+            log.debug("CreateWithContent - chunk={}, bytesWritten={}, latency={}.", handle.getChunkName(), length, elapsed.toMillis());
+            LoggerHelpers.traceLeave(log, "CreateWithContent", traceId, chunkName);
         }, executor);
         return returnFuture;
     }
@@ -170,13 +201,13 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly");
 
         val traceId = LoggerHelpers.traceEnter(log, "delete", handle.getChunkName());
-        val timer = new Timer();
+        val opContext = new OperationContext();
 
         // Call concrete implementation.
-        val returnFuture = doDeleteAsync(handle);
+        val returnFuture = doDeleteAsync(handle, opContext);
         returnFuture.thenRunAsync(() -> {
             // Record metrics.
-            val elapsed = timer.getElapsed();
+            val elapsed = opContext.getInclusiveLatency();
             ChunkStorageMetrics.DELETE_LATENCY.reportSuccessEvent(elapsed);
             ChunkStorageMetrics.DELETE_COUNT.inc();
 
@@ -203,9 +234,10 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         checkChunkName(chunkName);
 
         val traceId = LoggerHelpers.traceEnter(log, "openRead", chunkName);
+        val opContext = new OperationContext();
 
         // Call concrete implementation.
-        val returnFuture = doOpenReadAsync(chunkName);
+        val returnFuture = doOpenReadAsync(chunkName, opContext);
         if (log.isTraceEnabled()) {
             returnFuture.thenAcceptAsync(handle -> LoggerHelpers.traceLeave(log, "openRead", traceId, chunkName), executor);
         }
@@ -228,9 +260,10 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         checkChunkName(chunkName);
 
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", chunkName);
+        val opContext = new OperationContext();
 
         // Call concrete implementation.
-        val returnFuture = doOpenWriteAsync(chunkName);
+        val returnFuture = doOpenWriteAsync(chunkName, opContext);
         if (log.isTraceEnabled()) {
             returnFuture.thenAcceptAsync(handle -> LoggerHelpers.traceLeave(log, "openWrite", traceId, chunkName), executor);
         }
@@ -252,9 +285,10 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Validate parameters
         checkChunkName(chunkName);
         long traceId = LoggerHelpers.traceEnter(log, "getInfo", chunkName);
+        val opContext = new OperationContext();
 
         // Call concrete implementation.
-        val returnFuture = doGetInfoAsync(chunkName);
+        val returnFuture = doGetInfoAsync(chunkName, opContext);
         if (log.isTraceEnabled()) {
             returnFuture.thenAcceptAsync(info -> LoggerHelpers.traceLeave(log, "getInfo", traceId, chunkName), executor);
         }
@@ -287,12 +321,12 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         Preconditions.checkElementIndex(bufferOffset, buffer.length, "bufferOffset");
 
         val traceId = LoggerHelpers.traceEnter(log, "read", handle.getChunkName(), fromOffset, bufferOffset, length);
-        val timer = new Timer();
+        val opContext = new OperationContext();
 
         // Call concrete implementation.
-        val returnFuture = doReadAsync(handle, fromOffset, length, buffer, bufferOffset);
+        val returnFuture = doReadAsync(handle, fromOffset, length, buffer, bufferOffset, opContext);
         returnFuture.thenAcceptAsync(bytesRead -> {
-            val elapsed = timer.getElapsed();
+            val elapsed = opContext.getInclusiveLatency();
             ChunkStorageMetrics.READ_LATENCY.reportSuccessEvent(elapsed);
             ChunkStorageMetrics.READ_BYTES.add(bytesRead);
 
@@ -336,12 +370,12 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         }
 
         val traceId = LoggerHelpers.traceEnter(log, "write", handle.getChunkName(), offset, length);
-        val timer = new Timer();
+        val opContext = new OperationContext();
 
         // Call concrete implementation.
-        val returnFuture = doWriteAsync(handle, offset, length, data);
+        val returnFuture = doWriteAsync(handle, offset, length, data, opContext);
         returnFuture.thenAcceptAsync(bytesWritten -> {
-            val elapsed = timer.getElapsed();
+            val elapsed = opContext.getInclusiveLatency();
 
             ChunkStorageMetrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
             ChunkStorageMetrics.WRITE_BYTES.add(bytesWritten);
@@ -368,13 +402,13 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         checkConcatArgs(chunks);
 
         val traceId = LoggerHelpers.traceEnter(log, "concat", chunks[0].getName());
-        val timer = new Timer();
+        val opContext = new OperationContext();
 
         // Call concrete implementation.
-        val returnFuture = doConcatAsync(chunks);
+        val returnFuture = doConcatAsync(chunks, opContext);
 
         returnFuture.thenAcceptAsync(retValue -> {
-            val elapsed = timer.getElapsed();
+            val elapsed = opContext.getInclusiveLatency();
             log.debug("concat - target={}, latency={}.", chunks[0].getName(), elapsed.toMillis());
 
             ChunkStorageMetrics.CONCAT_LATENCY.reportSuccessEvent(elapsed);
@@ -429,7 +463,8 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         val traceId = LoggerHelpers.traceEnter(log, "truncate", handle.getChunkName());
 
         // Call concrete implementation.
-        val returnFuture = doTruncateAsync(handle, offset);
+        val opContext = new OperationContext();
+        val returnFuture = doTruncateAsync(handle, offset, opContext);
         if (log.isTraceEnabled()) {
             returnFuture.thenAcceptAsync(retValue -> LoggerHelpers.traceLeave(log, "truncate", traceId, handle.getChunkName()), executor);
         }
@@ -457,7 +492,8 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         val traceId = LoggerHelpers.traceEnter(log, "setReadOnly", handle.getChunkName());
 
         // Call concrete implementation.
-        val returnFuture = doSetReadOnlyAsync(handle, isReadonly);
+        val opContext = new OperationContext();
+        val returnFuture = doSetReadOnlyAsync(handle, isReadonly, opContext);
         if (log.isTraceEnabled()) {
             returnFuture.thenAcceptAsync(v -> LoggerHelpers.traceLeave(log, "setReadOnly", traceId, handle.getChunkName()), executor);
         }
@@ -473,72 +509,97 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         this.closed.set(true);
     }
 
+    @Override
+    public void report() {
+        // Nothing to report yet.
+    }
+
     /**
      * Retrieves the ChunkInfo for given name.
      *
      * @param chunkName String name of the chunk to read from.
+     * @param opContext Context for the given operation.
      * @return A CompletableFuture that, when completed, will contain information about the given chunk.
      * @throws IllegalArgumentException If argument is invalid.
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<ChunkInfo> doGetInfoAsync(String chunkName);
+    abstract protected CompletableFuture<ChunkInfo> doGetInfoAsync(String chunkName, OperationContext opContext);
 
     /**
      * Creates a new chunk.
      *
      * @param chunkName String name of the chunk to create.
+     * @param opContext Context for the given operation.
      * @return A CompletableFuture that, when completed, will contain a writable handle for the recently created chunk.
      * @throws IllegalArgumentException If argument is invalid.
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<ChunkHandle> doCreateAsync(String chunkName);
+    abstract protected CompletableFuture<ChunkHandle> doCreateAsync(String chunkName, OperationContext opContext);
+
+    /**
+     * Creates a new chunk with provided content.
+     *
+     * @param chunkName String name of the chunk to create.
+     * @param length Number of bytes to write.
+     * @param data   An InputStream representing the data to write.
+     * @param opContext Context for the given operation.
+     * @return A CompletableFuture that, when completed, will contain a writable handle for the recently created chunk.
+     * @throws IllegalArgumentException If argument is invalid.
+     * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
+     * {@link ChunkStorageException} In case of I/O related exceptions.
+     */
+    abstract protected CompletableFuture<ChunkHandle> doCreateWithContentAsync(String chunkName, int length, InputStream data, OperationContext opContext);
 
     /**
      * Determines whether named chunk exists in underlying storage.
      *
      * @param chunkName Name of the chunk to check.
+     * @param opContext Context for the given operation.
      * @return A CompletableFuture that, when completed, will contain True if the object exists, false otherwise.
      * @throws IllegalArgumentException If argument is invalid.
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Boolean> checkExistsAsync(String chunkName);
+    abstract protected CompletableFuture<Boolean> checkExistsAsync(String chunkName, OperationContext opContext);
 
     /**
      * Deletes a chunk.
      *
      * @param handle ChunkHandle of the chunk to delete.
+     * @param opContext Context for the given operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation completed.
      *          If the operation failed, it will contain the cause of the failure.
      * @throws IllegalArgumentException If argument is invalid.
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Void> doDeleteAsync(ChunkHandle handle);
+    abstract protected CompletableFuture<Void> doDeleteAsync(ChunkHandle handle, OperationContext opContext);
 
     /**
      * Opens chunk for Read.
      *
      * @param chunkName String name of the chunk to read from.
+     * @param opContext Context for the given operation.
      * @return A CompletableFuture that, when completed, will contain a readable handle for the given chunk.
      * @throws IllegalArgumentException If argument is invalid.
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<ChunkHandle> doOpenReadAsync(String chunkName);
+    abstract protected CompletableFuture<ChunkHandle> doOpenReadAsync(String chunkName, OperationContext opContext);
 
     /**
      * Opens chunk for Write (or modifications).
      *
      * @param chunkName String name of the chunk to write to or modify.
+     * @param opContext Context for the given operation.
      * @return A CompletableFuture that, when completed, will contain a writable handle for the given chunk.
      * @throws IllegalArgumentException If argument is invalid.
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<ChunkHandle> doOpenWriteAsync(String chunkName);
+    abstract protected CompletableFuture<ChunkHandle> doOpenWriteAsync(String chunkName, OperationContext opContext);
 
     /**
      * Reads a range of bytes from the underlying chunk.
@@ -548,6 +609,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @param length       Number of bytes to read.
      * @param buffer       Byte buffer to which data is copied.
      * @param bufferOffset Offset in the buffer at which to start copying read data.
+     * @param opContext Context for the given operation.
      * @return A CompletableFuture that, when completed, will contain number of bytes read.
      * @throws IllegalArgumentException  If argument is invalid.
      * @throws NullPointerException      If the parameter is null.
@@ -555,7 +617,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Integer> doReadAsync(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset);
+    abstract protected CompletableFuture<Integer> doReadAsync(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset, OperationContext opContext);
 
     /**
      * Writes the given data to the chunk.
@@ -564,50 +626,54 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * @param offset Offset in the chunk to start writing.
      * @param length Number of bytes to write.
      * @param data   An InputStream representing the data to write.
+     * @param opContext Context for the given operation.
      * @return A CompletableFuture that, when completed, will contain number of bytes written.
      * @throws IndexOutOfBoundsException If the index is out of bounds.
      * @throws IllegalArgumentException Throws IllegalArgumentException in case of invalid index.
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Integer> doWriteAsync(ChunkHandle handle, long offset, int length, InputStream data);
+    abstract protected CompletableFuture<Integer> doWriteAsync(ChunkHandle handle, long offset, int length, InputStream data, OperationContext opContext);
 
     /**
      * Concatenates two or more chunks using storage native functionality. (Eg. Multipart upload.)
      *
      * @param chunks Array of ConcatArgument objects containing info about existing chunks to be concatenated together.
      *               The chunks must be concatenated in the same sequence the arguments are provided.
+     * @param opContext Context for the given operation.
      * @return A CompletableFuture that, when completed, will contain number of bytes concatenated.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Integer> doConcatAsync(ConcatArgument[] chunks);
+    abstract protected CompletableFuture<Integer> doConcatAsync(ConcatArgument[] chunks, OperationContext opContext);
 
     /**
      * Sets readonly attribute for the chunk.
      *
      * @param handle     ChunkHandle of the chunk.
      * @param isReadOnly True if chunk is set to be readonly.
+     * @param opContext Context for the given operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation completed.
      *          If the operation failed, it will contain the cause of the failure.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    abstract protected CompletableFuture<Void> doSetReadOnlyAsync(ChunkHandle handle, boolean isReadOnly);
+    abstract protected CompletableFuture<Void> doSetReadOnlyAsync(ChunkHandle handle, boolean isReadOnly, OperationContext opContext);
 
     /**
      * Truncates a given chunk.
      *
      * @param handle ChunkHandle of the chunk to truncate.
      * @param offset Offset to truncate to.
+     * @param opContext Context for the given operation.
      * @return True if the object was truncated, false otherwise.
      * @throws UnsupportedOperationException If this operation is not supported by this provider.
      * @throws CompletionException If the operation failed, it will be completed with the appropriate exception. Notable Exceptions:
      * {@link ChunkStorageException} In case of I/O related exceptions.
      */
-    protected CompletableFuture<Boolean> doTruncateAsync(ChunkHandle handle, long offset) {
+    protected CompletableFuture<Boolean> doTruncateAsync(ChunkHandle handle, long offset, OperationContext opContext) {
         throw new UnsupportedOperationException();
     }
 
@@ -624,17 +690,33 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
      * StreamSegmentExceptions.
      *
      * @param operation The function to execute.
+     * @param opContext Context for the given operation.
      * @param <R>       Return type of the operation.
      * @return CompletableFuture<R> of the return type of the operation.
      */
-    protected <R> CompletableFuture<R> execute(Callable<R> operation) {
+    protected <R> CompletableFuture<R> execute(Callable<R> operation, OperationContext opContext) {
         return CompletableFuture.supplyAsync(() -> {
             Exceptions.checkNotClosed(this.closed.get(), this);
             try {
-                return operation.call();
+                val timer = new Timer();
+                val ret = operation.call();
+                opContext.setInclusiveLatency(timer.getElapsed());
+                return ret;
             } catch (Exception e) {
                 throw new CompletionException(e);
             }
         }, executor);
+    }
+
+    /**
+     * Context data used to capture operation runtime information.
+     */
+    static class OperationContext {
+        /**
+         * End to end latency of the operation.
+         */
+        @Getter
+        @Setter
+        private volatile Duration inclusiveLatency = Duration.ZERO;
     }
 }

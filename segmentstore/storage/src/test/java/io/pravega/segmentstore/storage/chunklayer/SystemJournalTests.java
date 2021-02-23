@@ -447,8 +447,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 val bytes = new byte[size];
                 chunkStorage.read(ChunkHandle.readHandle(snapShotFile), 0, size, bytes, 0).join();
                 chunkStorage.delete(ChunkHandle.writeHandle(snapShotFile)).join();
-                val h = chunkStorage.create(snapShotFile).join();
-                chunkStorage.write(h, 0, size, new ByteArrayInputStream(bytes)).join();
+                chunkStorage.createWithContent(snapShotFile, size, new ByteArrayInputStream(bytes)).join();
             }
         });
     }
@@ -789,10 +788,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long totalBytesWritten = 0;
         for (int i = 0; i < 10; i++) {
             String newChunk = "chunk" + i;
-            val h = chunkStorage.create(newChunk).get();
-            val bytesWritten = chunkStorage.write(h, 0, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
-            Assert.assertEquals(policy.getMaxLength(), bytesWritten.longValue());
-            totalBytesWritten += bytesWritten;
+            val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
+            totalBytesWritten += policy.getMaxLength();
             systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(policy.getMaxLength() * i)
@@ -851,10 +848,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long totalBytesWritten = 0;
         for (int i = 0; i < 10; i++) {
             String newChunk = "chunk" + i;
-            val h = chunkStorage.create(newChunk).get();
-            val bytesWritten = chunkStorage.write(h, 0, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
-            Assert.assertEquals(policy.getMaxLength(), bytesWritten.longValue());
-            totalBytesWritten += bytesWritten;
+            val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
+            totalBytesWritten += policy.getMaxLength();
             systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(policy.getMaxLength() * i)

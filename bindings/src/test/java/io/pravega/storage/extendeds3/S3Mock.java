@@ -77,16 +77,27 @@ public class S3Mock {
     }
 
     public PutObjectResult putObject(PutObjectRequest request) {
+        // Fix passed in object metadata.
         if (request.getObjectMetadata() != null) {
-            request.setObjectMetadata(null);
+            request.setObjectMetadata(new S3ObjectMetadata()
+                    .withContentType(request.getObjectMetadata().getContentType())
+                    .withContentLength(request.getObjectMetadata().getContentLength()));
         }
         String objectName = getObjectName(request.getBucketName(), request.getKey());
         synchronized (this.objects) {
             if (this.objects.containsKey(objectName)) {
                 throw new S3Exception(String.format("Object '%s/%s' exists.", request.getBucketName(), request.getKey()), 0, "PreconditionFailed", "");
             }
-
-            this.objects.put(objectName, new ObjectData(BufferView.empty(), request.getAcl()));
+            if (null != request.getObject()) {
+                try {
+                    val bufferView = new ByteArraySegment(((InputStream) request.getObject()).readAllBytes());
+                    this.objects.put(objectName, new ObjectData(bufferView, request.getAcl()));
+                } catch (IOException ex) {
+                    throw new S3Exception("Copy error", HttpStatus.SC_INTERNAL_SERVER_ERROR);
+                }
+            } else {
+                this.objects.put(objectName, new ObjectData(BufferView.empty(), request.getAcl()));
+            }
             return new PutObjectResult();
         }
     }
