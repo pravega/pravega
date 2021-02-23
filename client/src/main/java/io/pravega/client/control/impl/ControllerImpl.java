@@ -1034,25 +1034,26 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Exceptions.checkArgument(epoch >= 0, "epoch", "Should be a positive integer");
-        long traceId = LoggerHelpers.traceEnter(log, "getEpochSegments", scope, stream);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "getEpochSegments", scope, stream, epoch, requestId);
 
         final CompletableFuture<SegmentRanges> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(traceId, "getEpochSegments", scope, stream);
+            RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(traceId, "getEpochSegments", scope, stream, Integer.toString(epoch));
             GetEpochSegmentsRequest request = GetEpochSegmentsRequest.newBuilder()
-                                                                     .setStreamInfo(ModelHelper.createStreamInfo(scope, stream))
-                                                                     .setEpoch(epoch)
-                                                                     .build();
-            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                  .getEpochSegments(request, callback);
+                    .setStreamInfo(ModelHelper.createStreamInfo(scope, stream))
+                    .setEpoch(epoch)
+                    .build();
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getEpochSegments", scope, stream, Integer.toString(epoch))
+                    .getEpochSegments(request, callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(this::getStreamSegments)
-                     .whenComplete((x, e) -> {
-                         if (e != null) {
-                             log.warn("getEpochSegments for {}/{} with for epoch {} failed: ", scope, stream, epoch, e);
-                         }
-                         LoggerHelpers.traceLeave(log, "getEpochSegments", traceId);
-                     });
+                .whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn(requestId, "getEpochSegments for {}/{} with epoch {} failed: ", scope, stream, epoch, e);
+                    }
+                    LoggerHelpers.traceLeave(log, "getEpochSegments", traceId, requestId);
+                });
     }
 
     private StreamSegments getStreamSegments(final SegmentRanges ranges) {
@@ -1884,6 +1885,10 @@ public class ControllerImpl implements Controller {
 
         public void getSegmentsImmediatelyFollowing(SegmentId segmentId, RPCAsyncCallback<SuccessorResponse> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getSegmentsImmediatelyFollowing(segmentId, callback);
+        }
+
+        public void getEpochSegments(GetEpochSegmentsRequest request, RPCAsyncCallback<SegmentRanges> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getEpochSegments(request, callback);
         }
     }
 }
