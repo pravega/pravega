@@ -101,6 +101,7 @@ public class ByteBufWrapper extends AbstractBufferView implements BufferView {
 
     @Override
     public int getAllocatedLength() {
+        // TODO: This won't give us what we want. Unfortunately ByteBuf does not expose this information and there's no way to get it otherwise.
         return this.buf.capacity();
     }
 

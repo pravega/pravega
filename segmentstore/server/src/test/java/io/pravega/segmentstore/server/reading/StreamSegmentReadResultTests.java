@@ -56,7 +56,7 @@ public class StreamSegmentReadResultTests {
     }
 
     /**
-     * Tests the ability to properly set Copy-on-Read.
+     * Tests the ability to handle {@link StreamSegmentReadResult#setMaxReadAtOnce(int)}.
      */
     @Test
     public void testMaxReadAtOnce() {
