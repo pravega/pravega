@@ -583,7 +583,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getSegmentsImmediatelyFollowing(SegmentId segmentId, StreamObserver<SuccessorResponse> responseObserver) {
-        log.info("getSegmentsImmediatelyFollowing called for segment {} ", segmentId);
+        String segment = NameUtils.getQualifiedStreamSegmentName(segmentId.getStreamInfo().getScope(), segmentId.getStreamInfo().getStream(), segmentId.getSegmentId());
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getSegmentsImmediatelyFollowing",
+               segment);
+
+        log.info(requestTag.getRequestId(), "getSegmentsImmediatelyFollowing called for segment {} ", segment);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(segmentId.getStreamInfo().getScope(),
                         segmentId.getStreamInfo().getStream()), AuthHandler.Permissions.READ),

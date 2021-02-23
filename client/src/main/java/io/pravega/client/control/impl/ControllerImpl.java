@@ -916,12 +916,14 @@ public class ControllerImpl implements Controller {
     @Override
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         Exceptions.checkNotClosed(closed.get(), this);
-        long traceId = LoggerHelpers.traceEnter(log, "getSuccessors", segment);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "getSuccessors", segment, requestId);
 
         final CompletableFuture<SuccessorResponse> resultFuture = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<SuccessorResponse> callback = new RPCAsyncCallback<>(traceId, "getSuccessors", segment);
-            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                  .getSegmentsImmediatelyFollowing(ModelHelper.decode(segment), callback);
+            RPCAsyncCallback<SuccessorResponse> callback = new RPCAsyncCallback<>(requestId, "getSuccessors", segment);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getSegmentsImmediatelyFollowing", segment.getScopedName())
+                    .getSegmentsImmediatelyFollowing(ModelHelper.decode(segment), callback);
+
             return callback.getFuture();
         }, this.executor);
         return resultFuture.thenApply(successors -> {
@@ -933,9 +935,9 @@ public class ControllerImpl implements Controller {
             return new StreamSegmentsWithPredecessors(result, successors.getDelegationToken());
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("getSuccessors of segment {} failed: ", segment.getSegmentId(), e);
+                log.warn(requestId, "getSuccessors of segment {} failed: ", segment.getSegmentId(), e);
             }
-            LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
+            LoggerHelpers.traceLeave(log, "getSuccessors", traceId, requestId);
         });
     }
 
@@ -1878,6 +1880,10 @@ public class ControllerImpl implements Controller {
 
         public void getURI(SegmentId segmentId, RPCAsyncCallback<NodeUri> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getURI(segmentId, callback);
+        }
+
+        public void getSegmentsImmediatelyFollowing(SegmentId segmentId, RPCAsyncCallback<SuccessorResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getSegmentsImmediatelyFollowing(segmentId, callback);
         }
     }
 }
