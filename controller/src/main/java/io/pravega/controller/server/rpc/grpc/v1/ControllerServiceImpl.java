@@ -25,6 +25,7 @@ import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AuthorizationResource;
 import io.pravega.shared.security.auth.AuthorizationResourceImpl;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -652,8 +653,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
-        log.info("getURI called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getSegmentId());
+        String segment = NameUtils.getQualifiedStreamSegmentName(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getSegmentId());
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getURI", segment);
+        log.info(requestTag.getRequestId(), "getURI called for segment {}.", segment);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 StreamAuthParams.toResourceString(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ),

@@ -105,6 +105,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.security.auth.AccessOperation;
@@ -1068,24 +1069,25 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(qualifiedSegmentName, "qualifiedSegmentName");
-        long traceId = LoggerHelpers.traceEnter(log, "getEndpointForSegment", qualifiedSegmentName);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "getEndpointForSegment", qualifiedSegmentName, requestId);
 
         final CompletableFuture<NodeUri> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<NodeUri> callback = new RPCAsyncCallback<>(traceId, "getEndpointForSegment", qualifiedSegmentName);
+            RPCAsyncCallback<NodeUri> callback = new RPCAsyncCallback<>(requestId, "getEndpointForSegment", qualifiedSegmentName);
             Segment segment = Segment.fromScopedName(qualifiedSegmentName);
-            client.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
-                  .getURI(ModelHelper.createSegmentId(segment.getScope(),
-                    segment.getStreamName(),
-                    segment.getSegmentId()),
-                    callback);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, "getURI", qualifiedSegmentName)
+                    .getURI(ModelHelper.createSegmentId(segment.getScope(),
+                            segment.getStreamName(),
+                            segment.getSegmentId()),
+                            callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(ModelHelper::encode)
                 .whenComplete((x, e) -> {
                     if (e != null) {
-                        log.warn("getEndpointForSegment {} failed: ", qualifiedSegmentName, e);
+                        log.warn(requestId,"getEndpointForSegment {} failed: ", qualifiedSegmentName, e);
                     }
-                    LoggerHelpers.traceLeave(log, "getEndpointForSegment", traceId);
+                    LoggerHelpers.traceLeave(log, "getEndpointForSegment", traceId, requestId);
                 });
     }
 
@@ -1871,6 +1873,10 @@ public class ControllerImpl implements Controller {
 
         void getCurrentSegments(StreamInfo streamInfo, RPCAsyncCallback<SegmentRanges> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getCurrentSegments(streamInfo, callback);
+        }
+
+        public void getURI(SegmentId segmentId, RPCAsyncCallback<NodeUri> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS).getURI(segmentId, callback);
         }
     }
 }
