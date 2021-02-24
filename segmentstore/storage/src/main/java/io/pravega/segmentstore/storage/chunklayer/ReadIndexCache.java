@@ -121,8 +121,12 @@ class ReadIndexCache implements StatsReporter {
                 .chunkName(chunkName)
                 .startOffset(startOffset)
                 .build();
-        segmentReadIndex.offsetToChunkNameIndex.put(startOffset, indexEntry);
-        indexEntryCache.put(indexEntry, true);
+        val existing = segmentReadIndex.offsetToChunkNameIndex.putIfAbsent(startOffset, indexEntry);
+        if (null == existing) {
+            indexEntryCache.put(indexEntry, true);
+        } else {
+            Preconditions.checkState(existing.equals(indexEntry), indexEntry.toString() + " != " + existing);
+        }
     }
 
     /**
