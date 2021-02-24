@@ -274,7 +274,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName, final UUID readerGroupId, final long generation) {
+    public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName, final UUID readerGroupId) {
         String key = getScopedReaderGroupName(scope, getStreamForReaderGroup(rgName));
         return deleteFromScope(scope, key, s -> s.readerGroups, this::getSegmentsForReaderGroup, Segment::getScopedName, this::deleteSegment);
     }
