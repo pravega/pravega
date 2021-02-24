@@ -11,6 +11,7 @@
 package io.pravega.segmentstore.storage.metadata;
 
 import com.google.common.annotations.Beta;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -189,7 +190,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
      * Keep count of records in buffer. ConcurrentHashMap.size() is an expensive operation.
      */
-    @Getter
     private final AtomicInteger bufferCount = new AtomicInteger(0);
 
     /**
@@ -695,6 +695,11 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         Preconditions.checkState(null != copyForBuffer.dbObject, "Missing tracking object");
         Preconditions.checkState(fromDb.dbObject == copyForBuffer.dbObject, "Missing tracking object");
         return copyForBuffer;
+    }
+
+    @VisibleForTesting
+    long getBufferCount() {
+        return bufferCount.get();
     }
 
     /**

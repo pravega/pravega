@@ -937,7 +937,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                     txn.commit().get();
                 }
             }
-            Assert.assertTrue(metadataStore.getBufferCount().get() < 10);
+            Assert.assertTrue(metadataStore.getBufferCount() < 10);
         }
     }
 
