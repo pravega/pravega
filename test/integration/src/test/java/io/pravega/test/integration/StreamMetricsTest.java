@@ -196,7 +196,7 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_READER_GROUP)).count());
 
         controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber,
-                rgConfig.getReaderGroupId().toString(), 1L).get();
+                rgConfig.getReaderGroupId().toString()).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.DELETE_READER_GROUP)).count());
 
         // Seal the Stream.

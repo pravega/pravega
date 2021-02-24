@@ -30,7 +30,6 @@ public class DeleteReaderGroupEvent implements ControllerEvent {
     private final String rgName;
     private final long requestId;
     private UUID readerGroupId;
-    private long generation;
 
     @Override
     public String getKey() {
@@ -67,7 +66,6 @@ public class DeleteReaderGroupEvent implements ControllerEvent {
             target.writeUTF(e.rgName);
             target.writeLong(e.requestId);
             target.writeUUID(e.readerGroupId);
-            target.writeLong(e.generation);
         }
 
         private void read00(RevisionDataInput source, DeleteReaderGroupEventBuilder b) throws IOException {
@@ -75,7 +73,6 @@ public class DeleteReaderGroupEvent implements ControllerEvent {
             b.rgName(source.readUTF());
             b.requestId(source.readLong());
             b.readerGroupId(source.readUUID());
-            b.generation(source.readLong());
         }
     }
     //endregion
