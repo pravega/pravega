@@ -44,11 +44,6 @@ public class TlsEnabledInProcPravegaClusterTest {
                 .build();
     }
 
-    @Test(timeout = 30000)
-    public void testWriteAndReadEventWithValidClientConfig() throws Exception {
-        EMULATOR.testWriteAndReadAnEventWithValidClientConfig(scope, stream, msg, prepareValidClientConfig());
-    }
-
     /**
      * This test verifies that create stream fails when the client config is invalid.
      *
@@ -76,6 +71,11 @@ public class TlsEnabledInProcPravegaClusterTest {
         AssertExtensions.assertThrows("TLS exception did not occur.",
                 () -> streamManager.createScope(scope),
                 e -> hasTlsException(e));
+    }
+
+    @Test(timeout = 30000)
+    public void testWriteAndReadEventWithValidClientConfig() throws Exception {
+        EMULATOR.testWriteAndReadAnEventWithValidClientConfig(scope, stream, msg, prepareValidClientConfig());
     }
 
     private boolean hasTlsException(Throwable e) {
