@@ -1583,8 +1583,8 @@ public class ControllerImpl implements Controller {
                     log.warn(requestId, "Failed to create reader group: {}", rgName);
                     throw new ControllerFailureException("Failed to create readergroup: " + rgName);
                 case INVALID_CONFIG:
-                    log.warn(requestId, "Illegal Reader Group Name: {}", rgName);
-                    throw new IllegalArgumentException("Illegal readergroup name: " + rgName);
+                    log.warn(requestId, "Illegal Reader Group Config for reader group {}: {}", rgName, rgConfig);
+                    throw new ReaderGroupConfigRejectedException("Invalid Reader Group Config: " + rgConfig.toString());
                 case RG_NOT_FOUND:
                     log.warn(requestId, "Scope not found: {}", scope);
                     throw new IllegalArgumentException("Scope does not exist: " + scope);
