@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
@@ -24,17 +25,28 @@ class ChunkIterator {
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final MetadataTransaction txn;
     private volatile String currentChunkName;
+    private volatile String lastChunkName;
     private volatile ChunkMetadata currentMetadata;
 
     ChunkIterator(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, SegmentMetadata segmentMetadata) {
-        this.chunkedSegmentStorage = chunkedSegmentStorage;
-        this.txn = txn;
-        currentChunkName = segmentMetadata.getFirstChunk();
+        this.chunkedSegmentStorage = Preconditions.checkNotNull(chunkedSegmentStorage, "chunkedSegmentStorage");
+        this.txn = Preconditions.checkNotNull(txn, "txn");
+        Preconditions.checkNotNull(segmentMetadata, "segmentMetadata");
+        // The following can be null.
+        this.currentChunkName = segmentMetadata.getFirstChunk();
+    }
+
+    ChunkIterator(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, String startChunkName, String lastChunkName) {
+        this.chunkedSegmentStorage = Preconditions.checkNotNull(chunkedSegmentStorage, "chunkedSegmentStorage");
+        this.txn = Preconditions.checkNotNull(txn, "txn");
+        // The following can be null.
+        this.currentChunkName = startChunkName;
+        this.lastChunkName = lastChunkName;
     }
 
     public CompletableFuture<Void> forEach(BiConsumer<ChunkMetadata, String> consumer) {
         return Futures.loop(
-                () -> currentChunkName != null,
+                () -> null != currentChunkName && !currentChunkName.equals(lastChunkName),
                 () -> txn.get(currentChunkName)
                         .thenAcceptAsync(storageMetadata -> {
                             currentMetadata = (ChunkMetadata) storageMetadata;
