@@ -209,7 +209,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         synchronizer.fetchUpdates();
         UUID groupId = synchronizer.getState().getConfig().getReaderGroupId();
         long generation = synchronizer.getState().getConfig().getGeneration();
-        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, groupId, generation),
+        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, groupId),
                 RuntimeException::new);
     }
 }
