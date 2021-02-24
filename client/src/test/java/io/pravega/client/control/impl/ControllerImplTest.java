@@ -1606,7 +1606,7 @@ public class ControllerImplTest {
 
         updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg4", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                updateRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+                updateRGStatus, throwable -> throwable instanceof ReaderGroupConfigRejectedException);
     }
 
     @Test
