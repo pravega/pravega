@@ -19,6 +19,7 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ReaderGroupNotFoundException;
 import io.pravega.client.stream.impl.ReaderGroupState;
@@ -105,10 +106,29 @@ public class ReaderGroupManagerImplTest {
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
         when(state.getConfig()).thenReturn(config);
-        when(controller.deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId(), config.getGeneration())).thenReturn(CompletableFuture.completedFuture(true));
+        when(controller.deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId())).thenReturn(CompletableFuture.completedFuture(true));
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
-        verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId(), config.getGeneration());
+        verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testDeleteReaderGroupRGStreamDeleted() {
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2))
+                .put(createStream("s2"), createStreamCut("s2", 3)).build())
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .build();
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenThrow(new InvalidStreamException(""));
+        when(controller.getReaderGroupConfig(SCOPE, GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(config));
+        when(controller.deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId()))
+                .thenReturn(CompletableFuture.completedFuture(true));
+        // Delete ReaderGroup
+        readerGroupManager.deleteReaderGroup(GROUP_NAME);
+        verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
+        verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId());
     }
 
     @Test
@@ -128,12 +148,12 @@ public class ReaderGroupManagerImplTest {
 
         when(controller.getReaderGroupConfig(anyString(), anyString()))
                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
-        when(controller.deleteReaderGroup(anyString(), anyString(), any(UUID.class), anyLong()))
+        when(controller.deleteReaderGroup(anyString(), anyString(), any(UUID.class)))
                 .thenReturn(CompletableFuture.completedFuture(true));
         // Delete ReaderGroup
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
-        verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, expectedConfig.getReaderGroupId(), expectedConfig.getGeneration());
+        verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, expectedConfig.getReaderGroupId());
     }
 
     @Test
@@ -161,7 +181,7 @@ public class ReaderGroupManagerImplTest {
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
         verify(controller, times(1)).deleteStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME));
-        verify(controller, times(0)).deleteReaderGroup(SCOPE, GROUP_NAME, expectedConfig.getReaderGroupId(), expectedConfig.getGeneration());
+        verify(controller, times(0)).deleteReaderGroup(SCOPE, GROUP_NAME, expectedConfig.getReaderGroupId());
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {

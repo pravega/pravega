@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ReaderGroupConfigRejectedException;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -44,6 +45,7 @@ import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.NameUtils;
@@ -233,8 +235,14 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                     // Use the latest generation and reader group Id.
                     ReaderGroupConfig newConfig = ReaderGroupConfig.cloneConfig(config,
                                     currentConfig.getReaderGroupId(), currentConfig.getGeneration());
-                    final long nextGen = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, newConfig));
-                    updateConfigInStateSynchronizer(newConfig, nextGen);
+                    long newGen = Futures.exceptionallyExpecting(controller.updateReaderGroup(scope, groupName, newConfig),
+                            e -> Exceptions.unwrap(e) instanceof ReaderGroupConfigRejectedException, -1L).join();
+                    if (newGen == -1) {
+                        log.debug("Synchronize reader group with the one present on controller.");
+                        synchronizeReaderGroupConfig();
+                        continue;
+                    }
+                    updateConfigInStateSynchronizer(newConfig, newGen);
                 }
                 return;
             }
@@ -246,6 +254,17 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         synchronizer.updateState((s, updates) -> {
             updates.add(new ReaderGroupStateInit(ReaderGroupConfig.cloneConfig(config,
                     config.getReaderGroupId(), newGen), segments, getEndSegmentsForStreams(config), false));
+        });
+    }
+
+    private void synchronizeReaderGroupConfig() {
+        ReaderGroupConfig controllerConfig = getThrowingException(controller.getReaderGroupConfig(scope, groupName));
+        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, controllerConfig);
+        synchronizer.updateState((s, updates) -> {
+            if (s.getConfig().getGeneration() < controllerConfig.getGeneration()) {
+                updates.add(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
+            }
+
         });
     }
 
