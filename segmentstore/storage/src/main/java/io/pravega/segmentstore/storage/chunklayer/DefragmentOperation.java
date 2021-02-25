@@ -107,7 +107,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     private final ChunkedSegmentStorage chunkedSegmentStorage;
 
     private volatile List<ChunkInfo> chunksToConcat = Collections.synchronizedList(new ArrayList<>());
-
+    private final List<ChunkNameOffsetPair> newReadIndexEntries;
     private volatile ChunkMetadata target;
     private volatile String targetChunkName;
     private final AtomicBoolean useAppend = new AtomicBoolean();
@@ -120,14 +120,24 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     private final AtomicLong readAtOffset = new AtomicLong();
     private final AtomicLong bytesToRead = new AtomicLong();
     private final AtomicInteger currentArgIndex = new AtomicInteger();
+    private final AtomicLong currentIndexOffset = new AtomicLong();
 
-    DefragmentOperation(ChunkedSegmentStorage chunkedSegmentStorage, MetadataTransaction txn, SegmentMetadata segmentMetadata, String startChunkName, String lastChunkName, List<String> chunksToDelete) {
+    DefragmentOperation(ChunkedSegmentStorage chunkedSegmentStorage,
+                        MetadataTransaction txn,
+                        SegmentMetadata segmentMetadata,
+                        String startChunkName,
+                        String lastChunkName,
+                        List<String> chunksToDelete,
+                        List<ChunkNameOffsetPair> newReadIndexEntries,
+                        long currentIndexOffset) {
         this.txn = txn;
         this.segmentMetadata = segmentMetadata;
         this.startChunkName = startChunkName;
         this.lastChunkName = lastChunkName;
         this.chunksToDelete = chunksToDelete;
+        this.newReadIndexEntries = newReadIndexEntries;
         this.chunkedSegmentStorage = chunkedSegmentStorage;
+        this.currentIndexOffset.set(currentIndexOffset);
     }
 
     public CompletableFuture<Void> call() {
@@ -188,7 +198,10 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                             }, chunkedSegmentStorage.getExecutor());
                         }, chunkedSegmentStorage.getExecutor()),
                 chunkedSegmentStorage.getExecutor())
-                .thenRunAsync(segmentMetadata::checkInvariants, chunkedSegmentStorage.getExecutor());
+                .thenComposeAsync(vvv -> {
+                    segmentMetadata.checkInvariants();
+                    return updateReadIndex();
+                }, chunkedSegmentStorage.getExecutor());
     }
 
     private CompletableFuture<Void> concatChunks() {
@@ -219,7 +232,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                 segmentMetadata.setLastChunkStartOffset(segmentMetadata.getLength() - target.getLength());
             }
 
-            ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+            final List<CompletableFuture<Void>> futures = Collections.synchronizedList(new ArrayList<>());
             // Update metadata for affected chunks.
             for (int i = 1; i < concatArgs.length; i++) {
                 final int n = i;
@@ -306,5 +319,24 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
                 },
                 chunkedSegmentStorage.getExecutor()
         );
+    }
+
+    private CompletableFuture<Void> updateReadIndex() {
+        return new ChunkIterator(chunkedSegmentStorage, txn, startChunkName, lastChunkName)
+                .forEach((metadata, name) -> {
+                    newReadIndexEntries.add(ChunkNameOffsetPair.builder()
+                            .chunkName(name)
+                            .offset(currentIndexOffset.get())
+                            .build());
+                    if (!segmentMetadata.isStorageSystemSegment()) {
+                        chunkedSegmentStorage.addBlockIndexEntriesForChunk(txn,
+                                segmentMetadata.getName(),
+                                metadata.getName(),
+                                currentIndexOffset.get(),
+                                currentIndexOffset.get(),
+                                currentIndexOffset.get() + metadata.getLength());
+                    }
+                    currentIndexOffset.addAndGet(metadata.getLength());
+                });
     }
 }
