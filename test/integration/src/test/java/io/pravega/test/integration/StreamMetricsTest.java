@@ -49,6 +49,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -161,12 +162,13 @@ public class StreamMetricsTest {
 
         String streamScopedName = NameUtils.getScopedStreamName(scopeName, streamName);
         ReaderGroupConfig rgConfig = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream(streamScopedName).generation(0L)
+                .stream(streamScopedName)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .build();
+        rgConfig = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 0L);
         // Here, the system scope and streams are already created.
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
-        assertEquals(8, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
+        assertEquals(4, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
 
         controllerWrapper.getControllerService().createScope(scopeName).get();
         if (!controller.createStream(scopeName, streamName, config).get()) {
@@ -175,7 +177,7 @@ public class StreamMetricsTest {
         }
         // Check that the new scope and stream are accounted in metrics.
         assertEquals(2, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
-        assertEquals(9, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
+        assertEquals(5, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
 
         // Update the Stream.
         controllerWrapper.getControllerService().updateStream(scopeName, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build()).get();
