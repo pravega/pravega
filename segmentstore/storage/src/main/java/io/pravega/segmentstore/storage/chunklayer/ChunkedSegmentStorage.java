@@ -28,8 +28,11 @@ import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
+import io.pravega.segmentstore.storage.metadata.ReadIndexBlockMetadata;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
+import io.pravega.segmentstore.storage.metadata.StatusFlags;
 import io.pravega.segmentstore.storage.metadata.StorageMetadataWritesFencedOutException;
+import io.pravega.shared.NameUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -48,6 +51,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
@@ -65,7 +70,7 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
  */
 @Slf4j
 @Beta
-public class ChunkedSegmentStorage implements Storage {
+public class ChunkedSegmentStorage implements Storage, StatsReporter {
     /**
      * Configuration options for this ChunkedSegmentStorage instance.
      */
@@ -139,16 +144,18 @@ public class ChunkedSegmentStorage implements Storage {
     @Getter
     private final GarbageCollector garbageCollector;
 
+    private final ScheduledFuture<?> reporter;
+
     /**
      * Creates a new instance of the ChunkedSegmentStorage class.
      *
      * @param containerId   container id.
      * @param chunkStorage  ChunkStorage instance.
      * @param metadataStore Metadata store.
-     * @param executor      An Executor for async operations.
+     * @param executor      A {@link ScheduledExecutorService} for async operations.
      * @param config        Configuration options for this ChunkedSegmentStorage instance.
      */
-    public ChunkedSegmentStorage(int containerId, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, Executor executor, ChunkedSegmentStorageConfig config) {
+    public ChunkedSegmentStorage(int containerId, ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, ScheduledExecutorService executor, ChunkedSegmentStorageConfig config) {
         this.containerId = containerId;
         this.config = Preconditions.checkNotNull(config, "config");
         this.chunkStorage = Preconditions.checkNotNull(chunkStorage, "chunkStorage");
@@ -165,8 +172,9 @@ public class ChunkedSegmentStorage implements Storage {
                 chunkStorage,
                 metadataStore,
                 config,
-                (ScheduledExecutorService) executor);
+                executor);
         this.closed = new AtomicBoolean(false);
+        this.reporter = executor.scheduleAtFixedRate(this::report, 1000, 1000, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -255,7 +263,7 @@ public class ChunkedSegmentStorage implements Storage {
                                 lastChunk.getName(),
                                 lastChunk.getLength());
                         return chunkStorage.getInfo(lastChunkName)
-                                .thenComposeAsync(chunkInfo -> {
+                                .thenApplyAsync(chunkInfo -> {
                                     Preconditions.checkState(chunkInfo != null, "chunkInfo for last chunk must not be null.");
                                     Preconditions.checkState(lastChunk != null, "last chunk metadata must not be null.");
                                     // Adjust its length;
@@ -264,8 +272,16 @@ public class ChunkedSegmentStorage implements Storage {
                                                 "Length of last chunk on LTS must be greater than what is in metadata. Chunk=%s length=%s",
                                                 lastChunk, chunkInfo.getLength());
                                         // Whatever length you see right now is the final "sealed" length of the last chunk.
+                                        val oldLength = segmentMetadata.getLength();
                                         lastChunk.setLength(chunkInfo.getLength());
                                         segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + lastChunk.getLength());
+                                        if (!segmentMetadata.isStorageSystemSegment()) {
+                                            addBlockIndexEntriesForChunk(txn, segmentMetadata.getName(),
+                                                    lastChunk.getName(),
+                                                    segmentMetadata.getLastChunkStartOffset(),
+                                                    oldLength,
+                                                    segmentMetadata.getLength());
+                                        }
                                         txn.update(lastChunk);
                                         log.debug("{} claimOwnership - Length of last chunk adjusted - segment={}, last chunk={}, Length={}.",
                                                 logPrefix,
@@ -273,7 +289,7 @@ public class ChunkedSegmentStorage implements Storage {
                                                 lastChunk.getName(),
                                                 chunkInfo.getLength());
                                     }
-                                    return CompletableFuture.completedFuture(true);
+                                    return true;
                                 }, executor)
                                 .exceptionally(e -> {
                                     val ex = Exceptions.unwrap(e);
@@ -459,14 +475,18 @@ public class ChunkedSegmentStorage implements Storage {
      * @param lastChunkName   Name of the last chunk before which to stop defragmentation. (last chunk is not concatenated).
      * @param chunksToDelete  List of chunks to which names of chunks to be deleted are added. It is the responsibility
      *                        of caller to garbage collect these chunks.
+     * @param newReadIndexEntries List of new read index entries as a result of defrag.
+     * @param defragOffset    Offest where defrag begins. It is start offset of the startChunk.
      *                        throws ChunkStorageException    In case of any chunk storage related errors.
      *                        throws StorageMetadataException In case of any chunk metadata store related errors.
      */
     public CompletableFuture<Void> defrag(MetadataTransaction txn, SegmentMetadata segmentMetadata,
                                            String startChunkName,
                                            String lastChunkName,
-                                           List<String> chunksToDelete) {
-        return new DefragmentOperation(this, txn, segmentMetadata, startChunkName, lastChunkName, chunksToDelete).call();
+                                           List<String> chunksToDelete,
+                                           List<ChunkNameOffsetPair> newReadIndexEntries,
+                                           long defragOffset) {
+        return new DefragmentOperation(this, txn, segmentMetadata, startChunkName, lastChunkName, chunksToDelete, newReadIndexEntries, defragOffset).call();
     }
 
     @Override
@@ -494,6 +514,8 @@ public class ChunkedSegmentStorage implements Storage {
                                     txn.update(metadata);
                                     chunksToDelete.add(name);
                                 })
+                                .thenRunAsync(() -> deleteBlockIndexEntriesForChunk(txn, streamSegmentName, segmentMetadata.getStartOffset(), segmentMetadata.getLength()),
+                                        executor)
                                 .thenRunAsync(() -> txn.delete(streamSegmentName), executor)
                                 .thenComposeAsync(v ->
                                         txn.commit()
@@ -644,10 +666,18 @@ public class ChunkedSegmentStorage implements Storage {
     }
 
     @Override
+    public void report() {
+        garbageCollector.report();
+        metadataStore.report();
+        chunkStorage.report();
+    }
+
+    @Override
     public void close() {
         close("metadataStore", this.metadataStore);
         close("garbageCollector", this.garbageCollector);
         close("chunkStorage", this.chunkStorage);
+        this.reporter.cancel(true);
         this.closed.set(true);
     }
 
@@ -662,6 +692,40 @@ public class ChunkedSegmentStorage implements Storage {
             log.error("{} Error while closing {}", logPrefix, message, e);
         }
     }
+
+    /**
+     * Adds block index entries for given chunk.
+     */
+    void addBlockIndexEntriesForChunk(MetadataTransaction txn, String segmentName, String chunkName, long chunkStartOffset, long fromOffset, long toOffset) {
+        Preconditions.checkState(chunkStartOffset <= fromOffset);
+        Preconditions.checkState(fromOffset <= toOffset);
+        val blockSize = config.getIndexBlockSize();
+        val startBlock = fromOffset / blockSize;
+        // For each block start that falls on this chunk, add block index entry.
+        for (long blockStartOffset = startBlock * blockSize; blockStartOffset < toOffset; blockStartOffset += blockSize) {
+            if (blockStartOffset >= chunkStartOffset) {
+                val blockEntry = ReadIndexBlockMetadata.builder()
+                        .name(NameUtils.getSegmentReadIndexBlockName(segmentName, blockStartOffset))
+                        .startOffset(chunkStartOffset)
+                        .chunkName(chunkName)
+                        .status(StatusFlags.ACTIVE)
+                        .build();
+                txn.create(blockEntry);
+                log.debug("{} adding new block index entry segment={}, entry={}.", logPrefix, segmentName, blockEntry);
+            }
+        }
+    }
+
+    /**
+     * Delete block index entries for given chunk.
+     */
+    void deleteBlockIndexEntriesForChunk(MetadataTransaction txn, String segmentName, long startOffset, long endOffset) {
+        val firstBlock = startOffset / config.getIndexBlockSize();
+        for (long offset = firstBlock * config.getIndexBlockSize(); offset < endOffset; offset += config.getIndexBlockSize()) {
+            txn.delete(NameUtils.getSegmentReadIndexBlockName(segmentName, offset));
+        }
+    }
+
 
     /**
      * Executes the given Callable asynchronously and returns a CompletableFuture that will be completed with the result.

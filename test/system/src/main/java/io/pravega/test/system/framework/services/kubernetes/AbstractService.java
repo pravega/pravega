@@ -81,7 +81,7 @@ public abstract class AbstractService implements Service {
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
     private static final String BOOKKEEPER_VERSION = System.getProperty("bookkeeperImageVersion", "latest");
     private static final String ZK_SERVICE_NAME = "zookeeper-client:2181";
-    private static final String JOURNALDIRECTORIES = "bk/journal/j0,/bk/journal/j1,/bk/journal/j2,/bk/journal/j3";
+    private static final String JOURNALDIRECTORIES = "/bk/journal/j0,/bk/journal/j1,/bk/journal/j2,/bk/journal/j3";
     private static final String LEDGERDIRECTORIES = "/bk/ledgers/l0,/bk/ledgers/l1,/bk/ledgers/l2,/bk/ledgers/l3";
 
     final K8sClient k8sClient;

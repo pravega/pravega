@@ -77,7 +77,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                 // Nothing to do
                                 return CompletableFuture.completedFuture(null);
                             }
-
+                            val oldStartOffset = segmentMetadata.getStartOffset();
                             return updateFirstChunk(txn)
                                     .thenComposeAsync(v -> deleteChunks(txn)
                                             .thenComposeAsync( vvv -> {
@@ -87,6 +87,9 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                                 // Check invariants.
                                                 Preconditions.checkState(segmentMetadata.getLength() == oldLength, "truncate should not change segment length");
                                                 segmentMetadata.checkInvariants();
+
+                                                // Remove read index block entries.
+                                                chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, streamSegmentName, oldStartOffset, segmentMetadata.getStartOffset());
 
                                                 // Finally commit.
                                                 return commit(txn)
