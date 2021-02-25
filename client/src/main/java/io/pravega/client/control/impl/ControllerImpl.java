@@ -33,8 +33,6 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.shared.NameUtils;
-import io.pravega.shared.security.auth.Credentials;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
@@ -42,6 +40,9 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.stream.impl.ReaderGroupNotFoundException;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.Credentials;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
@@ -1578,22 +1579,23 @@ public class ControllerImpl implements Controller {
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
+            final String rgScopedName = NameUtils.getScopedReaderGroupName(scope, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
-                    log.warn(requestId, "Failed to create reader group: {}", rgName);
-                    throw new ControllerFailureException("Failed to create readergroup: " + rgName);
+                    log.warn(requestId, "Failed to create reader group: {}", rgScopedName);
+                    throw new ControllerFailureException("Failed to create readergroup: " + rgScopedName);
                 case INVALID_CONFIG:
-                    log.warn(requestId, "Illegal Reader Group Config for reader group {}: {}", rgName, rgConfig);
+                    log.warn(requestId, "Illegal Reader Group Config for reader group {}: {}", rgScopedName, rgConfig);
                     throw new ReaderGroupConfigRejectedException("Invalid Reader Group Config: " + rgConfig.toString());
                 case RG_NOT_FOUND:
-                    log.warn(requestId, "Scope not found: {}", scope);
-                    throw new IllegalArgumentException("Scope does not exist: " + scope);
+                    log.warn(requestId, "Reader Group not found: {}", rgScopedName);
+                    throw new ReaderGroupNotFoundException(rgScopedName);
                 case SUCCESS:
-                    log.info(requestId, "ReaderGroup created successfully: {}", rgName);
+                    log.info(requestId, "ReaderGroup created successfully: {}", rgScopedName);
                     return x.getGeneration();
                 case UNRECOGNIZED:
                 default:
-                    throw new ControllerFailureException("Unknown return status creating reader group " + rgName
+                    throw new ControllerFailureException("Unknown return status creating reader group " + rgScopedName
                             + " " + x.getStatus());
             }
         }).whenComplete((x, e) -> {
@@ -1626,7 +1628,7 @@ public class ControllerImpl implements Controller {
                     throw new ControllerFailureException("Failed to get config for reader group: " + scopedRGName);
                 case RG_NOT_FOUND:
                     log.warn(requestId, "ReaderGroup not found: {}", scopedRGName);
-                    throw new IllegalArgumentException("ReaderGroup does not exist: " + scopedRGName);
+                    throw new ReaderGroupNotFoundException(scopedRGName);
                 case SUCCESS:
                     log.info(requestId, "Successfully got config for Reader Group: {}", scopedRGName);
                     return ModelHelper.encode(x.getConfig());
@@ -1666,7 +1668,7 @@ public class ControllerImpl implements Controller {
                     throw new ControllerFailureException("Failed to delete reader group: " + scopedRGName);
                 case RG_NOT_FOUND:
                     log.warn(requestId, "ReaderGroup not found: {}", scopedRGName);
-                    throw new IllegalArgumentException("ReaderGroup does not exist: " + scopedRGName);
+                    throw new ReaderGroupNotFoundException(scopedRGName);
                 case SUCCESS:
                     log.info(requestId, "Successfully deleted Reader Group: {}", scopedRGName);
                     return true;
