@@ -77,6 +77,7 @@ Build the Pravega standalone mode distribution:
 <details>
 <summary>Commands to start standalone from installation package</summary>
 <p>
+
 Download the Pravega release from the [GitHub Releases](https://github.com/pravega/pravega/releases).
 
 ```java
