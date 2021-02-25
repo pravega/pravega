@@ -76,14 +76,15 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
     private ReaderGroupConfig getConfigFromEvent(CreateReaderGroupEvent request) {
         Map<Stream, StreamCut> startStreamCut = getStreamCutMapFromRecord(request.getStartingStreamCuts());
         Map<Stream, StreamCut> endStreamCut = getStreamCutMapFromRecord(request.getEndingStreamCuts());
-        return ReaderGroupConfig.builder().readerGroupId(request.getReaderGroupId())
+        ReaderGroupConfig conf = ReaderGroupConfig.builder()
                 .groupRefreshTimeMillis(request.getGroupRefreshTimeMillis())
                 .automaticCheckpointIntervalMillis(request.getAutomaticCheckpointIntervalMillis())
                 .maxOutstandingCheckpointRequest(request.getMaxOutstandingCheckpointRequest())
-                .generation(request.getGeneration())
+
                 .retentionType(ReaderGroupConfig.StreamDataRetention.values()[request.getRetentionTypeOrdinal()])
                 .startingStreamCuts(startStreamCut)
                 .endingStreamCuts(endStreamCut).build();
+        return ReaderGroupConfig.cloneConfig(conf, request.getReaderGroupId(), request.getGeneration());
     }
 
     private Map<Stream, StreamCut> getStreamCutMapFromRecord(final Map<String, RGStreamCutRecord> streamCutMap) {

@@ -1086,8 +1086,8 @@ public class ReaderGroupStateManagerTest {
         String groupName = "group";
         String rgStream = NameUtils.getStreamForReaderGroup(groupName);
         ReaderGroupConfig clientConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build();
-        ReaderGroupConfig controllerConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, stream2))
-                .readerGroupId(clientConfig.getReaderGroupId()).generation(1).build();
+        ReaderGroupConfig controllerConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, stream2)).build();
+        controllerConfig = ReaderGroupConfig.cloneConfig(controllerConfig, clientConfig.getReaderGroupId(), 1L);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
