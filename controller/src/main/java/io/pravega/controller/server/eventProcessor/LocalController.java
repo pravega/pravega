@@ -30,6 +30,7 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.stream.impl.ReaderGroupNotFoundException;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
@@ -221,7 +222,7 @@ public class LocalController implements Controller {
                 case INVALID_CONFIG:
                     throw new ReaderGroupConfigRejectedException("Invalid Reader Group Config: " + config.toString());
                 case RG_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + scopedRGName);
+                    throw new ReaderGroupNotFoundException("Scope does not exist: " + scopedRGName);
                 case SUCCESS:
                     return x.getGeneration();
                 default:
@@ -239,7 +240,7 @@ public class LocalController implements Controller {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to get Config for ReaderGroup: " + scopedRGName);
                 case RG_NOT_FOUND:
-                    throw new IllegalArgumentException("Could not find Reader Group: " + scopedRGName);
+                    throw new ReaderGroupNotFoundException("Could not find Reader Group: " + scopedRGName);
                 case SUCCESS:
                     return ModelHelper.encode(x.getConfig());
                 default:
@@ -258,7 +259,7 @@ public class LocalController implements Controller {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
                 case RG_NOT_FOUND:
-                    throw new IllegalArgumentException("Reader group not found: " + scopedRGName);
+                    throw new ReaderGroupNotFoundException("Reader group not found: " + scopedRGName);
                 case SUCCESS:
                     return true;
                 default:
