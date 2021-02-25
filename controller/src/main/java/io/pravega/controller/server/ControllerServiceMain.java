@@ -246,11 +246,11 @@ public class ControllerServiceMain extends AbstractExecutionThreadService implem
     public void close() {
         if (starter != null) {
             triggerShutdown();
-            Callbacks.invokeSafely(starter::close, ex -> log.error("Closing starter.", ex));
+            Callbacks.invokeSafely(starter::close, ex -> log.warn("Error closing starter. " + ex.getMessage()));
         }
 
         if (storeClient != null) {
-            Callbacks.invokeSafely(storeClient::close, ex -> log.error("Closing storeClient.", ex));
+            Callbacks.invokeSafely(storeClient::close, ex -> log.warn("Error closing storeClient. " + ex.getMessage()));
         }
     }
 }

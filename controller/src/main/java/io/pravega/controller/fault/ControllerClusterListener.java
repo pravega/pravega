@@ -81,21 +81,22 @@ public class ControllerClusterListener extends AbstractIdleService {
                 switch (type) {
                     case HOST_ADDED:
                         // We need to do nothing when a new controller instance joins the cluster.
-                        log.info("Received controller cluster event: {} for host: {}", type, host);
+                        log.info("Received HOST_ADDED cluster event: {} for host: {}", type, host);
                         break;
                     case HOST_REMOVED:
-                        log.info("Received controller cluster event: {} for host: {}", type, host);
+                        log.info("Received HOST_REMOVED cluster event: {} for host: {}", type, host);
                         handleHostRemoved(host);
                         break;
                     case ERROR:
                         // This event should be due to ZK connection errors. If it is session lost error then
                         // ControllerServiceMain would handle it. Otherwise it is a fleeting error that can go
                         // away with retries, and hence we ignore it.
-                        log.info("Received error event when monitoring the controller host cluster, ignoring...");
+                        log.warn("Received error event from controller host {}", host);
                         break;
                 }
             }, executor);
 
+            // processes: set of controller process running at unique IP:PORT
             Supplier<Set<String>> processes = () -> {
                 try {
                     return cluster.getClusterMembers()
@@ -103,7 +104,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                             .map(Host::getHostId)
                             .collect(Collectors.toSet());
                 } catch (ClusterException e) {
-                    log.error("error fetching cluster members {}", e);
+                    log.error("Error fetching cluster members {}", e);
                     throw new CompletionException(e);
                 }
             };
@@ -146,7 +147,7 @@ public class ControllerClusterListener extends AbstractIdleService {
     protected void shutDown() throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, objectId, "shutDown");
         try {
-            log.info("Deregistering host {} from controller cluster", host);
+            log.info("De-registering host {} from controller cluster", host);
             cluster.deregisterHost(host);
             log.info("Controller cluster listener shutDown complete");
         } finally {

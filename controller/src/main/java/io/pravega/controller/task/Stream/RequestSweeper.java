@@ -83,9 +83,9 @@ public class RequestSweeper implements FailoverSweeper {
     public CompletableFuture<Void> sweepFailedProcesses(final Supplier<Set<String>> runningProcesses) {
         return withRetriesAsync(metadataStore::listHostsWithPendingTask, RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor)
                 .thenComposeAsync(registeredHosts -> {
-                    log.info("Hosts {} have ongoing tasks", registeredHosts);
+                    log.debug("Hosts {} have ongoing tasks", registeredHosts);
                     registeredHosts.removeAll(withRetries(runningProcesses, UNCONDITIONAL_PREDICATE, Integer.MAX_VALUE));
-                    log.info("Failed hosts {} have orphaned tasks", registeredHosts);
+                    log.debug("Failed hosts {} have orphaned tasks", registeredHosts);
                     return Futures.allOf(registeredHosts.stream()
                                                         .map(this::handleFailedProcess).collect(Collectors.toList()));
                 }, executor);
