@@ -55,7 +55,8 @@ public abstract class StorageMetadata implements Serializable {
             // - 0: Unsupported Serializer.
             builder.serializer(MockStorageMetadata.class, 1, new MockStorageMetadata.Serializer())
                     .serializer(ChunkMetadata.class, 2, new ChunkMetadata.Serializer())
-                    .serializer(SegmentMetadata.class, 3, new SegmentMetadata.Serializer());
+                    .serializer(SegmentMetadata.class, 3, new SegmentMetadata.Serializer())
+                    .serializer(ReadIndexBlockMetadata.class, 4, new ReadIndexBlockMetadata.Serializer());
         }
     }
 }
