@@ -167,6 +167,9 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
                 StreamConfiguration.builder()
                                    .scalingPolicy(ScalingPolicy.fixed(1)).build());
+        if (ReaderGroupConfig.DEFAULT_UUID.equals(config.getReaderGroupId())) {
+            config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+        }
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
