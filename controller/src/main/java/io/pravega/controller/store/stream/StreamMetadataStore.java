@@ -1429,11 +1429,8 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                      final OperationContext context, final Executor executor);
 
     /**
-     * Compares two Stream cuts and returns :
-     *  1 if streamcut1 is ahead of or identical to streamcut2. 
-     *  0 if streamcut1 overlaps with streamcut2. 
-     *  -1 if streamcut2 is ahead of streamcut1. 
-     * A streamcut is considered greater than if for all key ranges the segment/offset in one streamcut is ahead of 
+     * Compares two Stream cuts and returns StreamCutComparison enum.
+     * A streamcut is considered greater than equals another if for all key ranges the segment/offset in one streamcut is ahead of 
      * second streamcut. 
      *
      * @param scope      stream scope.
@@ -1446,7 +1443,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return A completable future which when completed will hold an integer which will determine the order between 
      * streamcut1 and streamcut2. 
      */
-    CompletableFuture<Integer> compareStreamCut(final String scope, final String streamName,
+    CompletableFuture<StreamCutComparison> compareStreamCut(final String scope, final String streamName,
                                                 Map<Long, Long> streamCut1, Map<Long, Long> streamCut2,
                                                 final OperationContext context, final Executor executor);
 

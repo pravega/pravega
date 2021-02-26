@@ -685,11 +685,8 @@ interface Stream {
     CompletableFuture<Integer> getSegmentSealedEpoch(long segmentId);
 
     /**
-     * Compares two Stream cuts and returns :
-     *  1 if streamcut1 is ahead of or identical to streamcut2. 
-     *  0 if streamcut1 overlaps with streamcut2. 
-     *  -1 if streamcut2 is ahead of streamcut1. 
-     * A streamcut is considered greater than if for all key ranges the segment/offset in one streamcut is ahead of 
+     * Compares two Stream cuts and returns StreamCutComparison:
+     * A streamcut is considered greater than other if for all key ranges the segment/offset in one streamcut is ahead of 
      * second streamcut. 
      * 
      * @param cut1 streamcut to check
@@ -697,7 +694,7 @@ interface Stream {
      *
      * @return CompletableFuture which, upon completion, will contain comparison result of streamcut1 and streamcut2.
      */
-    CompletableFuture<Integer> compareStreamCuts(Map<Long, Long> cut1, Map<Long, Long> cut2);
+    CompletableFuture<StreamCutComparison> compareStreamCuts(Map<Long, Long> cut1, Map<Long, Long> cut2);
 
     /**
      * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.

@@ -51,6 +51,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.LongSummaryStatistics;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -249,21 +250,60 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @Override
-    public CompletableFuture<Integer> compareStreamCuts(Map<Long, Long> streamcut1, Map<Long, Long> streamcut2) {
+    public CompletableFuture<StreamCutComparison> compareStreamCuts(Map<Long, Long> streamcut1, Map<Long, Long> streamcut2) {
+        LongSummaryStatistics stats1 = streamcut1.keySet().stream().collect(Collectors.summarizingLong(Long::longValue));
+        LongSummaryStatistics stats2 = streamcut1.keySet().stream().collect(Collectors.summarizingLong(Long::longValue));
+
+        // if all segments in one streamcut are older than all segments another streamcut then we dont need to compare 
+        // streamcuts at all and can simply return the response. 
+        if (stats1.getMax() < stats2.getMin()) {
+            // stats1 less than stats2
+            return CompletableFuture.completedFuture(StreamCutComparison.LessThan);
+        } else  if (stats2.getMax() < stats1.getMin()) {
+            // stats2 less than min
+            return CompletableFuture.completedFuture(StreamCutComparison.GreaterThanEquals);
+        } 
+
         CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span1Future = computeStreamCutSpan(streamcut1);
         CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> span2Future = computeStreamCutSpan(streamcut2);
         return CompletableFuture.allOf(span1Future, span2Future)
                     .thenApply(v -> {
                         ImmutableMap<StreamSegmentRecord, Integer> span1 = span1Future.join();
                         ImmutableMap<StreamSegmentRecord, Integer> span2 = span2Future.join();
-                        boolean gt = greaterThan(streamcut1, span1, streamcut2, span2);
-                        boolean lt = greaterThan(streamcut2, span2, streamcut1, span1);
-                        if (gt) { // if its greater then return 1
-                            return 1;
-                        } else if (!lt) { // if its neither greater nor less than then they are overlapping.
-                            return 0;
-                        } else { // else its clearly less than. 
-                            return -1;
+                        // loop over all segments in streamcut1 and compare them with segments in streamcut2. 
+                        // if we find all segments in streamcut1 greater than or equal to all segments in streamcut2
+                        boolean foundGt = false;
+                        boolean foundLt = false;
+                        for (Map.Entry<StreamSegmentRecord, Integer> e1 : span1.entrySet()) {
+                            for (Map.Entry<StreamSegmentRecord, Integer> e2 : span2.entrySet()) {
+                                int comparison;
+                                if (e2.getKey().segmentId() == e1.getKey().segmentId()) {
+                                    // same segment. compare offsets
+                                    comparison = Long.compare(streamcut1.get(e1.getKey().segmentId()), streamcut2.get(e2.getKey().segmentId()));
+                                } else if (e2.getKey().overlaps(e1.getKey())) {
+                                    // overlapping segment. compare segment id.
+                                    comparison = Long.compare(e1.getKey().segmentId(), e2.getKey().segmentId());
+                                } else {
+                                    continue;
+                                }
+                                foundGt = !foundGt ? comparison > 0 : foundGt;
+                                foundLt = !foundLt ? comparison < 0 : foundLt;
+                            }
+                        }
+
+                        if (foundGt) {
+                            if (foundLt) { // some segments are greater and some less. return overlapping
+                                return StreamCutComparison.Overlaps;
+                            } else { // segments are only greater or equal. 
+                                return StreamCutComparison.GreaterThanEquals;
+                            }
+                        } else { 
+                            if (foundLt) { // no segment greater than but some segment less than. 
+                                return StreamCutComparison.LessThan;
+                            } else { 
+                                // no segment greater than no segment less than. this means all segments are equal.
+                                return StreamCutComparison.GreaterThanEquals;
+                            }
                         }
                     });
     }
