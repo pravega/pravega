@@ -1018,6 +1018,7 @@ project('test:system') {
         environment "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
         environment "desiredBookkeeperCMVersion",System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
         environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
+        environment "skipServiceInstallation", System.getProperty("skipServiceInstallation", "false")
 
         commandLine './kubernetes/setupTestPod.sh'
     }
