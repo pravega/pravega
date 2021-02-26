@@ -55,21 +55,21 @@ public class ReaderGroupStreamFileParsingCommand extends AdminCommand {
                 // type should be 0 as Wirecommand.Event type is 0
                 byte[] type = new byte[HEADER];
                 int read = fileInputStream.read(type);
-                assertEquals(read, HEADER);
+                assertEquals("should read 4 bytes header", read, HEADER);
                 ByteBuffer b = ByteBuffer.wrap(type);
                 int t = b.getInt();
-                assertEquals(t, TYPE);
+                assertEquals("Wirecommand.Event type should be 0", t, TYPE);
 
                 // read length
                 byte[] len = new byte[LENGTH];
                 read = fileInputStream.read(len);
-                assertEquals(read, LENGTH);
+                assertEquals("read payload length", read, LENGTH);
                 b = ByteBuffer.wrap(len);
                 int eventLength = b.getInt();
 
                 byte[] payload = new byte[eventLength];
                 read = fileInputStream.read(payload);
-                assertEquals(read, eventLength);
+                assertEquals("read payload", read, eventLength);
                 b = ByteBuffer.wrap(payload);
 
                 val serializer = new UpdateOrInitSerializer<>(new ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer(), new ReaderGroupManagerImpl.ReaderGroupStateInitSerializer());
