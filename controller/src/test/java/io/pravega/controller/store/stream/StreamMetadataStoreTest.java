@@ -1966,10 +1966,9 @@ public abstract class StreamMetadataStoreTest {
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(rgId)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        rgConfig = ReaderGroupConfig.cloneConfig(rgConfig, rgId, 0L);
         final RGOperationContext rgContext = store.createRGContext(scopeRGTest, rgName);
         store.addReaderGroupToScope(scopeRGTest, rgName, rgConfig.getReaderGroupId()).join();
         store.createReaderGroup(scopeRGTest, rgName, rgConfig, System.currentTimeMillis(), rgContext, executor).join();

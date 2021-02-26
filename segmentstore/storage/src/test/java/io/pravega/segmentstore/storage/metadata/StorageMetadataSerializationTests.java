@@ -59,7 +59,7 @@ public class StorageMetadataSerializationTests {
     }
 
     @Test
-    public void testStorageMetadataSerialization() throws Exception {
+    public void testChunkMetadataSerialization() throws Exception {
         testStorageMetadataSerialization(ChunkMetadata.builder()
                 .name("name")
                 .nextChunk("nextChunk")
@@ -71,6 +71,34 @@ public class StorageMetadataSerializationTests {
                 .name("name")
                 .length(1)
                 .status(2)
+                .build());
+    }
+
+    @Test
+    public void testReadIndexBlockMetadataSerialization() throws Exception {
+        testStorageMetadataSerialization(ReadIndexBlockMetadata.builder()
+                .name("name")
+                .chunkName("chunkName")
+                .startOffset(1)
+                .status(2)
+                .build());
+
+        // Modify the status after object is built.
+        val index = ReadIndexBlockMetadata.builder()
+                .name("name")
+                .chunkName("chunkName")
+                .startOffset(1)
+                .status(2)
+                .build();
+        index.setActive(true);
+        Assert.assertTrue(index.isActive());
+        Assert.assertEquals(3, index.getStatus());
+
+        testStorageMetadataSerialization(ReadIndexBlockMetadata.builder()
+                .name("name")
+                .chunkName("chunkName")
+                .startOffset(1)
+                .status(3)
                 .build());
     }
 
