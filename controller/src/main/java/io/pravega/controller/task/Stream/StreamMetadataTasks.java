@@ -338,15 +338,23 @@ public class StreamMetadataTasks extends TaskBase {
                  .thenCompose(complete -> {
                      if (!complete) {
                          //3. Create Reader Group Metadata inside Scope and submit the event
-                         return eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, config, requestId, createTimestamp),
-                                 () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId()))
+                         return validateReaderGroupId(config)
+                                 .thenCompose(conf -> eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, conf, requestId, createTimestamp),
+                                 () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, conf.getReaderGroupId()))
                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
-                                         .thenCompose(done -> buildCreateSuccessResponse(scope, rgName)));
+                                         .thenCompose(done -> buildCreateSuccessResponse(scope, rgName))));
                      }
                      return buildCreateSuccessResponse(scope, rgName);
                  });
          });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+    }
+
+    private CompletableFuture<ReaderGroupConfig> validateReaderGroupId(ReaderGroupConfig config) {
+        if (ReaderGroupConfig.DEFAULT_UUID.equals(config.getReaderGroupId())) {
+            return CompletableFuture.completedFuture(ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L));
+        }
+        return CompletableFuture.completedFuture(config);
     }
 
     public CompletableFuture<Boolean> isRGCreationComplete(String scope, String rgName) {
@@ -446,8 +454,9 @@ public class StreamMetadataTasks extends TaskBase {
                         return isRGCreationComplete(scope, rgName)
                                 .thenCompose(complete -> {
                                     if (!complete) {
-                                        return streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId())
-                                                .thenCompose(x -> createReaderGroupTasks(scope, rgName, config, createTimestamp))
+                                        return validateReaderGroupId(config)
+                                        .thenCompose(conf -> streamMetadataStore.addReaderGroupToScope(scope, rgName, conf.getReaderGroupId())
+                                                .thenCompose(x -> createReaderGroupTasks(scope, rgName, conf, createTimestamp))
                                                 .thenCompose(status -> {
                                                     if (CreateReaderGroupResponse.Status.SUCCESS.equals(status)) {
                                                         return buildCreateSuccessResponse(scope, rgName);
@@ -455,7 +464,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                         return CompletableFuture.completedFuture(CreateReaderGroupResponse.newBuilder()
                                                                 .setStatus(status).build());
                                                     }
-                                                });
+                                                }));
                                     }
                                     return buildCreateSuccessResponse(scope, rgName);
                                 });
@@ -608,13 +617,11 @@ public class StreamMetadataTasks extends TaskBase {
      * @param scope           Reader Group scope.
      * @param rgName          Reader Group name.
      * @param readerGroupId   Reader Group unique identifier.
-     * @param generation      Reader Group generation.
      * @param contextOpt      Reader Group context.
      * @return deletion status.
      */
     public CompletableFuture<DeleteReaderGroupStatus.Status> deleteReaderGroup(final String scope, final String rgName,
                                                                                final String readerGroupId,
-                                                                               final long generation,
                                                                                RGOperationContext contextOpt) {
         final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("deleteReaderGroup", scope, rgName);
@@ -630,16 +637,11 @@ public class StreamMetadataTasks extends TaskBase {
                                    return CompletableFuture.completedFuture(DeleteReaderGroupStatus.Status.RG_NOT_FOUND);
                                }
                                return streamMetadataStore.getReaderGroupConfigRecord(scope, rgName, context, executor)
-                                       .thenCompose(configRecord -> {
-                                           if (configRecord.getObject().getGeneration() != generation) {
-                                               return CompletableFuture.completedFuture(DeleteReaderGroupStatus.Status.FAILURE);
-                                           }
-                                           return streamMetadataStore.getVersionedReaderGroupState(scope, rgName, true, context, executor)
-                                                   .thenCompose(versionedState -> eventHelper.addIndexAndSubmitTask(new DeleteReaderGroupEvent(scope, rgName, requestId, rgId, generation),
-                                                           () -> startReaderGroupDelete(scope, rgName, versionedState, context))
-                                                           .thenCompose(x -> eventHelper.checkDone(() -> isRGDeleted(scope, rgName))
-                                                                   .thenApply(done -> DeleteReaderGroupStatus.Status.SUCCESS)));
-                                       });
+                                       .thenCompose(configRecord -> streamMetadataStore.getVersionedReaderGroupState(scope, rgName, true, context, executor)
+                                               .thenCompose(versionedState -> eventHelper.addIndexAndSubmitTask(new DeleteReaderGroupEvent(scope, rgName, requestId, rgId),
+                                                       () -> startReaderGroupDelete(scope, rgName, versionedState, context))
+                                                       .thenCompose(x -> eventHelper.checkDone(() -> isRGDeleted(scope, rgName))
+                                                               .thenApply(done -> DeleteReaderGroupStatus.Status.SUCCESS))));
                            });
                 }), e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }

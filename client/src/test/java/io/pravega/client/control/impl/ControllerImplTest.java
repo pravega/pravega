@@ -442,10 +442,9 @@ public class ControllerImplTest {
                         .groupRefreshTimeMillis(20000L)
                         .maxOutstandingCheckpointRequest(2)
                         .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                        .generation(0L)
-                        .readerGroupId(UUID.randomUUID())
                         .startingStreamCuts(startSC)
                         .endingStreamCuts(endSC).build();
+                rgConfig = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 0L);
 
                 if (request.getReaderGroup().equals("rg1")) {
                     responseObserver.onNext(ReaderGroupConfigResponse.newBuilder()
@@ -1552,10 +1551,10 @@ public class ControllerImplTest {
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+
         createRGConfig = controllerClient.createReaderGroup("scope1", "rg1", config);
         assertEquals(createRGConfig.get().getReaderGroupId(), config.getReaderGroupId());
         assertEquals(createRGConfig.get().getGeneration(), config.getGeneration());
@@ -1589,10 +1588,10 @@ public class ControllerImplTest {
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+
         updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg1", config);
         assertNotNull(updateRGStatus.get());
 
@@ -1606,22 +1605,22 @@ public class ControllerImplTest {
 
         updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg4", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                updateRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+                updateRGStatus, throwable -> throwable instanceof ReaderGroupConfigRejectedException);
     }
 
     @Test
     public void testDeleteReaderGroup() throws Exception {
         CompletableFuture<Boolean> deleteRGStatus;
-        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg1", UUID.randomUUID(), 0L);
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg1", UUID.randomUUID());
         assertTrue(deleteRGStatus.get());
 
-        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg2", UUID.randomUUID(), 0L);
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg2", UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 deleteRGStatus, Throwable -> true);
 
-        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg3", UUID.randomUUID(), 0L);
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg3", UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                deleteRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+                deleteRGStatus, Throwable -> true);
     }
 
     @Test

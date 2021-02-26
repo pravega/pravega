@@ -52,8 +52,8 @@ You can run the Pravega Admin CLI as follows:
 ```
 ./bin/pravega-admin
 ```
-You will se an output related to the default configuration parameters available at `conf/config.properties`
-(you may want to change this file according to your setting):
+The config values can be changed permanently at `conf/admin-cli.properties`, or use `config set property=...` to temporarily change the config for command line session only.
+The initial configuration would be as follows:
 ```
 Pravega Admin CLI.
    
@@ -68,9 +68,9 @@ Initial configuration:
 	cli.security.auth.credentials.username=admin
 	pravegaservice.zk.connect.uri=localhost:2181
 	cli.controller.grpc.uri=tcp://localhost:9090
-
 ```
-From that point onwards, you can check the available commands typing `help`:
+
+From that point onwards, you can check the available commands by typing `help`:
 ``` 
 > help
 All available commands:
@@ -125,6 +125,68 @@ Initial configuration:
 Note that if you are using the standalone deployment, Bookkeeper commands (and others) will not be 
 available. For this reason, we encourage you to go a step further and deploy a full Pravega cluster to 
 explore the whole functionality of Pravega Admin CLI.
+
+## Pravega Admin CLI on Kubernetes
+
+The Pravega Admin CLI needs to be executed from inside the Kubernetes cluster, as it requires to reach the services that form a Pravega cluster.
+
+To this end, you can either start a new pod in the cluster and build the tool, or log into a Pravega server pod that already has the Pravega Admin CLI built in. In this section, we will assume the latter option and describe how to use the Pravega Admin CLI from within existing Pravega server pods.
+
+You can access a Segment Store pod in the following way:
+````
+kubectl exec pravega-pravega-segment-store-0 -it bash
+````
+
+Once in the pod, you can run the Pravega Admin CLI:
+```
+./bin/pravega-admin
+    OpenJDK 64-Bit Server VM warning: Option MaxRAMFraction was deprecated in version 10.0 and will likely be removed in a future release.
+    Pravega Admin CLI.
+    
+    Exception reading input properties file: null
+    Initial configuration:
+        pravegaservice.container.count=4
+        bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
+        cli.security.auth.enable=false
+        cli.security.auth.credentials.password=1111_aaaa
+        pravegaservice.cluster.name=pravega/pravega
+        cli.store.metadata.backend=segmentstore
+        cli.controller.rest.uri=http://localhost:9091
+        cli.security.auth.credentials.username=admin
+        pravegaservice.zk.connect.uri=localhost:2181
+        cli.controller.grpc.uri=tcp://localhost:9090
+```
+
+The initial configuration needs to be modified according to the information of your cluster by accessing the properties file (`./conf/admin-cli.properties`) or using `config set` command.
+For example, this is the configuration we used on a new Pravega cluster deployed via Helm chart as described in the [Pravega Operator documentation](https://github.com/pravega/pravega-operator/tree/master/charts/pravega#installing-the-chart):
+```
+config list
+    pravegaservice.container.count=4
+    bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers
+    cli.security.auth.enable=false
+    cli.security.auth.credentials.password=1111_aaaa
+    pravegaservice.cluster.name=pravega/pravega
+    cli.store.metadata.backend=segmentstore
+    cli.controller.rest.uri=pravega-pravega-controller.default:10080
+    cli.security.auth.credentials.username=admin
+    pravegaservice.zk.connect.uri=zookeeper-client:2181
+    cli.controller.grpc.uri=pravega-pravega-controller.default:9090
+```
+
+
+If your cluster has a custom configuration that changes the default parameters needed by the Pravega Admin CLI, you will need to set these parameters in the CLI configuration. In the case you are not aware of the configuration of the Pravega cluster, one way of gathering such information is just querying the beginning of the Segment Store log:
+```
+kubectl logs pravega-pravega-segment-store-0 | grep -i <parameter-to-look-for>
+```
+
+The following required config values can be found in the logs:
+- `pravegaservice.container.count`
+- `bookkeeper.ledger.path`
+- `pravegaservice.cluster.name`
+- `controller.uri` and `port` for `cli.controller.rest.uri=[controller.uri]:[rest.port]` and `cli.controller.grpc.uri=[controller.uri]:[grpc.port]`
+- `pravegaservice.zk.connect.uri`
+
+Once the config file is updated, the Pravega Admin CLI will be able to connect to your Pravega cluster and run commands.
 
 ## Support
 If you find any issue or you have any suggestion, please report an issue to [this repository](https://github.com/pravega/pravega/issues).

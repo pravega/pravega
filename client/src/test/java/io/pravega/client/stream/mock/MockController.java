@@ -178,7 +178,14 @@ public class MockController implements Controller {
         return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams,
                 this::getSegmentsForStream, Segment::getScopedName, this::createSegment);
     }
-    
+
+    @Synchronized
+    public CompletableFuture<Boolean> createRGStream(String scope, String rgName) {
+        String rgStream = NameUtils.getStreamForReaderGroup(rgName);
+        StreamConfiguration rgStreamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        return createStreamInternal(scope, rgStream, rgStreamConfig);
+    }
+
     @Synchronized
     List<Segment> getSegmentsForStream(Stream stream) {
         StreamConfiguration config = getStreamConfiguration(stream);
@@ -274,7 +281,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName, final UUID readerGroupId, final long generation) {
+    public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName, final UUID readerGroupId) {
         String key = getScopedReaderGroupName(scope, getStreamForReaderGroup(rgName));
         return deleteFromScope(scope, key, s -> s.readerGroups, this::getSegmentsForReaderGroup, Segment::getScopedName, this::deleteSegment);
     }
@@ -287,7 +294,8 @@ public class MockController implements Controller {
         assert scopeMeta != null : "Scope not created";
         assert scopeMeta.readerGroups.containsKey(key) : "ReaderGroup is not created";
         long newGen = scopeMeta.readerGroups.get(key).getGeneration() + 1;
-        scopeMeta.readerGroups.replace(key, scopeMeta.readerGroups.get(key), config.toBuilder().generation(newGen).build());
+        scopeMeta.readerGroups.replace(key, scopeMeta.readerGroups.get(key),
+                ReaderGroupConfig.cloneConfig(config, config.getReaderGroupId(), newGen));
         return CompletableFuture.completedFuture(newGen);
     }
 
