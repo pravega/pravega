@@ -1046,6 +1046,7 @@ project('test:system') {
         if (System.getProperty("dockerRegistryUrl") != null) { // docker images are pulled from dockerhub if dockerRegistryUrl is not specified.
             systemProperty "dockerRegistryUrl", System.getProperty("dockerRegistryUrl") + "/"
         }
+        systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation", "false")
         systemProperty "imagePrefix", System.getProperty("imagePrefix", "pravega")  // the default value of imagePrefix is pravega.
         systemProperty "pravegaImageName", System.getProperty("pravegaImageName", "pravega") // pravega image name
         systemProperty "bookkeeperImageName", System.getProperty("bookkeeperImageName", "bookkeeper") // bookkeeper image name
