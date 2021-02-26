@@ -45,6 +45,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     private final String sourceSegment;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final List<String> chunksToDelete = Collections.synchronizedList(new ArrayList<>());
+    private final List<ChunkNameOffsetPair> newReadIndexEntries = Collections.synchronizedList(new ArrayList<>());
     private final Timer timer;
 
     private volatile SegmentMetadata targetSegmentMetadata;
@@ -81,13 +82,19 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     private CompletableFuture<Void> performConcat(MetadataTransaction txn) {
         // Validate preconditions.
         checkState();
-
+        val currentIndexOffset = targetSegmentMetadata.getLastChunkStartOffset();
         // Update list of chunks by appending sources list of chunks.
         return updateMetadata(txn).thenComposeAsync(v -> {
             // Finally defrag immediately.
             final CompletableFuture<Void> f;
             if (shouldDefrag() && null != targetLastChunk) {
-                f = chunkedSegmentStorage.defrag(txn, targetSegmentMetadata, targetLastChunk.getName(), null, chunksToDelete);
+                f = chunkedSegmentStorage.defrag(txn,
+                        targetSegmentMetadata,
+                        targetLastChunk.getName(),
+                        null,
+                        chunksToDelete,
+                        newReadIndexEntries,
+                        currentIndexOffset);
             } else {
                 f = CompletableFuture.completedFuture(null);
             }
@@ -117,6 +124,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
             chunkedSegmentStorage.getGarbageCollector().addToGarbage(chunksToDelete);
             // Update the read index.
             chunkedSegmentStorage.getReadIndexCache().remove(sourceSegment);
+            chunkedSegmentStorage.getReadIndexCache().addIndexEntries(targetHandle.getSegmentName(), newReadIndexEntries);
             logEnd();
 
     }
@@ -162,8 +170,12 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
 
                                 targetSegmentMetadata.setChunkCount(targetSegmentMetadata.getChunkCount() + sourceSegmentMetadata.getChunkCount());
 
+                                // Delete read index block entries for source.
+                                chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, sourceSegment, sourceSegmentMetadata.getStartOffset(), sourceSegmentMetadata.getLength());
+
                                 txn.update(targetSegmentMetadata);
                                 txn.delete(sourceSegment);
+
                             }, chunkedSegmentStorage.getExecutor());
                 }, chunkedSegmentStorage.getExecutor());
     }
