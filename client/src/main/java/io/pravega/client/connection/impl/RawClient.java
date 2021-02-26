@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -101,7 +100,7 @@ public class RawClient implements AutoCloseable {
         this.connection = new CompletableFuture<>();
         this.connection.exceptionally(e -> {
             log.warn("Exception observed while attempting to obtain a connection to segment store {}", uri, e);
-            throw new CompletionException(new ConnectionFailedException(e));
+            return null;
         });
         Futures.exceptionListener(connection, this::closeConnection);
         connectionPool.getClientConnection(flow, uri, responseProcessor, this.connection);
@@ -112,7 +111,7 @@ public class RawClient implements AutoCloseable {
         this.connection = new CompletableFuture<>();
         this.connection.exceptionally(e -> {
             log.warn("Exception observed while attempting to obtain a connection to segment {}", segmentId, e);
-            throw new CompletionException(new ConnectionFailedException(e));
+            return null;
         });
         Futures.exceptionListener(connection, this::closeConnection);
         controller.getEndpointForSegment(segmentId.getScopedName())
