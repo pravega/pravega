@@ -99,6 +99,7 @@ public abstract class AbstractService implements Service {
 
     CompletableFuture<Object> deployPravegaOnlyCluster(final URI zkUri, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
         if (Utils.isSkipServiceInstallationEnabled()) {
+            log.info("Skipping PravegaCluster installation.");
             return CompletableFuture.completedFuture(null);
         }
         return registerTLSSecret()
@@ -300,6 +301,7 @@ public abstract class AbstractService implements Service {
 
     CompletableFuture<Object> deployBookkeeperCluster(final URI zkUri, int bookieCount, ImmutableMap<String, String> props) {
         if (Utils.isSkipServiceInstallationEnabled()) {
+            log.info("Skipping BookKeeper Cluster Installation.");
             return CompletableFuture.completedFuture(null);
         }
         return k8sClient.createConfigMap(NAMESPACE, getBookkeeperOperatorConfigMap())
