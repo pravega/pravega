@@ -201,7 +201,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofReaderGroupsInScope(scope), requiredPermission),
-                delegationToken -> controllerService.deleteReaderGroup(scope, rgName, rgId, generation),
+                delegationToken -> controllerService.deleteReaderGroup(scope, rgName, rgId),
                 responseObserver, requestTag);
     }
 

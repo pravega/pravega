@@ -31,6 +31,7 @@ public class StorageMetadataMetrics {
     static final Counter METADATA_FOUND_IN_CACHE = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_CACHE_HIT_COUNT);
     static final Counter METADATA_FOUND_IN_STORE = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_STORE_HIT_COUNT);
     static final Counter METADATA_NOT_FOUND = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_MISS_COUNT);
+    static final Counter METADATA_BUFFER_EVICTED_COUNT = STATS_LOGGER.createCounter(MetricsNames.STORAGE_METADATA_BUFFER_EVICTED_COUNT);
 
     static final OpStatsLogger TABLE_GET_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_METADATA_TABLE_GET_LATENCY);
     static final OpStatsLogger TABLE_WRITE_LATENCY = STATS_LOGGER.createStats(MetricsNames.STORAGE_METADATA_TABLE_WRITE_LATENCY);
