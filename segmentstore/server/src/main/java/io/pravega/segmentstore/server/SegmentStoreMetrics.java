@@ -91,13 +91,19 @@ public final class SegmentStoreMetrics {
     public final static class ThreadPool implements AutoCloseable {
         private final OpStatsLogger queueSize;
         private final OpStatsLogger activeThreads;
+        private final OpStatsLogger storageQueueSize;
+        private final OpStatsLogger storageActiveThreads;
         private final ScheduledExecutorService executor;
+        private final ScheduledExecutorService storageExecutor;
         private final ScheduledFuture<?> reporter;
 
-        public ThreadPool(ScheduledExecutorService executor) {
+        public ThreadPool(ScheduledExecutorService executor, ScheduledExecutorService storageExecutor) {
             this.executor = Preconditions.checkNotNull(executor, "executor");
+            this.storageExecutor = Preconditions.checkNotNull(storageExecutor, "storageExecutor");
             this.queueSize = STATS_LOGGER.createStats(MetricsNames.THREAD_POOL_QUEUE_SIZE);
             this.activeThreads = STATS_LOGGER.createStats(MetricsNames.THREAD_POOL_ACTIVE_THREADS);
+            this.storageQueueSize = STATS_LOGGER.createStats(MetricsNames.STORAGE_THREAD_POOL_QUEUE_SIZE);
+            this.storageActiveThreads = STATS_LOGGER.createStats(MetricsNames.STORAGE_THREAD_POOL_ACTIVE_THREADS);
             this.reporter = executor.scheduleWithFixedDelay(this::report, 1000, 1000, TimeUnit.MILLISECONDS);
         }
 
@@ -106,6 +112,8 @@ public final class SegmentStoreMetrics {
             this.reporter.cancel(true);
             this.queueSize.close();
             this.activeThreads.close();
+            this.storageQueueSize.close();
+            this.storageActiveThreads.close();
         }
 
         private void report() {
@@ -113,6 +121,11 @@ public final class SegmentStoreMetrics {
             if (s != null) {
                 this.queueSize.reportSuccessValue(s.getQueueSize());
                 this.activeThreads.reportSuccessValue(s.getActiveThreadCount());
+            }
+            ExecutorServiceHelpers.Snapshot ss = ExecutorServiceHelpers.getSnapshot(this.storageExecutor);
+            if (ss != null) {
+                this.storageQueueSize.reportSuccessValue(ss.getQueueSize());
+                this.storageActiveThreads.reportSuccessValue(ss.getActiveThreadCount());
             }
         }
     }
