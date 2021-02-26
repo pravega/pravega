@@ -1387,6 +1387,7 @@ public abstract class StreamMetadataTasksTest {
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        consumpRGConfig = ReaderGroupConfig.cloneConfig(consumpRGConfig, UUID.randomUUID(), 0L);
 
         doReturn(CompletableFuture.completedFuture(Controller.CreateStreamStatus.Status.SUCCESS))
                 .when(streamMetadataTasks).createRGStream(anyString(), anyString(), any(), anyLong(), anyInt());
@@ -1563,10 +1564,9 @@ public abstract class StreamMetadataTasksTest {
                                                              .groupRefreshTimeMillis(20000L)
                                                              .maxOutstandingCheckpointRequest(2)
                                                              .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                                                             .generation(0L)
                                                              .startingStreamCuts(startSC)
                                                              .endingStreamCuts(endSC).build();
-
+        consumpRGConfig = ReaderGroupConfig.cloneConfig(consumpRGConfig, UUID.randomUUID(), 0L);
         doReturn(CompletableFuture.completedFuture(Controller.CreateStreamStatus.Status.SUCCESS))
                 .when(streamMetadataTasks).createRGStream(anyString(), anyString(), any(), anyLong(), anyInt());
         String subscriber1 = "subscriber1";
@@ -1649,9 +1649,9 @@ public abstract class StreamMetadataTasksTest {
                                                              .groupRefreshTimeMillis(20000L)
                                                              .maxOutstandingCheckpointRequest(2)
                                                              .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                                                             .generation(0L)
                                                              .startingStreamCuts(startSC)
                                                              .endingStreamCuts(endSC).build();
+        consumpRGConfig = ReaderGroupConfig.cloneConfig(consumpRGConfig, UUID.randomUUID(), 0L);
 
         doReturn(CompletableFuture.completedFuture(Controller.CreateStreamStatus.Status.SUCCESS))
                 .when(streamMetadataTasks).createRGStream(anyString(), anyString(), any(), anyLong(), anyInt());
@@ -1817,6 +1817,8 @@ public abstract class StreamMetadataTasksTest {
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        consumpRGConfig = ReaderGroupConfig.cloneConfig(consumpRGConfig, UUID.randomUUID(), 0L);
+
         doReturn(CompletableFuture.completedFuture(Controller.CreateStreamStatus.Status.SUCCESS))
                 .when(streamMetadataTasks).createRGStream(anyString(), anyString(), any(), anyLong(), anyInt());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
@@ -2038,6 +2040,7 @@ public abstract class StreamMetadataTasksTest {
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        consumpRGConfig = ReaderGroupConfig.cloneConfig(consumpRGConfig, UUID.randomUUID(), 0L);
         doReturn(CompletableFuture.completedFuture(Controller.CreateStreamStatus.Status.SUCCESS))
                 .when(streamMetadataTasks).createRGStream(anyString(), anyString(), any(), anyLong(), anyInt());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
