@@ -922,6 +922,25 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         }
     }
 
+    @Test
+    public void testEvictionFromBuffer() throws Exception {
+        if (metadataStore instanceof InMemoryMetadataStore) {
+            metadataStore.setMaxEntriesInCache(10);
+            metadataStore.setMaxEntriesInTxnBuffer(10);
+            for (int i = 0; i < 10000; i++) {
+                try (MetadataTransaction txn = metadataStore.beginTransaction(false, "Txn" + i)) {
+                    txn.create(new MockStorageMetadata("Txn" + i, "Value" + i));
+                    txn.commit().get();
+                }
+                try (MetadataTransaction txn = metadataStore.beginTransaction(false, "Txn" + i)) {
+                    txn.delete("Txn" + i);
+                    txn.commit().get();
+                }
+            }
+            Assert.assertTrue(metadataStore.getBufferCount() < 10);
+        }
+    }
+
     private void assertNotNull(CompletableFuture<StorageMetadata> data) throws Exception {
         Assert.assertNotNull(data.get());
     }
