@@ -111,8 +111,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         ServerConnection connection = mock(ServerConnection.class);
         AppendProcessor processor = AppendProcessor.defaultBuilder()
                 .store(mock(StreamSegmentStore.class))
-                .connection(connection)
-                .connectionTracker(mock(ConnectionTracker.class))
+                .connection(new TrackedConnection(connection, mock(ConnectionTracker.class)))
                 .statsRecorder(Mockito.mock(SegmentStatsRecorder.class))
                 .build();
 
@@ -403,8 +402,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         ConnectionTracker tracker = mock(ConnectionTracker.class);
         AppendProcessor processor = AppendProcessor.defaultBuilder()
                                                    .store(store)
-                                                   .connection(connection)
-                                                   .connectionTracker(tracker)
+                                                   .connection(new TrackedConnection(connection, tracker))
                                                    .statsRecorder(mockedRecorder)
                                                    .build();
 
