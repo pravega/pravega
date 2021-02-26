@@ -25,6 +25,7 @@ import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.security.auth.AuthorizationResource;
 import io.pravega.shared.security.auth.AuthorizationResourceImpl;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -409,7 +410,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getCurrentSegments(StreamInfo request, StreamObserver<SegmentRanges> responseObserver) {
         final String scope = request.getScope();
         final String stream = request.getStream();
-        log.info("getCurrentSegments called for stream {}/{}.", scope, stream);
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getCurrentSegments",
+                request.getScope(), request.getStream());
+
+        log.info(requestTag.getRequestId(), "getCurrentSegments called for stream {}/{}.", scope, stream);
         String resource = StreamAuthParams.toResourceString(scope, stream);
 
         final boolean isDelegationTokenRequested = !request.getAccessOperation().equals(StreamInfo.AccessOperation.NONE);
@@ -434,7 +438,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                 return builder.build();
                             });
                 },
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @VisibleForTesting
@@ -517,7 +521,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getEpochSegments(GetEpochSegmentsRequest request, StreamObserver<SegmentRanges> responseObserver) {
-        log.info("getEpochSegments called for stream {}/{} and epoch {}", request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getEpoch());
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getEpochSegments",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), Integer.toString(request.getEpoch()));
+        log.info(requestTag.getRequestId(), "getEpochSegments called for stream {}/{} and epoch {}", request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getEpoch());
+
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.
@@ -530,7 +537,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                                                                      .setDelegationToken(delegationToken)
                                                                                      .build());
                 },
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
@@ -579,7 +586,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getSegmentsImmediatelyFollowing(SegmentId segmentId, StreamObserver<SuccessorResponse> responseObserver) {
-        log.info("getSegmentsImmediatelyFollowing called for segment {} ", segmentId);
+        String segment = NameUtils.getQualifiedStreamSegmentName(segmentId.getStreamInfo().getScope(), segmentId.getStreamInfo().getStream(), segmentId.getSegmentId());
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getSegmentsImmediatelyFollowing",
+               segment);
+
+        log.info(requestTag.getRequestId(), "getSegmentsImmediatelyFollowing called for segment {} ", segment);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(segmentId.getStreamInfo().getScope(),
                         segmentId.getStreamInfo().getStream()), AuthHandler.Permissions.READ),
@@ -649,8 +660,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
-        log.info("getURI called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getSegmentId());
+        String segment = NameUtils.getQualifiedStreamSegmentName(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getSegmentId());
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getURI", segment);
+        log.info(requestTag.getRequestId(), "getURI called for segment {}.", segment);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 StreamAuthParams.toResourceString(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ),
@@ -691,8 +703,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createTransaction(CreateTxnRequest request, StreamObserver<Controller.CreateTxnResponse> responseObserver) {
-        log.info("createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createTransaction",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), Long.toString(request.getLease()));
+        log.info(requestTag.getRequestId(), "createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
+
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
@@ -704,7 +719,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                                                                       .setTxnId(ModelHelper.decode(pair.getKey()))
                                                                                       .addAllActiveSegments(pair.getValue())
                                                                                       .build()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
@@ -740,7 +755,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
         final UUID txnId = ModelHelper.encode(request.getTxnId());
-        log.info("pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "pingTransaction",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), txnId.toString());
+        log.info(requestTag.getRequestId(), "pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
@@ -749,13 +766,15 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getStreamInfo().getStream(),
                         txnId,
                         request.getLease()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
         final UUID txnId = ModelHelper.encode(request.getTxnId());
-        log.info("checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "checkTransactionState",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), txnId.toString());
+        log.info(requestTag.getRequestId(), "checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
@@ -763,7 +782,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 delegationToken -> controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         txnId),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
@@ -967,27 +986,31 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void noteTimestampFromWriter(Controller.TimestampFromWriter request, StreamObserver<Controller.TimestampResponse> responseObserver) {
         StreamInfo streamInfo = request.getPosition().getStreamInfo();
-        log.info("noteWriterMark called for stream {}/{}, writer={} time={}", streamInfo.getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "noteTimestampFromWriter", streamInfo.getScope(), streamInfo.getStream(), request.getWriter());
+        log.info(requestTag.getRequestId(), "noteWriterMark called for stream {}/{}, writer={} time={}", streamInfo.getScope(),
                 streamInfo.getStream(), request.getWriter(), request.getTimestamp());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken  -> controllerService.noteTimestampFromWriter(streamInfo.getScope(),
                         streamInfo.getStream(), request.getWriter(), request.getTimestamp(), request.getPosition().getCutMap()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
     public void removeWriter(Controller.RemoveWriterRequest request, StreamObserver<Controller.RemoveWriterResponse> responseObserver) {
         StreamInfo streamInfo = request.getStream();
-        log.info("writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "removeWriter", streamInfo.getScope(), streamInfo.getStream(), request.getWriter());
+        log.info(requestTag.getRequestId(), "writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
                 streamInfo.getStream(), request.getWriter());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken  -> controllerService.removeWriter(streamInfo.getScope(),
                         streamInfo.getStream(), request.getWriter()),
-                responseObserver);
+                responseObserver, requestTag);
     }
     // endregion
     
