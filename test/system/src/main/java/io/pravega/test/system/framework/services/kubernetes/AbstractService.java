@@ -98,14 +98,17 @@ public abstract class AbstractService implements Service {
     }
 
     CompletableFuture<Object> deployPravegaOnlyCluster(final URI zkUri, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
-    return registerTLSSecret()
-            .thenCompose(v -> k8sClient.createSecret(NAMESPACE, authSecret()))
-            .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
-            NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
-            getPravegaOnlyDeployment(zkUri.getAuthority(),
-                    controllerCount,
-                    segmentStoreCount,
-                    props)));
+        if (Utils.isSkipServiceInstallationEnabled()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return registerTLSSecret()
+                .thenCompose(v -> k8sClient.createSecret(NAMESPACE, authSecret()))
+                .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
+                NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
+                getPravegaOnlyDeployment(zkUri.getAuthority(),
+                        controllerCount,
+                        segmentStoreCount,
+                        props)));
     }
 
     private Map<String, Object> getPravegaOnlyDeployment(String zkLocation, int controllerCount, int segmentStoreCount, ImmutableMap<String, String> props) {
@@ -212,7 +215,7 @@ public abstract class AbstractService implements Service {
     }
 
     // Removal of the JVM option 'UseCGroupMemoryLimitForHeap' is required with JVM environments >= 10. This option
-    // is supplied by default by the operators. We cannot 'deactive' it using the XX:- counterpart as it is unrecognized.
+    // is supplied by default by the operators. We cannot 'deactivate' it using the XX:- counterpart as it is unrecognized.
     private String[] getSegmentStoreJVMOptions() {
         return new String[]{"-XX:+UseContainerSupport", "-XX:+IgnoreUnrecognizedVMOptions"};
     }
@@ -296,6 +299,9 @@ public abstract class AbstractService implements Service {
     }
 
     CompletableFuture<Object> deployBookkeeperCluster(final URI zkUri, int bookieCount, ImmutableMap<String, String> props) {
+        if (Utils.isSkipServiceInstallationEnabled()) {
+            return CompletableFuture.completedFuture(null);
+        }
         return k8sClient.createConfigMap(NAMESPACE, getBookkeeperOperatorConfigMap())
                 // request operator to deploy bookkeeper nodes.
                 .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_BOOKKEEPER, CUSTOM_RESOURCE_VERSION_BOOKKEEPER,
