@@ -27,6 +27,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.impl.AbstractClientFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
@@ -91,23 +92,30 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         createStreamHelper(getStreamForReaderGroup(groupName), StreamConfiguration.builder()
                                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                                   .build());
-        getThrowingException(controller.createReaderGroup(scope, groupName, config));
+        ReaderGroupConfig ctrlConfig = getThrowingException(controller.createReaderGroup(scope, groupName, config));
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
-        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
+        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, ctrlConfig);
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ctrlConfig, segments, getEndSegmentsForStreams(ctrlConfig), false));
     }
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
-                new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
-        synchronizer.fetchUpdates();
-        UUID groupId = synchronizer.getState().getConfig().getReaderGroupId();
-        long generation = synchronizer.getState().getConfig().getGeneration();
-        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, groupId, generation),
+        UUID groupId = null;
+        try {
+            @Cleanup
+            StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                    new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+            synchronizer.fetchUpdates();
+            groupId = synchronizer.getState().getConfig().getReaderGroupId();
+        } catch (InvalidStreamException ex) {
+            log.warn("State-Synchronizer Stream for ReaderGroup {} was not found.", NameUtils.getScopedReaderGroupName(scope, groupName));
+            // if the State Synchronizer Stream was deleted, but the RG still exists, get Id from Controller
+            groupId = getAndHandleExceptions(controller.getReaderGroupConfig(scope, groupName),
+                    RuntimeException::new).getReaderGroupId();
+        }
+        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, groupId),
                 RuntimeException::new);
     }
 

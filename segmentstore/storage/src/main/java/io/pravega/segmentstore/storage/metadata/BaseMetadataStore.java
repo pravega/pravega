@@ -11,6 +11,7 @@
 package io.pravega.segmentstore.storage.metadata;
 
 import com.google.common.annotations.Beta;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -48,6 +49,13 @@ import java.util.stream.Collectors;
 
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.COMMIT_LATENCY;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.GET_LATENCY;
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_BUFFER_EVICTED_COUNT;
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_BUFFER;
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_CACHE;
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_TXN;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_BUFFER_SIZE;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_CACHE_MISS_RATE;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_CACHE_SIZE;
 
 /**
  * Implements base metadata store that provides core functionality of metadata store by encapsulating underlying key value store.
@@ -291,7 +299,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 .thenRunAsync(() -> {
                     //  Step 5 : Mark transaction as commited.
                     txn.setCommitted();
-                    txnData.clear();
                 }, executor)
                 .whenCompleteAsync((v, ex) -> {
                     if (shouldReleaseKeys.get()) {
@@ -300,6 +307,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     }
                     // Remove keys from active set.
                     txn.getData().keySet().forEach(this::removeFromActiveKeySet);
+                    if (txn.isCommitted()) {
+                        txnData.clear();
+                    }
                     COMMIT_LATENCY.reportSuccessEvent(t.getElapsed());
                 }, executor);
 
@@ -365,13 +375,20 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     // Step 4: Update buffer.
                     val committedVersion = version.incrementAndGet();
                     val toAdd = new HashMap<String, TransactionData>();
+                    int delta = 0;
                     for (String key : modifiedKeys) {
                         TransactionData data = txnData.get(key);
                         data.setVersion(committedVersion);
                         toAdd.put(key, data);
+                        if (data.isCreated()) {
+                            delta++;
+                        }
+                        if (data.isDeleted()) {
+                            delta--;
+                        }
                     }
                     bufferedTxnData.putAll(toAdd);
-                    bufferCount.addAndGet(toAdd.size());
+                    bufferCount.addAndGet(delta);
                 }, executor);
     }
 
@@ -480,6 +497,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     }
                 }
                 bufferCount.addAndGet(-1 * count);
+                METADATA_BUFFER_EVICTED_COUNT.add(count);
                 log.debug("{} entries evicted from transaction buffer.", count);
             }
             isEvictionRunning.set(false);
@@ -520,6 +538,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         TransactionData data = txnData.get(key);
         if (null != data) {
             GET_LATENCY.reportSuccessEvent(t.getElapsed());
+            METADATA_FOUND_IN_TXN.inc();
             return CompletableFuture.completedFuture(data.getValue());
         }
 
@@ -529,6 +548,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         return CompletableFuture.supplyAsync(() -> bufferedTxnData.get(key), executor)
                 .thenApplyAsync(dataFromBuffer -> {
                     if (dataFromBuffer != null) {
+                        METADATA_FOUND_IN_BUFFER.inc();
                         // Make sure it is a deep copy.
                         val retValue = dataFromBuffer.getValue();
                         if (null != retValue) {
@@ -626,6 +646,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     private CompletableFuture<TransactionData> readFromStore(String key) {
         val fromCache = cache.getIfPresent(key);
         if (null != fromCache) {
+            METADATA_FOUND_IN_CACHE.inc();
             return CompletableFuture.completedFuture(fromCache);
         }
         return read(key);
@@ -674,6 +695,11 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         Preconditions.checkState(null != copyForBuffer.dbObject, "Missing tracking object");
         Preconditions.checkState(fromDb.dbObject == copyForBuffer.dbObject, "Missing tracking object");
         return copyForBuffer;
+    }
+
+    @VisibleForTesting
+    long getBufferCount() {
+        return bufferCount.get();
     }
 
     /**
@@ -761,6 +787,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 .key(metadata.getKey())
                 .value(metadata)
                 .version(txn.getVersion())
+                .created(true)
                 .build());
     }
 
@@ -784,7 +811,16 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         }
         data.setValue(null);
         data.setPersisted(false);
+        data.setDeleted(true);
         data.setVersion(txn.getVersion());
+    }
+
+
+    @Override
+    public void report() {
+        StorageMetadataMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_BUFFER_SIZE, this.bufferCount);
+        StorageMetadataMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_CACHE_SIZE, this.cache.size());
+        StorageMetadataMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_CACHE_MISS_RATE, this.cache.stats().missRate());
     }
 
     /**
@@ -858,6 +894,16 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
          * Whether this record is pinned to the memory.
          */
         private boolean pinned;
+
+        /**
+         * Whether this record is persisted or not.
+         */
+        private boolean created;
+
+        /**
+         * Whether this record is pinned to the memory.
+         */
+        private boolean deleted;
 
         /**
          * Key of the record.

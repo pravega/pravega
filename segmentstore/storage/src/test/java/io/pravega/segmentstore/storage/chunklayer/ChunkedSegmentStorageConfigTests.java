@@ -37,7 +37,8 @@ public class ChunkedSegmentStorageConfigTests {
         props.setProperty(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_MAX_QUEUE_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "10");
         props.setProperty(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_MAX_CONCURRENCY.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "11");
         props.setProperty(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_SLEEP.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "12");
-        props.setProperty(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_MAX_ATTEMPS.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "13");
+        props.setProperty(ChunkedSegmentStorageConfig.GARBAGE_COLLECTION_MAX_ATTEMPTS.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "13");
+        props.setProperty(ChunkedSegmentStorageConfig.READ_INDEX_BLOCK_SIZE.getFullName(ChunkedSegmentStorageConfig.COMPONENT_CODE), "14");
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
@@ -55,8 +56,9 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getGarbageCollectionDelay().toSeconds(), 9);
         Assert.assertEquals(config.getGarbageCollectionMaxQueueSize(), 10);
         Assert.assertEquals(config.getGarbageCollectionMaxConcurrency(), 11);
-        Assert.assertEquals(config.getGarbageCollectionSleep().toSeconds(), 12);
+        Assert.assertEquals(config.getGarbageCollectionSleep().toMillis(), 12);
         Assert.assertEquals(config.getGarbageCollectionMaxAttempts(), 13);
+        Assert.assertEquals(config.getIndexBlockSize(), 14);
     }
 
     @Test
@@ -81,5 +83,6 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getGarbageCollectionMaxQueueSize(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionMaxQueueSize());
         Assert.assertEquals(config.getGarbageCollectionSleep(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionSleep());
         Assert.assertEquals(config.getGarbageCollectionMaxAttempts(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionMaxAttempts());
+        Assert.assertEquals(config.getIndexBlockSize(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getIndexBlockSize());
     }
 }
