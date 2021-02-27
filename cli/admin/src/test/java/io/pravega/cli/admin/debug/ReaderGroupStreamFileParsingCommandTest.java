@@ -11,6 +11,8 @@ package io.pravega.cli.admin.debug;
 
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.utils.TestUtils;
+import lombok.Cleanup;
+import lombok.val;
 import org.apache.commons.io.FileUtils;
 import org.junit.Assert;
 import org.junit.Test;
@@ -28,7 +30,9 @@ public class ReaderGroupStreamFileParsingCommandTest {
         byte[] bytes = {0, 0, 0, 0, 0, 0, 0, 0};
         FileUtils.writeByteArrayToFile(new File(inputFileName), bytes);
 
-        TestUtils.executeCommand("debug parse-rg-stream-file " + inputFileName + " " + outputFileName, new AdminCommandState());
+        @Cleanup
+        val c1 = new AdminCommandState();
+        TestUtils.executeCommand("debug parse-rg-stream-file " + inputFileName + " " + outputFileName, c1);
         Assert.assertTrue(Files.exists(Paths.get(outputFileName)));
         // Remove generated file by command.
         Files.delete(Paths.get(inputFileName));
