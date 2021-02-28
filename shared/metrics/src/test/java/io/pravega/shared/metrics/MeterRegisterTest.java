@@ -12,11 +12,14 @@ package io.pravega.shared.metrics;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.pravega.test.common.SerializedClassRunner;
 import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
+@RunWith(SerializedClassRunner.class)
 public class MeterRegisterTest {
     
     private final CompositeMeterRegistry registry = new CompositeMeterRegistry();

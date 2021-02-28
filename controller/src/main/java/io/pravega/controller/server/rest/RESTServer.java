@@ -50,7 +50,7 @@ public class RESTServer extends AbstractIdleService {
         this.objectId = "RESTServer";
         this.restServerConfig = restServerConfig;
         final String serverURI = "http://" + restServerConfig.getHost() + "/";
-        this.baseUri = UriBuilder.fromUri(serverURI).port(restServerConfig.getPort()).build();
+        this.baseUri = URI.create(serverURI + ":" + restServerConfig.getPort());
 
         final Set<Object> resourceObjs = new HashSet<>();
         resourceObjs.add(new PingImpl());
