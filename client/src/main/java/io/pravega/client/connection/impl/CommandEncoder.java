@@ -414,7 +414,7 @@ public class CommandEncoder {
                 flushBuffer();
             }
         } catch (IOException e) {
-            log.error("Failed to time out block. Closeing connection.", e);
+            log.error("Failed to time out block. Closing connection.", e);
             closeQuietly(output, log, "Closing output failed");
         }
         return result;
