@@ -116,7 +116,9 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
         }
 
         AccessControlList acls = client.getObjectAcl(config.getBucket(), config.getPrefix() + chunkName);
-        boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
+        boolean canWrite = config.isAclEnabled() ?
+                acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0)
+                : true;
 
         return new ChunkHandle(chunkName, !canWrite);
     }
@@ -225,12 +227,16 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     private void setPermission(ChunkHandle handle, Permission permission) {
-        AccessControlList acl = client.getObjectAcl(config.getBucket(), getObjectPath(handle.getChunkName()));
-        acl.getGrants().clear();
-        acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), permission));
+        if (config.isAclEnabled()) {
+            AccessControlList acl = client.getObjectAcl(config.getBucket(), getObjectPath(handle.getChunkName()));
+            if (null != acl) {
+                acl.getGrants().clear();
+                acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), permission));
 
-        client.setObjectAcl(
-                new SetObjectAclRequest(config.getBucket(), getObjectPath(handle.getChunkName())).withAcl(acl));
+                client.setObjectAcl(
+                        new SetObjectAclRequest(config.getBucket(), getObjectPath(handle.getChunkName())).withAcl(acl));
+            }
+        }
     }
 
     @Override
@@ -263,10 +269,11 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
             PutObjectRequest request = new PutObjectRequest(config.getBucket(), getObjectPath(chunkName), null).withObjectMetadata(metadata);
 
-            AccessControlList acl = new AccessControlList();
-            acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
-            request.setAcl(acl);
-
+            if (config.isAclEnabled()) {
+                AccessControlList acl = new AccessControlList();
+                acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
+                request.setAcl(acl);
+            }
             if (config.isUseNoneMatch()) {
                 request.setIfNoneMatch("*");
             }
@@ -285,10 +292,11 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
             S3ObjectMetadata metadata = new S3ObjectMetadata().withContentType("application/octet-stream").withContentLength(length);
             val request = new PutObjectRequest(this.config.getBucket(), objectPath, data).withObjectMetadata(metadata);
-            AccessControlList acl = new AccessControlList();
-            acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
-            request.setAcl(acl);
-
+            if (config.isAclEnabled()) {
+                AccessControlList acl = new AccessControlList();
+                acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
+                request.setAcl(acl);
+            }
             client.putObject(request);
 
             return ChunkHandle.writeHandle(chunkName);
