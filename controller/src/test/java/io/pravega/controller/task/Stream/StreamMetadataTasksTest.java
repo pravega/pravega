@@ -249,6 +249,24 @@ public abstract class StreamMetadataTasksTest {
     }
 
     @Test(timeout = 30000)
+    public void testeventHelperNPE() throws Exception {
+        StreamMetadataStore streamMetadataStore = getStore();
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
+                BucketStore.ServiceType.WatermarkingService, 1);
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore(map);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
+        SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
+
+        StreamMetadataTasks streamMetadataTasks =  new StreamMetadataTasks(streamMetadataStore,bucketStore,taskMetadataStore,segmentHelperMock,executor,"host", new GrpcAuthHelper(authEnabled, "key", 300),requestTracker);
+        List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 0.75));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.75, 1.0));
+
+        AssertExtensions.assertThrows(" ", () ->streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(1L),
+                newRanges, 30, null),e -> Exceptions.unwrap(e) instanceof NullPointerException);
+    }
+
+    @Test(timeout = 30000)
     public void updateStreamTest() throws Exception {
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
