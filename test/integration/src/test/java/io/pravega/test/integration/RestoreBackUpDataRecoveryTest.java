@@ -147,7 +147,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
-            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 1000)
             .build();
 
     // DL config that can be used to simulate no DurableLog truncations.
