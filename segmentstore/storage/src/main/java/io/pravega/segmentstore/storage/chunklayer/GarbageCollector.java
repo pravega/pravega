@@ -38,6 +38,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import static io.pravega.shared.MetricsNames.SLTS_GC_QUEUE_SIZE;
+
 /**
  * Implements simple garbage collector for cleaning up the deleted chunks.
  * The garbage collector maintains a in memory queue of chunks to delete which is drained by a background task.
@@ -55,7 +57,7 @@ import java.util.function.Supplier;
  * </ol>
  */
 @Slf4j
-public class GarbageCollector extends AbstractThreadPoolService implements AutoCloseable {
+public class GarbageCollector extends AbstractThreadPoolService implements AutoCloseable, StatsReporter {
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     /**
      * Set of garbage chunks.
@@ -362,6 +364,11 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
             closed.set(true);
             super.close();
         }
+    }
+
+    @Override
+    public void report() {
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_GC_QUEUE_SIZE, queueSize.get());
     }
 
     @RequiredArgsConstructor

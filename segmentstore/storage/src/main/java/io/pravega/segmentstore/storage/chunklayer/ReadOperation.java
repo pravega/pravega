@@ -18,7 +18,9 @@ import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
+import io.pravega.segmentstore.storage.metadata.ReadIndexBlockMetadata;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
+import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -32,8 +34,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_BYTES;
-import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_LATENCY;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_INDEX_NUM_SCANNED;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_INDEX_SCAN_LATENCY;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYS_READ_INDEX_NUM_SCANNED;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYS_READ_INDEX_SCAN_LATENCY;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_LATENCY;
 
 @Slf4j
 class ReadOperation implements Callable<CompletableFuture<Integer>> {
@@ -220,8 +225,34 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                 currentChunkName = floorEntry.getChunkName();
             }
         }
+
+        val floorBlock = offset / chunkedSegmentStorage.getConfig().getIndexBlockSize();
+        val floorBlockStartOffset = floorBlock * chunkedSegmentStorage.getConfig().getIndexBlockSize();
+        CompletableFuture<Void>  f;
+        if (!segmentMetadata.isStorageSystemSegment() && startOffsetForCurrentChunk.get() < floorBlockStartOffset) {
+            f = txn.get(NameUtils.getSegmentReadIndexBlockName(segmentMetadata.getName(), floorBlockStartOffset))
+                    .thenAcceptAsync(storageMetadata -> {
+                        if (null != storageMetadata) {
+                            ReadIndexBlockMetadata blockMetadata = (ReadIndexBlockMetadata) storageMetadata;
+                            if (blockMetadata.getStartOffset() <= offset) {
+                                startOffsetForCurrentChunk.set(blockMetadata.getStartOffset());
+                                currentChunkName = blockMetadata.getChunkName();
+                                log.debug("{} read - found block index to start scanning - op={}, segment={}, chunk={}, startOffset={}, offset={}.",
+                                        chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
+                                        handle.getSegmentName(), currentChunkName, startOffsetForCurrentChunk.get(), offset);
+                            } else {
+                                log.warn("{} read - block entry offset must be floor to requested offset. op={} segment={} offset={} length={} block={}",
+                                        chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
+                                        segmentMetadata, offset, length, blockMetadata);
+                            }
+                        }
+                    });
+        } else {
+           f = CompletableFuture.completedFuture(null);
+        }
+
         // Navigate to the chunk that contains the first byte of requested data.
-        return Futures.loop(
+        return f.thenComposeAsync( vv -> Futures.loop(
                 () -> currentChunkName != null && !isLoopExited,
                 () -> txn.get(currentChunkName)
                         .thenAcceptAsync(storageMetadata -> {
@@ -232,7 +263,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                 // we have found a chunk that contains first byte we want to read
                                 log.debug("{} read - found chunk to read - op={}, segment={}, chunk={}, startOffset={}, length={}, readOffset={}.",
                                         chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
-                                        handle.getSegmentName(), chunkToReadFrom, startOffsetForCurrentChunk, chunkToReadFrom.getLength(), currentOffset);
+                                        handle.getSegmentName(), chunkToReadFrom, startOffsetForCurrentChunk.get(), chunkToReadFrom.getLength(), currentOffset);
                                 isLoopExited = true;
                                 return;
                             }
@@ -248,11 +279,18 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                 chunkedSegmentStorage.getExecutor())
                 .thenAcceptAsync(v -> {
                     val elapsed = readIndexTimer.getElapsed();
-                    SLTS_READ_INDEX_SCAN_LATENCY.reportSuccessEvent(elapsed);
+                    if (segmentMetadata.isStorageSystemSegment()) {
+                        SLTS_SYS_READ_INDEX_SCAN_LATENCY.reportSuccessEvent(elapsed);
+                        SLTS_SYS_READ_INDEX_NUM_SCANNED.reportSuccessValue(cntScanned.get());
+                    } else {
+                        SLTS_READ_INDEX_SCAN_LATENCY.reportSuccessEvent(elapsed);
+                        SLTS_READ_INDEX_NUM_SCANNED.reportSuccessValue(cntScanned.get());
+                    }
                     log.debug("{} read - chunk lookup - op={}, segment={}, offset={}, scanned={}, latency={}.",
                             chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
                             handle.getSegmentName(), offset, cntScanned.get(), elapsed.toMillis());
-                }, chunkedSegmentStorage.getExecutor());
+                }, chunkedSegmentStorage.getExecutor()),
+        chunkedSegmentStorage.getExecutor());
     }
 
     private void checkState() {

@@ -166,7 +166,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         Preconditions.checkArgument(null != data, "data must not be null");
         Preconditions.checkArgument(length > 0, "length must be non-zero and non-negative");
 
-        val traceId = LoggerHelpers.traceEnter(log, "create", chunkName);
+        val traceId = LoggerHelpers.traceEnter(log, "CreateWithContent", chunkName);
         val opContext = new OperationContext();
 
         // Call concrete implementation.
@@ -174,10 +174,12 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         returnFuture.thenAcceptAsync(handle -> {
             // Record metrics.
             val elapsed = opContext.getInclusiveLatency();
-            ChunkStorageMetrics.CREATE_LATENCY.reportSuccessEvent(elapsed);
+            // Write metrics for create
+            ChunkStorageMetrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
+            ChunkStorageMetrics.WRITE_BYTES.add(length);
             ChunkStorageMetrics.CREATE_COUNT.inc();
-            log.debug("Create - chunk={}, latency={}.", chunkName, elapsed.toMillis());
-            LoggerHelpers.traceLeave(log, "create", traceId, chunkName);
+            log.debug("CreateWithContent - chunk={}, bytesWritten={}, latency={}.", handle.getChunkName(), length, elapsed.toMillis());
+            LoggerHelpers.traceLeave(log, "CreateWithContent", traceId, chunkName);
         }, executor);
         return returnFuture;
     }
@@ -505,6 +507,11 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
     @Override
     public void close() {
         this.closed.set(true);
+    }
+
+    @Override
+    public void report() {
+        // Nothing to report yet.
     }
 
     /**
