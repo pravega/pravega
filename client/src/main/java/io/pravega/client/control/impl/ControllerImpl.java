@@ -1017,7 +1017,7 @@ public class ControllerImpl implements Controller {
                          if (e != null) {
                              log.warn("getCurrentSegments for {}/{} failed: ", scope, stream, e);
                          }
-                         if (x.getNumberOfSegments() == 0 ) {
+                         if (x != null && x.getNumberOfSegments() == 0 ) {
                              log.warn("getCurrentSegments for {}/{} returned zero segments since the Stream is sealed", scope, stream);
                          }
                          LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
