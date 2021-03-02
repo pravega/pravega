@@ -399,12 +399,12 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                     // But we can (should) only process at most one MetadataCheckpoint per recovery. Any additional
                     // ones are redundant (used just for Truncation purposes) and contain the same information as
                     // if we processed every operation in order, up to them.
-                    log.debug("MetadataUpdate[{}-{}}]: Skipping MetadataCheckpointOperation with SequenceNumber {} because we already have metadata changes.",
+                    log.debug("MetadataUpdate[{}-{}}]: Skipping MetadataCheckpointOperation({}) because we already have metadata changes.",
                             this.containerId, this.transactionId, operation.getSequenceNumber());
                     return;
                 }
 
-                log.info("MetadataUpdate[{}-{}}]: Recovering MetadataCheckpointOperation with SequenceNumber {}.",
+                log.info("MetadataUpdate[{}-{}}]: Recovering MetadataCheckpointOperation({}).",
                         this.containerId, this.transactionId, operation.getSequenceNumber());
                 clear();
 

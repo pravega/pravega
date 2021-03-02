@@ -319,7 +319,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         // Before we do any real truncation, we need to mini-snapshot the metadata with only those fields that are updated
         // asynchronously for us (i.e., not via normal Log Operations) such as the Storage State. That ensures that this
         // info will be readily available upon recovery without delay.
-        return add(new StorageMetadataCheckpointOperation(), OperationPriority.High, timer.getRemaining())
+        return add(new StorageMetadataCheckpointOperation(), OperationPriority.SystemCritical, timer.getRemaining())
                 .thenComposeAsync(v -> this.durableDataLog.truncate(truncationFrameAddress, timer.getRemaining()), this.executor)
                 .thenRunAsync(() -> this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber), this.executor);
     }
@@ -329,9 +329,9 @@ public class DurableLog extends AbstractService implements OperationLog {
         log.debug("{}: Queuing MetadataCheckpointOperation.", this.traceObjectId);
         MetadataCheckpointOperation op = new MetadataCheckpointOperation();
         return this.operationProcessor
-                .process(op, OperationPriority.Normal)
+                .process(op, OperationPriority.SystemCritical)
                 .thenApply(v -> {
-                    log.info("{}: MetadataCheckpointOperation durably stored.", this.traceObjectId);
+                    log.info("{}: MetadataCheckpointOperation({}} stored.", this.traceObjectId, op.getSequenceNumber());
                     return op.getSequenceNumber();
                 });
     }
