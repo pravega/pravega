@@ -274,7 +274,6 @@ public final class Futures {
     public static <T> void exceptionListener(CompletableFuture<T> completableFuture, Consumer<Throwable> exceptionListener) {
         completableFuture.whenComplete((r, ex) -> {
             if (ex != null) {
-                System.out.println(ex);
                 Callbacks.invokeSafely(exceptionListener, ex, null);
             }
         });
