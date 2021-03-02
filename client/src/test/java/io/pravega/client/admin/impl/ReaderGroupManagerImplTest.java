@@ -16,32 +16,33 @@ import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.ReaderGroupNotFoundException;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.shared.NameUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
-import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -78,17 +79,13 @@ public class ReaderGroupManagerImplTest {
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
-        when(controller.createStream(SCOPE, getStreamForReaderGroup(GROUP_NAME), StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(1))
-                .build())).thenReturn(CompletableFuture.completedFuture(true));
-        when(controller.createReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(config));
+        ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
+                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
         // Create a ReaderGroup
         readerGroupManager.createReaderGroup(GROUP_NAME, config);
-        verify(controller, times(1)).createStream(SCOPE, getStreamForReaderGroup(GROUP_NAME), StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(1))
-                .build());
         verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class),
                 any(Serializer.class), any(SynchronizerConfig.class));
         verify(synchronizer, times(1)).initialize(any(InitialUpdate.class));
@@ -97,11 +94,13 @@ public class ReaderGroupManagerImplTest {
     @Test
     @SuppressWarnings("unchecked")
     public void testDeleteReaderGroup() {
+        final UUID rgId = UUID.randomUUID();
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
                 .build();
+        config = ReaderGroupConfig.cloneConfig(config, rgId, 0L);
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
         when(synchronizer.getState()).thenReturn(state);
@@ -129,6 +128,59 @@ public class ReaderGroupManagerImplTest {
         readerGroupManager.deleteReaderGroup(GROUP_NAME);
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
         verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, config.getReaderGroupId());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testDeleteRGMigrationConfigOnController() {
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2))
+                .put(createStream("s2"), createStreamCut("s2", 3)).build())
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .build();
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
+        when(synchronizer.getState()).thenReturn(state);
+        when(state.getConfig()).thenReturn(config);
+
+        ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+
+        when(controller.getReaderGroupConfig(anyString(), anyString()))
+               .thenReturn(CompletableFuture.completedFuture(expectedConfig));
+        when(controller.deleteReaderGroup(anyString(), anyString(), any(UUID.class)))
+                .thenReturn(CompletableFuture.completedFuture(true));
+        // Delete ReaderGroup
+        readerGroupManager.deleteReaderGroup(GROUP_NAME);
+        verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
+        verify(controller, times(1)).deleteReaderGroup(SCOPE, GROUP_NAME, expectedConfig.getReaderGroupId());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testDeleteRGMigrationNoConfigOnController() {
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2))
+                .put(createStream("s2"), createStreamCut("s2", 3)).build())
+                .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                .build();
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
+        when(synchronizer.getState()).thenReturn(state);
+        when(state.getConfig()).thenReturn(config);
+
+        ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+
+        when(controller.getReaderGroupConfig(SCOPE, GROUP_NAME))
+                .thenThrow(new ReaderGroupNotFoundException(NameUtils.getScopedReaderGroupName(SCOPE, GROUP_NAME)));
+        when(controller.sealStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME)))
+                .thenReturn(CompletableFuture.completedFuture(true));
+        when(controller.deleteStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME)))
+                .thenReturn(CompletableFuture.completedFuture(true));
+        // Delete ReaderGroup
+        readerGroupManager.deleteReaderGroup(GROUP_NAME);
+        verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
+        verify(controller, times(1)).deleteStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME));
+        verify(controller, times(0)).deleteReaderGroup(SCOPE, GROUP_NAME, expectedConfig.getReaderGroupId());
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {

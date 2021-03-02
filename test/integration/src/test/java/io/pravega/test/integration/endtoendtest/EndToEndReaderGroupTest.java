@@ -261,14 +261,19 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
 
         UUID rgId = UUID.randomUUID();
+        ReaderGroupConfig rgConf = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/test").retentionType(ReaderGroupConfig.StreamDataRetention.NONE).build();
+        rgConf = ReaderGroupConfig.cloneConfig(rgConf, rgId, 0L);
 
         // Create a ReaderGroup
-        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream("test/test").retentionType(ReaderGroupConfig.StreamDataRetention.NONE).readerGroupId(rgId).build());
+        groupManager.createReaderGroup("group", rgConf);
+
+        ReaderGroupConfig updateConf = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/test2").retentionType(ReaderGroupConfig.StreamDataRetention.NONE).build();
+        updateConf = ReaderGroupConfig.cloneConfig(updateConf, rgId, 0L);
 
         // Update from the controller end
-        controller.updateReaderGroup("test", "group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream("test/test2").retentionType(ReaderGroupConfig.StreamDataRetention.NONE).readerGroupId(rgId).build()).join();
+        controller.updateReaderGroup("test", "group", updateConf).join();
         ReaderGroup group = groupManager.getReaderGroup("group");
         // Reset from client end
         group.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/test").build());

@@ -121,11 +121,13 @@ public class ReaderGroupImplTest {
     @Test
     @SuppressWarnings("unchecked")
     public void resetReadersToStreamCut() {
+        final UUID rgId = UUID.randomUUID();
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
                 StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
                 .build();
+        config = ReaderGroupConfig.cloneConfig(config, rgId, 0L);
         when(state.getConfig()).thenReturn(config);
         when(synchronizer.getState()).thenReturn(state);
         when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(1L));
@@ -139,11 +141,38 @@ public class ReaderGroupImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    public void resetReaderGroupMigration() {
+        final UUID rgId = UUID.randomUUID();
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
+                StreamCut>builder()
+                .put(createStream("s1"), createStreamCut("s1", 2))
+                .put(createStream("s2"), createStreamCut("s2", 3)).build())
+                .build();
+        ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, rgId, 0L);
+        when(state.getConfig()).thenReturn(config);
+        when(synchronizer.getState()).thenReturn(state);
+        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
+                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
+        when(controller.updateReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class))).thenReturn(CompletableFuture.completedFuture(1L));
+
+        readerGroup.resetReaderGroup(config);
+
+        verify(synchronizer, times(1)).fetchUpdates();
+        verify(controller, times(1)).updateReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class));
+        verify(controller, times(1)).createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class));
+        verify(synchronizer, times(2)).updateState(any(StateSynchronizer.UpdateGenerator.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     public void resetReadersToCheckpoint() {
+        final UUID readerGroupId = UUID.randomUUID();
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(2).forEach(segNum -> positions.put(new Segment(SCOPE, "s1", segNum), 10L));
         Checkpoint checkpoint = new CheckpointImpl("testChkPoint", positions);
-        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromCheckpoint(checkpoint).build();
+        ReaderGroupConfig config = ReaderGroupConfig.builder()
+                .startFromCheckpoint(checkpoint).build();
+        config = ReaderGroupConfig.cloneConfig(config, readerGroupId, 0L);
         when(state.getConfig()).thenReturn(config);
         when(synchronizer.getState()).thenReturn(state);
         when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config)).thenReturn(CompletableFuture.completedFuture(1L));
@@ -163,15 +192,14 @@ public class ReaderGroupImplTest {
                 StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
                 .put(createStream("s2"), createStreamCut("s2", 3)).build())
-                .readerGroupId(rgId)
                 .build();
+        config1 = ReaderGroupConfig.cloneConfig(config1, rgId, 0L);
         ReaderGroupConfig config2 = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream,
                 StreamCut>builder()
                 .put(createStream("s3"), createStreamCut("s3", 2))
                 .put(createStream("s4"), createStreamCut("s4", 3)).build())
-                .readerGroupId(rgId)
-                .generation(1L)
                 .build();
+        config2 = ReaderGroupConfig.cloneConfig(config2, rgId, 1L);
         when(state.getConfig()).thenReturn(config1, config2);
         when(synchronizer.getState()).thenReturn(state);
 
@@ -179,7 +207,8 @@ public class ReaderGroupImplTest {
         badFuture.completeExceptionally(new ReaderGroupConfigRejectedException("handle"));
         // The controller has config2
         when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config1)).thenReturn(badFuture);
-        when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config1.toBuilder().generation(config2.getGeneration()).build()))
+        when(controller.updateReaderGroup(SCOPE, GROUP_NAME,
+                ReaderGroupConfig.cloneConfig(config1, config1.getReaderGroupId(), config2.getGeneration())))
                 .thenReturn(CompletableFuture.completedFuture(2L));
         when(controller.getReaderGroupConfig(SCOPE, GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(config2));
 
@@ -187,7 +216,8 @@ public class ReaderGroupImplTest {
 
         verify(synchronizer, times(1)).fetchUpdates();
         verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config1);
-        verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config1.toBuilder().generation(config2.getGeneration()).build());
+        verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME,
+                ReaderGroupConfig.cloneConfig(config1, config1.getReaderGroupId(), config2.getGeneration()));
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
         verify(synchronizer, times(4)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }
@@ -198,16 +228,17 @@ public class ReaderGroupImplTest {
         UUID rgId = UUID.randomUUID();
         ReaderGroupConfig config1 = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2)).build())
-                .readerGroupId(rgId)
                 .build();
+        config1 = ReaderGroupConfig.cloneConfig(config1, rgId, 0L);
         ReaderGroupConfig config2 = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s2"), createStreamCut("s2", 2)).build())
-                .readerGroupId(rgId)
                 .build();
+        config2 = ReaderGroupConfig.cloneConfig(config2, rgId, 0L);
         ReaderGroupConfig config3 = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s3"), createStreamCut("s3", 2)).build())
-                .readerGroupId(rgId)
                 .build();
+        config3 = ReaderGroupConfig.cloneConfig(config3, rgId, 0L);
+
         AtomicInteger x = new AtomicInteger(0);
         CompletableFuture<Void> wait = new CompletableFuture<>();
         CompletableFuture<Void> signal = new CompletableFuture<>();
@@ -235,7 +266,7 @@ public class ReaderGroupImplTest {
             }
             if (c.getGeneration() == atomicConfigController.get().getGeneration()) {
                 long incGen = c.getGeneration() + 1;
-                atomicConfigController.set(c.toBuilder().generation(incGen).build());
+                atomicConfigController.set(ReaderGroupConfig.cloneConfig(c, c.getReaderGroupId(), incGen));
                 return CompletableFuture.completedFuture(incGen);
             } else {
                 CompletableFuture<Long> badFuture = new CompletableFuture<>();
@@ -245,7 +276,8 @@ public class ReaderGroupImplTest {
         }).when(controller).updateReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class));
 
         // run the first call async.
-        CompletableFuture<Void> future = CompletableFuture.runAsync(() -> readerGroup.resetReaderGroup(config2));
+        final ReaderGroupConfig newConf = config2;
+        CompletableFuture<Void> future = CompletableFuture.runAsync(() -> readerGroup.resetReaderGroup(newConf));
         // Once the first call has reached the controller.updateReaderGroup step then signal so he waits.
         signal.join();
         // start the second call.
@@ -432,13 +464,14 @@ public class ReaderGroupImplTest {
 
     @Test
     public void updateRetentionStreamCutTestSuccess() {
+        final UUID rgId = UUID.randomUUID();
         Stream test = createStream("test");
         ReaderGroupState state = mock(ReaderGroupState.class);
         when(synchronizer.getState()).thenReturn(state);
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(test)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
-                .readerGroupId(UUID.randomUUID())
                 .build();
+        config = ReaderGroupConfig.cloneConfig(config, rgId, 0L);
         when(synchronizer.getState().getConfig()).thenReturn(config);
         when(controller.updateSubscriberStreamCut(test.getScope(), test.getStreamName(), NameUtils.getScopedReaderGroupName(SCOPE, GROUP_NAME),
                 config.getReaderGroupId(), 0L, createStreamCut("test", 1)))
@@ -457,8 +490,8 @@ public class ReaderGroupImplTest {
         ReaderGroupState state = mock(ReaderGroupState.class);
         when(synchronizer.getState()).thenReturn(state);
         ReaderGroupConfig config = ReaderGroupConfig.builder().stream(test)
-                .readerGroupId(UUID.randomUUID())
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT).build();
+        config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
         when(synchronizer.getState().getConfig()).thenReturn(config);
         Map<Stream, StreamCut> cuts = new HashMap<>();
         cuts.put(test, createStreamCut("test", 1));
