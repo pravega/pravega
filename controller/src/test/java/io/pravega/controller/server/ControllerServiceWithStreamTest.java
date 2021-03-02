@@ -63,7 +63,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -366,19 +365,17 @@ public abstract class ControllerServiceWithStreamTest {
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-        Controller.CreateReaderGroupStatus rgStatus =  consumer.createReaderGroup(SCOPE, "rg1",
+        Controller.CreateReaderGroupResponse rgStatus =  consumer.createReaderGroup(SCOPE, "rg1",
                                                         rgConfig, System.currentTimeMillis()).get();
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, rgStatus.getStatus());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, rgStatus.getStatus());
 
         // there should be 1 invocation
         verify(streamStore, times(1)).createReaderGroup(anyString(), anyString(), any(), anyLong(), any(), any());
 
         rgStatus = consumer.createReaderGroup(SCOPE, "rg1", rgConfig, System.currentTimeMillis()).get();
-        assertEquals(Controller.CreateReaderGroupStatus.Status.SUCCESS, rgStatus.getStatus());
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, rgStatus.getStatus());
 
         // verify that create readergroup is not called again
         verify(streamStore, times(1)).createReaderGroup(anyString(), anyString(), any(), anyLong(), any(), any());

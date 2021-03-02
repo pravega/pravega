@@ -174,7 +174,6 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
     private void stopDebugSegmentContainers(Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap)
             throws Exception {
         for (val debugSegmentContainerEntry : debugStreamSegmentContainerMap.entrySet()) {
-            Services.stopAsync(debugSegmentContainerEntry.getValue(), executorService).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             outputInfo("Stopping debug segment container %d.", debugSegmentContainerEntry.getKey());
             debugSegmentContainerEntry.getValue().close();
         }

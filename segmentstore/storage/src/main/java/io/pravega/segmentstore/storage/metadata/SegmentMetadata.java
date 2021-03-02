@@ -54,42 +54,42 @@ public class SegmentMetadata extends StorageMetadata {
     /**
      * Length of the segment.
      */
-    private long length;
+    private volatile long length;
 
     /**
      * Number of chunks.
      */
-    private int chunkCount;
+    private volatile int chunkCount;
 
     /**
      * Start offset of the segment. This is offset of the first byte available for read.
      */
-    private long startOffset;
+    private volatile long startOffset;
 
     /**
      * Status bit flags.
      */
-    private int status;
+    private volatile int status;
 
     /**
      * Maximum Rolling length of the segment.
      */
-    private long maxRollinglength;
+    private volatile long maxRollinglength;
 
     /**
      * Name of the first chunk.
      */
-    private String firstChunk;
+    private volatile String firstChunk;
 
     /**
      * Name of the last chunk.
      */
-    private String lastChunk;
+    private volatile String lastChunk;
 
     /**
      * Last modified time.
      */
-    private long lastModified;
+    private volatile long lastModified;
 
     /**
      * Offset of the first byte of the first chunk.
@@ -97,17 +97,17 @@ public class SegmentMetadata extends StorageMetadata {
      * With arbitrary truncates the effective start offset might be in the middle of the first chunk.
      *
      */
-    private long firstChunkStartOffset;
+    private volatile long firstChunkStartOffset;
 
     /**
      * Offset of the first byte of the last chunk.
      */
-    private long lastChunkStartOffset;
+    private volatile long lastChunkStartOffset;
 
     /**
      * Epoch of the container that last owned it.
      */
-    private long ownerEpoch;
+    private volatile long ownerEpoch;
 
     /**
      * Retrieves the key associated with the metadata, which is the name of the segment.
@@ -223,22 +223,6 @@ public class SegmentMetadata extends StorageMetadata {
             Preconditions.checkState(firstChunkStartOffset == lastChunkStartOffset, "firstChunkStartOffset must equal lastChunkStartOffset when there is only one chunk.");
             Preconditions.checkState(chunkCount == 1, "chunkCount should be 1.");
         }
-    }
-
-    /**
-     * Increment chunk count.
-     */
-    public void incrementChunkCount() {
-        chunkCount++;
-        Preconditions.checkState(chunkCount >= 0, "chunkCount should be non-negative.");
-    }
-
-    /**
-     * Decrement chunk count.
-     */
-    public void decrementChunkCount() {
-        chunkCount--;
-        Preconditions.checkState(chunkCount >= 0, "chunkCount should be non-negative.");
     }
 
     /**

@@ -95,7 +95,7 @@ public class StreamCutTest {
                 .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
                 .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
                 .build();
-        StreamCut sc = new StreamCutImpl( Stream.of("scope", "stream"), segmentOffsetMap);
+        StreamCut sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
 
         // Obtain version 0 serialized data
         final byte[] bufV0 = new StreamCutSerializerV0().serialize(sc.asImpl()).array();

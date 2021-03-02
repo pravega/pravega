@@ -167,6 +167,9 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
                 StreamConfiguration.builder()
                                    .scalingPolicy(ScalingPolicy.fixed(1)).build());
+        if (ReaderGroupConfig.DEFAULT_UUID.equals(config.getReaderGroupId())) {
+            config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+        }
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
@@ -209,7 +212,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         synchronizer.fetchUpdates();
         UUID groupId = synchronizer.getState().getConfig().getReaderGroupId();
         long generation = synchronizer.getState().getConfig().getGeneration();
-        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, groupId, generation),
+        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, groupId),
                 RuntimeException::new);
     }
 }

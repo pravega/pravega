@@ -134,7 +134,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
 
             S3ClientMock client = new S3ClientMock(s3Config, s3Mock);
             return new ChunkedSegmentStorage(containerId,
-                    new ExtendedS3ChunkStorage(client, this.config, executorService(), false),
+                    new ExtendedS3ChunkStorage(client, this.config, executorService(), true, false),
                     metadataStore,
                     this.executor,
                     ChunkedSegmentStorageConfig.DEFAULT_CONFIG);

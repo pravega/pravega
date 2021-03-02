@@ -256,7 +256,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
             try {
                 // Suspend a bookie (this will trigger write errors).
-                stopFirstBookie();
+                suspendFirstBookie();
 
                 // Issue appends in parallel, without waiting for them.
                 int writeCount = getWriteCount();
@@ -267,7 +267,9 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 }
             } finally {
                 // Resume the bookie with the appends still in flight.
-                restartFirstBookie();
+                resumeFirstBookie();
+                AssertExtensions.assertThrows("Bookies should be running, but they aren't",
+                        BookKeeperLogTests::restartFirstBookie, ex -> ex instanceof IllegalStateException);
             }
 
             // Wait for all writes to complete, then reassemble the data in the order set by LogAddress.
@@ -319,6 +321,10 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                                 }
                             });
                 }
+                AssertExtensions.assertThrows("Bookies shouldn't be running, but they are",
+                        BookKeeperLogTests::suspendFirstBookie, ex -> ex instanceof IllegalStateException);
+                AssertExtensions.assertThrows("Bookies shouldn't be running, but they are",
+                        BookKeeperLogTests::resumeFirstBookie, ex -> ex instanceof IllegalStateException);
             } finally {
                 // Don't forget to resume the bookie, but only AFTER we are done testing.
                 restartFirstBookie();
@@ -768,6 +774,14 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
     private static void stopFirstBookie() {
         BK_SERVICE.get().stopBookie(0);
+    }
+
+    private static void suspendFirstBookie() {
+        BK_SERVICE.get().suspendBookie(0);
+    }
+
+    private static void resumeFirstBookie() {
+        BK_SERVICE.get().resumeBookie(0);
     }
 
     @SneakyThrows

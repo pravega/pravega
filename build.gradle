@@ -1065,6 +1065,10 @@ project('test:system') {
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
 
         maxParallelForks = 1
+
+        if (System.getProperty("failFast", "false") == "true") {
+            failFast = true
+        }
     }
 
     task execShellScript(type: Exec) {
@@ -1191,7 +1195,6 @@ task publishAllJars() {
     dependsOn ':shared:security'
     dependsOn ':shared:protocol:publish'
     dependsOn ':segmentstore:contracts:publish'
-    dependsOn ':segmentstore:storage:testJar'
     dependsOn ':segmentstore:storage:publish'
     dependsOn ':segmentstore:storage:impl:publish'
     dependsOn ':segmentstore:server:publish'
@@ -1278,6 +1281,8 @@ distributions {
         baseName = "pravega-javadoc"
         contents {
             from (javadocs)
+            from 'LICENSE'
+            from 'NOTICE'
         }
     }
 }
