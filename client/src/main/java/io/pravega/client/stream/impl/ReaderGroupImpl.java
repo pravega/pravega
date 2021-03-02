@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ReaderGroupConfigRejectedException;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -44,6 +45,7 @@ import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.NameUtils;
@@ -57,6 +59,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
@@ -211,18 +214,58 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             val currentConfig = synchronizer.getState().getConfig();
             // We only move into the block if the state transition has happened successfully.
             if (stateTransition(currentConfig, new UpdatingConfig(true))) {
-                // Use the latest generation and reader group Id.
-                ReaderGroupConfig newConfig = config.toBuilder()
-                        .readerGroupId(currentConfig.getReaderGroupId())
-                        .generation(currentConfig.getGeneration()).build();
-                long newGen = Futures.getThrowingException(controller.updateReaderGroup(scope, groupName, newConfig));
-                Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, newConfig);
-                synchronizer.updateState((s, updates) -> {
-                    updates.add(new ReaderGroupStateInit(newConfig.toBuilder().generation(newGen).build(), segments, getEndSegmentsForStreams(newConfig), false));
-                });
+                if (currentConfig.getReaderGroupId() == ReaderGroupConfig.DEFAULT_UUID
+                        && currentConfig.getGeneration() == ReaderGroupConfig.DEFAULT_GENERATION) {
+                    // Migration code path, for moving a ReaderGroup from version < 0.9 to 0.9+
+                    final ReaderGroupConfig updateConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+
+                    final long nextGen = Futures.getThrowingException(controller.createReaderGroup(scope, getGroupName(), updateConfig)
+                       .thenCompose(conf -> {
+                       if (!conf.getReaderGroupId().equals(updateConfig.getReaderGroupId())) {
+                          return controller.updateReaderGroup(scope, groupName,
+                                  ReaderGroupConfig.cloneConfig(updateConfig, conf.getReaderGroupId(), conf.getGeneration()));
+                        } else {
+                          // ReaderGroup IDs matched so our create was updated on Controller
+                          return CompletableFuture.completedFuture(conf.getGeneration());
+                       }
+                       }));
+                    updateConfigInStateSynchronizer(updateConfig, nextGen);
+                } else {
+                    // normal code path
+                    // Use the latest generation and reader group Id.
+                    ReaderGroupConfig newConfig = ReaderGroupConfig.cloneConfig(config,
+                                    currentConfig.getReaderGroupId(), currentConfig.getGeneration());
+                    long newGen = Futures.exceptionallyExpecting(controller.updateReaderGroup(scope, groupName, newConfig),
+                            e -> Exceptions.unwrap(e) instanceof ReaderGroupConfigRejectedException, -1L).join();
+                    if (newGen == -1) {
+                        log.debug("Synchronize reader group with the one present on controller.");
+                        synchronizeReaderGroupConfig();
+                        continue;
+                    }
+                    updateConfigInStateSynchronizer(newConfig, newGen);
+                }
                 return;
             }
         }
+    }
+
+    private void updateConfigInStateSynchronizer(ReaderGroupConfig config, long newGen) {
+        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, config);
+        synchronizer.updateState((s, updates) -> {
+            updates.add(new ReaderGroupStateInit(ReaderGroupConfig.cloneConfig(config,
+                    config.getReaderGroupId(), newGen), segments, getEndSegmentsForStreams(config), false));
+        });
+    }
+
+    private void synchronizeReaderGroupConfig() {
+        ReaderGroupConfig controllerConfig = getThrowingException(controller.getReaderGroupConfig(scope, groupName));
+        Map<SegmentWithRange, Long> segments = getSegmentsForStreams(controller, controllerConfig);
+        synchronizer.updateState((s, updates) -> {
+            if (s.getConfig().getGeneration() < controllerConfig.getGeneration()) {
+                updates.add(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
+            }
+
+        });
     }
 
     private boolean stateTransition(ReaderGroupConfig config, ReaderGroupState.ReaderGroupStateUpdate update) {
@@ -419,7 +462,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public CompletableFuture<Map<Stream, StreamCut>> generateStreamCuts(ScheduledExecutorService backgroundExecutor) {
-        String checkpointId = generateSilientCheckpointId();
+        String checkpointId = generateSilentCheckpointId();
         log.debug("Fetching the current StreamCut using id {}", checkpointId);
         synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointId));
 
@@ -431,7 +474,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
      * Generate an internal Checkpoint Id. It is appended with a suffix {@link ReaderGroupImpl#SILENT} which ensures
      * that the readers do not generate an event where {@link io.pravega.client.stream.EventRead#isCheckpoint()} is true.
      */
-    private String generateSilientCheckpointId() {
+    private String generateSilentCheckpointId() {
         byte[] randomBytes = new byte[32];
         ThreadLocalRandom.current().nextBytes(randomBytes);
         return Base64.getEncoder().encodeToString(randomBytes) + SILENT;

@@ -27,7 +27,8 @@ import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.storage.extendeds3.ExtendedS3ChunkStorage;
 import io.pravega.storage.extendeds3.ExtendedS3Storage;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
-import io.pravega.storage.extendeds3.S3FileSystemImpl;
+import io.pravega.storage.extendeds3.S3ClientMock;
+import io.pravega.storage.extendeds3.S3Mock;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
@@ -43,7 +44,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
     //region Test Configuration and Setup
 
     private String s3ConfigUri;
-    private S3FileSystemImpl filesystemS3;
+    private S3Mock s3Mock;
 
     /**
      * Starts BookKeeper.
@@ -53,7 +54,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
     public void setUp() throws Exception {
         super.setUp();
         s3ConfigUri = "http://127.0.0.1:" + TestUtils.getAvailableListenPort() + "?identity=x&secretKey=x";
-        filesystemS3 = new S3FileSystemImpl(getBaseDir().toString());
+        s3Mock = new S3Mock();
         this.configBuilder.include(ExtendedS3StorageConfig.builder()
                 .with(ExtendedS3StorageConfig.CONFIGURI, s3ConfigUri)
                 .with(ExtendedS3StorageConfig.BUCKET, "kanpravegatest"));
@@ -101,12 +102,12 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
                     .withInitialRetryDelay(1)
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
-            S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
+            S3ClientMock client = new S3ClientMock(s3Config, s3Mock);
             return getStorage(client);
         }
 
         protected Storage getStorage(S3JerseyClient client) {
-            return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), this.storageExecutor);
+            return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config, false)), this.storageExecutor);
         }
     }
 
@@ -131,9 +132,9 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
                     .withInitialRetryDelay(1)
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
-            S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
+            S3ClientMock client = new S3ClientMock(s3Config, s3Mock);
             return new ChunkedSegmentStorage(containerId,
-                    new ExtendedS3ChunkStorage(client, this.config, executorService()),
+                    new ExtendedS3ChunkStorage(client, this.config, executorService(), true, false),
                     metadataStore,
                     this.executor,
                     ChunkedSegmentStorageConfig.DEFAULT_CONFIG);

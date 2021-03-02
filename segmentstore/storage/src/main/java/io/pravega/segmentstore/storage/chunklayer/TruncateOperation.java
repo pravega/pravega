@@ -24,6 +24,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -40,7 +42,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     private final SegmentHandle handle;
     private final long offset;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
-    private final ArrayList<String> chunksToDelete = new ArrayList<>();
+    private final List<String> chunksToDelete = Collections.synchronizedList(new ArrayList<>());
     private final long traceId;
     private final Timer timer;
     private volatile String currentChunkName;
@@ -75,7 +77,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                 // Nothing to do
                                 return CompletableFuture.completedFuture(null);
                             }
-
+                            val oldStartOffset = segmentMetadata.getStartOffset();
                             return updateFirstChunk(txn)
                                     .thenComposeAsync(v -> deleteChunks(txn)
                                             .thenComposeAsync( vvv -> {
@@ -85,6 +87,9 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                                 // Check invariants.
                                                 Preconditions.checkState(segmentMetadata.getLength() == oldLength, "truncate should not change segment length");
                                                 segmentMetadata.checkInvariants();
+
+                                                // Remove read index block entries.
+                                                chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, streamSegmentName, oldStartOffset, segmentMetadata.getStartOffset());
 
                                                 // Finally commit.
                                                 return commit(txn)
@@ -170,7 +175,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
                             startOffset.addAndGet(currentMetadata.getLength());
                             chunksToDelete.add(currentMetadata.getName());
-                            segmentMetadata.decrementChunkCount();
+                            segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() - 1);
 
                             // move to next chunk
                             currentChunkName = currentMetadata.getNextChunk();

@@ -49,9 +49,9 @@ class IoBuffer {
      * Obtain a ByteBuff of size `size` by reading data from the provided input stream or from this buffer if the data is already available.
      */
     public ByteBuf getBuffOfSize(InputStream in, int size) throws IOException {
-        checkArgument(size <= maxBufferSize, "Requested buffer size {} is larger than max allowd {}", size, maxBufferSize);
+        checkArgument(size <= maxBufferSize, "Requested buffer size {} is larger than max allowed {}", size, maxBufferSize);
         if (size == 0) {
-            // Technically this should not need to be special cased per the Javadoc of InputStrem, 
+            // Technically this should not need to be special cased per the Javadoc of InputStrem,
             // but ByteArrayInputStream has a bug that makes this needed.
             return Unpooled.EMPTY_BUFFER;
         }

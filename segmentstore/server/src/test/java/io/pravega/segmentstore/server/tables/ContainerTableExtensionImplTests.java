@@ -16,6 +16,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -334,7 +335,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability update and access entries when compaction occurs using a {@link KeyHasher} that is not prone
+     * Tests the ability to update and access entries when compaction occurs using a {@link KeyHasher} that is not prone
      * to collisions.
      */
     @Test
@@ -343,7 +344,16 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability update and access entries when compaction occurs using a {@link KeyHasher} that is very prone
+     * Tests the ability to conditionally update entries when compaction occurs using a {@link KeyHasher} that is not prone
+     * to collisions.
+     */
+    @Test
+    public void testCompactionWithConditionalUpdates() {
+        testTableSegmentCompacted(KeyHashers.DEFAULT_HASHER, this::conditionalUpdateCheck);
+    }
+
+    /**
+     * Tests the ability to update and access entries when compaction occurs using a {@link KeyHasher} that is very prone
      * to collisions.
      */
     @Test
@@ -661,6 +671,16 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val toRemove = remainingKeys.stream().map(TableKey::unversioned).collect(Collectors.toList());
         ext.remove(SEGMENT_NAME, toRemove, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         ext.deleteSegment(SEGMENT_NAME, mustBeEmpty, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    private void conditionalUpdateCheck(Map<BufferView, BufferView> expectedEntries, Collection<BufferView> nonExistentKeys, ContainerTableExtension ext) throws Exception {
+        for (val e : expectedEntries.entrySet()) {
+            val te = TableEntry.versioned(e.getKey(), e.getValue(), 1234L);
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "Expected the update to have failed with BadKeyVersionException.",
+                    () -> ext.put(SEGMENT_NAME, Collections.singletonList(te), TIMEOUT),
+                    ex -> ex instanceof BadKeyVersionException);
+        }
     }
 
     private void check(Map<BufferView, BufferView> expectedEntries, Collection<BufferView> nonExistentKeys, ContainerTableExtension ext) throws Exception {

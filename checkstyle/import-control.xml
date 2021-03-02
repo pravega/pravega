@@ -37,7 +37,6 @@
     <allow pkg="feign"/>
     <allow pkg="io.grpc" />
     <allow pkg="info.ganglia" />
-    <allow pkg="org.gaul.s3proxy" />
     <allow pkg="org.jclouds" />
     <allow pkg="org.glassfish.grizzly" />
     <allow pkg="com.spotify" />

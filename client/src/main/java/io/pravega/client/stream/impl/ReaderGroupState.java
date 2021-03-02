@@ -827,17 +827,17 @@ public class ReaderGroupState implements Revisioned {
         void update(ReaderGroupState state) {
             Map<SegmentWithRange, Long> assigned = state.assignedSegments.get(readerId);
             Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
-            SegmentWithRange aquired = null;
+            SegmentWithRange acquired = null;
             for (SegmentWithRange segmentWithRange : state.unassignedSegments.keySet()) {
                 if (segmentWithRange.getSegment().equals(segment)) {
-                    aquired = segmentWithRange;
+                    acquired = segmentWithRange;
                 }
             }
-            if (aquired == null) {
+            if (acquired == null) {
                 throw new IllegalStateException("Segment: " + segment + " is not unassigned. " + state);
             }
-            Long offset = state.unassignedSegments.remove(aquired);
-            assigned.put(aquired, offset);
+            Long offset = state.unassignedSegments.remove(acquired);
+            assigned.put(acquired, offset);
         }
 
         private static class AcquireSegmentBuilder implements ObjectBuilder<AcquireSegment> {

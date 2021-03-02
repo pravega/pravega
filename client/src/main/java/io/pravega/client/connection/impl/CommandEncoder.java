@@ -112,7 +112,6 @@ public class CommandEncoder {
          * Queue the Append data to Session' list.
          *
          * @param data  data bytes.
-         * @param out   Network channel buffer.
          * @throws IOException If the write to the outputstream fails
          */
         private void write(ByteBuf data) throws IOException {
@@ -127,7 +126,6 @@ public class CommandEncoder {
         /**
          * Check the overflow condition and flush if required.
          *
-         * @param out   Network channel buffer.
          * @throws IOException If the write to the outputstream fails
          */
         private void conditionalFlush() throws IOException {
@@ -140,8 +138,6 @@ public class CommandEncoder {
 
        /**
         * Write/flush session's data to network channel.
-        *
-        * @param out   Network channel buffer.
         */
        private void flushToBuffer() {
             if (!isFree()) {
@@ -175,7 +171,7 @@ public class CommandEncoder {
     private void flushAllToBuffer() {
         if (!pendingWrites.isEmpty()) {
             ArrayList<Session> sessions = new ArrayList<>(pendingWrites.values());
-            sessions.forEach(session -> session.flushToBuffer());
+            sessions.forEach(Session::flushToBuffer);
         }
     }
     
@@ -195,7 +191,7 @@ public class CommandEncoder {
                 }
                 throw new IOException("CommandEncoder " + this.location + " closed due to memory limit reached");
             }
-            writeMessage((SetupAppend) msg, buffer);
+            writeMessage(msg, buffer);
             SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(new SimpleImmutableEntry<>(setup.getSegment(), setup.getWriterId()),
                               new Session(setup.getWriterId(), setup.getRequestId()));
@@ -203,12 +199,12 @@ public class CommandEncoder {
         } else if (msg instanceof Hello) {
             Preconditions.checkState(isChannelFree());
             Preconditions.checkState(pendingWrites.isEmpty());
-            writeMessage((WireCommand) msg, buffer);
+            writeMessage(msg, buffer);
             flushBuffer();
         } else {
             breakCurrentAppend();
             flushAllToBuffer();
-            writeMessage((WireCommand) msg, buffer);
+            writeMessage(msg, buffer);
             flushBuffer();
         }
     }
@@ -435,7 +431,7 @@ public class CommandEncoder {
                 flushBuffer();
             }
         } catch (IOException e) {
-            log.error("Failed to time out block. Closeing connection.", e);
+            log.error("Failed to time out block. Closing connection.", e);
             closeQuietly(output, log, "Closing output failed");
         }
         return result;
