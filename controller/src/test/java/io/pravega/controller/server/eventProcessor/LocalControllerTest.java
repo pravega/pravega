@@ -14,6 +14,7 @@ import com.google.common.collect.Lists;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.control.impl.ReaderGroupConfigRejectedException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -271,16 +272,14 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
         Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of("scope", "stream1"),
                 new StreamCutImpl(Stream.of("scope", "stream1"), endStreamCut));
-        ReaderGroupConfig config = ReaderGroupConfig.builder()
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
                 .automaticCheckpointIntervalMillis(30000L)
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-
+        final ReaderGroupConfig config = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 0L);
         StreamMetadataTasks mockStreamMetaTasks = mock(StreamMetadataTasks.class);
         final String scope = "scope";
         final String rgName = "subscriber";
@@ -302,6 +301,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupResponse.newBuilder()
                                 .setConfig(expectedConfig)
                                 .setStatus(Controller.CreateReaderGroupResponse.Status.FAILURE).build()));
+
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
                 ex -> ex instanceof ControllerFailureException);
@@ -342,16 +342,14 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
         Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(scope, streamName),
                 new StreamCutImpl(Stream.of(scope, streamName), endStreamCut));
-        ReaderGroupConfig config = ReaderGroupConfig.builder()
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
                 .automaticCheckpointIntervalMillis(30000L)
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-
+        ReaderGroupConfig config = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 0L);
         final String rgName = "subscriber";
         Controller.ReaderGroupConfiguration expectedConfig = ModelHelper.decode(scope, rgName, config);
         when(this.mockControllerService.getReaderGroupConfig(anyString(), anyString())).thenReturn(
@@ -435,15 +433,14 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
         Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of("scope", "stream1"),
                 new StreamCutImpl(Stream.of("scope", "stream1"), endStreamCut));
-        ReaderGroupConfig config = ReaderGroupConfig.builder()
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
                 .automaticCheckpointIntervalMillis(30000L)
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        ReaderGroupConfig config = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 0L);
         when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
                         .setStatus(Controller.UpdateReaderGroupResponse.Status.SUCCESS).setGeneration(1L).build()));
@@ -459,9 +456,9 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
                         .setStatus(Controller.UpdateReaderGroupResponse.Status.INVALID_CONFIG).build()));
-        assertThrows("Expected IllegalArgumentException",
+        assertThrows("Expected ReaderGroupConfigRejectedException",
                 () -> this.testController.updateReaderGroup("scope", "subscriber", config).join(),
-                ex -> ex instanceof IllegalArgumentException);
+                ex -> ex instanceof ReaderGroupConfigRejectedException);
 
         when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
