@@ -537,14 +537,10 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
     // Closes the debug segment container instances in the given map after waiting for the metadata segment to be flushed to
     // the given storage.
-    private void stopDebugSegmentContainers(int containerCount, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap)
-            throws Exception {
-        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
+    private void stopDebugSegmentContainers(int containerCount, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap) {
         for (int containerId = 0; containerId < containerCount; containerId++) {
-            int finalContainerId = containerId;
-            futures.add(debugStreamSegmentContainerMap.get(finalContainerId).close());
+            debugStreamSegmentContainerMap.get(containerId).close();
         }
-        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     // Writes events to the streams with/without transactions.
