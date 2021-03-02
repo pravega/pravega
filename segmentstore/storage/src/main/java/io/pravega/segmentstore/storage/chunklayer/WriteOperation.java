@@ -70,7 +70,6 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final AtomicLong bytesRemaining = new AtomicLong();
     private final AtomicLong currentOffset = new AtomicLong();
 
-
     private volatile boolean didSegmentLayoutChange = false;
 
     WriteOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, InputStream data, int length) {
@@ -202,6 +201,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     return openChunkToWrite(txn)
                             .thenComposeAsync(v -> {
                                 // Calculate the data that needs to be written.
+                                val oldOffset = currentOffset.get();
                                 val offsetToWriteAt = currentOffset.get() - segmentMetadata.getLastChunkStartOffset();
                                 val writeSize = (int) Math.min(bytesRemaining.get(), segmentMetadata.getMaxRollinglength() - offsetToWriteAt);
 
@@ -212,7 +212,18 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                         chunkHandle,
                                         lastChunkMetadata.get(),
                                         offsetToWriteAt,
-                                        writeSize);
+                                        writeSize)
+                                .thenRunAsync(() -> {
+                                    // Update block index.
+                                    if (!segmentMetadata.isStorageSystemSegment()) {
+                                        chunkedSegmentStorage.addBlockIndexEntriesForChunk(txn,
+                                                segmentMetadata.getName(),
+                                                chunkHandle.getChunkName(),
+                                                segmentMetadata.getLastChunkStartOffset(),
+                                                oldOffset,
+                                                segmentMetadata.getLength());
+                                    }
+                                }, chunkedSegmentStorage.getExecutor());
                             }, chunkedSegmentStorage.getExecutor());
                 }, chunkedSegmentStorage.getExecutor())
                 .thenRunAsync(() -> {
