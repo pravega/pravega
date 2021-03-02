@@ -27,6 +27,7 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -43,6 +44,10 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for MemoryStateUpdater class.
@@ -182,6 +187,21 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         TestReadIndex.MethodInvocation exitRecovery = methodInvocations.get(1);
         Assert.assertEquals("ReadIndex.exitRecoveryMode was not called when expected.", TestReadIndex.EXIT_RECOVERY_MODE, exitRecovery.methodName);
         Assert.assertEquals("ReadIndex.exitRecoveryMode was called with the wrong arguments.", true, exitRecovery.args.get("successfulRecovery"));
+    }
+
+    /**
+     * Tests {@link MemoryStateUpdater#registerReadListener} and {@link MemoryStateUpdater#notifyLogRead()}.
+     */
+    @Test
+    public void testReadListeners() {
+        val updater = new MemoryStateUpdater(new InMemoryLog(), new TestReadIndex(null));
+        val l1 = mock(ThrottleSourceListener.class);
+        when(l1.isClosed()).thenReturn(false);
+        updater.registerReadListener(l1);
+        verify(l1).isClosed();
+
+        updater.notifyLogRead();
+        verify(l1).notifyThrottleSourceChanged();
     }
 
     private ArrayList<Operation> populate(MemoryStateUpdater updater, int segmentCount, int operationCountPerType) throws DataCorruptionException {

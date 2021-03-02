@@ -342,9 +342,12 @@ public class DurableLog extends AbstractService implements OperationLog {
         log.debug("{}: Read (MaxCount = {}, Timeout = {}).", this.traceObjectId, maxCount, timeout);
         CompletableFuture<Queue<Operation>> result = this.inMemoryOperationLog.take(maxCount, timeout, this.executor);
         result.thenAccept(r -> {
-            int size = r.size();
+            final int size = r.size();
             this.operationProcessor.getMetrics().operationLogRead(size);
-            log.debug("{}: ReadResult (Count = {}).", this.traceObjectId, size);
+            log.debug("{}: ReadResult (Count = {}, Remaining = {}).", this.traceObjectId, size, this.inMemoryOperationLog.size());
+            if (size > 0) {
+                this.memoryStateUpdater.notifyLogRead();
+            }
         });
         return result;
     }
