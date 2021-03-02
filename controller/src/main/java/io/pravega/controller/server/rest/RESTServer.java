@@ -49,8 +49,8 @@ public class RESTServer extends AbstractIdleService {
     public RESTServer(LocalController localController, ControllerService controllerService, AuthHandlerManager pravegaAuthManager, RESTServerConfig restServerConfig, ConnectionFactory connectionFactory) {
         this.objectId = "RESTServer";
         this.restServerConfig = restServerConfig;
-        final String serverURI = "http://" + restServerConfig.getHost() + "/";
-        this.baseUri = URI.create(serverURI + ":" + restServerConfig.getPort());
+        final String serverURI = "http://" + restServerConfig.getHost();
+        this.baseUri = URI.create(serverURI + ":" + restServerConfig.getPort() + "/");
 
         final Set<Object> resourceObjs = new HashSet<>();
         resourceObjs.add(new PingImpl());
