@@ -335,18 +335,18 @@ public class StreamMetadataTasks extends TaskBase {
                                   .setStatus(CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND).build());
          }
          //2. check state of the ReaderGroup, if found
-         return isRGCreationComplete(scope, rgName)
+         return eventHelperFuture.thenCompose(eventHelper -> isRGCreationComplete(scope, rgName)
                  .thenCompose(complete -> {
                      if (!complete) {
                          //3. Create Reader Group Metadata inside Scope and submit the event
                          return validateReaderGroupId(config)
-                                 .thenCompose(conf -> eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, conf, requestId, createTimestamp),
+                                 .thenCompose(conf -> eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, conf, requestId, createTimestamp),
                                  () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId()))
                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
-                                         .thenCompose(done -> buildCreateSuccessResponse(scope, rgName)))));
+                                         .thenCompose(done -> buildCreateSuccessResponse(scope, rgName))));
                      }
                      return buildCreateSuccessResponse(scope, rgName);
-                 });
+                 }));
          });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
