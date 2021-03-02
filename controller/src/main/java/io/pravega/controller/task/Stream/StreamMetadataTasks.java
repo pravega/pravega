@@ -340,7 +340,7 @@ public class StreamMetadataTasks extends TaskBase {
                      if (!complete) {
                          //3. Create Reader Group Metadata inside Scope and submit the event
                          return validateReaderGroupId(config)
-                                 .thenCompose(conf -> eventHelperFuture.thenCompose(eventHelper ->eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, conf, requestId, createTimestamp),
+                                 .thenCompose(conf -> eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, conf, requestId, createTimestamp),
                                  () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId()))
                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
                                          .thenCompose(done -> buildCreateSuccessResponse(scope, rgName)))));
@@ -1281,7 +1281,7 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(property -> {
                     if (!property.getObject().isUpdating()) {
                         // 2. post event with new stream cut if no truncation is ongoing
-                        return eventHelperFuture.thenCompose(eventHelper ->eventHelper.addIndexAndSubmitTask(new TruncateStreamEvent(scope, stream, requestId),
+                        return eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(new TruncateStreamEvent(scope, stream, requestId),
                                 // 3. start truncation by updating the metadata
                                 () -> streamMetadataStore.startTruncation(scope, stream, streamCut,
                                         context, executor))
@@ -1336,7 +1336,7 @@ public class StreamMetadataTasks extends TaskBase {
 
         // 1. post event for seal.
         SealStreamEvent event = new SealStreamEvent(scope, stream, requestId);
-        return eventHelperFuture.thenCompose(eventHelper ->eventHelper.addIndexAndSubmitTask(event,
+        return eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(event,
                 // 2. set state to sealing
                 () -> RetryHelper.withRetriesAsync(() -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(state -> {
@@ -1448,7 +1448,7 @@ public class StreamMetadataTasks extends TaskBase {
         final long requestId = requestTracker.getRequestIdFor("scaleStream", scope, stream, String.valueOf(scaleTimestamp));
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp, requestId);
 
-        return eventHelperFuture.thenCompose(eventHelper ->eventHelper.addIndexAndSubmitTask(event,
+        return eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(event,
                 () -> streamMetadataStore.submitScale(scope, stream, segmentsToSeal, new ArrayList<>(newRanges),
                         scaleTimestamp, null, context, executor))
                         .handle((startScaleResponse, e) -> {
@@ -1529,7 +1529,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     @VisibleForTesting
     <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, Supplier<CompletableFuture<T>> futureSupplier) {
-        return eventHelperFuture.thenCompose(eventHelper ->eventHelper.addIndexAndSubmitTask(event, futureSupplier));
+        return eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(event, futureSupplier));
     }
 
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
@@ -1854,9 +1854,9 @@ public class StreamMetadataTasks extends TaskBase {
 
     @Override
     public void close() throws Exception {
-        if(eventHelperFuture.isDone()){
+        if (eventHelperFuture.isDone()) {
             eventHelperFuture.thenAccept(eventHelper -> {
-                if (eventHelper !=null){
+                if (eventHelper != null) {
                     eventHelper.close();
                 }
             }).join();

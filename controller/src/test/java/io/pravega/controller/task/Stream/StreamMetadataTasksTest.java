@@ -257,13 +257,13 @@ public abstract class StreamMetadataTasksTest {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
 
-        StreamMetadataTasks streamMetadataTasks =  new StreamMetadataTasks(streamMetadataStore,bucketStore,taskMetadataStore,segmentHelperMock,executor,"host", new GrpcAuthHelper(authEnabled, "key", 300),requestTracker);
+        StreamMetadataTasks streamMetadataTasks =  new StreamMetadataTasks(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelperMock, executor, "host", new GrpcAuthHelper(authEnabled, "key", 300), requestTracker);
         List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 0.75));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.75, 1.0));
 
-        AssertExtensions.assertThrows(" ", () ->streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(1L),
-                newRanges, 30, null),e -> Exceptions.unwrap(e) instanceof NullPointerException);
+        AssertExtensions.assertThrows(" ", () -> streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(1L),
+                newRanges, 30, null), e -> Exceptions.unwrap(e) instanceof NullPointerException);
     }
 
     @Test(timeout = 30000)
