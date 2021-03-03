@@ -30,6 +30,7 @@ import static com.google.common.base.Strings.nullToEmpty;
  * <li>Name of the chunk.</li>
  * <li>Length of the chunk.</li>
  * <li>Name of the next chunk in list.</li>
+ * <li>Status flags.</li>
  * </ul>
  */
 @Builder(toBuilder = true)
@@ -45,12 +46,17 @@ public class ChunkMetadata extends StorageMetadata {
     /**
      * Length of the chunk.
      */
-    private long length;
+    private volatile long length;
 
     /**
      * Name of the next chunk.
      */
-    private String nextChunk;
+    private volatile String nextChunk;
+
+    /**
+     * Status bit flags.
+     */
+    private volatile int status;
 
     /**
      * Retrieves the key associated with the metadata, which is the name of the chunk.
@@ -70,6 +76,38 @@ public class ChunkMetadata extends StorageMetadata {
     @Override
     public StorageMetadata deepCopy() {
         return toBuilder().build();
+    }
+
+    /**
+     * Sets the given bit for given mask.
+     */
+    private ChunkMetadata setFlag(int mask, boolean value) {
+        status = value ? (status | mask) : (status & (~mask));
+        return this;
+    }
+
+    /**
+     * Gets the status of the bit for given mask.
+     */
+    private boolean getFlag(int mask) {
+        return (status & mask) != 0;
+    }
+
+    /**
+     * Sets active status.
+     * @param value Value to set.
+     * @return This instance so that these calls can be chained.
+     */
+    public ChunkMetadata setActive(boolean value) {
+        return setFlag(StatusFlags.ACTIVE, value);
+    }
+
+    /**
+     * Gets active status.
+     * @return True if active, false otherwise.
+     */
+    public boolean isActive() {
+        return getFlag(StatusFlags.ACTIVE);
     }
 
     /**
@@ -101,12 +139,14 @@ public class ChunkMetadata extends StorageMetadata {
             output.writeUTF(object.name);
             output.writeCompactLong(object.length);
             output.writeUTF(nullToEmpty(object.nextChunk));
+            output.writeCompactInt(object.status);
         }
 
         private void read00(RevisionDataInput input, ChunkMetadataBuilder b) throws IOException {
             b.name(input.readUTF());
             b.length(input.readCompactLong());
             b.nextChunk(emptyToNull(input.readUTF()));
+            b.status(input.readCompactInt());
         }
     }
 }

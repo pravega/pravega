@@ -150,7 +150,7 @@ public class StreamConfigurationRecord {
 
             @Override
             protected void declareVersions() {
-                version(0).revision(0, this::write00, this::read00);
+                version(0).revision(0, this::write00, this::read00).revision(1, this::write01, this::read01);
             }
 
             private void read00(RevisionDataInput revisionDataInput, StreamConfigurationRecord.RetentionPolicyRecord.RetentionPolicyRecordBuilder retentionPolicyRecordBuilder)
@@ -166,6 +166,18 @@ public class StreamConfigurationRecord {
                 }
             }
 
+            private void read01(RevisionDataInput revisionDataInput, 
+                                StreamConfigurationRecord.RetentionPolicyRecord.RetentionPolicyRecordBuilder retentionPolicyRecordBuilder)
+                    throws IOException {
+                if (retentionPolicyRecordBuilder.retentionPolicy != null ) {
+                    RetentionPolicy.RetentionPolicyBuilder builder = RetentionPolicy.builder()
+                            .retentionType(retentionPolicyRecordBuilder.retentionPolicy.getRetentionType())
+                            .retentionParam(retentionPolicyRecordBuilder.retentionPolicy.getRetentionParam())
+                            .retentionMax(revisionDataInput.readLong());
+                    retentionPolicyRecordBuilder.retentionPolicy(builder.build());
+                }
+            }
+
             private void write00(StreamConfigurationRecord.RetentionPolicyRecord retentionPolicyRecord, RevisionDataOutput revisionDataOutput)
                     throws IOException {
                 if (retentionPolicyRecord == null || retentionPolicyRecord.getRetentionPolicy() == null) {
@@ -175,6 +187,13 @@ public class StreamConfigurationRecord {
                     RetentionPolicy retentionPolicy = retentionPolicyRecord.getRetentionPolicy();
                     revisionDataOutput.writeCompactInt(retentionPolicy.getRetentionType().ordinal());
                     revisionDataOutput.writeLong(retentionPolicy.getRetentionParam());
+                }
+            }
+
+            private void write01(StreamConfigurationRecord.RetentionPolicyRecord retentionPolicyRecord, RevisionDataOutput revisionDataOutput)
+                    throws IOException {
+                if (retentionPolicyRecord != null && retentionPolicyRecord.getRetentionPolicy() != null) {
+                    revisionDataOutput.writeLong(retentionPolicyRecord.retentionPolicy.getRetentionMax());
                 }
             }
 

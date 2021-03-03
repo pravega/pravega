@@ -16,6 +16,11 @@ plugins.withId('com.github.spotbugs') {
         effort = "max"        
         includeFilter = file("$rootDir/checkstyle/spotbugs-include.xml")
         excludeFilter = file("$rootDir/checkstyle/spotbugs-exclude.xml")
-
-    }    
- }
+    }
+    spotbugsMain {
+        reports {
+            xml.enabled = false
+            html.enabled = true
+        }
+    }
+}

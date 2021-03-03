@@ -15,13 +15,15 @@ import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Unit tests for  {@link ChunkedSegmentStorage} and {@link ChunkStorage} based implementation that exercise scenarios
  * for {@link io.pravega.segmentstore.storage.rolling.RollingStorage}.
  */
 public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase {
+    private static final int CONTAINER_ID = 42;
+
     ChunkStorage chunkStorage;
     ChunkMetadataStore chunkMetadataStore;
 
@@ -32,7 +34,7 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
     @Override
     protected Storage createStorage() throws Exception {
         useOldLayout = false;
-        Executor executor = executorService();
+        ScheduledExecutorService executor = executorService();
         // Initialize
         synchronized (ChunkedRollingStorageTests.class) {
             if (null == chunkStorage) {
@@ -40,7 +42,8 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
                 chunkStorage = getChunkStorage();
             }
         }
-        return new ChunkedSegmentStorage(chunkStorage,
+        return new ChunkedSegmentStorage(CONTAINER_ID,
+                chunkStorage,
                 chunkMetadataStore,
                 executor,
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
@@ -53,7 +56,7 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
      * @throws Exception If any unexpected error occurred.
      */
     protected ChunkStorage getChunkStorage() throws Exception {
-        return new InMemoryChunkStorage();
+        return new InMemoryChunkStorage(executorService());
     }
 
     /**
@@ -63,7 +66,7 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
      * @throws Exception If any unexpected error occurred.
      */
     protected ChunkMetadataStore getMetadataStore() throws Exception {
-        return new InMemoryMetadataStore();
+        return new InMemoryMetadataStore(executorService());
     }
 
     @Override

@@ -29,10 +29,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
 import org.junit.Assert;
 
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
@@ -48,9 +48,14 @@ public class DockerBasedTestExecutor implements TestExecutor {
     private final AtomicReference<String> id = new AtomicReference<String>();
     private final String masterIp = Utils.isAwsExecution() ? getConfig("awsMasterIP", "Invalid Master IP").trim() : getConfig("masterIP", "Invalid Master IP");
     private final DockerClient client = DefaultDockerClient.builder().uri("http://" + masterIp
-             + ":" + DOCKER_CLIENT_PORT).build();
+            + ":" + DOCKER_CLIENT_PORT).build();
     private final String expectedDockerApiVersion = "1.22";
-    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(3, "test");
+
+    @After
+    public void tearDown() {
+        ExecutorServiceHelpers.shutdown(executorService);
+    }
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {

@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
@@ -37,7 +37,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
@@ -59,25 +58,15 @@ class SegmentMock implements DirectSegmentAccess {
     @Getter
     private final UpdateableSegmentMetadata metadata;
     @GuardedBy("this")
-    private final EnhancedByteArrayOutputStream contents = new EnhancedByteArrayOutputStream();
+    private final ByteBufferOutputStream contents = new ByteBufferOutputStream();
     private final ScheduledExecutorService executor;
     @GuardedBy("this")
     private BiConsumer<Long, Integer> appendCallback;
-    private final AtomicInteger readRequestCount = new AtomicInteger();
-    private final AtomicInteger copyOnReadCount = new AtomicInteger();
 
     SegmentMock(ScheduledExecutorService executor) {
         this(new StreamSegmentMetadata("Mock", 0, 0), executor);
         this.metadata.setLength(0);
         this.metadata.setStorageLength(0);
-    }
-
-    int getReadRequestCount() {
-        return this.readRequestCount.get();
-    }
-
-    int getCopyOnReadCount() {
-        return this.copyOnReadCount.get();
     }
 
     /**
@@ -297,15 +286,6 @@ class SegmentMock implements DirectSegmentAccess {
     private class TruncateableReadResultMock extends ReadResultMock {
         private TruncateableReadResultMock(long streamSegmentStartOffset, ArrayView data, int maxResultLength, int entryLength) {
             super(streamSegmentStartOffset, data, maxResultLength, entryLength);
-            readRequestCount.incrementAndGet();
-        }
-
-        @Override
-        public void setCopyOnRead(boolean copyOnRead) {
-            if (copyOnRead != isCopyOnRead()) {
-                copyOnReadCount.addAndGet(copyOnRead ? 1 : -1);
-            }
-            super.setCopyOnRead(copyOnRead);
         }
 
         @Override

@@ -39,6 +39,7 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.SegmentWithRange.Range;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.CopyOnWriteHashMap;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
@@ -138,6 +139,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         do {
             String checkpoint = updateGroupStateIfNeeded();
             if (checkpoint != null) {
+                // return checkpoint event to user
                 return createEmptyEvent(checkpoint);
             }
             EventSegmentReader segmentReader = orderer.nextSegment(readers);
@@ -256,12 +258,15 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
      */
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
+        groupState.updateConfigIfNeeded();
         PositionInternal position = null;
         if (atCheckpoint != null) {
+            // process the checkpoint we're at
             position = refreshAndGetPosition();
             groupState.checkpoint(atCheckpoint, position);
             log.info("Reader {} completed checkpoint {}", groupState.getReaderId(), atCheckpoint);
             releaseSegmentsIfNeeded(position);
+            groupState.updateTruncationStreamCutIfNeeded();
         }
         String checkpoint = groupState.getCheckpoint();
         while (checkpoint != null) {
@@ -282,6 +287,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             }
         }
         atCheckpoint = null;
+
         if (position != null || lastRead == null || groupState.canAcquireSegmentIfNeeded() || groupState.canUpdateLagIfNeeded()) {
             position = (position == null) ? refreshAndGetPosition() : position;
             if (acquireSegmentsIfNeeded(position) || groupState.updateLagIfNeeded(getLag(), position)) {
@@ -318,6 +324,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private void releaseSealedSegments() throws ReaderNotInReaderGroupException {
         for (Iterator<Entry<Segment, Long>> iterator = sealedSegments.entrySet().iterator(); iterator.hasNext();) {
             Segment oldSegment = iterator.next().getKey();
+            log.info("{} releasing sealed segment {}", this, oldSegment);
             Range range = ranges.get(oldSegment);
             if (groupState.handleEndOfSegment(new SegmentWithRange(oldSegment, range))) {
                 ranges.remove(oldSegment);
@@ -376,7 +383,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
         @Cleanup
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId,
-                DelegationTokenProviderFactory.create(controller, segmentId));
+                DelegationTokenProviderFactory.create(controller, segmentId, AccessOperation.READ));
         try {
             long startingOffset = metadataClient.getSegmentInfo().getStartingOffset();
             segmentReader.setOffset(startingOffset);

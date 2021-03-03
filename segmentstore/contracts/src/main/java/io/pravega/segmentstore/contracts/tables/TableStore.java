@@ -12,8 +12,9 @@ package io.pravega.segmentstore.contracts.tables;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.IllegalDataFormatException;
-import io.pravega.segmentstore.contracts.BadSegmentTypeException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.BadSegmentTypeException;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -66,29 +67,14 @@ public interface TableStore {
     int MAXIMUM_VALUE_LENGTH = 1024 * 1024 - MAXIMUM_KEY_LENGTH;
 
     /**
-     * Creates a new Segment and marks it as a Table Segment. This will be a non-sorted Table Segment.
-     * See {@link #createSegment(String, boolean, Duration)} (invoked with sorted:=false).
-     * This segment may not be used for Streaming purposes (i.e., it cannot be used with {@link StreamSegmentStore}).
-     *
-     * @param segmentName The name of the Table Segment to create.
-     * @param timeout     Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
-     * failed, the future will be failed with the causing exception. Notable Exceptions:
-     * <ul>
-     * <li>{@link StreamSegmentExistsException} If the Segment does exist (whether as a Table Segment or Stream Segment).
-     * </ul>
-     */
-    default CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
-        return createSegment(segmentName, false, timeout);
-    }
-
-    /**
      * Creates a new Segment and marks it as a Table Segment.
      * This segment may not be used for Streaming purposes (i.e., it cannot be used with {@link StreamSegmentStore}).
      *
      * @param segmentName The name of the Table Segment to create.
-     * @param sorted      EXPERIMENTAL. If true, the created Table Segment will be a Sorted Table Segment, otherwise it
-     *                    will be a plain Hash Table. See {@link TableStore} Javadoc for difference between the two.
+     * @param segmentType Type of Segment to Create. If not already specified, this will automatically set the
+     *                    {@link  SegmentType#isTableSegment()} to true. If {@link  SegmentType#isSortedTableSegment()}
+     *                    is true, this will create a Sorted Table Segment (EXPERIMENTAL), otherwise it will be a plain
+     *                    Hash Table. See {@link TableStore} Javadoc for difference between the two.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, the future will be failed with the causing exception. Notable Exceptions:
@@ -96,7 +82,7 @@ public interface TableStore {
      * <li>{@link StreamSegmentExistsException} If the Segment does exist (whether as a Table Segment or Stream Segment).
      * </ul>
      */
-    CompletableFuture<Void> createSegment(String segmentName, boolean sorted, Duration timeout);
+    CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Duration timeout);
 
     /**
      * Deletes an existing Table Segment.

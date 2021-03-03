@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.hash.HashHelper;
-import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -28,6 +28,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
@@ -43,13 +44,14 @@ import lombok.val;
  *
  * The cache is separated in this manner because the Tail Section is optimized to bear the brunt of all Index Modifications
  * to a Table Segment; all updates and removals will end up modifying this section directly, so it is important that it
- * provides an easily modifiable data structure. The Index Section is designed for less frequent updates but is can handle
+ * provides an easily modifiable data structure. The Index Section is designed for less frequent updates but it can handle
  * a larger amount of data being cached (since it is backed by the process-wide {@link CacheStorage}). The Tail Section, while
  * dynamic, is not expected to grow too large due to the Table Segment being continuously indexed in the background, which
  * causes the Last Indexed Offset to be updated frequently.
  */
 @ThreadSafe
 @RequiredArgsConstructor
+@Slf4j
 class SegmentKeyCache {
     //region Members
     private static final int HASH_GROUP_COUNT = 1024;
@@ -208,6 +210,12 @@ class SegmentKeyCache {
         // Update the cache entry directly.
         entry.update(keyHash, segmentOffset, generation);
         return segmentOffset;
+    }
+
+    private synchronized void entryUpdateFailed(CacheEntry entry, Throwable ex) {
+        log.warn("{}: Cache Entry update failed for {}. Unregistering.", this.segmentId, entry, ex);
+        this.cacheEntries.remove(entry.hashGroup);
+        entry.evict();
     }
 
     /**
@@ -399,7 +407,7 @@ class SegmentKeyCache {
          * @return See {@link ContainerKeyCache#get} return doc.
          */
         Long get(UUID keyHash, int currentGeneration) {
-            byte[] data = getFromCache();
+            ArrayView data = getFromCache();
             int offset = locate(keyHash, data);
             if (offset >= 0) {
                 // Found it.
@@ -408,7 +416,7 @@ class SegmentKeyCache {
                     this.generation = currentGeneration;
                 }
 
-                return deserializeCacheValue(data, offset);
+                return data.getLong(offset);
             }
 
             // Nothing found.
@@ -424,36 +432,43 @@ class SegmentKeyCache {
          * @param currentGeneration The current Cache Generation (from the Cache Manager).
          */
         synchronized void update(UUID keyHash, long segmentOffset, int currentGeneration) {
-            byte[] entryData = getFromCache();
+            ArrayView entryData = getFromCache();
             int entryOffset = locate(keyHash, entryData);
             if (entryOffset < 0) {
                 // No match. Need to create a new array, copy any existing data and add new Cache Value.
                 if (entryData == null) {
-                    entryData = new byte[ENTRY_LENGTH];
+                    entryData = new ByteArraySegment(new byte[ENTRY_LENGTH]);
                     entryOffset = HEADER_LENGTH;
                 } else {
-                    byte[] newData;
-                    newData = new byte[entryData.length + HASH_LENGTH + VALUE_SERIALIZATION_LENGTH];
-                    System.arraycopy(entryData, 0, newData, 0, entryData.length);
-                    entryOffset = entryData.length;
+                    ByteArraySegment newData = new ByteArraySegment(new byte[entryData.getLength() + HASH_LENGTH + VALUE_SERIALIZATION_LENGTH]);
+                    newData.copyFrom(entryData, 0, entryData.getLength());
+                    entryOffset = entryData.getLength();
                     entryData = newData;
                 }
 
                 // Increment the count.
-                int count = BitConverter.readInt(entryData, 0);
-                BitConverter.writeInt(entryData, 0, count + 1);
+                entryData.setInt(0, entryData.getInt(0) + 1);
 
                 // Write the Key Hash at the latest offset.
-                entryOffset += serializeHash(entryData, entryOffset, keyHash);
+                serializeHash(entryData, entryOffset, keyHash);
+                entryOffset += HASH_LENGTH;
             }
 
             // Update the value.
-            serializeCacheValue(segmentOffset, entryData, entryOffset);
+            entryData.setLong(entryOffset, segmentOffset);
 
             // Update the cache and stats.
-            storeInCache(new ByteArraySegment(entryData));
-            this.generation = currentGeneration;
-            this.highestOffset = Math.max(this.highestOffset, segmentOffset);
+            try {
+                storeInCache(entryData);
+                this.generation = currentGeneration;
+                this.highestOffset = Math.max(this.highestOffset, segmentOffset);
+            } catch (CacheEntryEvictedException cex) {
+                // Pass-through exception. If this is the case, the entry has already been evicted so not more we can do.
+                throw cex;
+            } catch (Throwable ex) {
+                // There is nothing we can do here. Invoke the general handler to remove this from the cache.
+                entryUpdateFailed(this, ex);
+            }
         }
 
         /**
@@ -473,16 +488,16 @@ class SegmentKeyCache {
             return false;
         }
 
-        private synchronized byte[] getFromCache() {
+        private synchronized ArrayView getFromCache() {
             BufferView data = null;
             if (this.cacheAddress >= 0) {
                 data = SegmentKeyCache.this.cacheStorage.get(this.cacheAddress);
             }
-            return data == null ? null : data.getCopy();
+            return data == null ? null : new ByteArraySegment(data.getCopy());
         }
 
         @GuardedBy("this")
-        private void storeInCache(ByteArraySegment data) {
+        private void storeInCache(ArrayView data) {
             int newAddress;
             if (this.cacheAddress == EVICTED_ADDRESS) {
                 throw new CacheEntryEvictedException();
@@ -502,22 +517,15 @@ class SegmentKeyCache {
          * @param data    The array to look into.
          * @return The offset of the CacheValue associated with the KeyHash, or -1 if not found.
          */
-        private int locate(UUID keyHash, byte[] data) {
-            if (data != null && data.length > 0) {
-                int count = BitConverter.readInt(data, 0);
+        private int locate(UUID keyHash, ArrayView data) {
+            if (data != null && data.getLength() > 0) {
+                final int count = data.getInt(0);
                 int offset = Integer.BYTES;
-                byte[] keyHashArray = new byte[HASH_LENGTH];
-                serializeHash(keyHashArray, 0, keyHash);
+
                 for (int i = 0; i < count; i++) {
                     // Check if the sought key matches the key at this index.
-                    boolean match = true;
-                    for (int j = 0; j < HASH_LENGTH; j++) {
-                        if (keyHashArray[j] != data[offset + j]) {
-                            match = false;
-                            break;
-                        }
-                    }
-
+                    boolean match = keyHash.getMostSignificantBits() == data.getLong(offset)
+                            && keyHash.getLeastSignificantBits() == data.getLong(offset + Long.BYTES);
                     if (match) {
                         return offset + HASH_LENGTH; // We return the offset of the value, not the key.
                     }
@@ -530,18 +538,14 @@ class SegmentKeyCache {
             return -1;
         }
 
-        private long deserializeCacheValue(byte[] input, int inputOffset) {
-            return BitConverter.readLong(input, inputOffset);
+        private void serializeHash(ArrayView target, int targetOffset, UUID hash) {
+            target.setLong(targetOffset, hash.getMostSignificantBits());
+            target.setLong(targetOffset + Long.BYTES, hash.getLeastSignificantBits());
         }
 
-        private void serializeCacheValue(long value, byte[] target, int targetOffset) {
-            BitConverter.writeLong(target, targetOffset, value);
-        }
-
-        private int serializeHash(byte[] target, int targetOffset, UUID hash) {
-            BitConverter.writeLong(target, targetOffset, hash.getMostSignificantBits());
-            BitConverter.writeLong(target, targetOffset + Long.BYTES, hash.getLeastSignificantBits());
-            return 2 * Long.BYTES;
+        @Override
+        public String toString() {
+            return String.format("Key = %s", this.hashGroup);
         }
     }
 

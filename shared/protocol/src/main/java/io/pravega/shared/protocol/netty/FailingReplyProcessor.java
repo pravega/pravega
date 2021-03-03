@@ -177,7 +177,7 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void keepAlive(KeepAlive keepAlive) {
-        throw new IllegalStateException("Unexpected operation: " + keepAlive);
+        log.trace("KeepAlive received");
     }
 
     @Override
@@ -203,5 +203,10 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     @Override
     public void tableEntriesDeltaRead(WireCommands.TableEntriesDeltaRead tableEntriesDeltaRead) {
         throw new IllegalStateException("Unexpected operation: " + tableEntriesDeltaRead);
+    }
+
+    @Override
+    public void errorMessage(WireCommands.ErrorMessage errorMessage) {
+        throw new IllegalStateException("Unexpected operation: " + errorMessage);
     }
 }

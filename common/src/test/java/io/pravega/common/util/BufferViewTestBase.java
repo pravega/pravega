@@ -9,7 +9,8 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import com.google.common.collect.Lists;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;
@@ -125,31 +126,31 @@ public abstract class BufferViewTestBase {
     }
 
     /**
-     * Tests {@link BufferView#collect} and {@link BufferView#getContents()}.
+     * Tests {@link BufferView#collect} and {@link BufferView#iterateBuffers()}.
      */
     @Test
-    public void testCollect() {
+    public void testCollectAndIterateBuffers() {
         val data = newData();
         @Cleanup("release")
         val bufferView = toBufferView(data);
-        val getContents = bufferView.getContents();
-        val getContentsData = getData(getContents);
-        Assert.assertEquals("getContents().", data, getContentsData);
 
         val collectedContents = new ArrayList<ByteBuffer>();
         bufferView.collect(collectedContents::add);
         val collectedContentsData = getData(collectedContents);
         Assert.assertEquals("collect().", data, collectedContentsData);
-        AssertExtensions.assertListEquals("", getContents, collectedContents, ByteBuffer::equals);
+
+        val iteratedContents = new ArrayList<ByteBuffer>();
+        bufferView.iterateBuffers().forEachRemaining(iteratedContents::add);
+        val iteratedContentsData = getData(iteratedContents);
+        Assert.assertEquals("iterateBuffers().", data, iteratedContentsData);
     }
 
     /**
      * Tests the functionality of {@link BufferView#getBufferViewReader()}.
-     *
-     * @throws Exception if an exception occurred.
      */
     @Test
-    public void testGetBufferViewReader() throws Exception {
+    public void testGetBufferViewReader() {
+        val readBytesLength1 = 1;
         val data = newData();
         val expectedData = data.getCopy();
         @Cleanup("release")
@@ -161,9 +162,29 @@ public abstract class BufferViewTestBase {
             // ReadFully.
             val readFullyReader = bufferView.slice(offset, length).getBufferViewReader();
             val readFullyResult = readFullyReader.readFully(2);
-            Assert.assertEquals(0, readFullyReader.readBytes(new ByteArraySegment(new byte[1])));
+            Assert.assertEquals(0, readFullyReader.readFully(2).getLength());
             AssertExtensions.assertArrayEquals("ReadFully offset " + offset,
                     expectedData, offset, readFullyResult.array(), readFullyResult.arrayOffset(), length);
+
+            // ReadBytes(ByteBuffer)
+            val readBytesReader = bufferView.slice(offset, length).getBufferViewReader();
+            byte[] readBytesArray = new byte[data.getLength() * 2];
+            val readBytesResult1 = readBytesReader.readBytes(ByteBuffer.wrap(readBytesArray, 0, readBytesLength1));
+            Assert.assertEquals(Math.min(length, readBytesLength1), readBytesResult1);
+            int readBytesResult2 = 0;
+            while (readBytesResult2 < length - readBytesLength1) {
+                int o = readBytesResult2 + readBytesLength1;
+                int r = readBytesReader.readBytes(ByteBuffer.wrap(readBytesArray, o, readBytesArray.length - o));
+                AssertExtensions.assertGreaterThan("Expecting something to be read.", 0, r);
+                readBytesResult2 += r;
+            }
+            Assert.assertEquals(Math.max(0, length - 1), readBytesResult2);
+            AssertExtensions.assertArrayEquals("ReadBytes(ByteBuffer) offset " + offset,
+                    expectedData, offset, readBytesArray, 0, length);
+            // Verify that nothing got written in the remainder of the array.
+            for (int i = length; i < readBytesArray.length; i++) {
+                Assert.assertEquals(0, readBytesArray[i]);
+            }
 
             // ReadSlice
             val readSliceReader = bufferView.slice(offset, length).getBufferViewReader();
@@ -283,7 +304,10 @@ public abstract class BufferViewTestBase {
             for (int length = 0; length < data.getLength() - offset; length += 11) {
                 val expected = new byte[length];
                 System.arraycopy(data.array(), data.arrayOffset() + offset, expected, 0, length);
-                val slice = bufferView.slice(offset, length).getCopy();
+                val sliceBuffer = bufferView.slice(offset, length);
+                checkAllocatedSize(sliceBuffer, bufferView);
+
+                val slice = sliceBuffer.getCopy();
                 Assert.assertArrayEquals("Unexpected slice() result for offset " + offset + ", length " + length, expected, slice);
                 if (length == 0) {
                     Assert.assertEquals("Unexpected getReader() result for offset " + offset + ", length " + length,
@@ -303,7 +327,8 @@ public abstract class BufferViewTestBase {
     }
 
     private ArrayView getData(List<ByteBuffer> buffers) {
-        val os = new EnhancedByteArrayOutputStream();
+        @Cleanup
+        val os = new ByteBufferOutputStream();
         for (ByteBuffer buffer : buffers) {
             byte[] contents = new byte[buffer.remaining()];
             buffer.get(contents);
@@ -312,6 +337,16 @@ public abstract class BufferViewTestBase {
         }
 
         return os.getData();
+    }
+
+    protected List<ByteBuffer> getContents(BufferView bufferView) {
+        return Lists.newArrayList(bufferView.iterateBuffers());
+    }
+
+    protected void checkAllocatedSize(BufferView slice, BufferView base) {
+        Assert.assertEquals("Unexpected allocated length for slice.", slice.getAllocatedLength(), base.getLength());
+        AssertExtensions.assertGreaterThanOrEqual("Expected slice length to be at most the allocated length.",
+                slice.getLength(), slice.getAllocatedLength());
     }
 
     protected abstract BufferView toBufferView(ArrayView data);

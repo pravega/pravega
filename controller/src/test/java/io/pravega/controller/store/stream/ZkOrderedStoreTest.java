@@ -12,6 +12,12 @@ package io.pravega.controller.store.stream;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.test.common.TestingServerStarter;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryNTimes;
@@ -21,14 +27,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -45,7 +43,7 @@ public class ZkOrderedStoreTest {
 
     private TestingServer zkServer;
     private CuratorFramework cli;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
     private ZKStoreHelper zkStoreHelper;
 
     @Before

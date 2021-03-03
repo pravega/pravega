@@ -83,7 +83,12 @@ public class SegmentSelector {
         if (currentSegments == null) {
             return null;
         }
-        return writers.get(getSegmentForEvent(routingKey, length));
+        Segment segment = getSegmentForEvent(routingKey, length);
+        SegmentOutputStream result = writers.get(segment);
+        if (result == null) {
+            log.info("Don't have a writer for segment: {}", segment);
+        }
+        return result;
     }
 
     @Synchronized
@@ -200,7 +205,6 @@ public class SegmentSelector {
     }
 
     private void createMissingWriters(Consumer<Segment> segmentSealedCallBack) {
-        tokenProvider.populateToken(currentSegments.getDelegationToken());
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
                 log.debug("Creating writer for segment {}", segment);

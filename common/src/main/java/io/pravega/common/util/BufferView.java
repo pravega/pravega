@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -35,6 +36,13 @@ public interface BufferView {
      * @return The length.
      */
     int getLength();
+
+    /**
+     * Gets a value indicating the amount of memory (in bytes) allocated for this {@link BufferView}.
+     *
+     * @return The allocated memory size.
+     */
+    int getAllocatedLength();
 
     /**
      * Creates a new {@link BufferView.Reader} that can be used to read this {@link BufferView}. This reader is
@@ -86,7 +94,7 @@ public interface BufferView {
     /**
      * Returns a copy of the contents of this {@link BufferView}.
      *
-     * @return A byte array with the same length as this ArrayView, containing a copy of the data within it.
+     * @return A byte array with the same length as this {@link BufferView}, containing a copy of the data within it.
      */
     byte[] getCopy();
 
@@ -127,13 +135,6 @@ public interface BufferView {
         // Default implementation intentionally left blank. Any derived class may implement if needed.
     }
 
-    /**
-     * Gets a list of {@link ByteBuffer} that represent the contents of this {@link BufferView}. These buffer point
-     * directly to the data contained within this buffer (i.e., they are not copies of the data).
-     *
-     * @return A List of {@link ByteBuffer}.
-     */
-    List<ByteBuffer> getContents();
 
     /**
      * Iterates through each of the buffers that make up this {@link BufferView}, in order, and invokes the given
@@ -147,6 +148,13 @@ public interface BufferView {
      *                    and the exception will be bubbled up.
      */
     <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT;
+
+    /**
+     * Gets an {@link Iterator} through each of the {@link ByteBuffer}s that make up this {@link BufferView}, in order.
+     *
+     * @return A {@link Iterator}.
+     */
+    Iterator<ByteBuffer> iterateBuffers();
 
     /**
      * Wraps the given {@link BufferView} into a single instance.
@@ -208,15 +216,15 @@ public interface BufferView {
         int available();
 
         /**
-         * Reads a number of bytes into the given {@link ByteArraySegment} using the most efficient method for the
+         * Reads a number of bytes into the given {@link ByteBuffer} using the most efficient method for the
          * implementation of this {@link BufferView}.
          *
-         * @param segment The target {@link ByteArraySegment}.
-         * @return The number of bytes copied. This should be <pre><code>Math.min(available(), segment.getLength())</code></pre>.
-         * If this returns 0, then either the given {@link ByteArraySegment} has {@link ByteArraySegment#getLength()} equal
-         * to 0, or there are no more bytes to be read ({@link #available()} is 0).
+         * @param byteBuffer The target {@link ByteBuffer}.
+         * @return The number of bytes copied. This should be <pre><code>Math.min(available(), byteBuffer.remaining())</code></pre>.
+         * If this returns 0, then either the given {@link ByteBuffer} has {@link ByteBuffer#remaining()} equal to 0,
+         * or there are no more bytes to be read ({@link #available()} is 0).
          */
-        int readBytes(ByteArraySegment segment);
+        int readBytes(ByteBuffer byteBuffer);
 
         /**
          * Reads one byte and advances the reader position by 1.

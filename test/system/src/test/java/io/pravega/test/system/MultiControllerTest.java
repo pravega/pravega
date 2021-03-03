@@ -25,7 +25,6 @@ import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -38,6 +37,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
 import static org.junit.Assert.assertEquals;
 
@@ -45,7 +45,7 @@ import static org.junit.Assert.assertEquals;
 @RunWith(SystemTestRunner.class)
 public class MultiControllerTest extends AbstractSystemTest {
 
-    private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
     private Service controllerService = null;
     private Service segmentStoreService = null;
     private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
@@ -85,7 +85,7 @@ public class MultiControllerTest extends AbstractSystemTest {
         assertEquals("2 controller instances should be running", 2, uris.size());
 
         // use the last two uris
-        controllerURIDirect.set(URI.create("tcp://" + String.join(",", uris)));
+        controllerURIDirect.set(URI.create((Utils.TLS_AND_AUTH_ENABLED ? TLS : TCP) + String.join(",", uris)));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         controllerURIDiscover.set(URI.create("pravega://" + String.join(",", uris)));
         log.info("Controller Service discovery URI: {}", controllerURIDiscover);
@@ -108,8 +108,7 @@ public class MultiControllerTest extends AbstractSystemTest {
      * @throws InterruptedException If test is interrupted.
      */
     @Test(timeout = 300000)
-    public void multiControllerTest() throws ExecutionException, InterruptedException {
-
+    public void multiControllerTest() throws Exception {
         log.info("Start execution of multiControllerTest");
 
         log.info("Test tcp:// with 2 controller instances running");
@@ -127,13 +126,10 @@ public class MultiControllerTest extends AbstractSystemTest {
         // All APIs should throw exception and fail.
         Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
 
-        if (!controllerService.getServiceDetails().isEmpty()) {
-            controllerURIDirect.set(controllerService.getServiceDetails().get(0));
-            controllerURIDiscover.set(controllerService.getServiceDetails().get(0));
-        } else {
-            controllerURIDirect.set(URI.create("tcp://0.0.0.0:9090"));
-            controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
-        }
+        AssertExtensions.assertEventuallyEquals("Problem scaling down the Controller service.", true,
+                () -> controllerService.getServiceDetails().isEmpty(), 1000, 30000);
+        controllerURIDirect.set(URI.create("tcp://0.0.0.0:9090"));
+        controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
 
         final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect.get());
         log.info("Test tcp:// with no controller instances running");

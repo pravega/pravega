@@ -15,6 +15,7 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -38,7 +39,6 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.impl.PositionImpl;
@@ -52,6 +52,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -76,11 +77,11 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -92,6 +93,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+@Slf4j
 public class ReadTest extends LeakDetectorTestSuite {
 
     private static final int TIMEOUT_MILLIS = 60000;
@@ -120,8 +122,9 @@ public class ReadTest extends LeakDetectorTestSuite {
 
         StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
 
-        fillStoreForSegment(segmentName, clientId, data, entries, segmentStore);
+        fillStoreForSegment(segmentName, data, entries, segmentStore);
 
+        @Cleanup
         ReadResult result = segmentStore.read(segmentName, 0, entries * data.length, Duration.ZERO).get();
         int index = 0;
         while (result.hasNext()) {
@@ -149,11 +152,10 @@ public class ReadTest extends LeakDetectorTestSuite {
         String segmentName = "testReceivingReadCall";
         int entries = 10;
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-        UUID clientId = UUID.randomUUID();
 
         StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
-
-        fillStoreForSegment(segmentName, clientId, data, entries, segmentStore);
+        // fill segment store with 10 entries; the total data size is 100 bytes.
+        fillStoreForSegment(segmentName, data, entries, segmentStore);
         @Cleanup
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
 
@@ -162,16 +164,21 @@ public class ReadTest extends LeakDetectorTestSuite {
             SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.writerIndex(), 10000, "", 1L));
             assertEquals(segmentName, result.getSegment());
             assertEquals(result.getOffset(), actual.writerIndex());
-            assertTrue(result.isAtTail());
             assertFalse(result.isEndOfSegment());
             actual.writeBytes(result.getData());
+            // release the ByteBuf and ensure it is deallocated.
+            assertTrue(result.getData().release());
             if (actual.writerIndex() < actual.capacity()) {
                 // Prevent entering a tight loop by giving the store a bit of time to process al the appends internally
                 // before trying again.
                 Thread.sleep(10);
+            } else {
+                // Verify the last read result has the the atTail flag set to true.
+                assertTrue(result.isAtTail());
+                // mark the channel as finished
+                assertFalse(channel.finish());
             }
         }
-
         ByteBuf expected = Unpooled.buffer(entries * data.length);
         for (int i = 0; i < entries; i++) {
             expected.writeBytes(data);
@@ -180,6 +187,9 @@ public class ReadTest extends LeakDetectorTestSuite {
         expected.writerIndex(expected.capacity()).resetReaderIndex();
         actual.writerIndex(actual.capacity()).resetReaderIndex();
         assertEquals(expected, actual);
+        // Release the ByteBuf and ensure it is deallocated.
+        assertTrue(actual.release());
+        assertTrue(expected.release());
     }
 
     @Test(timeout = 10000)
@@ -195,9 +205,11 @@ public class ReadTest extends LeakDetectorTestSuite {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
                 serviceBuilder.getLowPriorityExecutor());
         server.startListening();
+        @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        @Cleanup
         Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
@@ -209,13 +221,13 @@ public class ReadTest extends LeakDetectorTestSuite {
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new)
                                  .getSegments().iterator().next();
 
-        @Cleanup("close")
+        @Cleanup
         SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(),
                 DelegationTokenProviderFactory.createWithEmptyToken());
         out.write(PendingEvent.withHeader(null, ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>()));
         out.flush();
 
-        @Cleanup("close")
+        @Cleanup
         EventSegmentReader in = segmentConsumerClient.createEventReaderForSegment(segment);
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
@@ -243,13 +255,15 @@ public class ReadTest extends LeakDetectorTestSuite {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
                 this.serviceBuilder.getLowPriorityExecutor());
         server.startListening();
+        @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        @Cleanup
         Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
-        
+
         ConditionalOutputStreamFactoryImpl segmentproducerClient = new ConditionalOutputStreamFactoryImpl(controller, connectionPool);
 
         SegmentInputStreamFactoryImpl segmentConsumerClient = new SegmentInputStreamFactoryImpl(controller, connectionPool);
@@ -257,12 +271,12 @@ public class ReadTest extends LeakDetectorTestSuite {
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new)
                                  .getSegments().iterator().next();
 
-        @Cleanup("close")
+        @Cleanup
         ConditionalOutputStream out = segmentproducerClient.createConditionalOutputStream(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken(), EventWriterConfig.builder().build());
         assertTrue(out.write(ByteBuffer.wrap(testString), 0));
 
-        @Cleanup("close")
+        @Cleanup
         EventSegmentReader in = segmentConsumerClient.createEventReaderForSegment(segment);
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString), result);
@@ -290,12 +304,14 @@ public class ReadTest extends LeakDetectorTestSuite {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).disableAutomaticCheckpoints().build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig);
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
         producer.writeEvent(testString);
@@ -324,12 +340,14 @@ public class ReadTest extends LeakDetectorTestSuite {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig);
         JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
 
         for (int i = 0; i < 100; i++) {
@@ -364,7 +382,8 @@ public class ReadTest extends LeakDetectorTestSuite {
         // emptied and filled again.
         int eventsToWrite = 2000;
         BlockingQueue<Entry<Integer, PositionImpl>> readEventsPositions = new ArrayBlockingQueue<>(eventsToWrite);
-        ScheduledExecutorService readersWritersAndCheckers = new ScheduledThreadPoolExecutor(4);
+        @Cleanup("shutdown")
+        ScheduledExecutorService readersWritersAndCheckers = ExecutorServiceHelpers.newScheduledThreadPool(4, "readers-writers-checkers");
         AtomicInteger finishedProcesses = new AtomicInteger(0);
         int port = TestUtils.getAvailableListenPort();
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
@@ -374,6 +393,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().groupRefreshTimeMillis(1000).stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
@@ -454,10 +474,10 @@ public class ReadTest extends LeakDetectorTestSuite {
         }
     }
 
-    private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
+    private void fillStoreForSegment(String segmentName, byte[] data, int numEntries,
                                      StreamSegmentStore segmentStore) {
         try {
-            segmentStore.createStreamSegment(segmentName, null, Duration.ZERO).get();
+            segmentStore.createStreamSegment(segmentName, SegmentType.STREAM_SEGMENT, null, Duration.ZERO).get();
             for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
                 segmentStore.append(segmentName, new ByteBufWrapper(Unpooled.wrappedBuffer(data)), null, Duration.ZERO).get();
             }

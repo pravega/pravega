@@ -90,6 +90,11 @@ public final class NameUtils {
     private static final String CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET = "%s.E-%d-O-%d.%s";
 
     /**
+     * Format for name of read index block index entry.
+     */
+    private static final String BLOCK_INDEX_NAME_FORMAT_WITH_OFFSET = "%s.B-%d";
+
+    /**
      * Format for Container Metadata Segment name.
      */
     private static final String METADATA_SEGMENT_NAME_FORMAT = "_system/containers/metadata_%d";
@@ -132,7 +137,7 @@ public final class NameUtils {
     /**
      * Prefix for identifying system created mark segments for storing watermarks. 
      */
-    @Getter(AccessLevel.PACKAGE)
+    @Getter(AccessLevel.PUBLIC)
     private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
 
     //endregion
@@ -205,13 +210,23 @@ public final class NameUtils {
     }
 
     /**
+     * Checks whether the given name is an Attribute Segment or not.
+     *
+     * @param segmentName   The name of the segment.
+     * @return              True if the segment is an attribute Segment, false otherwise.
+     */
+    public static boolean isAttributeSegment(String segmentName) {
+        return segmentName.endsWith(ATTRIBUTE_SUFFIX);
+    }
+
+    /**
      * Gets the name of the meta-Segment mapped to the given Segment Name that is responsible with storing extended attributes.
      *
      * @param segmentName The name of the Segment to get the Attribute segment name for.
      * @return The result.
      */
     public static String getAttributeSegmentName(String segmentName) {
-        Preconditions.checkArgument(!segmentName.endsWith(ATTRIBUTE_SUFFIX), "segmentName is already an attribute segment name");
+        Preconditions.checkArgument(!isAttributeSegment(segmentName), "segmentName is already an attribute segment name");
         return segmentName + ATTRIBUTE_SUFFIX;
     }
 
@@ -271,6 +286,18 @@ public final class NameUtils {
      */
     public static String getSegmentChunkName(String segmentName, long epoch, long offset) {
         return String.format(CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET, segmentName, epoch, offset, UUID.randomUUID());
+    }
+
+
+    /**
+     * Gets the name of the read index block entry for the given segment and offset.
+     *
+     * @param segmentName The name of the Segment.
+     * @param offset      The starting offset of the block.
+     * @return formatted read index block entry name.
+     */
+    public static String getSegmentReadIndexBlockName(String segmentName, long offset) {
+        return String.format(BLOCK_INDEX_NAME_FORMAT_WITH_OFFSET, segmentName, offset);
     }
 
     /**
@@ -374,6 +401,17 @@ public final class NameUtils {
      */
     public static String getScopedKeyValueTableName(String scope, String streamName) {
         return getScopedStreamNameInternal(scope, streamName).toString();
+    }
+
+    /**
+     * Compose and return scoped ReaderGroup name.
+     *
+     * @param scope scope to be used in ScopedReaderGroup name.
+     * @param rgName ReaderGroup name to be used in ScopedReaderGroup name.
+     * @return scoped stream name.
+     */
+    public static String getScopedReaderGroupName(String scope, String rgName) {
+        return getScopedStreamNameInternal(scope, rgName).toString();
     }
 
     /**

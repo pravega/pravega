@@ -14,6 +14,7 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
@@ -24,11 +25,11 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -44,11 +45,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.test.TestingServer;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -74,6 +74,10 @@ public class EndToEndAutoScaleUpWithTxnTest {
             @Cleanup
             ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, connectionFactory);
 
+            @Cleanup("shutdownNow")
+            val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+
+            @Cleanup
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
@@ -82,7 +86,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             AutoScaleMonitor autoScaleMonitor = new AutoScaleMonitor(store,
                     internalCF,
                     AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
-                                    .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
+                            .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
@@ -114,7 +118,6 @@ public class EndToEndAutoScaleUpWithTxnTest {
             map.put(1.0 / 3.0, 2.0 / 3.0);
             map.put(2.0 / 3.0, 1.0);
             Stream stream = new StreamImpl("test", "test");
-            ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
             controller.startScale(stream, Collections.singletonList(0L), map).get();
             Transaction<String> txn2 = test.beginTxn();
 
@@ -154,7 +157,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
                                 } else {
                                     throw new NotDoneException();
                                 }
-                            }), Executors.newSingleThreadScheduledExecutor())
+                            }), executor)
                     .exceptionally(e -> {
                         System.err.println("Failure");
                         log.error("Failure");

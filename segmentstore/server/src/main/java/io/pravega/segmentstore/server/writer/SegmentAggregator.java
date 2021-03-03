@@ -43,7 +43,7 @@ import io.pravega.segmentstore.storage.Storage;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -51,7 +51,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -501,12 +503,14 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     /**
      * Flushes the contents of the Aggregator to the Storage.
      *
+     * @param force   If true, force-flushes everything accumulated in the {@link SegmentAggregator}, regardless of
+     *                the value returned by {@link #mustFlush()}.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain a summary of the flush operation. If any errors
      * occurred during the flush, the Future will be completed with the appropriate exception.
      */
     @Override
-    public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+    public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
         ensureInitializedAndNotClosed();
         if (this.metadata.isDeletedInStorage()) {
             // Segment has been deleted; don't do anything else.
@@ -520,7 +524,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         try {
             switch (this.state.get()) {
                 case Writing:
-                    result = flushNormally(timer);
+                    result = flushNormally(force, timer);
                     break;
                 case ReconciliationNeeded:
                     result = beginReconciliation(timer)
@@ -550,18 +554,19 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * Repeatedly flushes the contents of the Aggregator to the Storage as long as something immediate needs to be flushed,
      * such as a Seal or Merge operation.
      *
+     * @param force Whether to force everything out.
      * @param timer Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
      */
-    private CompletableFuture<WriterFlushResult> flushNormally(TimeoutTimer timer) {
+    private CompletableFuture<WriterFlushResult> flushNormally(boolean force, TimeoutTimer timer) {
         assert this.state.get() == AggregatorState.Writing : "flushNormally cannot be called if state == " + this.state;
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flushNormally", this.operations.size());
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flushNormally", force, this.operations.size());
         WriterFlushResult result = new WriterFlushResult();
         AtomicBoolean canContinue = new AtomicBoolean(true);
         return Futures
                 .loop(
                         canContinue::get,
-                        () -> flushOnce(timer),
+                        () -> flushOnce(force, timer),
                         partialResult -> {
                             canContinue.set(partialResult.getFlushedBytes() + partialResult.getMergedBytes() > 0);
                             result.withFlushResult(partialResult);
@@ -577,10 +582,11 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * Flushes the contents of the Aggregator exactly once to the Storage in a 'normal' mode (where it does not need to
      * do any reconciliation).
      *
+     * @param force Whether to force everything out.
      * @param timer Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
      */
-    private CompletableFuture<WriterFlushResult> flushOnce(TimeoutTimer timer) {
+    private CompletableFuture<WriterFlushResult> flushOnce(boolean force, TimeoutTimer timer) {
         boolean hasDelete = this.hasDeletePending.get();
         boolean hasMerge = this.mergeTransactionCount.get() > 0;
         boolean hasSeal = this.hasSealPending.get();
@@ -605,8 +611,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                 result = result.thenComposeAsync(flushResult -> sealIfNecessary(flushResult, timer), this.executor);
             }
         } else {
-            // Otherwise, just flush the excess as long as we have something to flush.
-            result = flushExcess(timer);
+            // Otherwise, either flush the excess as long as we have something to flush or flush everything out, depending
+            // on whether we were asked to force the flush.
+            result = force ? flushFully(timer) : flushExcess(timer);
         }
 
         if (log.isTraceEnabled()) {
@@ -1086,27 +1093,23 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
 
-        // Identify all MergeSegmentOperations, pick up their names and delete them.
-        ArrayList<CompletableFuture<Void>> toDelete = new ArrayList<>();
-        StorageOperation op;
-        while ((op = this.operations.getFirst()) != null && !(isDeleteOperation(op))) {
-            if (op instanceof MergeSegmentOperation) {
-                // Found such a merge; get the source Segment's name and attempt to delete it. It's OK if it has already
-                // been deleted.
-                UpdateableSegmentMetadata m = this.dataSource.getStreamSegmentMetadata(((MergeSegmentOperation) op).getSourceSegmentId());
-                toDelete.add(Futures
-                        .exceptionallyExpecting(
-                                this.storage.openWrite(m.getName())
+        // Identify all MergeSegmentOperations, pick up their names and delete them. There is no need to filter out these
+        // operations or otherwise update the state of the Aggregator as this is part of a Delete operation, so resetting
+        // the state is the next thing that will happen.
+        List<CompletableFuture<Void>> toDelete = this.operations.filter(op -> op instanceof MergeSegmentOperation).stream()
+                .map(op -> {
+                    // Found such a merge; get the source Segment's name and attempt to delete it. It's OK if it has already
+                    // been deleted.
+                    UpdateableSegmentMetadata m = this.dataSource.getStreamSegmentMetadata(((MergeSegmentOperation) op).getSourceSegmentId());
+                    return Futures
+                            .exceptionallyExpecting(
+                                    this.storage.openWrite(m.getName())
                                             .thenCompose(handle -> deleteSegmentAndAttributes(handle, m, timer))
                                             .thenAcceptAsync(v -> updateMetadataPostDeletion(m), this.executor),
-                                ex -> ex instanceof StreamSegmentNotExistsException,
-                                null));
-                this.operations.removeFirst();
-                this.mergeTransactionCount.decrementAndGet();
-                assert this.mergeTransactionCount.get() >= 0;
-            }
-        }
-
+                                    ex -> ex instanceof StreamSegmentNotExistsException,
+                                    null);
+                })
+                .collect(Collectors.toList());
         return Futures.allOf(toDelete);
     }
 
@@ -1790,6 +1793,10 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
 
         synchronized void clear() {
             this.queue.clear();
+        }
+
+        synchronized List<StorageOperation> filter(Predicate<StorageOperation> test) {
+            return this.queue.stream().filter(test).collect(Collectors.toList());
         }
     }
 

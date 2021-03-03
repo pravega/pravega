@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.function.Callbacks;
-import io.pravega.common.util.SequencedItemList;
+import io.pravega.common.util.AbstractDrainingQueue;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -27,7 +27,9 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.cache.NoOpCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -52,7 +54,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
 
     private DebugRecoveryProcessor(UpdateableContainerMetadata metadata, DurableDataLog durableDataLog, ReadIndexFactory readIndexFactory,
                                    Storage storage, CacheManager cacheManager, OperationCallbacks callbacks) {
-        super(metadata, durableDataLog, new MemoryStateUpdater(new SequencedItemList<>(), readIndexFactory.createReadIndex(metadata, storage), null));
+        super(metadata, durableDataLog, new MemoryStateUpdater(new NoOpInMemoryLog(), readIndexFactory.createReadIndex(metadata, storage)));
         this.readIndexFactory = readIndexFactory;
         this.storage = storage;
         this.callbacks = callbacks;
@@ -142,6 +144,32 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
          * Invoked when an operation failed to recover.
          */
         private final BiConsumer<Operation, Throwable> operationFailed;
+    }
+
+    //endregion
+
+    //region NoOpInMemoryLog
+
+    private static class NoOpInMemoryLog extends AbstractDrainingQueue<Operation> {
+        @Override
+        protected void addInternal(Operation item) {
+
+        }
+
+        @Override
+        protected int sizeInternal() {
+            return 0;
+        }
+
+        @Override
+        protected Operation peekInternal() {
+            return null;
+        }
+
+        @Override
+        protected Queue<Operation> fetch(int maxCount) {
+            return new ArrayDeque<>(0);
+        }
     }
 
     //endregion

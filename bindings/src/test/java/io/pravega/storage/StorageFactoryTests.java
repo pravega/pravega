@@ -18,6 +18,7 @@ import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.storage.extendeds3.ExtendedS3SimpleStorageFactory;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.storage.extendeds3.ExtendedS3StorageFactory;
@@ -31,23 +32,28 @@ import io.pravega.storage.hdfs.HDFSStorageConfig;
 import io.pravega.storage.hdfs.HDFSStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageFactoryCreator;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.ThreadPooledTestSuite;
+import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Test factories.
  */
-public class StorageFactoryTests {
+public class StorageFactoryTests extends ThreadPooledTestSuite {
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
+
     @Test
     public void testHDFSStorageFactoryCreator() {
         StorageFactoryCreator factoryCreator = new HDFSStorageFactoryCreator();
-
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("HDFS")
@@ -65,18 +71,20 @@ public class StorageFactoryTests {
         // Simple Storage
         ConfigSetup configSetup1 = mock(ConfigSetup.class);
         when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, HDFSStorageConfig.builder().build());
-        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, new ScheduledThreadPoolExecutor(1));
+        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof HDFSSimpleStorageFactory);
 
-        Storage storage1 = factory1.createStorageAdapter();
+        @Cleanup
+        Storage storage1 = ((HDFSSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
         ConfigSetup configSetup2 = mock(ConfigSetup.class);
         when(configSetup2.getConfig(any())).thenReturn(HDFSStorageConfig.builder().build());
-        val factory2 = factoryCreator.createFactory(expected[1], configSetup2, new ScheduledThreadPoolExecutor(1));
+        val factory2 = factoryCreator.createFactory(expected[1], configSetup2, executorService());
         Assert.assertTrue(factory2 instanceof HDFSStorageFactory);
 
+        @Cleanup
         Storage storage2 = factory2.createStorageAdapter();
         Assert.assertTrue(storage2 instanceof AsyncStorageWrapper);
 
@@ -87,7 +95,6 @@ public class StorageFactoryTests {
     @Test
     public void testExtendedS3StorageFactoryCreator() {
         StorageFactoryCreator factoryCreator = new ExtendedS3StorageFactoryCreator();
-
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("EXTENDEDS3")
@@ -111,21 +118,24 @@ public class StorageFactoryTests {
                 .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
                 .build();
         when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, config);
-        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, new ScheduledThreadPoolExecutor(1));
+        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof ExtendedS3SimpleStorageFactory);
 
-        Storage storage1 = factory1.createStorageAdapter();
+        @Cleanup
+        Storage storage1 = ((ExtendedS3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
         ConfigSetup configSetup2 = mock(ConfigSetup.class);
         when(configSetup2.getConfig(any())).thenReturn(config);
-        val factory2 = factoryCreator.createFactory(expected[1], configSetup2, new ScheduledThreadPoolExecutor(1));
+        val factory2 = factoryCreator.createFactory(expected[1], configSetup2, executorService());
 
         Assert.assertTrue(factory2 instanceof ExtendedS3StorageFactory);
+        @Cleanup
         Storage storage2 = factory2.createStorageAdapter();
         Assert.assertTrue(storage2 instanceof AsyncStorageWrapper);
 
+        @Cleanup
         SyncStorage syncStorage = factory2.createSyncStorage();
         Assert.assertNotNull(syncStorage);
     }
@@ -133,7 +143,6 @@ public class StorageFactoryTests {
     @Test
     public void testFileSystemStorageFactoryCreator() {
         StorageFactoryCreator factoryCreator = new FileSystemStorageFactoryCreator();
-
         val expected = new StorageFactoryInfo[]{
                 StorageFactoryInfo.builder()
                         .name("FILESYSTEM")
@@ -152,39 +161,40 @@ public class StorageFactoryTests {
         // Simple Storage
         ConfigSetup configSetup1 = mock(ConfigSetup.class);
         when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, FileSystemStorageConfig.builder().build());
-        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, new ScheduledThreadPoolExecutor(1));
+        val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executorService());
         Assert.assertTrue(factory1 instanceof FileSystemSimpleStorageFactory);
 
-        Storage storage1 = factory1.createStorageAdapter();
+        @Cleanup
+        Storage storage1 = ((FileSystemSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
         ConfigSetup configSetup2 = mock(ConfigSetup.class);
         when(configSetup2.getConfig(any())).thenReturn(FileSystemStorageConfig.builder().build());
-        val factory2 = factoryCreator.createFactory(expected[1], configSetup2, new ScheduledThreadPoolExecutor(1));
+        val factory2 = factoryCreator.createFactory(expected[1], configSetup2, executorService());
 
         Assert.assertTrue(factory2 instanceof FileSystemStorageFactory);
         Storage storage2 = factory2.createStorageAdapter();
         Assert.assertTrue(storage2 instanceof AsyncStorageWrapper);
 
+        @Cleanup
         SyncStorage syncStorage = factory2.createSyncStorage();
         Assert.assertNotNull(syncStorage);
     }
 
     @Test
     public void testNull() {
-        val executor = new ScheduledThreadPoolExecutor(1);
         AssertExtensions.assertThrows(
                 " should throw exception.",
-                () -> new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, null, executor),
+                () -> new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, null, executorService()),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows(
                 " should throw exception.",
-                () -> new ExtendedS3SimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, null, executor),
+                () -> new ExtendedS3SimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, null, executorService()),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows(
                 " should throw exception.",
-                () -> new HDFSSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, null, executor),
+                () -> new HDFSSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, null, executorService()),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows(
                 " should throw exception.",
@@ -200,15 +210,15 @@ public class StorageFactoryTests {
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows(
                 " should throw exception.",
-                () -> new FileSystemSimpleStorageFactory(null, FileSystemStorageConfig.builder().build(), executor),
+                () -> new FileSystemSimpleStorageFactory(null, FileSystemStorageConfig.builder().build(), executorService()),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows(
                 " should throw exception.",
-                () -> new ExtendedS3SimpleStorageFactory(null, ExtendedS3StorageConfig.builder().build(), executor),
+                () -> new ExtendedS3SimpleStorageFactory(null, ExtendedS3StorageConfig.builder().build(), executorService()),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows(
                 " should throw exception.",
-                () -> new HDFSSimpleStorageFactory(null, HDFSStorageConfig.builder().build(), executor),
+                () -> new HDFSSimpleStorageFactory(null, HDFSStorageConfig.builder().build(), executorService()),
                 ex -> ex instanceof NullPointerException);
     }
 }

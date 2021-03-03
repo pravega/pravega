@@ -36,7 +36,6 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -65,7 +64,7 @@ public class StreamRecreationTest {
 
     @Before
     public void setUp() throws Exception {
-        executor = Executors.newSingleThreadScheduledExecutor();
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
         zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -124,6 +123,7 @@ public class StreamRecreationTest {
             // Write a single event.
             @Cleanup
             EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(myScope, ClientConfig.builder().controllerURI(controllerURI).build());
+            @Cleanup
             EventStreamWriter<String> writer = clientFactory.createEventWriter(myStream, new JavaSerializer<>(),
                                                                                eventWriterConfig);
             TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter(myStream,

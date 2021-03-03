@@ -35,6 +35,7 @@ import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
+import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
@@ -105,8 +106,8 @@ public class ConnectionFactoryImplTest {
     @After
     public void tearDown() throws Exception {
         serverChannel.close().awaitUninterruptibly();
-        bossGroup.shutdownGracefully().await();
-        workerGroup.shutdownGracefully().await();
+        bossGroup.shutdownGracefully(10, 10, TimeUnit.MILLISECONDS).await();
+        workerGroup.shutdownGracefully(10, 10, TimeUnit.MILLISECONDS).await();
         if (sslCtx != null) {
             ReferenceCountUtil.safeRelease(sslCtx);
         }
@@ -142,7 +143,10 @@ public class ConnectionFactoryImplTest {
 
     @Test
     public void getActiveChannelTestWithConnectionPooling() throws InterruptedException, ConnectionFailedException {
-        ClientConfig config = ClientConfig.builder().controllerURI(URI.create( "tcp://" + "localhost")).build();
+        ClientConfig config = ClientConfig.builder()
+                .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
+                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                .build();
         @Cleanup
         SocketConnectionFactoryImpl factory = new SocketConnectionFactoryImpl(config);
         @Cleanup
@@ -184,8 +188,10 @@ public class ConnectionFactoryImplTest {
     public void getActiveChannelTestWithoutConnectionPooling() throws InterruptedException, ConnectionFailedException {
         @Cleanup
         SocketConnectionFactoryImpl factory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                                                                              .controllerURI(URI.create("tcp://" + "localhost"))
-                                                                              .build());
+                .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
+                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                .build());
+                
         final FailingReplyProcessor rp = new FailingReplyProcessor() {
 
             @Override

@@ -130,6 +130,12 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
+    @Override
+    public void keepAlive(WireCommands.KeepAlive keepAlive) {
+        log.debug("Received a keepAlive from connection: {}", connection);
+        connection.send(keepAlive);
+    }
+
     /**
      * Setup an append so that subsequent append calls can occur.
      * This requires validating that the segment exists.
@@ -165,8 +171,18 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                                 if (u != null) {
                                     handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
                                 } else {
+                                    // Last event number stored according to Segment store.
                                     long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
-                                    this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
+
+                                    // Create a new WriterState object based on the attribute value for the last event number for the writer.
+                                    // It should be noted that only one connection for a given segment writer is created by the client.
+                                    // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
+                                    // below the specified event number.
+                                    WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber));
+                                    if (current != null) {
+                                        log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
+                                                writer, eventNumber, current);
+                                    }
                                     connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
                                 }
                             } catch (Throwable e) {
@@ -247,8 +263,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         Preconditions.checkNotNull(state, "state");
         boolean success = exception == null;
         try {
-            boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
-
             if (success) {
                 synchronized (state.getAckLock()) {
                     // Acks must be sent in order. The only way to do this is by using a lock.
@@ -268,7 +282,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             append.getSegment(), append.getWriterId(), state.getLowestFailedEventNumber(), append.getEventNumber());
                 }
             } else {
-                if (conditionalFailed) {
+                if (append.isConditional() && Exceptions.unwrap(exception) instanceof BadOffsetException) {
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
                     synchronized (state.getAckLock()) {
                         // Revert the state to the last known good one. This is needed because we do not close the connection

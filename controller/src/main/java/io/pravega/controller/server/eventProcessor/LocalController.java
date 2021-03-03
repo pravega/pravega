@@ -11,10 +11,12 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.admin.KeyValueTableInfo;
+import io.pravega.client.control.impl.ReaderGroupConfigRejectedException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.control.impl.CancellableRequest;
@@ -28,14 +30,18 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
+import io.pravega.client.stream.impl.ReaderGroupNotFoundException;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
@@ -55,8 +61,11 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
+@Slf4j
 public class LocalController implements Controller {
 
     private static final int PAGE_LIMIT = 1000;
@@ -182,6 +191,124 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<ReaderGroupConfig> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+        StreamMetadataTasks streamMetadataTasks = controller.getStreamMetadataTasks();
+        return streamMetadataTasks.createReaderGroupInternal(scopeName, rgName, config, System.currentTimeMillis())
+                .thenApply(x -> {
+            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
+                case INVALID_RG_NAME:
+                    throw new IllegalArgumentException("Illegal ReaderGroup name: " + rgName);
+                case SCOPE_NOT_FOUND:
+                    throw new IllegalArgumentException("Scope does not exist: " + scopeName);
+                case SUCCESS:
+                    return ModelHelper.encode(x.getConfig());
+                default:
+                    throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
+                            + " " + x);
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Long> updateReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+        return this.controller.updateReaderGroup(scopeName, rgName, config).thenApply(x -> {
+            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
+                case INVALID_CONFIG:
+                    throw new ReaderGroupConfigRejectedException("Invalid Reader Group Config: " + config.toString());
+                case RG_NOT_FOUND:
+                    throw new ReaderGroupNotFoundException("Scope does not exist: " + scopedRGName);
+                case SUCCESS:
+                    return x.getGeneration();
+                default:
+                    throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(String scopeName, String rgName) {
+        return this.controller.getReaderGroupConfig(scopeName, rgName).thenApply(x -> {
+           final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
+           switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to get Config for ReaderGroup: " + scopedRGName);
+                case RG_NOT_FOUND:
+                    throw new ReaderGroupNotFoundException("Could not find Reader Group: " + scopedRGName);
+                case SUCCESS:
+                    return ModelHelper.encode(x.getConfig());
+                default:
+                    throw new ControllerFailureException("Unknown return status getting config for ReaderGroup " + scopedRGName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteReaderGroup(final String scopeName, final String rgName,
+                                                        final UUID readerGroupId) {
+        return this.controller.deleteReaderGroup(scopeName, rgName, readerGroupId.toString()).thenApply(x -> {
+            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
+                case RG_NOT_FOUND:
+                    throw new ReaderGroupNotFoundException("Reader group not found: " + scopedRGName);
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status creating ReaderGroup " + scopedRGName
+                            + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<List<String>> listSubscribers(final String scope, final String streamName) {
+        return this.controller.listSubscribers(scope, streamName).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to listSubscribers for stream: " + scope + "/" + streamName);
+                case STREAM_NOT_FOUND:
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUCCESS:
+                    return x.getSubscribersList().stream().collect(Collectors.toList());
+                default:
+                    throw new ControllerFailureException("Unknown return status for listSubscribers on stream " + scope + "/" + streamName + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber,
+                                                                final UUID readerGroupId, final long generation, final StreamCut streamCut) {
+        return this.controller.updateSubscriberStreamCut(scope, streamName, subscriber, readerGroupId.toString(), generation,
+                ModelHelper.getStreamCutMap(streamCut)).thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to update streamcut: " + scope + "/" + streamName);
+                case STREAM_NOT_FOUND:
+                    throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                case SUBSCRIBER_NOT_FOUND:
+                    throw new IllegalArgumentException("Subscriber does not exist: " + subscriber);
+                case GENERATION_MISMATCH:
+                    throw new IllegalArgumentException("Subscriber generation does not match: " + subscriber);
+                case SUCCESS:
+                    return true;
+                default:
+                    throw new ControllerFailureException("Unknown return status updating truncation streamcut for subscriber "
+                                                 + subscriber + ", on stream " + scope + "/" + streamName + " " + x.getStatus());
+            }
+        });
+    }
+
+        @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
         final Map<Long, Long> segmentToOffsetMap = streamCut.asImpl().getPositions().entrySet().stream()
                                                                .collect(Collectors.toMap(e -> e.getKey().getSegmentId(),
@@ -335,7 +462,7 @@ public class LocalController implements Controller {
     }
 
     private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
-        return new StreamSegments(getRangeMap(ranges), retrieveDelegationToken());
+        return new StreamSegments(getRangeMap(ranges));
     }
 
     @Override
@@ -440,7 +567,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation) {
         String retVal = "";
         if (authorizationEnabled) {
             retVal = GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
@@ -528,7 +655,7 @@ public class LocalController implements Controller {
     }
 
     private KeyValueTableSegments getKeyValueTableSegments(List<SegmentRange> ranges) {
-        return new KeyValueTableSegments(getRangeMap(ranges), retrieveDelegationToken());
+        return new KeyValueTableSegments(getRangeMap(ranges));
     }
 
     private NavigableMap<Double, SegmentWithRange> getRangeMap(List<SegmentRange> ranges) {

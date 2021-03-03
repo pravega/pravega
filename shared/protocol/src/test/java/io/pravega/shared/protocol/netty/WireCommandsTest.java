@@ -11,8 +11,9 @@ package io.pravega.shared.protocol.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutput;
@@ -808,7 +809,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
         // Test that we are able to read fields from an older version.
         cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, buf, Unpooled.EMPTY_BUFFER);
-        EnhancedByteArrayOutputStream bout = new EnhancedByteArrayOutputStream();
+        ByteBufferOutputStream bout = new ByteBufferOutputStream();
         cmd.writeFields(new DataOutputStream(bout));
         testCommandFromByteArray(bout.getData().slice(0, bout.size() - Integer.BYTES).getCopy(), cmd);
     }
@@ -824,7 +825,7 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
 
         // Test that we are able to read fields from an older version.
         cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, buf, Unpooled.EMPTY_BUFFER);
-        EnhancedByteArrayOutputStream bout = new EnhancedByteArrayOutputStream();
+        ByteBufferOutputStream bout = new ByteBufferOutputStream();
         cmd.writeFields(new DataOutputStream(bout));
         testCommandFromByteArray(bout.getData().slice(0, bout.size() - Integer.BYTES).getCopy(), cmd);
     }
@@ -878,6 +879,33 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
         WireCommands.TableEntriesDeltaRead cmd = new WireCommands.TableEntriesDeltaRead(
                 l, testString1, tableEntries, false, false, WireCommands.TableKey.NO_VERSION);
         testCommand(cmd);
+    }
+
+    @Test
+    public void testConditionalBlockEnd() throws IOException {
+        testCommand(new WireCommands.ConditionalBlockEnd(uuid, l, l, buf, l));
+
+        // Test that it correctly implements ReleasableCommand.
+        testReleasableCommand(
+                () -> new WireCommands.ConditionalBlockEnd(uuid, l, l, buf, -1),
+                WireCommands.ConditionalBlockEnd::readFrom,
+                ce -> ce.getData().refCnt());
+    }
+
+    @Test
+    public void testErrorMessage() throws IOException {
+        for (WireCommands.ErrorMessage.ErrorCode code : WireCommands.ErrorMessage.ErrorCode.values()) {
+            Class exceptionType = code.getExceptionType();
+            WireCommands.ErrorMessage cmd  = new WireCommands.ErrorMessage(1, "segment", testString1, code);
+            testCommand(cmd);
+            assertTrue(cmd.getErrorCode().getExceptionType().equals(exceptionType));
+            assertTrue(WireCommands.ErrorMessage.ErrorCode.valueOf(exceptionType).equals(code));
+
+            RuntimeException exception = cmd.getThrowableException();
+            AssertExtensions.assertThrows(exceptionType, () -> {
+                throw exception;
+            });
+        }
     }
 
     private <T extends WireCommands.ReleasableCommand> void testReleasableCommand(

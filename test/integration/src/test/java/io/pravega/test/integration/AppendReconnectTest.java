@@ -78,6 +78,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
                 serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
+        @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
@@ -100,6 +101,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
         out.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(payload), ack2));
         ack.get(5, TimeUnit.SECONDS);
         ack2.get(5, TimeUnit.SECONDS);
+        @Cleanup
         SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, connectionPool).createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals(payload.length * 2, metadataClient.fetchCurrentSegmentLength());
@@ -119,6 +121,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
                 serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
+        @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);

@@ -155,6 +155,15 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                     segmentId,
                     segment);
         }
+
+        @Override
+        public void errorMessage(WireCommands.ErrorMessage errorMessage) {
+            log.info("Received an errorMessage containing an unhandled {} on segment {}",
+                    errorMessage.getErrorCode().getExceptionType().getSimpleName(),
+                    errorMessage.getSegment());
+            closeConnection(errorMessage.getThrowableException());
+        }
+
     }
 
     public AsyncSegmentInputStreamImpl(Controller controller, ConnectionPool connectionPool, Segment segment,

@@ -50,7 +50,7 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
     private StreamSegments getSegments(Segment segment) {
         NavigableMap<Double, SegmentWithRange> segments = new TreeMap<>();
         segments.put(1.0, new SegmentWithRange(segment, 0.0, 1.0));
-        return new StreamSegments(segments, "");
+        return new StreamSegments(segments);
     }
     
     private CompletableFuture<StreamSegments> getSegmentsFuture(Segment segment) {
@@ -337,7 +337,7 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         }
 
         // verify if segments are flushed and closed.
-        Mockito.verify(outputStream, Mockito.times(2)).close();
+        Mockito.verify(outputStream, Mockito.times(1)).close();
         Mockito.verify(controller, Mockito.times(2)).commitTransaction(eq(stream), anyString(), isNull(), eq(txid));
         assertTrue(bad.unacked.isEmpty());
         assertTrue(outputStream.unacked.isEmpty());

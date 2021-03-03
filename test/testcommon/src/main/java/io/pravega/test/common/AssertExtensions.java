@@ -89,6 +89,42 @@ public class AssertExtensions {
     }
 
     /**
+     * Asserts that an exception of the Type provided is thrown eventually.
+     *
+     * @param run  The Runnable to execute.
+     * @param type The type of exception to expect.
+     * @param checkIntervalMillis The number of milliseconds to wait between two checks.
+     * @param timeoutMillis       The timeout in milliseconds after which an assertion error should be thrown.
+     * @throws Exception If the is an assertion error, and exception from `eval`, or the thread is interrupted.
+     */
+    public static void assertEventuallyThrows(Class<? extends Exception> type, RunnableWithException run, int checkIntervalMillis, long timeoutMillis) throws Exception {
+        try {
+        TestUtils.awaitException(() -> {
+                try {
+                    run.run();
+                    Assert.fail("No exception thrown where: " + type.getName() + " was expected");
+                } catch (CompletionException | ExecutionException e) {
+                    if (!type.isAssignableFrom(e.getCause().getClass())) {
+                        throw new RuntimeException(
+                                "Exception of the wrong type. Was expecting " + type + " but got: " + e.getCause().getClass().getName(),
+                                e);
+                    }
+                } catch (Exception e) {
+                    if (!type.isAssignableFrom(e.getClass())) {
+                        throw new RuntimeException(
+                                "Exception of the wrong type. Was expecting " + type + " but got: " + e.getClass().getName(),
+                                e);
+                    }
+                    return true;
+                }
+            return false;
+        }, checkIntervalMillis, timeoutMillis);
+        } catch (TimeoutException e) {
+            throw new TimeoutException("Expected exception did not occur:" + type.getName());
+        }
+    }
+
+    /**
      * Asserts that an exception of the Type provided is thrown.
      *
      * @param run  The Runnable to execute.
@@ -193,6 +229,7 @@ public class AssertExtensions {
      * @param length  The number of elements to check.
      */
     public static void assertArrayEquals(String message, byte[] array1, int offset1, byte[] array2, int offset2, int length) {
+        // TODO: This method could be reduced to a single line (and execute faster) if we could compile this project with JDK11.
         // We could do argument checks here, but the array access below will throw the appropriate exceptions if any of these args are out of bounds.
         for (int i = 0; i < length; i++) {
             if (array1[i + offset1] != array2[i + offset2]) {

@@ -16,6 +16,7 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -88,6 +89,9 @@ public class OperationMetadataUpdaterTests {
         val blankMetadata = createBlankMetadata();
         ContainerMetadataUpdateTransactionTests.assertMetadataSame("Before commit", blankMetadata, metadata);
         updater.commitAll();
+
+        // Refresh the source metadata (after the commit) to reflect that the ATTRIBUTE_SEGMENT_TYPE may have changed.
+        referenceMetadata.getAllStreamSegmentIds().stream().map(referenceMetadata::getStreamSegmentMetadata).forEach(UpdateableSegmentMetadata::refreshType);
         ContainerMetadataUpdateTransactionTests.assertMetadataSame("After commit", referenceMetadata, metadata);
     }
 
@@ -237,6 +241,9 @@ public class OperationMetadataUpdaterTests {
                 ContainerMetadataUpdateTransactionTests.assertMetadataSame("After rollback " + i, referenceMetadata, metadata);
             } else {
                 updater.commitAll();
+
+                // Refresh the source metadata (after the commit) to reflect that the ATTRIBUTE_SEGMENT_TYPE may have changed.
+                referenceMetadata.getAllStreamSegmentIds().stream().map(referenceMetadata::getStreamSegmentMetadata).forEach(UpdateableSegmentMetadata::refreshType);
                 ContainerMetadataUpdateTransactionTests.assertMetadataSame("After commit " + i, referenceMetadata, metadata);
             }
         }

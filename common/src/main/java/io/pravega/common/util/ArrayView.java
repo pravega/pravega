@@ -10,22 +10,11 @@
 package io.pravega.common.util;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Defines a generic read-only view of an index-based, array-like structure.
  */
-public interface ArrayView extends BufferView {
-    /**
-     * Gets the value at the specified index.
-     *
-     * @param index The index to query.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid.
-     * @return Byte indicating the value at the given index.
-     */
-    byte get(int index);
-
+public interface ArrayView extends BufferView, StructuredWritableBuffer, StructuredReadableBuffer {
     /**
      * Gets a reference to the backing array for this ArrayView. This should be used in conjunction with arrayOffset()
      * in order to determine where in the array this ArrayView starts at.
@@ -70,12 +59,5 @@ public interface ArrayView extends BufferView {
      * @return A {@link ByteBuffer} that shares the same backing array as this {@link ArrayView}. Any changes made to
      * the {@link ByteBuffer} will be reflected in this {@link ArrayView} and viceversa.
      */
-    default ByteBuffer asByteBuffer() {
-        return ByteBuffer.wrap(array(), arrayOffset(), getLength());
-    }
-
-    @Override
-    default List<ByteBuffer> getContents() {
-        return Collections.singletonList(asByteBuffer());
-    }
+    ByteBuffer asByteBuffer();
 }
