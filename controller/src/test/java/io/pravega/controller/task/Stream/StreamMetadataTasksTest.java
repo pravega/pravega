@@ -427,13 +427,13 @@ public abstract class StreamMetadataTasksTest {
         createResponse = streamMetadataTasks.createReaderGroupInternal(SCOPE, "rg3", rgConfigSubscriber3, System.currentTimeMillis()).join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse.getStatus());
         assertEquals(0L, createResponse.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.equals(createResponse.getConfig().getReaderGroupId()));
+        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse.getConfig().getReaderGroupId()));
 
         // Create ReaderGroup 4
         createResponse = streamMetadataTasks.createReaderGroupInternal(SCOPE, "rg4", rgConfigNonSubscriber, System.currentTimeMillis()).join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse.getStatus());
         assertEquals(0L, createResponse.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.equals(createResponse.getConfig().getReaderGroupId()));
+        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse.getConfig().getReaderGroupId()));
 
         // List all subscriber ReaderGroup, there should be 3
         listSubscribersResponse = streamMetadataTasks.listSubscribers(SCOPE, stream1, null).get();
@@ -1390,7 +1390,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         Controller.CreateReaderGroupResponse createResponse1 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse1.getStatus());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.equals(createResponse1.getConfig().getReaderGroupId()));
+        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse1.getConfig().getReaderGroupId()));
         assertEquals(0L, createResponse1.getConfig().getGeneration());
 
         String subscriber2 = "subscriber2";
@@ -1398,7 +1398,7 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(Futures.await(processEvent(requestEventWriter)));
         Controller.CreateReaderGroupResponse createResponse2 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse2.getStatus());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.equals(createResponse2.getConfig().getReaderGroupId()));
+        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse2.getConfig().getReaderGroupId()));
         assertEquals(0L, createResponse2.getConfig().getGeneration());
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
@@ -1640,7 +1640,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.CreateReaderGroupResponse createResponse1 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse1.getStatus());
         assertEquals(0L, createResponse1.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.equals(createResponse1.getConfig().getReaderGroupId()));
+        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse1.getConfig().getReaderGroupId()));
 
         String subscriber2 = "subscriber2";
         createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, consumpRGConfig, System.currentTimeMillis());
@@ -1648,7 +1648,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.CreateReaderGroupResponse createResponse2 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse2.getStatus());
         assertEquals(0L, createResponse2.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.equals(createResponse2.getConfig().getReaderGroupId()));
+        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse2.getConfig().getReaderGroupId()));
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
@@ -1861,7 +1861,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.CreateReaderGroupResponse createResponse1 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse1.getStatus());
         assertEquals(0L, createResponse1.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.equals(createResponse1.getStatus()));
+        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse1.getConfig().getReaderGroupId()));
 
         String subscriber2 = "subscriber2";
         createStatus = streamMetadataTasks.createReaderGroup(SCOPE, subscriber2, consumpRGConfig, System.currentTimeMillis());
@@ -1869,7 +1869,7 @@ public abstract class StreamMetadataTasksTest {
         Controller.CreateReaderGroupResponse createResponse2 = createStatus.join();
         assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, createResponse2.getStatus());
         assertEquals(0L, createResponse2.getConfig().getGeneration());
-        assertFalse(ReaderGroupConfig.DEFAULT_UUID.equals(createResponse2.getConfig().getReaderGroupId()));
+        assertFalse(ReaderGroupConfig.DEFAULT_UUID.toString().equals(createResponse2.getConfig().getReaderGroupId()));
 
         final String subscriber1Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber1);
         final String subscriber2Name = NameUtils.getScopedReaderGroupName(SCOPE, subscriber2);
