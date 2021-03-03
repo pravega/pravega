@@ -96,6 +96,7 @@ public class PravegaSegmentStoreK8sService extends AbstractService {
                                      currentControllerCount, currentSegmentStoreCount);
                            if (currentSegmentStoreCount != newInstanceCount) {
                                final Map<String, Object> patchedSpec = buildPatchedPravegaClusterSpec("segmentStoreReplicas", newInstanceCount, "pravega");
+                               log.info("{}", patchedSpec);
                                return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, patchedSpec)
                                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL, newInstanceCount));
                            } else {
