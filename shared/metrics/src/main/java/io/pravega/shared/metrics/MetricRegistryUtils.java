@@ -21,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
  * Utility class to access metrics stored in the local cache of the metrics registry.
  */
 @Slf4j
-public class MetricRegistryUtils { //TODO make into test class that uses global lock with before and after.
+public class MetricRegistryUtils {
 
     public static Counter getCounter(String metricsName, String... tags) {
         return Metrics.globalRegistry.find(metricsName).tags(tags).counter();
