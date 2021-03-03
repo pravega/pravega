@@ -86,10 +86,25 @@ public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
     void setCopyOnRead(boolean value);
 
     /**
+     * Gets a value indicating the maximum number of bytes to read at once with every invocation of {@link #next()}.
+     *
+     * @return The maximum number of bytes to read at once.
+     */
+    int getMaxReadAtOnce();
+
+    /**
+     * Sets the maximum number of bytes to read at once with every invocation of {@link #next()}.
+     *
+     * @param value The value to set. If not positive or exceeds {@link #getMaxResultLength()}, this will be set to
+     *              {@link #getMaxResultLength()}.
+     */
+    void setMaxReadAtOnce(int value);
+
+    /**
      * Gets a value indicating whether this ReadResult is fully consumed (either because it was read in its entirety
      * or because it was closed externally).
      *
-     * @return true if ReadResult is fully consumed or closed externally, otherwise false
+     * @return true if ReadResult is fully consumed or closed externally, otherwise false.
      */
     boolean isClosed();
 
