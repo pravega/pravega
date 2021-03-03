@@ -23,18 +23,17 @@ import org.junit.rules.ExternalResource;
  * - Usage pattern to start it once for all @Test methods in a class
  *  <pre>
  *  &#64;ClassRule
- *  public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource(false, false);
+ *  public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource(false, false, false);
  *  </pre>
  *  - Usage pattern to start it before every @Test method.
  *  <pre>
  *  &#64;Rule
- *  public final PravegaEmulatorResource emulator = new PravegaEmulatorResource(false, false);
+ *  public final PravegaEmulatorResource emulator = new PravegaEmulatorResource(false, false, false);
  *  </pre>
  *
  */
 @Slf4j
 public class PravegaEmulatorResource extends ExternalResource {
-    final boolean restEnabled = false; // disable REST server for the current tests.
     final boolean authEnabled;
     final boolean tlsEnabled;
     final LocalPravegaEmulator pravega;
@@ -43,8 +42,9 @@ public class PravegaEmulatorResource extends ExternalResource {
      * Create an instance of Pravega Emulator resource.
      * @param authEnabled Authorisation enable flag.
      * @param tlsEnabled  Tls enable flag.
+     * @param restEnabled REST endpoint enable flag.
      */
-    public PravegaEmulatorResource(boolean authEnabled, boolean tlsEnabled) {
+    public PravegaEmulatorResource(boolean authEnabled, boolean tlsEnabled, boolean restEnabled) {
         this.authEnabled = authEnabled;
         this.tlsEnabled = tlsEnabled;
         LocalPravegaEmulator.LocalPravegaEmulatorBuilder emulatorBuilder = LocalPravegaEmulator.builder()

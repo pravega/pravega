@@ -27,7 +27,7 @@ import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 @Slf4j
 public class SecurePravegaClusterTest {
     @ClassRule
-    public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource(true, true);
+    public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource(true, true, false);
     final String scope = "TlsAndAuthTestScope";
     final String stream = "TlsAndAuthTestStream";
     final String msg = "Test message on the encrypted channel with auth credentials";

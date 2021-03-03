@@ -27,7 +27,7 @@ import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 public class InProcPravegaClusterTest {
 
     @ClassRule
-    public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource(false, false);
+    public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource(false, false, false);
     final String msg = "Test message on the plaintext channel";
 
     ClientConfig prepareValidClientConfig() {
