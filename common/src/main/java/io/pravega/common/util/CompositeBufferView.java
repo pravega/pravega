@@ -35,6 +35,7 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
     private final List<BufferView> components;
     @Getter
     private final int length;
+    private volatile int allocatedLength = -1;
 
     //endregion
 
@@ -65,6 +66,15 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
     //endregion
 
     //region BufferView implementation
+
+    @Override
+    public int getAllocatedLength() {
+        if (this.allocatedLength < 0) {
+            this.allocatedLength = this.components.stream().mapToInt(BufferView::getAllocatedLength).sum();
+        }
+
+        return this.allocatedLength;
+    }
 
     @Override
     public Reader getBufferViewReader() {
