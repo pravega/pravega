@@ -24,6 +24,8 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.junit.ClassRule;
 import org.junit.Test;
 
+import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
+
 /**
  * Tests for TLS enabled standalone cluster. It inherits the test methods defined in the parent class.
  */
@@ -75,7 +77,7 @@ public class TlsEnabledInProcPravegaClusterTest {
 
     @Test(timeout = 30000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
-        EMULATOR.testWriteAndReadAnEventWithValidClientConfig(scope, stream, msg, prepareValidClientConfig());
+        testWriteAndReadAnEvent(scope, stream, msg, prepareValidClientConfig());
     }
 
     private boolean hasTlsException(Throwable e) {

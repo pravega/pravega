@@ -24,6 +24,8 @@ import io.pravega.test.common.SecurityConfigDefaults;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
+
 /**
  * This class contains tests for auth enabled in-process standalone cluster. It inherits the test methods defined
  * in the parent class.
@@ -69,7 +71,7 @@ public class AuthEnabledInProcPravegaClusterTest {
 
     @Test(timeout = 30000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
-        EMULATOR.testWriteAndReadAnEventWithValidClientConfig(scope, stream, msg, prepareValidClientConfig());
+        testWriteAndReadAnEvent(scope, stream, msg, prepareValidClientConfig());
     }
 
     private boolean hasAuthExceptionAsRootCause(Throwable e) {

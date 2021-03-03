@@ -17,6 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.ClassRule;
 import org.junit.Test;
 
+import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
+
 /**
  * This class contains tests for in-process standalone cluster. It also configures and runs standalone mode cluster
  * with appropriate configuration for itself as well as for sub-classes.
@@ -45,6 +47,6 @@ public class InProcPravegaClusterTest {
      */
     @Test(timeout = 30000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
-        EMULATOR.testWriteAndReadAnEventWithValidClientConfig("TestScope", "TestStream", msg, prepareValidClientConfig());
+        testWriteAndReadAnEvent("TestScope", "TestStream", msg, prepareValidClientConfig());
     }
 }

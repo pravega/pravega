@@ -18,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.ClassRule;
 import org.junit.Test;
 
+import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
+
 /**
  * This class holds tests for TLS and auth enabled in-process standalone cluster. It inherits the test methods defined
  * in the parent class.
@@ -46,6 +48,6 @@ public class SecurePravegaClusterTest {
 
     @Test(timeout = 30000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
-        EMULATOR.testWriteAndReadAnEventWithValidClientConfig(scope, stream, msg, prepareValidClientConfig());
+        testWriteAndReadAnEvent(scope, stream, msg, prepareValidClientConfig());
     }
 }
