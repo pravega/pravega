@@ -147,7 +147,6 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     private static final ContainerConfig CONTAINER_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
-            .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 100)
             .build();
 
     // DL config that can be used to simulate no DurableLog truncations.
@@ -534,11 +533,9 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
     // Closes the debug segment container instances in the given map after waiting for the metadata segment to be flushed to
     // the given storage.
-    private void stopDebugSegmentContainersPostFlush(int containerCount, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap)
+    private void stopDebugSegmentContainers(int containerCount, Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainerMap)
             throws Exception {
         for (int containerId = 0; containerId < containerCount; containerId++) {
-            debugStreamSegmentContainerMap.get(containerId).flushToStorage(TIMEOUT).join();
-            Services.stopAsync(debugStreamSegmentContainerMap.get(containerId), executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             debugStreamSegmentContainerMap.get(containerId).close();
         }
     }
@@ -684,7 +681,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
         ContainerRecoveryUtils.updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainerMap, executorService(), TIMEOUT);
 
         // Waits for metadata segments to be flushed to Long Term Storage and then stops the debug segment containers
-        stopDebugSegmentContainersPostFlush(containerCount, debugStreamSegmentContainerMap);
+        stopDebugSegmentContainers(containerCount, debugStreamSegmentContainerMap);
         log.info("Segments have been recovered.");
 
         this.dataLogFactory.close();
