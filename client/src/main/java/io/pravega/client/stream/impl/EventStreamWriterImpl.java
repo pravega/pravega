@@ -135,7 +135,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         Preconditions.checkNotNull(events);
         Exceptions.checkNotClosed(closed.get(), this);
         List<ByteBuffer> data = events.stream().map(serializer::serialize).collect(Collectors.toList());
-        int size = data.stream().mapToInt(b -> b.capacity()).sum();
+        int size = data.stream().mapToInt(b -> b.remaining()).sum();
         CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         synchronized (writeFlushLock) {
             synchronized (writeSealLock) {
