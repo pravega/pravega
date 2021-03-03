@@ -51,7 +51,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public static final String TLS_KEY_STORE = "tlsKeyStore";
     public static final String PROPERTY_LEDGERS_DIR = "ledgersDir"; // File System path to store ledger data.
 
-    private static final String LOOPBACK_ADDRESS = "localhost";
+    private static final String LOOPBACK_ADDRESS = "127.0.0.1";
     private final boolean startZk;
     private final int zkPort;
     private final String ledgersPath;

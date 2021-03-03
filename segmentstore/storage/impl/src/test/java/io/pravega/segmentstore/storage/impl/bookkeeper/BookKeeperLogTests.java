@@ -122,7 +122,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         String namespace = "pravega/segmentstore/unittest_" + testId;
         this.zkClient.set(CuratorFrameworkFactory
                 .builder()
-                .connectString("localhost:" + zkPort)
+                .connectString("127.0.0.1:" + zkPort)
                 .namespace(namespace)
                 .retryPolicy(new ExponentialBackoffRetry(1000, 10))
                 .build());
@@ -132,7 +132,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         // Setup config to use the port and namespace.
         this.config.set(BookKeeperConfig
                 .builder()
-                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + zkPort)
+                .with(BookKeeperConfig.ZK_ADDRESS, "127.0.0.1:" + zkPort)
                 .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, MAX_WRITE_ATTEMPTS)
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, MAX_LEDGER_SIZE)
                 .with(BookKeeperConfig.BK_DIGEST_TYPE, DigestType.DUMMY.name())
@@ -181,7 +181,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     public void testFactoryInitialize() {
         BookKeeperConfig bkConfig = BookKeeperConfig
                 .builder()
-                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + TestUtils.getAvailableListenPort())
+                .with(BookKeeperConfig.ZK_ADDRESS, "127.0.0.1:" + TestUtils.getAvailableListenPort())
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * 10) // Very frequent rollovers.
                 .with(BookKeeperConfig.ZK_METADATA_PATH, this.zkClient.get().getNamespace())
                 .build();
