@@ -51,7 +51,7 @@ public class SegmentSelector {
     /**
      * When writing without a routing key, keep writing this many bytes to the same segment before selecting a new one.
      */
-    private static final long BYTES_PER_SEGMENT = 256*1024;
+    private static final long BYTES_PER_SEGMENT = 256 * 1024;
     @GuardedBy("$lock")
     private long bytesWritten = 0; //Bytes written without a routing key.
     private final HashHelper randomRoutingKeyHasher = HashHelper.seededWith("Random routing key");
