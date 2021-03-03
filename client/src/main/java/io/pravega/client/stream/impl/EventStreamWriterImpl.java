@@ -27,6 +27,7 @@ import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
+import io.pravega.common.util.ReusableLatch;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,6 +78,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final SegmentSelector selector;
     private final Consumer<Segment> segmentSealedCallBack;
     private final ConcurrentLinkedQueue<Segment> sealedSegmentQueue = new ConcurrentLinkedQueue<>();
+    private final ReusableLatch sealedSegmentQueueEmptyLatch = new ReusableLatch(true);
     private final ExecutorService retransmitPool;
     private final Pinger pinger;
     private final DelegationTokenProvider tokenProvider;
@@ -165,6 +167,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      * message find which new segment it should go to and send it there. 
      */
     private void handleLogSealed(Segment segment) {
+        sealedSegmentQueueEmptyLatch.reset();
         sealedSegmentQueue.add(segment);
         retransmitPool.execute(() -> {
             Retry.indefinitelyWithExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
@@ -205,6 +208,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                              toSeal = sealedSegmentQueue.poll();
                              log.info("Sealing another segment {} ", toSeal);
                          }
+                         sealedSegmentQueueEmptyLatch.release();
                      }
                      return null;
                  });
@@ -266,17 +270,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      */
     @GuardedBy("writeFlushLock")
     private void tryWaitForSuccessors() {
-        while (!sealedSegmentQueue.isEmpty()) {
-            // A background thread should be waking up to process things. Give it a moment.
-            Exceptions.handleInterrupted(() -> Thread.sleep(10));
-        }
-        //This lock is only acquired to block this thread if there is a seal going on already.
-        //This code does not actually need the lock for anything.
-        synchronized (writeSealLock) {
-            // Nothing needs to be done here.
-            // When the lock is released the sealing should be complete.
-            log.debug("Segment sealing completed, retrying flush.");
-        }
+        Exceptions.handleInterrupted(() -> sealedSegmentQueueEmptyLatch.await());
     }
 
     @Override
