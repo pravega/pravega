@@ -126,7 +126,7 @@ public class SegmentSelectorTest {
         addNewSegment(segments, 1, 0.25, 0.5);
         addNewSegment(segments, 2, 0.5, 0.75);
         addNewSegment(segments, 3, 0.75, 1.0);
-        StreamSegments streamSegments = new StreamSegments(segments, "");
+        StreamSegments streamSegments = new StreamSegments(segments);
 
         when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));

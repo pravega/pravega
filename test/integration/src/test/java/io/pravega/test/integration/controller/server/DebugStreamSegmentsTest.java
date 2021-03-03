@@ -135,7 +135,7 @@ public class DebugStreamSegmentsTest {
             selector.refreshSegmentEventWriters(segment -> {
             });
             for (int key = 0; key < 100; key++) {
-                Segment segment = selector.getSegmentForEvent("key-" + key);
+                Segment segment = selector.getSegmentForEvent("key-" + key, 1024 * 1024);
                 if (lastSegments[key] != null) {
                     int lastEpoch = NameUtils.getEpoch(lastSegments[key].getSegmentId());
                     int thisEpoch = NameUtils.getEpoch(segment.getSegmentId());
