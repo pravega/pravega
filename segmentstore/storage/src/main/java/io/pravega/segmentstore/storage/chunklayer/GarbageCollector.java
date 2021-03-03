@@ -249,8 +249,8 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         val chunksToDelete = new ArrayList<GarbageChunkInfo>();
         int count = 0;
         try {
-            // Block until you have at least one item.
-            GarbageChunkInfo info = garbageChunks.take();
+            // Wait until you have at least one item or timeout expires.
+            GarbageChunkInfo info = garbageChunks.poll(config.getGarbageCollectionDelay().toMillis(), TimeUnit.MILLISECONDS);
             log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
             while (null != info ) {
                 queueSize.decrementAndGet();
@@ -362,6 +362,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
                 loopFuture.cancel(true);
             }
             closed.set(true);
+            executor.shutdownNow();
             super.close();
         }
     }
