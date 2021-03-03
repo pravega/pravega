@@ -98,6 +98,11 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
+    public int getAllocatedLength() {
+        return this.length;
+    }
+
+    @Override
     public byte[] array() {
         throw new UnsupportedOperationException("array() not supported.");
     }
