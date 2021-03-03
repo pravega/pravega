@@ -43,6 +43,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -102,11 +103,13 @@ public class SegmentSelectorTest {
 
         when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
+        Segment segment = selector.getSegmentForEvent(null, 1024 * 1024);
+        assertNull(segment); //Can't get segment before refresh
         selector.refreshSegmentEventWriters(segmentSealedCallback);
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 100; i++) {
-            Segment segment = selector.getSegmentForEvent(null, 1024 * 1024);
+            segment = selector.getSegmentForEvent(null, 1024 * 1024);
             assertNotNull(segment);
             counts[NameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }

@@ -28,6 +28,15 @@ import static org.junit.Assert.assertNotEquals;
 public class HashHelperTest {
 
     @Test
+    public void testHashToRange() {
+        HashHelper hasher = HashHelper.seededWith("test");
+        assertEquals(hasher.hash(1), hasher.hash(1));
+        assertNotEquals(hasher.hash(1), hasher.hash(0));
+        assertNotEquals(hasher.hash(1), hasher.hash(-1));
+        assertNotEquals(hasher.hash(1), hasher.hash(2));
+    }
+    
+    @Test
     public void testLongBits() {
         assertEquals(1.0, HashHelper.longToDoubleFraction(-1), 0.0000001);
         assertEquals(0.0, HashHelper.longToDoubleFraction(0), 0.0000001);
