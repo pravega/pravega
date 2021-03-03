@@ -30,8 +30,8 @@ public abstract class AbstractAdminCommandTest {
 
     @BeforeClass
     public static void setUp() throws Exception {
-        SETUP_UTILS.startAllServices();
         STATE.set(new AdminCommandState());
+        SETUP_UTILS.startAllServices();
         Properties pravegaProperties = new Properties();
         pravegaProperties.setProperty("cli.controller.rest.uri", SETUP_UTILS.getControllerRestUri().toString());
         pravegaProperties.setProperty("cli.controller.grpc.uri", SETUP_UTILS.getControllerUri().toString());
