@@ -116,7 +116,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import lombok.Synchronized;
 import org.apache.commons.lang3.NotImplementedException;
 import org.slf4j.LoggerFactory;
 
@@ -194,7 +193,7 @@ public class StreamMetadataTasks extends TaskBase {
         this.setReady();
     }
 
-    @Synchronized
+
     public void initializeStreamWriters(final EventStreamClientFactory clientFactory,
                                         final String streamName) {
         this.eventHelperFuture.complete(new EventHelper(clientFactory.createEventWriter(streamName,
@@ -335,18 +334,18 @@ public class StreamMetadataTasks extends TaskBase {
                                   .setStatus(CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND).build());
          }
          //2. check state of the ReaderGroup, if found
-         return eventHelperFuture.thenCompose(eventHelper -> isRGCreationComplete(scope, rgName)
+         return isRGCreationComplete(scope, rgName)
                  .thenCompose(complete -> {
                      if (!complete) {
                          //3. Create Reader Group Metadata inside Scope and submit the event
                          return validateReaderGroupId(config)
-                                 .thenCompose(conf -> eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, conf, requestId, createTimestamp),
+                                 .thenCompose(conf -> eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, conf, requestId, createTimestamp),
                                  () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId()))
                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
-                                         .thenCompose(done -> buildCreateSuccessResponse(scope, rgName))));
+                                         .thenCompose(done -> buildCreateSuccessResponse(scope, rgName)))));
                      }
                      return buildCreateSuccessResponse(scope, rgName);
-                 }));
+                 });
          });
         }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
