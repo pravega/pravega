@@ -396,7 +396,52 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyNoMoreInteractions(store);
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
-    
+
+    @Test
+    public void testMultipleSetupAppendDueToConnectionFailure() {
+        String streamSegmentName = "scope/stream/testMultipleSetupAppend";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                .store(store)
+                .connection(connection)
+                .connectionTracker(tracker)
+                .statsRecorder(mockedRecorder)
+                .build();
+        // Setup mock to enusure both the SetupAppends return the newer values.
+        when(store.getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(Collections.singletonMap(clientId, 0L)))
+                .thenReturn(CompletableFuture.completedFuture(Collections.singletonMap(clientId, 1L)));
+
+        val ac1 = interceptAppend(store, streamSegmentName, 0, updateEventNumber(clientId, 1), CompletableFuture.completedFuture((long) data.length));
+        // First conditional Append.
+        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), 0L, 1L));
+
+        //Simulate a connection drop on the client side and the client resends a SetupAppend followed by conditional Append.
+        val ac2 = interceptAppend(store, streamSegmentName, data.length, updateEventNumber(clientId, 2, 1, 1),
+                CompletableFuture.completedFuture((long) data.length * 2));
+        processor.setupAppend(new SetupAppend(2, clientId, streamSegmentName, ""));
+        processor.append(new Append(streamSegmentName, clientId, 2, 1, Unpooled.wrappedBuffer(data), (long) data.length, 2));
+
+        verify(store, times(2)).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
+        verifyStoreAppend(ac1, data);
+        verifyStoreAppend(ac2, data);
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(tracker, times(2)).updateOutstandingBytes(connection, data.length, data.length);
+        verify(connection).send(new DataAppended(1, clientId, 1, 0, data.length));
+        // verify that the second SetupAppend is responded by the AppendProcessor.
+        verify(connection).send(new AppendSetup(2, streamSegmentName, clientId, 1));
+        verify(connection).send(new DataAppended(2, clientId, 2, 1, data.length * 2));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+        verify(mockedRecorder, times(2)).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
+    }
+
     @Test
     public void testConditionalAppendFailureOnUnconditionalAppend() {
         String streamSegmentName = "scope/stream/testConditionalAppendFailureOnUnconditionalAppend";
