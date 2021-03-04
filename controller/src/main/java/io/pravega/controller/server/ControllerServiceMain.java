@@ -124,7 +124,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService implem
 
                 log.info("Awaiting controller services start");
                 starter.awaitRunning();
-
+                //Prajakta: log here that controller has started.
                 if (hasZkConnection) {
                     // At this point, wait until either of the two things happen
                     // 1. ZK session expires, i.e., sessionExpiryFuture completes, or
