@@ -71,8 +71,8 @@ public class ZookeeperK8sService extends AbstractService {
                                                       .filter(podStatus -> podStatus.getContainerStatuses()
                                                                                     .stream()
                                                                                     .allMatch(st -> st.getState().getRunning() != null))
-                                                      .count() - statuses.size())
-                        .thenApply(runCount -> runCount > 0)
+                                                      .count() * 2 - statuses.size())
+                        .thenApply(netCount -> netCount > 0)
                         .exceptionally(t -> {
                            log.warn("Exception observed while checking status of pod: {}. Details: {} ", getID(), t.getMessage());
                            return false;
