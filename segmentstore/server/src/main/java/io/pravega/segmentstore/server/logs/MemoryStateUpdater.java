@@ -121,6 +121,16 @@ class MemoryStateUpdater {
     }
 
     /**
+     * Performs a cleanup of the {@link ReadIndex} by releasing resources allocated for segments that are no longer active
+     * and trimming to cache to the minimum essential.
+     */
+    void cleanupReadIndex() {
+        Preconditions.checkState(this.recoveryMode.get(), "cleanupReadIndex can only be performed in recovery mode.");
+        this.readIndex.cleanup(null);
+        this.readIndex.trimCache();
+    }
+
+    /**
      * Processes the given operations and applies them to the ReadIndex and InMemory OperationLog.
      *
      * @param operations An Iterator iterating over the operations to process (in sequence).
