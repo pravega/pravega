@@ -727,9 +727,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     @Override
     public void update(MetadataTransaction txn, StorageMetadata metadata) {
-        Preconditions.checkArgument(null != txn);
-        Preconditions.checkArgument(null != metadata);
-        Preconditions.checkArgument(null != metadata.getKey());
+        Preconditions.checkArgument(null != txn, "txn should not be null.");
+        Preconditions.checkArgument(null != metadata, "metadata should not be null.");
+        Preconditions.checkArgument(null != metadata.getKey(), "metadata.key should not be null.");
         val txnData = txn.getData();
 
         val key = metadata.getKey();
@@ -754,8 +754,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     @Override
     public void markPinned(MetadataTransaction txn, StorageMetadata metadata) {
-        Preconditions.checkArgument(null != txn);
-        Preconditions.checkArgument(null != metadata);
+        Preconditions.checkArgument(null != txn, "txn should not be null.");
+        Preconditions.checkArgument(null != metadata, "metadata should not be null.");
         val txnData = txn.getData();
         val key = metadata.getKey();
 
@@ -779,9 +779,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     @Override
     public void create(MetadataTransaction txn, StorageMetadata metadata) {
-        Preconditions.checkArgument(null != txn);
-        Preconditions.checkArgument(null != metadata);
-        Preconditions.checkArgument(null != metadata.getKey());
+        Preconditions.checkArgument(null != txn, "txn should not be null.");
+        Preconditions.checkArgument(null != metadata, "metadata should not be null.");
+        Preconditions.checkArgument(null != metadata.getKey(), "metadata.key should not be null.");
         val txnData = txn.getData();
         txnData.put(metadata.getKey(), TransactionData.builder()
                 .key(metadata.getKey())
@@ -800,8 +800,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     @Override
     public void delete(MetadataTransaction txn, String key) {
-        Preconditions.checkArgument(null != txn);
-        Preconditions.checkArgument(null != key);
+        Preconditions.checkArgument(null != txn, "txn should not be null.");
+        Preconditions.checkArgument(null != key, "key should not be null.");
         val txnData = txn.getData();
 
         TransactionData data = TransactionData.builder().key(key).build();

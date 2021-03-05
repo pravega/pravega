@@ -92,8 +92,8 @@ class ReadIndexCache implements StatsReporter {
      * @param newReadIndexEntries List of {@link ChunkNameOffsetPair} for new entries.
      */
     public void addIndexEntries(String streamSegmentName, List<ChunkNameOffsetPair> newReadIndexEntries) {
-        Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName");
-        Preconditions.checkArgument(null != newReadIndexEntries, "newReadIndexEntries");
+        Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName must not be null");
+        Preconditions.checkArgument(null != newReadIndexEntries, "newReadIndexEntries must not be null");
         val segmentReadIndex = getSegmentReadIndex(streamSegmentName, true);
         for (val entry : newReadIndexEntries) {
             addIndexEntry(segmentReadIndex, streamSegmentName, entry.getChunkName(), entry.getOffset());
@@ -108,8 +108,8 @@ class ReadIndexCache implements StatsReporter {
      * @param startOffset       Start offset of the chunk.
      */
     public void addIndexEntry(String streamSegmentName, String chunkName, long startOffset) {
-        Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName");
-        Preconditions.checkArgument(null != chunkName, "chunkName");
+        Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName must not be null");
+        Preconditions.checkArgument(null != chunkName, "chunkName must not be null");
         Preconditions.checkArgument(startOffset >= 0, "startOffset must be non-negative");
         val segmentReadIndex = getSegmentReadIndex(streamSegmentName, true);
         addIndexEntry(segmentReadIndex, streamSegmentName, chunkName, startOffset);
@@ -135,7 +135,7 @@ class ReadIndexCache implements StatsReporter {
      * @param streamSegmentName Name of the segment to remove.
      */
     public void remove(String streamSegmentName) {
-        Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName");
+        Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName must not be null");
         val readIndex = segmentsReadIndexCache.getIfPresent(streamSegmentName);
         if (null != readIndex) {
             indexEntryCache.invalidateAll(readIndex.offsetToChunkNameIndex.values());

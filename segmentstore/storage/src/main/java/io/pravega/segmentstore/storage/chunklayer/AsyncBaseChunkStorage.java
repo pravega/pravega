@@ -313,11 +313,11 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
     final public CompletableFuture<Integer> read(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
-        Preconditions.checkArgument(null != handle, "handle");
+        Preconditions.checkArgument(null != handle, "handle must not be null");
         checkChunkName(handle.getChunkName());
-        Preconditions.checkArgument(null != buffer, "buffer");
+        Preconditions.checkArgument(null != buffer, "buffer must not be null");
         Preconditions.checkArgument(fromOffset >= 0, "fromOffset must be non-negative");
-        Preconditions.checkArgument(length >= 0 && length <= buffer.length, "length");
+        Preconditions.checkArgument(length >= 0 && length <= buffer.length, "length must be non-negative and must not exceed buffer");
         Preconditions.checkElementIndex(bufferOffset, buffer.length, "bufferOffset");
 
         val traceId = LoggerHelpers.traceEnter(log, "read", handle.getChunkName(), fromOffset, bufferOffset, length);

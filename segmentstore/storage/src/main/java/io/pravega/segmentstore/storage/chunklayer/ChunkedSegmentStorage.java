@@ -410,7 +410,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
             Preconditions.checkNotNull(handle, "handle");
             String streamSegmentName = handle.getSegmentName();
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
-            Preconditions.checkArgument(!handle.isReadOnly(), "handle");
+            Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read only");
 
             return tryWith(metadataStore.beginTransaction(false, handle.getSegmentName()), txn ->
                     txn.get(streamSegmentName)
