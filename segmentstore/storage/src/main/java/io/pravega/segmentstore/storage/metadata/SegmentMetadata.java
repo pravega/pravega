@@ -206,9 +206,9 @@ public class SegmentMetadata extends StorageMetadata {
         Preconditions.checkState(startOffset >= 0, "startOffset should be non-negative. %s", this);
         Preconditions.checkState(firstChunkStartOffset >= 0, "firstChunkStartOffset should be non-negative. %s", this);
         Preconditions.checkState(lastChunkStartOffset >= 0, "lastChunkStartOffset should be non-negative. %s", this);
-        Preconditions.checkState(firstChunkStartOffset <= startOffset, "startOffset should not be smaller than firstChunkStartOffset. %s", this);
-        Preconditions.checkState(length >= lastChunkStartOffset, "lastChunkStartOffset should not be greater than length. %s", this);
-        Preconditions.checkState(firstChunkStartOffset <= lastChunkStartOffset, "lastChunkStartOffset should not be greater than firstChunkStartOffset. %s", this);
+        Preconditions.checkState(firstChunkStartOffset <= startOffset, "startOffset must not be smaller than firstChunkStartOffset. %s", this);
+        Preconditions.checkState(length >= lastChunkStartOffset, "lastChunkStartOffset must not be greater than length. %s", this);
+        Preconditions.checkState(firstChunkStartOffset <= lastChunkStartOffset, "lastChunkStartOffset must not be greater than firstChunkStartOffset. %s", this);
         Preconditions.checkState(chunkCount >= 0, "chunkCount should be non-negative. %s", this);
         if (null == firstChunk) {
             Preconditions.checkState(null == lastChunk, "lastChunk must be null when firstChunk is null. %s", this);

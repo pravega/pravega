@@ -410,7 +410,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
             Preconditions.checkNotNull(handle, "handle");
             String streamSegmentName = handle.getSegmentName();
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
-            Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read only");
+            Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read only. Segment=%s", handle.getSegmentName());
 
             return tryWith(metadataStore.beginTransaction(false, handle.getSegmentName()), txn ->
                     txn.get(streamSegmentName)
@@ -697,8 +697,11 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * Adds block index entries for given chunk.
      */
     void addBlockIndexEntriesForChunk(MetadataTransaction txn, String segmentName, String chunkName, long chunkStartOffset, long fromOffset, long toOffset) {
-        Preconditions.checkState(chunkStartOffset <= fromOffset);
-        Preconditions.checkState(fromOffset <= toOffset);
+        Preconditions.checkState(chunkStartOffset <= fromOffset,
+                "chunkStartOffset must be less than or equal to fromOffset. Segment=%s Chunk=%s chunkStartOffset=%s fromOffset=%s",
+                segmentName, chunkName, chunkStartOffset, fromOffset);
+        Preconditions.checkState(fromOffset <= toOffset, "fromOffset must be less than or equal to toOffset. Segment=%s Chunk=%s toOffset=%s fromOffset=%s",
+                segmentName, chunkName, toOffset, fromOffset);
         val blockSize = config.getIndexBlockSize();
         val startBlock = fromOffset / blockSize;
         // For each block start that falls on this chunk, add block index entry.

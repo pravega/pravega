@@ -147,7 +147,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                     }, chunkedSegmentStorage.getExecutor());
                         }
                     } else {
-                        Preconditions.checkState(bytesToRead != 0, "bytesToRead is 0");
+                        Preconditions.checkState(bytesToRead != 0, "bytesToRead is 0. Segment=%s", segmentMetadata.getName());
                         // Read data from the chunk.
                         return CompletableFuture.runAsync(() -> {
                             // Create parallel requests to read each chunk.
@@ -204,7 +204,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         currentChunkName = segmentMetadata.getFirstChunk();
         chunkToReadFrom = null;
 
-        Preconditions.checkState(null != currentChunkName, "currentChunkName must not be null.");
+        Preconditions.checkState(null != currentChunkName, "currentChunkName must not be null. Segment=%s", segmentMetadata.getName());
 
         bytesRemaining.set(length);
         currentBufferOffset.set(bufferOffset);

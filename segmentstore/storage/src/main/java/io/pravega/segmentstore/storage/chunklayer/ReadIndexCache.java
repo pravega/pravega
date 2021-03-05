@@ -109,8 +109,8 @@ class ReadIndexCache implements StatsReporter {
      */
     public void addIndexEntry(String streamSegmentName, String chunkName, long startOffset) {
         Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName must not be null");
-        Preconditions.checkArgument(null != chunkName, "chunkName must not be null");
-        Preconditions.checkArgument(startOffset >= 0, "startOffset must be non-negative");
+        Preconditions.checkArgument(null != chunkName, "chunkName must not be null. Segment=%s", streamSegmentName);
+        Preconditions.checkArgument(startOffset >= 0, "startOffset must be non-negative. Segment=%s startOffset=%s", streamSegmentName, startOffset);
         val segmentReadIndex = getSegmentReadIndex(streamSegmentName, true);
         addIndexEntry(segmentReadIndex, streamSegmentName, chunkName, startOffset);
     }
@@ -181,7 +181,7 @@ class ReadIndexCache implements StatsReporter {
      */
     public ChunkNameOffsetPair findFloor(String streamSegmentName, long offset) {
         Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName");
-        Preconditions.checkArgument(offset >= 0, "offset must be non-negative");
+        Preconditions.checkArgument(offset >= 0, "offset must be non-negative. Segment=%s offset=%s", streamSegmentName, offset);
 
         val segmentReadIndex = getSegmentReadIndex(streamSegmentName, false);
         if (null != segmentReadIndex && segmentReadIndex.offsetToChunkNameIndex.size() > 0) {
@@ -207,7 +207,7 @@ class ReadIndexCache implements StatsReporter {
      */
     public void truncateReadIndex(String streamSegmentName, long startOffset) {
         Preconditions.checkArgument(null != streamSegmentName, "streamSegmentName");
-        Preconditions.checkArgument(startOffset >= 0, "startOffset must be non-negative");
+        Preconditions.checkArgument(startOffset >= 0, "startOffset must be non-negative. Segment=%s startOffset=%s", streamSegmentName, startOffset);
 
         val segmentReadIndex = getSegmentReadIndex(streamSegmentName, false);
         if (null != segmentReadIndex) {
