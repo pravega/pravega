@@ -340,7 +340,7 @@ public class StreamMetadataTasks extends TaskBase {
                          //3. Create Reader Group Metadata inside Scope and submit the event
                          return validateReaderGroupId(config)
                                  .thenCompose(conf -> eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(buildCreateRGEvent(scope, rgName, conf, requestId, createTimestamp),
-                                 () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, config.getReaderGroupId()))
+                                 () -> streamMetadataStore.addReaderGroupToScope(scope, rgName, conf.getReaderGroupId()))
                                          .thenCompose(x -> eventHelper.checkDone(() -> isRGCreated(scope, rgName, executor))
                                          .thenCompose(done -> buildCreateSuccessResponse(scope, rgName)))));
                      }
