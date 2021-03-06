@@ -124,7 +124,7 @@ public class MetadataTransaction implements AutoCloseable {
         this.version = version;
         this.keysToLock = Preconditions.checkNotNull(keysToLock, "keys");
         this.isReadonly = isReadonly;
-        Preconditions.checkState(keysToLock.length > 0, "At least one key must be locked.");
+        Preconditions.checkArgument(keysToLock.length > 0, "At least one key must be locked.");
         data = new ConcurrentHashMap<>();
     }
 

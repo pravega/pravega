@@ -381,6 +381,88 @@ public class BaseChunkStorageTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Test concat operation for non-existent chunks.
+     */
+    @Test
+    public void testConcatException() throws Exception {
+        String existingChunkName1 = "test1";
+        String existingChunkName2 = "test2";
+        ChunkHandle existingChunkHandle1 = chunkStorage.createWithContent(existingChunkName1, 1, new ByteArrayInputStream(new byte[1])).get();
+        ChunkHandle existingChunkHandle2 = chunkStorage.createWithContent(existingChunkName2, 1, new ByteArrayInputStream(new byte[1])).get();
+        try {
+            AssertExtensions.assertThrows(
+                    " concat should throw IllegalArgumentException.",
+                    () -> chunkStorage.concat(
+                            new ConcatArgument[]{
+                                    ConcatArgument.builder().name(existingChunkName1).length(0).build(),
+                            }
+                    ).get(),
+                    ex -> ex instanceof IllegalArgumentException);
+            AssertExtensions.assertThrows(
+                    " concat should throw IllegalArgumentException.",
+                    () -> chunkStorage.concat(
+                            new ConcatArgument[]{
+                                    ConcatArgument.builder().name(existingChunkName1).length(-1).build(),
+                                    ConcatArgument.builder().name(existingChunkName2).length(0).build(),
+                            }
+                    ).get(),
+                    ex -> ex instanceof IllegalArgumentException);
+            AssertExtensions.assertThrows(
+                    " concat should throw IllegalArgumentException.",
+                    () -> chunkStorage.concat(
+                            new ConcatArgument[]{
+                                    ConcatArgument.builder().name(existingChunkName1).length(1).build(),
+                                    ConcatArgument.builder().name(existingChunkName2).length(-1).build(),
+                            }
+                    ).get(),
+                    ex -> ex instanceof IllegalArgumentException);
+            AssertExtensions.assertThrows(
+                    " concat should throw IllegalArgumentException.",
+                    () -> chunkStorage.concat(
+                            new ConcatArgument[]{
+                                    ConcatArgument.builder().name(existingChunkName1).length(1).build(),
+                                    ConcatArgument.builder().name(existingChunkName1).length(1).build(),
+                            }
+                    ).get(),
+                    ex -> ex instanceof IllegalArgumentException);
+            AssertExtensions.assertThrows(
+                    " concat should throw IllegalArgumentException.",
+                    () -> chunkStorage.concat(
+                            new ConcatArgument[]{
+                                    ConcatArgument.builder().name(existingChunkName1).length(1).build(),
+                                    null,
+                            }
+                    ).get(),
+                    ex -> ex instanceof IllegalArgumentException);
+            AssertExtensions.assertThrows(
+                    " concat should throw IllegalArgumentException.",
+                    () -> chunkStorage.concat(
+                            new ConcatArgument[]{
+                                    null,
+                                    ConcatArgument.builder().name(existingChunkName1).length(1).build(),
+                            }
+                    ).get(),
+                    ex -> ex instanceof IllegalArgumentException);
+            AssertExtensions.assertThrows(
+                    " concat should throw IllegalArgumentException.",
+                    () -> chunkStorage.concat(
+                            new ConcatArgument[]{
+                                    ConcatArgument.builder().name(existingChunkName1).length(1).build(),
+                                    ConcatArgument.builder().name(existingChunkName2).length(1).build(),
+                                    ConcatArgument.builder().name(existingChunkName2).length(1).build(),
+                            }
+                    ).get(),
+                    ex -> ex instanceof IllegalArgumentException);
+        } catch (UnsupportedOperationException e) {
+            // The storage provider may not have native concat.
+        } finally {
+            chunkStorage.delete(existingChunkHandle1).join();
+            chunkStorage.delete(existingChunkHandle2).join();
+        }
+    }
+
+
+    /**
      * Test operations on open handles when underlying chunk is deleted.
      */
     @Test
@@ -650,4 +732,55 @@ public class BaseChunkStorageTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IllegalArgumentException && ex.getMessage().contains(emptyChunkName));
     }
 
+    @Test
+    public void testNullHandle() {
+        AssertExtensions.assertThrows(
+                " getInfo should throw IllegalArgumentException.",
+                () -> chunkStorage.getInfo(null).get(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                " openRead should throw IllegalArgumentException.",
+                () -> chunkStorage.openRead(null).get(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                " openWrite should throw IllegalArgumentException.",
+                () -> chunkStorage.openWrite(null).get(),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows(
+                " write should throw IllegalArgumentException.",
+                () -> chunkStorage.write(null, 0, 1, new ByteArrayInputStream(new byte[1])).get(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                " setReadOnly should throw IllegalArgumentException.",
+                () -> chunkStorage.setReadOnly(null, false).get(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                " read should throw IllegalArgumentException.",
+                () -> chunkStorage.read(null, 0, 1, new byte[1], 0).get(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                " delete should throw IllegalArgumentException.",
+                () -> chunkStorage.delete(null).get(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                " truncate should throw IllegalArgumentException.",
+                () -> chunkStorage.truncate(null, 0).get(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                " concat should throw IllegalArgumentException.",
+                () -> chunkStorage.concat(null).get(),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows(
+                " concat should throw IllegalArgumentException.",
+                () -> chunkStorage.concat(new ConcatArgument[]{null}).get(),
+                ex -> ex instanceof IllegalArgumentException);
+
+    }
 }

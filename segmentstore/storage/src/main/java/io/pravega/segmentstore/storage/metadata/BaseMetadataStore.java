@@ -512,6 +512,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      *            throws StorageMetadataException If there are any errors.
      */
     public CompletableFuture<Void> abort(MetadataTransaction txn) {
+        Preconditions.checkArgument(null != txn, "txn must not be null");
         // Do nothing
         return CompletableFuture.completedFuture(null);
     }
