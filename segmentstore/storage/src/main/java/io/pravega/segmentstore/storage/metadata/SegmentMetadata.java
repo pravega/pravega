@@ -210,6 +210,7 @@ public class SegmentMetadata extends StorageMetadata {
         Preconditions.checkState(length >= lastChunkStartOffset, "lastChunkStartOffset must not be greater than length. %s", this);
         Preconditions.checkState(firstChunkStartOffset <= lastChunkStartOffset, "lastChunkStartOffset must not be greater than firstChunkStartOffset. %s", this);
         Preconditions.checkState(chunkCount >= 0, "chunkCount should be non-negative. %s", this);
+        Preconditions.checkState(length >= startOffset, "length must be greater or equal to startOffset. %s", this);
         if (null == firstChunk) {
             Preconditions.checkState(null == lastChunk, "lastChunk must be null when firstChunk is null. %s", this);
             Preconditions.checkState(firstChunkStartOffset == startOffset, "firstChunkStartOffset must equal startOffset when firstChunk is null. %s", this);
@@ -220,6 +221,8 @@ public class SegmentMetadata extends StorageMetadata {
         } else if (firstChunk.equals(lastChunk)) {
             Preconditions.checkState(firstChunkStartOffset == lastChunkStartOffset, "firstChunkStartOffset must equal lastChunkStartOffset when there is only one chunk. %s", this);
             Preconditions.checkState(chunkCount == 1, "chunkCount should be 1. %s", this);
+        } else {
+            Preconditions.checkState(chunkCount >= 2, "chunkCount should be 2 or more. %s", this);
         }
     }
 

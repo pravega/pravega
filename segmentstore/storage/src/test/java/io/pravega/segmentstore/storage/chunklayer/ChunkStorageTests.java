@@ -370,6 +370,15 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
                 () -> chunkStorage.write(chunkHandle, 11, length, new ByteArrayInputStream(writeBuffer)).get(),
                 ex -> ex instanceof InvalidOffsetException);
 
+        AssertExtensions.assertThrows(
+                " write should throw exception.",
+                () -> chunkStorage.write(null, 0, 1, new ByteArrayInputStream(writeBuffer)).get(),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows(
+                " write should throw exception.",
+                () -> chunkStorage.write(ChunkHandle.readHandle("test"), 0, 1, new ByteArrayInputStream(writeBuffer)).get(),
+                ex -> ex instanceof IllegalArgumentException);
+
         chunkStorage.delete(chunkHandle).join();
     }
 
