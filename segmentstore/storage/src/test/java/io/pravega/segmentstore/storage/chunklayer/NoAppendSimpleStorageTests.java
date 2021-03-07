@@ -64,7 +64,13 @@ public class NoAppendSimpleStorageTests extends SimpleStorageTests {
          * Test simple reads and writes for exceptions.
          */
         @Test
+        @Override
         public void testSimpleWriteExceptions() throws Exception {
+        }
+
+        @Test
+        @Override
+        public void testReadonly() throws Exception {
         }
     }
 }
