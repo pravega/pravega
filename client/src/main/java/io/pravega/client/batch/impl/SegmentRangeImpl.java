@@ -79,7 +79,7 @@ public class SegmentRangeImpl implements SegmentRange {
     }
 
     /**
-     * Obtain {@link SegmentRange} from start and end {@link StreamCut} for a given {@link Segment}
+     * Obtain {@link SegmentRange} from start and end {@link StreamCut} for a given {@link Segment}.
      * @param segment The {@link Segment}
      * @param start Beginning of the {@link SegmentRange}
      * @param end End of the {@link SegmentRange}
