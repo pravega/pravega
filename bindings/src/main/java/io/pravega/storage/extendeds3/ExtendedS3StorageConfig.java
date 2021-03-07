@@ -31,7 +31,6 @@ public class ExtendedS3StorageConfig {
     public static final Property<String> PREFIX = Property.named("prefix", "/");
     public static final Property<Boolean> USENONEMATCH = Property.named("noneMatch.enable", false, "useNoneMatch");
     public static final Property<Integer> SMALL_OBJECT_THRESHOLD = Property.named("concat.smallObject.threshold.size", 1024 * 1024, "smallObjectSizeLimitForConcat");
-    public static final Property<Boolean> ENABLE_ACLS = Property.named("acl.enable", true);
 
     private static final String COMPONENT_CODE = "extendeds3";
     private static final String PATH_SEPARATOR = "/";
@@ -85,12 +84,6 @@ public class ExtendedS3StorageConfig {
     @Getter
     private final int smallObjectSizeLimitForConcat;
 
-    /**
-     * Whether to use ACLs or not.
-     */
-    @Getter
-    private final boolean aclEnabled;
-
     //endregion
 
     //region Constructor
@@ -110,7 +103,6 @@ public class ExtendedS3StorageConfig {
         this.prefix = givenPrefix.endsWith(PATH_SEPARATOR) ? givenPrefix : givenPrefix + PATH_SEPARATOR;
         this.useNoneMatch = properties.getBoolean(USENONEMATCH);
         this.smallObjectSizeLimitForConcat = properties.getInt(SMALL_OBJECT_THRESHOLD);
-        this.aclEnabled = properties.getBoolean(ENABLE_ACLS);
     }
 
     /**
