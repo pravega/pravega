@@ -23,9 +23,11 @@ import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.shared.security.auth.AccessOperation;
+
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
@@ -68,6 +70,30 @@ public class StreamCutHelper {
                                              .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getWriteOffset));
                              return new StreamCutImpl(stream, pos);
                          });
+    }
+
+    /**
+     * Obtain the {@link StreamCut} pointing to the starting offset of the Segment.
+     * @param segment The Segment.
+     * @return {@link StreamCut} pointing to the starting offset of the Segment.
+     */
+    public StreamCut fetchFirstStreamCut(final Segment segment) {
+        final Stream stream = segment.getStream();
+        final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controller,
+                stream.getScope(), stream.getStreamName(), AccessOperation.READ);
+        return new StreamCutImpl(stream, segment, segmentToInfo(segment, tokenProvider).getStartingOffset());
+    }
+
+    /**
+     * Obtain the {@link StreamCut} pointing to the write offset of the Segment.
+     * @param segment The Segment.
+     * @return {@link StreamCut} pointing to the write offset of the Segment.
+     */
+    public StreamCut fetchLastStreamCut(final Segment segment) {
+        final Stream stream = segment.getStream();
+        final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controller,
+                stream.getScope(), stream.getStreamName(), AccessOperation.READ);
+        return new StreamCutImpl(stream, segment, segmentToInfo(segment, tokenProvider).getWriteOffset());
     }
 
     private SegmentInfo segmentToInfo(Segment s, DelegationTokenProvider tokenProvider) {

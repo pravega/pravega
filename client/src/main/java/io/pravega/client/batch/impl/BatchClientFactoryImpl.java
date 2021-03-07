@@ -77,6 +77,16 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                 segment.asImpl().getStartOffset(), segment.asImpl().getEndOffset());
     }
 
+    @Override
+    public StreamCut firstStreamCut(Segment segment) {
+        return streamCutHelper.fetchFirstStreamCut(segment);
+    }
+
+    @Override
+    public StreamCut lastStreamCut(Segment segment) {
+        return streamCutHelper.fetchLastStreamCut(segment);
+    }
+
     private StreamSegmentsIterator listSegments(final Stream stream, final Optional<StreamCut> startStreamCut,
                                                 final Optional<StreamCut> endStreamCut) {
         val startCut = startStreamCut.filter(sc -> !sc.equals(StreamCut.UNBOUNDED));

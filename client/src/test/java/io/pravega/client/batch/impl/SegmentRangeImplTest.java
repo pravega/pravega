@@ -11,6 +11,9 @@ package io.pravega.client.batch.impl;
 
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -38,5 +41,62 @@ public class SegmentRangeImplTest {
         assertEquals(new Segment("scope", "stream", 0), ((SegmentRangeImpl) segmentRange).getSegment());
         assertEquals("scope", segmentRange.getScope());
         assertEquals("stream", segmentRange.getStreamName());
+    }
+
+    @Test
+    public void testFromStreamCutsValid() {
+        Stream stream = Stream.of("scope", "stream");
+
+        Segment segment = new Segment(stream.getScope(), stream.getStreamName(), 1L);
+
+        StreamCut startStreamCut = new StreamCutImpl(stream, segment, 100L);
+        StreamCut endStreamCut = new StreamCutImpl(stream, segment, 200L);
+
+        SegmentRange segmentRange = SegmentRangeImpl.fromStreamCuts(segment, startStreamCut, endStreamCut);
+
+        assertEquals(1L, segmentRange.getSegmentId());
+        assertEquals(100L, segmentRange.getStartOffset());
+        assertEquals(200L, segmentRange.getEndOffset());
+        assertEquals("scope", segmentRange.getScope());
+        assertEquals("stream", segmentRange.getStreamName());
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testFromStreamCutsInvalidOffsets() {
+        Stream stream = Stream.of("scope", "stream");
+
+        Segment segment = new Segment(stream.getScope(), stream.getStreamName(), 1L);
+
+        StreamCut startStreamCut = new StreamCutImpl(stream, segment, 100L);
+        StreamCut endStreamCut = new StreamCutImpl(stream, segment, 200L);
+
+        // swap start+end args, will fail as end must be > start
+        SegmentRangeImpl.fromStreamCuts(segment, endStreamCut, startStreamCut);
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testFromStreamCutsInvalidSegment() {
+        Stream stream = Stream.of("scope", "stream");
+
+        Segment segment = new Segment(stream.getScope(), stream.getStreamName(), 1L);
+
+        StreamCut startStreamCut = new StreamCutImpl(stream, segment, 100L);
+        StreamCut endStreamCut = new StreamCutImpl(stream, segment, 200L);
+
+        // segment id 2 not found in given stream cuts
+        SegmentRangeImpl.fromStreamCuts(new Segment(stream.getScope(), stream.getStreamName(), 2L), startStreamCut, endStreamCut);
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testFromStreamCutsInvalidUnbounded() {
+        Stream stream = Stream.of("scope", "stream");
+
+        Segment segment = new Segment(stream.getScope(), stream.getStreamName(), 1L);
+
+        StreamCut startStreamCut = new StreamCutImpl(stream, segment, 100L);
+        StreamCut endStreamCut = StreamCut.UNBOUNDED;
+
+        // start, end cannot be UNBOUNDED
+        SegmentRangeImpl.fromStreamCuts(segment, startStreamCut, endStreamCut);
     }
 }
