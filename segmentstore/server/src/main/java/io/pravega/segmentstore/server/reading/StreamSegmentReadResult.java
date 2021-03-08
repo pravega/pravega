@@ -43,6 +43,8 @@ public class StreamSegmentReadResult implements ReadResult {
     private boolean closed;
     @GuardedBy("this")
     private boolean copyOnRead;
+    @GuardedBy("this")
+    private int maxReadAtOnce;
 
     //endregion
 
@@ -65,6 +67,7 @@ public class StreamSegmentReadResult implements ReadResult {
         this.traceObjectId = traceObjectId;
         this.streamSegmentStartOffset = streamSegmentStartOffset;
         this.maxResultLength = maxResultLength;
+        this.maxReadAtOnce = this.maxResultLength;
         this.getNextItem = getNextItem;
         this.consumedLength = 0;
         this.canRead = true;
@@ -102,6 +105,16 @@ public class StreamSegmentReadResult implements ReadResult {
     @Override
     public synchronized void setCopyOnRead(boolean value) {
         this.copyOnRead = value;
+    }
+
+    @Override
+    public synchronized int getMaxReadAtOnce() {
+        return this.maxReadAtOnce;
+    }
+
+    @Override
+    public synchronized void setMaxReadAtOnce(int value) {
+        this.maxReadAtOnce = value <= 0 || value > this.maxResultLength ? this.maxResultLength : value;
     }
 
     @Override
@@ -185,7 +198,7 @@ public class StreamSegmentReadResult implements ReadResult {
 
         // Retrieve the next item.
         long startOffset = this.streamSegmentStartOffset + this.consumedLength;
-        int remainingLength = this.maxResultLength - this.consumedLength;
+        int remainingLength = Math.min(this.maxReadAtOnce, this.maxResultLength - this.consumedLength);
         CompletableReadResultEntry entry = this.getNextItem.apply(startOffset, remainingLength, this.copyOnRead);
 
         if (entry == null) {

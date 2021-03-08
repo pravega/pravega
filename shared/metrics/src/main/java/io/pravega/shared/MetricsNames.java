@@ -150,6 +150,7 @@ public final class MetricsNames {
     public static final String STORAGE_METADATA_CACHE_HIT_COUNT = PREFIX + "segmentstore.storage.metadata_cache_hit_count";   // Counter
     public static final String STORAGE_METADATA_STORE_HIT_COUNT = PREFIX + "segmentstore.storage.metadata_store_hit_count";   // Counter
     public static final String STORAGE_METADATA_MISS_COUNT = PREFIX + "segmentstore.storage.metadata_miss_count";             // Counter
+    public static final String STORAGE_METADATA_BUFFER_EVICTED_COUNT = PREFIX + "segmentstore.storage.metadata_buffer_evicted_count";             // Counter
 
     public static final String STORAGE_METADATA_BUFFER_SIZE = PREFIX + "segmentstore.storage.metadata_buffer_record_count";         // Gauge
     public static final String STORAGE_METADATA_CACHE_SIZE = PREFIX + "segmentstore.storage.metadata_cache_record_count";           // Gauge

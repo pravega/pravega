@@ -66,6 +66,7 @@ public class AsyncReadResultProcessor implements AutoCloseable {
         this.readResult = readResult;
         this.entryHandler = entryHandler;
         this.closed = new AtomicBoolean();
+        this.readResult.setMaxReadAtOnce(this.entryHandler.getMaxReadAtOnce());
     }
 
     /**
@@ -141,6 +142,7 @@ public class AsyncReadResultProcessor implements AutoCloseable {
                         resultEntry -> {
                             if (resultEntry != null) {
                                 shouldContinue.set(this.entryHandler.processEntry(resultEntry));
+                                this.readResult.setMaxReadAtOnce(this.entryHandler.getMaxReadAtOnce());
                             }
                         },
                         executor)

@@ -125,7 +125,7 @@ public interface Controller extends AutoCloseable {
      * API create a ReaderGroup.
      * @param scopeName Scope name for Reader Group.
      * @param rgName Stream name.
-     * @param config ReaderGroup confguration.
+     * @param config ReaderGroup configuration.
      * @throws IllegalArgumentException if Stream does not exist.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscriber was updated in Stream Metadata.
@@ -138,6 +138,7 @@ public interface Controller extends AutoCloseable {
      * @param rgName Stream name.
      * @param config ReaderGroup configuration.
      * @throws IllegalArgumentException if Stream does not exist.
+     * @throws ReaderGroupConfigRejectedException if the provided ReaderGroupConfig is invalid
      * @return A future which will throw if the operation fails, otherwise
      *         the subscriber was updated in Stream Metadata and a long indicating
      *         the updated config generation is returned.
@@ -301,7 +302,7 @@ public interface Controller extends AutoCloseable {
      * {@link TxnFailedException} if the transaction has already been committed or aborted.
      *
      * @param stream Stream name
-     * @param writerId The writer that is comiting the transaction.
+     * @param writerId The writer that is committing the transaction.
      * @param timestamp The timestamp the writer provided for the commit (or null if they did not specify one).
      * @param txId Transaction id
      * @return Void or TxnFailedException
