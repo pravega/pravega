@@ -132,7 +132,6 @@ public class StreamMetadataTasks extends TaskBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final int SUBSCRIBER_OPERATION_RETRIES = 10;
     private static final int READER_GROUP_OPERATION_MAX_RETRIES = 10;
-
     private final AtomicLong retentionFrequencyMillis;
 
     private final StreamMetadataStore streamMetadataStore;
@@ -144,6 +143,8 @@ public class StreamMetadataTasks extends TaskBase {
     private final ScheduledExecutorService eventExecutor;
     private final CompletableFuture<EventHelper> eventHelperFuture;
     private final AtomicReference<Supplier<Long>> retentionClock;
+    private EventHelper eventHelper = null;
+    private boolean toSetEventHelper = true;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
@@ -201,6 +202,13 @@ public class StreamMetadataTasks extends TaskBase {
                 EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build()),
                 this.executor, this.eventExecutor, this.context.getHostId(),
                 ((AbstractStreamMetadataStore) this.streamMetadataStore).getHostTaskIndex()));
+        if (toSetEventHelper) {
+            eventHelper = new EventHelper(this.executor, this.context.getHostId(), ((AbstractStreamMetadataStore) this.streamMetadataStore).getHostTaskIndex());
+            toSetEventHelper = false;
+        }
+        if (eventHelper != null) {
+            eventHelperFuture.complete(eventHelper);
+        }
     }
 
     /**
@@ -1853,16 +1861,11 @@ public class StreamMetadataTasks extends TaskBase {
 
     @Override
     public void close() throws Exception {
-        if (eventHelperFuture.isDone()) {
-            eventHelperFuture.thenAccept(eventHelper -> {
-                if (eventHelper != null) {
-                    eventHelper.close();
-                }
-            }).join();
-        } else {
-            eventHelperFuture.cancel(true);
+        toSetEventHelper = false;
+        if (eventHelper != null) {
+            eventHelper.close();
         }
-
+        eventHelperFuture.cancel(true);
     }
 
     public String retrieveDelegationToken() {
