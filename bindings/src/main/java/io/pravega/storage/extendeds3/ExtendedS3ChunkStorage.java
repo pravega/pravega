@@ -330,6 +330,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
         if (shouldClose && !this.closed.getAndSet(true)) {
             this.client.destroy();
         }
+        super.close();
     }
 
     private ChunkStorageException convertException(String chunkName, String message, Exception e)  {
