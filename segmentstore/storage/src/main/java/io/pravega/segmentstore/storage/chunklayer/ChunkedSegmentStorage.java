@@ -384,10 +384,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
         checkInitialized();
         if (null == handle) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle"));
-        }
-        if (null == handle.getSegmentName()) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle.segmentName"));
+            return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
         }
         return executeSerialized(new WriteOperation(this, handle, offset, data, length), handle.getSegmentName());
     }
@@ -447,13 +444,10 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
         checkInitialized();
         if (null == targetHandle) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle"));
-        }
-        if (null == targetHandle.getSegmentName()) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle.segmentName"));
+            return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
         }
         if (null == sourceSegment) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("sourceSegment"));
+            return CompletableFuture.failedFuture(new IllegalArgumentException("sourceSegment must not be null"));
         }
 
         return executeSerialized(new ConcatOperation(this, targetHandle, offset, sourceSegment), targetHandle.getSegmentName(), sourceSegment);
@@ -492,10 +486,12 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
         checkInitialized();
+        if (null == handle) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
+        }
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "delete", handle);
             val timer = new Timer();
-
             val streamSegmentName = handle.getSegmentName();
             return tryWith(metadataStore.beginTransaction(false, streamSegmentName), txn -> txn.get(streamSegmentName)
                     .thenComposeAsync(storageMetadata -> {
@@ -547,10 +543,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
         checkInitialized();
         if (null == handle) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle"));
-        }
-        if (null == handle.getSegmentName()) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle.segmentName"));
+            return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
         }
 
         return executeSerialized(new TruncateOperation(this, handle, offset), handle.getSegmentName());
@@ -865,7 +858,6 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     }
 
     private void checkInitialized() {
-        Preconditions.checkState(null != this.metadataStore, "metadata store must not be null");
         Preconditions.checkState(0 != this.epoch, "epoch must not be zero");
         Preconditions.checkState(!closed.get(), "ChunkedSegmentStorage instance must not be closed");
     }

@@ -965,6 +965,12 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             AssertExtensions.assertThrows("create should throw an exception",
                     () -> txn.commit(),
                     ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("create should throw an exception",
+                    () -> txn.commit(true),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("create should throw an exception",
+                    () -> txn.commit(true, true),
+                    ex -> ex instanceof IllegalStateException);
         }
     }
 
@@ -1050,6 +1056,15 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
             AssertExtensions.assertThrows("delete should throw an exception",
                     () -> metadataStore.delete(txn, null),
                     ex -> ex instanceof IllegalArgumentException);
+            AssertExtensions.assertThrows("commit should throw an exception",
+                    () -> metadataStore.commit(txn),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("commit should throw an exception",
+                    () -> metadataStore.commit(txn, true),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("commit should throw an exception",
+                    () -> metadataStore.commit(txn, true, true),
+                    ex -> ex instanceof IllegalStateException);
         }
     }
 

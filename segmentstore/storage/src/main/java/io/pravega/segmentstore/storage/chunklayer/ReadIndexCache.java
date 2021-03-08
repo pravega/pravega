@@ -53,6 +53,9 @@ class ReadIndexCache implements StatsReporter {
      * @param maxIndexedChunks   Max number of cached indexed chunks.
      */
     public ReadIndexCache(int maxIndexedSegments, int maxIndexedChunks) {
+        Preconditions.checkArgument(maxIndexedSegments >= 0, "maxIndexedSegments must be non negative");
+        Preconditions.checkArgument(maxIndexedChunks >= 0, "maxIndexedChunks must be non negative");
+
         segmentsReadIndexCache = CacheBuilder.newBuilder()
                 .maximumSize(maxIndexedSegments)
                 .removalListener(this::removeSegment)

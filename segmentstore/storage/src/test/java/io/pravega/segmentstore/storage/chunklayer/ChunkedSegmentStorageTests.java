@@ -272,6 +272,79 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
     }
 
+    @Test
+    public void testSegmentNotExistsExceptionForDeletedSegment() throws Exception {
+        String testSegmentName = "foo";
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(1); // Force rollover after each byte.
+        @Cleanup
+        TestContext testContext = getTestContext();
+        val h = testContext.chunkedSegmentStorage.create(testSegmentName, null).get();
+        Assert.assertTrue(testContext.chunkedSegmentStorage.exists(testSegmentName, null).get());
+
+        // Delete
+        testContext.chunkedSegmentStorage.delete(h, null).get();
+        Assert.assertFalse(testContext.chunkedSegmentStorage.exists(testSegmentName, null).get());
+
+        AssertExtensions.assertFutureThrows(
+                "getStreamSegmentInfo succeeded on missing segment.",
+                testContext.chunkedSegmentStorage.getStreamSegmentInfo(testSegmentName, null),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        AssertExtensions.assertFutureThrows(
+                "Seal succeeded on missing segment.",
+                testContext.chunkedSegmentStorage.seal(SegmentStorageHandle.writeHandle(testSegmentName), null),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        AssertExtensions.assertFutureThrows(
+                "openWrite succeeded on missing segment.",
+                testContext.chunkedSegmentStorage.openWrite(testSegmentName),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        AssertExtensions.assertFutureThrows(
+                "openRead succeeded on missing segment.",
+                testContext.chunkedSegmentStorage.openRead(testSegmentName),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        AssertExtensions.assertFutureThrows(
+                "write succeeded on missing segment.",
+                testContext.chunkedSegmentStorage.write(SegmentStorageHandle.writeHandle(testSegmentName), 0, new ByteArrayInputStream(new byte[1]), 1, null),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        AssertExtensions.assertFutureThrows(
+                "read succeeded on missing segment.",
+                testContext.chunkedSegmentStorage.read(SegmentStorageHandle.readHandle(testSegmentName), 0, new byte[1], 0, 1, null),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        AssertExtensions.assertFutureThrows(
+                "Concat succeeded on missing segment.",
+                testContext.chunkedSegmentStorage.concat(SegmentStorageHandle.writeHandle(testSegmentName), 0, "inexistent", null),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        AssertExtensions.assertFutureThrows(
+                "Concat succeeded on missing segment.",
+                testContext.chunkedSegmentStorage.delete(SegmentStorageHandle.writeHandle(testSegmentName), null),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        AssertExtensions.assertFutureThrows(
+                "Concat succeeded on missing segment.",
+                testContext.chunkedSegmentStorage.truncate(SegmentStorageHandle.writeHandle(testSegmentName), 0, null),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+    }
+
+    @Test
+    public void testDeleteInvalidParameters() throws Exception {
+        String testSegmentName = "foo";
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(1); // Force rollover after each byte.
+        @Cleanup
+        TestContext testContext = getTestContext();
+
+        AssertExtensions.assertFutureThrows(
+                "Concat succeeded on missing segment.",
+                testContext.chunkedSegmentStorage.delete(null, null),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
     /**
      * Test scenarios when storage is no more primary.
      */
@@ -909,6 +982,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         val inputStream = new ByteArrayInputStream(input);
         // Invalid parameters
         AssertExtensions.assertFutureThrows("write() allowed for invalid parameters",
+                testContext.chunkedSegmentStorage.write(null, 1, inputStream, validLength, TIMEOUT),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertFutureThrows("write() allowed for invalid parameters",
                 testContext.chunkedSegmentStorage.write(h, -1, inputStream, validLength, TIMEOUT),
                 ex -> ex instanceof IllegalArgumentException);
 
@@ -1042,6 +1119,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         Assert.assertEquals(0, metadataAfter.getLength());
     }
 
+    @Test
     public void testOpenReadAfterFailoverWithNoDataNoAppend() throws Exception {
         testOpenReadAfterFailoverWithNoData(false);
     }
