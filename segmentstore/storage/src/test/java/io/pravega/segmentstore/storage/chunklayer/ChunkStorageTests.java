@@ -10,6 +10,7 @@
 
 package io.pravega.segmentstore.storage.chunklayer;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -26,6 +27,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Unit tests specifically targeted at test {@link ChunkStorage} implementation.
@@ -537,7 +539,7 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
                 " setReadOnly should throw ChunkNotFoundException.",
                 chunkStorage.setReadOnly(writeHandle, false),
                 ex -> (ex instanceof ChunkNotFoundException && ex.getMessage().contains(testChunkName))
-                        || ex instanceof UnsupportedOperationException);
+                        || ex.getCause() instanceof UnsupportedOperationException);
         AssertExtensions.assertFutureThrows(
                 " delete should throw ChunkNotFoundException.",
                 chunkStorage.delete(writeHandle),
@@ -626,18 +628,23 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
                 " delete should throw IllegalArgumentException.",
                 () -> chunkStorage.delete(ChunkHandle.readHandle(chunkName)).get(),
                 ex -> ex instanceof IllegalArgumentException);
-        // Make readonly and open.
-        chunkStorage.setReadOnly(hWrite, true).join();
-        chunkStorage.openWrite(chunkName);
+        try {
+            // Make readonly and open.
+            chunkStorage.setReadOnly(hWrite, true).join();
+            chunkStorage.openWrite(chunkName);
 
-        // Make writable and open again.
-        chunkStorage.setReadOnly(hWrite, false).join();
-        ChunkHandle hWrite2 = chunkStorage.openWrite(chunkName).get();
-        assertFalse(hWrite2.isReadOnly());
+            // Make writable and open again.
+            chunkStorage.setReadOnly(hWrite, false).join();
+            ChunkHandle hWrite2 = chunkStorage.openWrite(chunkName).get();
+            assertFalse(hWrite2.isReadOnly());
 
-        bytesWritten = chunkStorage.write(hWrite, 1, 1, new ByteArrayInputStream(new byte[1])).get();
-        assertEquals(1, bytesWritten);
-        chunkStorage.delete(hWrite).join();
+            bytesWritten = chunkStorage.write(hWrite, 1, 1, new ByteArrayInputStream(new byte[1])).get();
+            assertEquals(1, bytesWritten);
+            chunkStorage.delete(hWrite).join();
+        } catch (Exception e) {
+            val ex = Exceptions.unwrap(e);
+            assertTrue(ex.getCause() instanceof UnsupportedOperationException);
+        }
     }
 
     /**
@@ -736,7 +743,8 @@ public abstract class ChunkStorageTests extends ThreadPooledTestSuite {
         AssertExtensions.assertFutureThrows(
                 " setReadOnly should throw exception.",
                 chunkStorage.setReadOnly(ChunkHandle.writeHandle(chunkName), false),
-                ex -> ex instanceof ChunkNotFoundException && ex.getMessage().contains(chunkName));
+                ex -> (ex instanceof ChunkNotFoundException && ex.getMessage().contains(chunkName))
+                        || ex.getCause() instanceof UnsupportedOperationException);
 
         AssertExtensions.assertFutureThrows(
                 " read should throw exception.",
