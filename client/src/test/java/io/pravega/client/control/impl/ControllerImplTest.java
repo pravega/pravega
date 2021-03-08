@@ -1594,20 +1594,20 @@ public class ControllerImplTest {
 
         updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg4", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                updateRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+                updateRGStatus, throwable -> throwable instanceof ReaderGroupConfigRejectedException);
     }
 
     @Test
     public void testDeleteReaderGroup() throws Exception {
         CompletableFuture<Boolean> deleteRGStatus;
-        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg1", UUID.randomUUID(), 0L);
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg1", UUID.randomUUID());
         assertTrue(deleteRGStatus.get());
 
-        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg2", UUID.randomUUID(), 0L);
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg2", UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 deleteRGStatus, Throwable -> true);
 
-        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg3", UUID.randomUUID(), 0L);
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg3", UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 deleteRGStatus, throwable -> throwable instanceof IllegalArgumentException);
     }

@@ -11,6 +11,7 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.admin.KeyValueTableInfo;
+import io.pravega.client.control.impl.ReaderGroupConfigRejectedException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
@@ -218,7 +219,7 @@ public class LocalController implements Controller {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create ReaderGroup: " + scopedRGName);
                 case INVALID_CONFIG:
-                    throw new IllegalArgumentException("Invalid Reader Group Config: " + scopedRGName);
+                    throw new ReaderGroupConfigRejectedException("Invalid Reader Group Config: " + config.toString());
                 case RG_NOT_FOUND:
                     throw new IllegalArgumentException("Scope does not exist: " + scopedRGName);
                 case SUCCESS:
@@ -250,8 +251,8 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteReaderGroup(final String scopeName, final String rgName,
-                                                        final UUID readerGroupId, final long generation) {
-        return this.controller.deleteReaderGroup(scopeName, rgName, readerGroupId.toString(), generation).thenApply(x -> {
+                                                        final UUID readerGroupId) {
+        return this.controller.deleteReaderGroup(scopeName, rgName, readerGroupId.toString()).thenApply(x -> {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
