@@ -46,6 +46,8 @@ import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.TA
  */
 @Slf4j
 public class TableBasedMetadataStore extends BaseMetadataStore {
+    private final static BaseMetadataStore.TransactionData.TransactionDataSerializer SERIALIZER = new BaseMetadataStore.TransactionData.TransactionDataSerializer();
+
     /**
      * Instance of the {@link TableStore}.
      */
@@ -59,7 +61,6 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
     private final String tableName;
     private final Duration timeout = Duration.ofSeconds(30);
     private final AtomicBoolean isTableInitialized = new AtomicBoolean(false);
-    private final BaseMetadataStore.TransactionData.TransactionDataSerializer serializer = new BaseMetadataStore.TransactionData.TransactionDataSerializer();
 
     /**
      * Constructor.
@@ -93,7 +94,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                                 val entry = entries.get(0);
                                 if (null != entry) {
                                     val arr = entry.getValue();
-                                    TransactionData txnData = serializer.deserialize(arr);
+                                    TransactionData txnData = SERIALIZER.deserialize(arr);
                                     txnData.setDbObject(entry.getKey().getVersion());
                                     txnData.setPersisted(true);
                                     TABLE_GET_LATENCY.reportSuccessEvent(t.getElapsed());
@@ -142,7 +143,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                         }
 
                         try {
-                            val arraySegment = serializer.serialize(txnData);
+                            val arraySegment = SERIALIZER.serialize(txnData);
                             TableEntry tableEntry = TableEntry.versioned(
                                     new ByteArraySegment(txnData.getKey().getBytes(Charsets.UTF_8)),
                                     arraySegment,
