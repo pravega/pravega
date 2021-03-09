@@ -947,7 +947,7 @@ public class StreamMetadataTasks extends TaskBase {
     private CompletableFuture<Map<Long, Long>> getTruncationStreamCutBySizeLimit(String scope, String stream, OperationContext context, RetentionPolicy policy,
                                                                                  RetentionSet retentionSet, Map<Long, Long> lowerBound) {
         // 1. if lowerbound.size < max and lowerbound.size > min truncate at lowerbound
-        // 2. if lowerbound.size < min, truncate at streamcut less than lowerbound that satisfies the policy. 
+        // 2. if lowerbound.size < min, truncate at streamcut less than (behind/before) lowerbound that satisfies the policy. 
         // 3. if lowerbound.size > max, truncate at max
         long currentSize = retentionSet.getLatest().getRecordingSize();
         // we get the streamcuts from retentionset that satisfy the min and max bounds with min pointing to most recent 
@@ -965,8 +965,8 @@ public class StreamMetadataTasks extends TaskBase {
         return streamMetadataStore.getSizeTillStreamCut(scope, stream, lowerBound, Optional.empty(), context, executor)
                 .thenCompose(sizeTillLB -> {
                     long retainedSizeLB = currentSize - sizeTillLB;
-                    // if retainedSize is less than min size then we need to truncate at min or the most recent streamcut
-                    // strictly less than lowerbound. 
+                    // if retainedSize is less than (behind/before) min size then we need to truncate at min or the most recent streamcut
+                    // strictly less than (behind/before) lowerbound. 
                     if (retainedSizeLB < policy.getRetentionParam()) {
                         // if no overlap with min then truncate at min
                         // else truncate at streamcut before lb
@@ -976,25 +976,26 @@ public class StreamMetadataTasks extends TaskBase {
                                        return streamMetadataStore.compareStreamCut(scope, stream, limitMin.getStreamCut(), lowerBound, context, executor)
                                          .thenCompose(compareWithMin -> {
                                              switch (compareWithMin) {
-                                                 case Before: // min less than (behind) lowerbound. truncate at min
+                                                 case Before: // min less than (behind/before) lowerbound. truncate at min
                                                      return CompletableFuture.completedFuture(limitMin.getStreamCut());
                                                  default:
-                                                     // we cannot have min greater (ahead) than lowerbound as retainedSizeLB < min.
+                                                     // we cannot have min greater (ahead of/after) than lowerbound as retainedSizeLB < min.
                                                      // so this is the overlapping case. we need to find streamcut before lowerbound
                                                      // and truncate at it.
                                                      // since this is a caught up bound (meaning truncating at subscribers LB will break min policy), 
                                                      // we cannot force truncate at the max if max overlapped with LB.
-                                                     // so we will find the streamcut from retention set before/lessThan LB (and since it overlaps with min 
-                                                     // so it will definitely be before/lessThan min). 
+                                                     // so we will find the streamcut from retention set lessThan (behind/before)
+                                                     // LB (and since it overlaps with min 
+                                                     // so it will definitely be lessThan (behind/before) min). 
                                                      return getStreamcutBeforeLowerbound(scope, stream, context, retentionSet, lowerBound);
                                                  }
                                              });
                                    })).orElse(CompletableFuture.completedFuture(null));
                     } else {
-                        // if retained size is less than max allowed, then truncate the stream at subscriber lower bound.
+                        // if retained size is less than (behind/before) max allowed, then truncate the stream at subscriber lower bound.
                         if (retainedSizeLB < policy.getRetentionMax()) {
                             return CompletableFuture.completedFuture(lowerBound);
-                        } else { // greater than max. truncate at max. 
+                        } else { // greater (ahead of/after) than max. truncate at max. 
                             // let there be data loss. its a lagging reader.. but if there is no streamcut in 
                             // retentionset that satisfied the min and max criteria, then we should simply truncate at 
                             // least at the lowerbound 
@@ -1018,15 +1019,15 @@ public class StreamMetadataTasks extends TaskBase {
         // limits.key will refer to max and limit.value will refer to min. 
         Map.Entry<StreamCutReferenceRecord, StreamCutReferenceRecord> limits = getBoundStreamCuts(policy, retentionSet, 
                 x -> currentTime - x.getRecordingTime());
-        // if subscriber lowerbound is greater than (ahead of) streamcut corresponding to the max time and is less than stream cut for min time
-        // from the retention set then we can safely truncate at lowerbound. Else we will truncate at the max time bound if it
-        // exists
-        // 1. if LB is greater than (ahead of) min => truncate at min
-        // 2. if LB is less than (behind) max => truncate at max
-        // 3. if LB is less than (behind) min && LB is greater than (ahead of) max => truncate at LB
-        // 4. if LB is less than (behind) min && overlaps max => truncate at max
+        // if subscriber lowerbound is greater than (ahead of/after) streamcut corresponding to the max time and is less than 
+        // (behind/before) stream cut for min time  from the retention set then we can safely truncate at lowerbound. 
+        // Else we will truncate at the max time bound if it exists
+        // 1. if LB is greater than (ahead of/after) min => truncate at min
+        // 2. if LB is less than (behind/before) max => truncate at max
+        // 3. if LB is less than (behind/before) min && LB is greater than (ahead of/after) max => truncate at LB
+        // 4. if LB is less than (behind/before) min && overlaps max => truncate at max
         // 5. if LB overlaps with min and max ==> so its got both recent data and older data. 
-        //      we will truncate at a streamcut less than (behind) max in this case. 
+        //      we will truncate at a streamcut less than (behind/before) max in this case. 
   
         CompletableFuture<StreamCutRecord> limitMinFuture = limits.getValue() == null ? CompletableFuture.completedFuture(null) :
                 streamMetadataStore.getStreamCutRecord(scope, stream, limits.getValue(), context, executor);
@@ -1055,8 +1056,8 @@ public class StreamMetadataTasks extends TaskBase {
                                       switch (compareWithMin) {
                                           case EqualOrAfter:
                                               // if min is not null, truncate at lb or max.
-                                              // if lb is conclusively beyond streamcut outside of maxbound then we truncate at 
-                                              // limitmax, else we truncate at lb.
+                                              // if lb is conclusively greaterthan (ahead/after) streamcut outside of maxbound 
+                                              // then we truncate at limitmax, else we truncate at lb.
                                               // if it overlaps with limitmax, then we truncate at maxbound
                                               return truncateAtLowerBoundOrMax(scope, stream, context, lowerBound, limitMax, maxBound);
                                           case Overlaps:
@@ -1066,7 +1067,7 @@ public class StreamMetadataTasks extends TaskBase {
                                               // and we are choosing from retention set. 
                                               return getStreamcutBeforeLowerbound(scope, stream, context, retentionSet, lowerBound);
                                           case Before:
-                                              // min is less than (behind) lb. truncate at min
+                                              // min is less than (behind/before) lb. truncate at min
                                               return CompletableFuture.completedFuture(limitMin.getStreamCut());
                                           default:
                                               throw new IllegalArgumentException("Invalid Compare streamcut response");
@@ -1081,7 +1082,7 @@ public class StreamMetadataTasks extends TaskBase {
     private CompletableFuture<Map<Long, Long>> truncateAtLowerBoundOrMax(String scope, String stream, OperationContext context, 
                                                                          Map<Long, Long> lowerBound, StreamCutRecord limitMax, StreamCutRecord maxBound) {
         // if maxbound == null, truncate at lowerbound. 
-        // if lowerbound is greater than maxbound, truncate at lowerbound. 
+        // if lowerbound is greater than (ahead of/after) maxbound, truncate at lowerbound. 
         // if lowerbound is eq or overlapping with maxbound, it certainly has events from before the time of interest. we will truncate at maxbound.
         if (maxBound == null) {
             return CompletableFuture.completedFuture(lowerBound);
@@ -1089,9 +1090,9 @@ public class StreamMetadataTasks extends TaskBase {
             return streamMetadataStore.compareStreamCut(scope, stream, lowerBound, maxBound.getStreamCut(), context, executor)
                                   .thenCompose(compareWithMax -> {
                                       switch (compareWithMax) {
-                                          case EqualOrAfter:  // lowerbound greater than (ahead of) max.. truncate at lowerbound
+                                          case EqualOrAfter:  // lowerbound greater than (ahead of/after) max.. truncate at lowerbound
                                               return CompletableFuture.completedFuture(lowerBound);
-                                          case Before:  // lowerbound is strictly less than (behind) lb, truncate at limitmax 
+                                          case Before:  // lowerbound is strictly less than (behind/before) lb, truncate at limitmax 
                                               return CompletableFuture.completedFuture(limitMax.getStreamCut());
                                           default:  // lowerbound overlaps with maxbound, truncating at maxbound is safe. 
                                               // we definitely lose older data and retain possibly newer data from lowerbound. 
