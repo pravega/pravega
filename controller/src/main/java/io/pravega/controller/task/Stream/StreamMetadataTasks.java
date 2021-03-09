@@ -1226,6 +1226,14 @@ public class StreamMetadataTasks extends TaskBase {
         AtomicReference<StreamCutReferenceRecord> max = new AtomicReference<>();
         AtomicReference<StreamCutReferenceRecord> min = new AtomicReference<>();
 
+        // We loop through all the streamcuts in the retention set and find two streamcuts that satisfy min 
+        // and max bounds in the policy. The policy can be either size or time based and the caller passes a delta function
+        // that is applied on each stream cut which tells us the size/time worth of data that is retained if truncated at
+        // a particular cut. 
+        // Do note that if min is NOT satisfied by a streamcut then it implicitly does not satisfy max either. 
+        // However, satisfying min is no guarantee that the same streamcut satisfies the max policy as well. 
+        // So it is possible that all streamcuts in retentionset do not satisfy max while each satisfying min. In this case
+        // we choose the most recent streamcut as max (which was also the min). 
         AtomicLong maxSoFar = new AtomicLong(Long.MIN_VALUE);
         AtomicLong minSoFar = new AtomicLong(Long.MAX_VALUE);
         retentionSet.getRetentionRecords().forEach(x -> {
