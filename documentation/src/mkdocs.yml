@@ -13,7 +13,27 @@ site_description: 'Documentation to help you get familiar with Pravega'
 repo_url: 'https://github.com/pravega/pravega'
 edit_uri: 'tree/master/documentation/src/docs'
 
-theme: 'material'
+# theme: 'readthedocs'
+theme:
+  name: null
+  custom_dir: mkdocs-material/material
+
+  # 404 page
+  static_templates:
+    - 404.html
+
+  # Necessary for search to work properly
+  include_search_page: false
+  search_index_only: true
+
+  # Default values, taken from mkdocs_theme.yml
+  language: en
+  font:
+    text: Roboto
+    code: Roboto Mono
+  favicon: assets/favicon.png
+  icon:
+    logo: logo
 
 
 # Extensions
@@ -36,8 +56,9 @@ markdown_extensions:
 
 nav:
   - Overview: 'index.md'
-  - Getting Started:
-      - 'Quick Start Guide': 'getting-started/quick-start.md'
+  - Guides:
+      - Quick Start: 'getting-started/quick-start.md'
+      - Getting Started: 'getting-started.md'
       - Admin Guide:
         - 'Install the Operator': 'pravega-operator/charts/pravega-operator/README.md'
         - 'Install a Cluster': 'pravega-operator/charts/pravega/README.md'
