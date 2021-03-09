@@ -4,3 +4,6 @@
 [submodule "documentation/src/docs/flink-connectors"]
        path = documentation/src/docs/flink-connectors
        url = https://github.com/pravega/flink-connectors.git
+[submodule "documentation/src/mkdocs-material"]
+	path = documentation/src/mkdocs-material
+	url = https://github.com/squidfunk/mkdocs-material.git
