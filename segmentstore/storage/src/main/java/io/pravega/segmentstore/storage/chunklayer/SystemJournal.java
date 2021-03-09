@@ -210,6 +210,7 @@ public class SystemJournal {
      * @throws InterruptedException Exception in case of any error.
      */
     public void commitRecord(SystemJournalRecord record) throws ChunkStorageException, ExecutionException, InterruptedException {
+        Preconditions.checkArgument(null != record, "record must not be null");
         commitRecords(Collections.singletonList(record));
     }
 
@@ -222,8 +223,8 @@ public class SystemJournal {
      * @throws InterruptedException Exception in case of any error.
      */
     public void commitRecords(Collection<SystemJournalRecord> records) throws ChunkStorageException, ExecutionException, InterruptedException {
-        Preconditions.checkState(null != records, "records must not be null");
-        Preconditions.checkState(records.size() > 0, "records must not be empty");
+        Preconditions.checkArgument(null != records, "records must not be null");
+        Preconditions.checkArgument(records.size() > 0, "records must not be empty");
 
         SystemJournalRecordBatch batch = SystemJournalRecordBatch.builder().systemJournalRecords(records).build();
         ByteArraySegment bytes;

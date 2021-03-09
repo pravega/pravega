@@ -222,6 +222,14 @@ public class ReadIndexCacheTests {
     @Test
     public void testTruncateInvalidParameters() throws Exception {
         String segmentName = "testSegment";
+
+        AssertExtensions.assertThrows("ReadIndexCache() allowed for invalid parameters",
+                () -> new ReadIndexCache(-1, 10),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("ReadIndexCache() allowed for invalid parameters",
+                () -> new ReadIndexCache(10, -1),
+                ex -> ex instanceof IllegalArgumentException);
+
         ReadIndexCache cache = new ReadIndexCache(10, 10);
         // Invalid parameters
         AssertExtensions.assertThrows("addIndexEntry() allowed for invalid parameters",
