@@ -68,6 +68,7 @@ nav:
       - Quick Start: 'getting-started/quick-start.md'
       - Getting Started: 'getting-started.md'
       - Admin Guide:
+        - 'Cluster Overview': 'getting-started/admin-guide.md'
         - 'Install the Operator': 'pravega-operator/charts/pravega-operator/README.md'
         - 'Install a Cluster': 'pravega-operator/charts/pravega/README.md'
         - 'Upgrade Pravega': 'pravega-operator/doc/operator-upgrade.md'
