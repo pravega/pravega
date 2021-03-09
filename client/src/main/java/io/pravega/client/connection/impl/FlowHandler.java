@@ -171,7 +171,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
 
     @Override
     public void errorMessage(WireCommands.ErrorMessage errorMessage) {
-        log.warn("Received an errorMessage containing an unhandled {} on segment {}",
+        log.info("Received an errorMessage containing an unhandled {} on segment {}",
                 errorMessage.getErrorCode().getExceptionType().getSimpleName(),
                 errorMessage.getSegment());
         processingFailure(errorMessage.getThrowableException());
