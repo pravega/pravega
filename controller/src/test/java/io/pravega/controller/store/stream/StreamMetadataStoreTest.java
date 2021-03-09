@@ -1462,11 +1462,11 @@ public abstract class StreamMetadataStoreTest {
 
         streamCut.put(0L, 0L);
         streamCut.put(1L, 10L);
-        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.LessThan);
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.Before);
 
         streamCut.put(0L, 10L);
         streamCut.put(1L, 10L);
-        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.GreaterThanEquals);
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.EqualOrAfter);
 
         streamCut.put(0L, 1L);
         streamCut.put(1L, 11L);
@@ -1474,7 +1474,7 @@ public abstract class StreamMetadataStoreTest {
 
         streamCut.put(0L, 20L);
         streamCut.put(1L, 20L);
-        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.GreaterThanEquals);
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.EqualOrAfter);
     }
 
     @Test

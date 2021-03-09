@@ -976,7 +976,7 @@ public class StreamMetadataTasks extends TaskBase {
                                        return streamMetadataStore.compareStreamCut(scope, stream, limitMin.getStreamCut(), lowerBound, context, executor)
                                          .thenCompose(compareWithMin -> {
                                              switch (compareWithMin) {
-                                                 case LessThan: // min less than (behind) lowerbound. truncate at min
+                                                 case Before: // min less than (behind) lowerbound. truncate at min
                                                      return CompletableFuture.completedFuture(limitMin.getStreamCut());
                                                  default:
                                                      // we cannot have min greater (ahead) than lowerbound as retainedSizeLB < min.
@@ -1053,7 +1053,7 @@ public class StreamMetadataTasks extends TaskBase {
                         return streamMetadataStore.compareStreamCut(scope, stream, limitMin.getStreamCut(), lowerBound, context, executor)
                                   .thenCompose(compareWithMin -> {
                                       switch (compareWithMin) {
-                                          case GreaterThanEquals:
+                                          case EqualOrAfter:
                                               // if min is not null, truncate at lb or max.
                                               // if lb is conclusively beyond streamcut outside of maxbound then we truncate at 
                                               // limitmax, else we truncate at lb.
@@ -1065,7 +1065,7 @@ public class StreamMetadataTasks extends TaskBase {
                                               // so we will choose a streamcut before lb, which will definitely be before min as min overlaps with lb
                                               // and we are choosing from retention set. 
                                               return getStreamcutBeforeLowerbound(scope, stream, context, retentionSet, lowerBound);
-                                          case LessThan:
+                                          case Before:
                                               // min is less than (behind) lb. truncate at min
                                               return CompletableFuture.completedFuture(limitMin.getStreamCut());
                                           default:
@@ -1089,9 +1089,9 @@ public class StreamMetadataTasks extends TaskBase {
             return streamMetadataStore.compareStreamCut(scope, stream, lowerBound, maxBound.getStreamCut(), context, executor)
                                   .thenCompose(compareWithMax -> {
                                       switch (compareWithMax) {
-                                          case GreaterThanEquals:  // lowerbound greater than (ahead of) max.. truncate at lowerbound
+                                          case EqualOrAfter:  // lowerbound greater than (ahead of) max.. truncate at lowerbound
                                               return CompletableFuture.completedFuture(lowerBound);
-                                          case LessThan:  // lowerbound is strictly less than (behind) lb, truncate at limitmax 
+                                          case Before:  // lowerbound is strictly less than (behind) lb, truncate at limitmax 
                                               return CompletableFuture.completedFuture(limitMax.getStreamCut());
                                           default:  // lowerbound overlaps with maxbound, truncating at maxbound is safe. 
                                               // we definitely lose older data and retain possibly newer data from lowerbound. 

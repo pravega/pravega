@@ -19,7 +19,7 @@ package io.pravega.controller.store.stream;
 public enum StreamCutComparison {
     // Indicates that for each segment S in streamcut SC1 there exists either the same segment with same or lesser offset 
     // in streamcut SC2 OR all overlapping segments of S in streamcut SC2 are all predecessors of S. 
-    GreaterThanEquals,
+    EqualOrAfter,
     // Indicates that there are at least two segments S1 and S2 in streamcut SC1 such that:
     // S1 is ahead of some of the segments in SC2 that overlap with its keyrange. 
     // S2 is behind some of the segments in SC2 that overlap with its keyrange.  
@@ -27,5 +27,5 @@ public enum StreamCutComparison {
     // Indicates that there are at least one segment S in streamcut SC1 such that:
     // S is behind its overlapping segments in SC2. And there are no segments S' in SC1 which are strictly ahead of corresponding  
     // overlapping segments in SC2.
-    LessThan
+    Before
 }
