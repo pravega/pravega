@@ -37,9 +37,8 @@ However, you can go straight to the completed example at [Pravega-samples-repo](
 <summary>Command to clone the pravega-samples repo</summary>
 <p>
 
-```java
-git clone https://github.com/pravega/pravega-samples.git
-
+```console
+$ git clone https://github.com/pravega/pravega-samples.git
 ```
 
 </p>
@@ -59,14 +58,14 @@ You can launch a standalone mode server using either of the following options:
 <p>
 
 Checkout the source code:
-```java
+```console
 $ git clone https://github.com/pravega/pravega.git
 $ cd pravega
 ```
 Build the Pravega standalone mode distribution:
 
-```java
-./gradlew startStandalone
+```console
+$ ./gradlew startStandalone
 ```
 
 </p>
@@ -79,14 +78,14 @@ Build the Pravega standalone mode distribution:
 <p>
 Download the Pravega release from the [GitHub Releases](https://github.com/pravega/pravega/releases).
 
-```java
+```console
 $ tar xfvz pravega-<version>.tgz
 ```
 Download and extract either tarball or zip files. Follow the instructions provided for the tar files (same can be applied for zip file) to launch all the components of Pravega on your local machine.
 
 Run Pravega Standalone:
 
-```java
+```console
 $ pravega-<version>/bin/pravega-standalone
 ```
 
@@ -97,11 +96,11 @@ $ pravega-<version>/bin/pravega-standalone
 # 4. Bootstrapping the Project.
 
 The easiest way to bootstrap a sample application against Pravega is to run the following command in a folder of your choice. 
-```
- gradle init --type java-application
+```console
+$ gradle init --type java-application
 ```
 Add the below snippet to dependencies section of build.gradle in the app directory
-```
+```groovy
 // https://mvnrepository.com/artifact/io.pravega/pravega-client
 implementation group: 'io.pravega', name: 'pravega-client', version: '0.8.1'
 ```
@@ -112,7 +111,7 @@ Invoke `gradle run` to run the project.
 <summary>Expected output</summary>
 <p>
 
-```java
+```console
 osboxes@osboxes:/tmp/demo$ gradle run
 
 > Task :app:run
