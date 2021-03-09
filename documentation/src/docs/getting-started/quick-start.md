@@ -53,6 +53,7 @@ Ctrl+C
 In completing this guide, you have launched Pravega, created a scope, created a stream, written events to the stream, and read them back from the stream.
 
 To use Pravega in real world applications, you’ll want to explore:
+
 * Read some specific docs (link somewhere, say something)
 * Something else, but I don’t know what yet
 * Maybe some links to join the community or to presentations
