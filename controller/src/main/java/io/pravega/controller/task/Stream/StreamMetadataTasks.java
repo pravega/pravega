@@ -119,6 +119,7 @@ import java.util.stream.IntStream;
 import org.apache.commons.lang3.NotImplementedException;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.concurrent.GuardedBy;
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 
 /**
@@ -143,8 +144,11 @@ public class StreamMetadataTasks extends TaskBase {
     private final ScheduledExecutorService eventExecutor;
     private final CompletableFuture<EventHelper> eventHelperFuture;
     private final AtomicReference<Supplier<Long>> retentionClock;
+    @GuardedBy("lock")
     private EventHelper eventHelper = null;
+    @GuardedBy("lock")
     private boolean toSetEventHelper = true;
+    private final Object lock = new Object();
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
@@ -197,8 +201,9 @@ public class StreamMetadataTasks extends TaskBase {
 
     public void initializeStreamWriters(final EventStreamClientFactory clientFactory,
                                         final String streamName) {
-        boolean updated = false;
-        synchronized (this) {
+
+        EventHelper e = null;
+        synchronized (lock) {
             if (toSetEventHelper) {
                 this.eventHelper = new EventHelper(clientFactory.createEventWriter(streamName,
                         ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
@@ -206,12 +211,12 @@ public class StreamMetadataTasks extends TaskBase {
                         this.executor, this.eventExecutor, this.context.getHostId(),
                         ((AbstractStreamMetadataStore) this.streamMetadataStore).getHostTaskIndex());
                 toSetEventHelper = false;
-                updated = true;
+                e = eventHelper;
             }
         }
 
-        if (updated) {
-            eventHelperFuture.complete(eventHelper);
+        if (e != null) {
+            eventHelperFuture.complete(e);
         }
     }
 
@@ -1865,7 +1870,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     @Override
     public void close() throws Exception {
-        synchronized (this) {
+        synchronized (lock) {
             toSetEventHelper = false;
             if (eventHelper != null) {
                 eventHelper.close();
