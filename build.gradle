@@ -914,7 +914,7 @@ project('test:system') {
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion, withoutLogger
         if (System.getProperty("customClient") != null) {
-            implementation files(System.getProperty("customClient"))
+            implementation fileTree(System.getProperty("customClient"))
         } else {
             compile project(":client")
         }
