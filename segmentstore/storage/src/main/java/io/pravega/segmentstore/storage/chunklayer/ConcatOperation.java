@@ -205,9 +205,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private void checkPreconditions() {
-        Preconditions.checkArgument(null != targetHandle, "targetHandle must not be null");
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "targetHandle must not be read only. Segment=%s", targetHandle.getSegmentName());
-        Preconditions.checkArgument(null != sourceSegment, "targetHandle must not be null");
         Preconditions.checkArgument(offset >= 0, "offset must be non negative. Segment=%s offset=%s", targetHandle.getSegmentName(), offset);
     }
 
