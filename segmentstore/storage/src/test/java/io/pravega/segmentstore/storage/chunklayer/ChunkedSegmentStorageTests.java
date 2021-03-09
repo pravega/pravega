@@ -736,6 +736,107 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Test Cold Read.
+     *
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testColdRead() throws Exception {
+        String testSegmentName = "foo";
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .indexBlockSize(3)
+                .maxIndexedSegments(1)
+                .maxIndexedChunksPerSegment(1)
+                .build());
+        // Setup a segment with 5 chunks with given lengths.
+        val segment = testContext.insertMetadata(testSegmentName, 1024, 1,
+                new long[]{1, 2, 3, 4, 5}, false, true);
+
+        int total = 15;
+        val h = testContext.chunkedSegmentStorage.openRead(testSegmentName).get();
+
+        // Read all bytes at once.
+        byte[] output = new byte[total];
+        int bytesRead = testContext.chunkedSegmentStorage.read(h, 0, output, 0, total, null).get();
+        Assert.assertEquals(total, bytesRead);
+
+        // Read bytes at varying lengths but same starting offset.
+        for (int i = 0; i < 15; i++) {
+            testContext.chunkedSegmentStorage.getReadIndexCache().cleanUp();
+            bytesRead = testContext.chunkedSegmentStorage.read(h, 0, output, 0, i, null).get();
+            Assert.assertEquals(i, bytesRead);
+        }
+
+        // Read bytes at varying lengths and different offsets.
+        for (int i = 0; i < 15; i++) {
+            testContext.chunkedSegmentStorage.getReadIndexCache().cleanUp();
+            bytesRead = testContext.chunkedSegmentStorage.read(h, 15 - i - 1, output, 0, i, null).get();
+            Assert.assertEquals(i, bytesRead);
+        }
+
+        // Read bytes at varying sizes.
+        int totalBytesRead = 0;
+        for (int i = 5; i > 0; i--) {
+            testContext.chunkedSegmentStorage.getReadIndexCache().cleanUp();
+            bytesRead = testContext.chunkedSegmentStorage.read(h, 0, output, totalBytesRead, i, null).get();
+            totalBytesRead += bytesRead;
+            Assert.assertEquals(i, bytesRead);
+        }
+        Assert.assertEquals(total, totalBytesRead);
+    }
+
+    /**
+     * Test Cold Read.
+     *
+     * @throws Exception Exception if any.
+     */
+    @Test
+    public void testReadNoIndex() throws Exception {
+        String testSegmentName = "foo";
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .maxIndexedSegments(1)
+                .maxIndexedChunksPerSegment(1)
+                .build());
+        // Setup a segment with 5 chunks with given lengths.
+        val segment = testContext.insertMetadata(testSegmentName, 1024, 1,
+                new long[]{1, 2, 3, 4, 5}, false, false);
+
+        int total = 15;
+        val h = testContext.chunkedSegmentStorage.openRead(testSegmentName).get();
+
+        // Read all bytes at once.
+        byte[] output = new byte[total];
+        int bytesRead = testContext.chunkedSegmentStorage.read(h, 0, output, 0, total, null).get();
+        Assert.assertEquals(total, bytesRead);
+
+        // Read bytes at varying lengths but same starting offset.
+        for (int i = 0; i < 15; i++) {
+            testContext.chunkedSegmentStorage.getReadIndexCache().cleanUp();
+            bytesRead = testContext.chunkedSegmentStorage.read(h, 0, output, 0, i, null).get();
+            Assert.assertEquals(i, bytesRead);
+        }
+
+        // Read bytes at varying lengths and different offsets.
+        for (int i = 0; i < 15; i++) {
+            testContext.chunkedSegmentStorage.getReadIndexCache().cleanUp();
+            bytesRead = testContext.chunkedSegmentStorage.read(h, 15 - i - 1, output, 0, i, null).get();
+            Assert.assertEquals(i, bytesRead);
+        }
+
+        // Read bytes at varying sizes.
+        int totalBytesRead = 0;
+        for (int i = 5; i > 0; i--) {
+            testContext.chunkedSegmentStorage.getReadIndexCache().cleanUp();
+            bytesRead = testContext.chunkedSegmentStorage.read(h, 0, output, totalBytesRead, i, null).get();
+            totalBytesRead += bytesRead;
+            Assert.assertEquals(i, bytesRead);
+        }
+        Assert.assertEquals(total, totalBytesRead);
+    }
+
+    /**
      * Test Read.
      *
      * @throws Exception Exception if any.
@@ -1448,8 +1549,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         // Seal target segment
         testContext.chunkedSegmentStorage.seal(h, TIMEOUT).join();
         AssertExtensions.assertFutureThrows("conact() allowed for invalid parameters",
-                testContext.chunkedSegmentStorage.concat(h, validEnd, truncatedSource, TIMEOUT),
+                testContext.chunkedSegmentStorage.concat(h, 0, truncatedSource, TIMEOUT),
                 ex -> ex instanceof StreamSegmentSealedException);
+
     }
 
     /**
@@ -2767,10 +2869,15 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
             }
         }
 
+        public SegmentMetadata insertMetadata(String testSegmentName, long maxRollingLength, int ownerEpoch, long[] chunkLengths) throws Exception {
+            return insertMetadata(testSegmentName, maxRollingLength, ownerEpoch, chunkLengths, true, true);
+        }
+
         /**
          * Creates and inserts metadata for a test segment.
          */
-        public SegmentMetadata insertMetadata(String testSegmentName, long maxRollingLength, int ownerEpoch, long[] chunkLengths) throws Exception {
+        public SegmentMetadata insertMetadata(String testSegmentName, long maxRollingLength, int ownerEpoch, long[] chunkLengths,
+                                              boolean addIndex, boolean addIndexMetadata) throws Exception {
             Preconditions.checkArgument(maxRollingLength > 0, "maxRollingLength");
             Preconditions.checkArgument(ownerEpoch > 0, "ownerEpoch");
             try (val txn = metadataStore.beginTransaction(false, new String[]{testSegmentName})) {
@@ -2790,7 +2897,9 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                             .nextChunk(i == chunkLengths.length - 1 ? null : testSegmentName + "_chunk_" + Integer.toString(i + 1))
                             .build();
                     chunkMetadata.setActive(true);
-                    chunkedSegmentStorage.getReadIndexCache().addIndexEntry(testSegmentName, chunkName, startOffset);
+                    if (addIndex) {
+                        chunkedSegmentStorage.getReadIndexCache().addIndexEntry(testSegmentName, chunkName, startOffset);
+                    }
                     index.put(startOffset, chunkName);
                     startOffset += chunkLengths[i];
                     length += chunkLengths[i];
@@ -2822,14 +2931,16 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 segmentMetadata.checkInvariants();
                 txn.create(segmentMetadata);
 
-                for (long blockStartOffset = 0; blockStartOffset < segmentMetadata.getLength(); blockStartOffset += config.getIndexBlockSize()) {
-                    val floor = index.floorEntry(blockStartOffset);
-                    txn.create(ReadIndexBlockMetadata.builder()
-                            .name(NameUtils.getSegmentReadIndexBlockName(segmentMetadata.getName(), blockStartOffset))
-                            .startOffset(floor.getKey())
-                            .chunkName(floor.getValue())
-                            .status(StatusFlags.ACTIVE)
-                            .build());
+                if (addIndexMetadata) {
+                    for (long blockStartOffset = 0; blockStartOffset < segmentMetadata.getLength(); blockStartOffset += config.getIndexBlockSize()) {
+                        val floor = index.floorEntry(blockStartOffset);
+                        txn.create(ReadIndexBlockMetadata.builder()
+                                .name(NameUtils.getSegmentReadIndexBlockName(segmentMetadata.getName(), blockStartOffset))
+                                .startOffset(floor.getKey())
+                                .chunkName(floor.getValue())
+                                .status(StatusFlags.ACTIVE)
+                                .build());
+                    }
                 }
 
                 txn.commit().join();

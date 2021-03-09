@@ -313,7 +313,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
 
         Exceptions.checkArrayRange(bufferOffset, length, buffer.length, "bufferOffset", "length");
 
-        if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
+        if (offset < 0) {
             throw new ArrayIndexOutOfBoundsException(String.format(
                     "Offset (%s) must be non-negative, and bufferOffset (%s) and length (%s) must be valid indices into buffer of size %s.",
                     offset, bufferOffset, length, buffer.length));
