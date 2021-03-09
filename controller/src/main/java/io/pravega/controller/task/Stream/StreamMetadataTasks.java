@@ -197,16 +197,20 @@ public class StreamMetadataTasks extends TaskBase {
 
     public void initializeStreamWriters(final EventStreamClientFactory clientFactory,
                                         final String streamName) {
-        this.eventHelperFuture.complete(new EventHelper(clientFactory.createEventWriter(streamName,
-                ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
-                EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build()),
-                this.executor, this.eventExecutor, this.context.getHostId(),
-                ((AbstractStreamMetadataStore) this.streamMetadataStore).getHostTaskIndex()));
-        if (toSetEventHelper) {
-            eventHelper = new EventHelper(this.executor, this.context.getHostId(), ((AbstractStreamMetadataStore) this.streamMetadataStore).getHostTaskIndex());
-            toSetEventHelper = false;
+        boolean updated = false;
+        synchronized (this) {
+            if (toSetEventHelper) {
+                this.eventHelper = new EventHelper(clientFactory.createEventWriter(streamName,
+                        ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
+                        EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build()),
+                        this.executor, this.eventExecutor, this.context.getHostId(),
+                        ((AbstractStreamMetadataStore) this.streamMetadataStore).getHostTaskIndex());
+                toSetEventHelper = false;
+                updated = true;
+            }
         }
-        if (eventHelper != null) {
+
+        if (updated) {
             eventHelperFuture.complete(eventHelper);
         }
     }
@@ -1861,9 +1865,11 @@ public class StreamMetadataTasks extends TaskBase {
 
     @Override
     public void close() throws Exception {
-        toSetEventHelper = false;
-        if (eventHelper != null) {
-            eventHelper.close();
+        synchronized (this) {
+            toSetEventHelper = false;
+            if (eventHelper != null) {
+                eventHelper.close();
+            }
         }
         eventHelperFuture.cancel(true);
     }
