@@ -249,7 +249,7 @@ public final class ModelHelper {
     }
 
     /**
-     * Helper method to convery stream cut to map of segment to position.
+     * Helper method to convert stream cut to map of segment to position.
      * @param streamCut Stream cut
      * @return map of segment to position
      */
@@ -263,13 +263,11 @@ public final class ModelHelper {
      * @return map of segment to position
      */
     public static ReaderGroupConfig encode(Controller.ReaderGroupConfiguration rgConfig) {
-        return ReaderGroupConfig.builder()
+        ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                 .automaticCheckpointIntervalMillis(rgConfig.getAutomaticCheckpointIntervalMillis())
                 .groupRefreshTimeMillis(rgConfig.getGroupRefreshTimeMillis())
                 .maxOutstandingCheckpointRequest(rgConfig.getMaxOutstandingCheckpointRequest())
                 .retentionType(ReaderGroupConfig.StreamDataRetention.values()[rgConfig.getRetentionType()])
-                .generation(rgConfig.getGeneration())
-                .readerGroupId(UUID.fromString(rgConfig.getReaderGroupId()))
                 .startingStreamCuts(rgConfig.getStartingStreamCutsList().stream()
                         .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream()),
                                 streamCut -> generateStreamCut(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap()))))
@@ -277,6 +275,7 @@ public final class ModelHelper {
                         .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream()),
                                 streamCut -> generateStreamCut(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap()))))
                 .build();
+        return ReaderGroupConfig.cloneConfig(cfg, UUID.fromString(rgConfig.getReaderGroupId()), rgConfig.getGeneration());
     }
 
     public static io.pravega.client.stream.StreamCut generateStreamCut(String scope, String stream, Map<Long, Long> cutMap) {
