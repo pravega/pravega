@@ -304,7 +304,10 @@ public abstract class BufferViewTestBase {
             for (int length = 0; length < data.getLength() - offset; length += 11) {
                 val expected = new byte[length];
                 System.arraycopy(data.array(), data.arrayOffset() + offset, expected, 0, length);
-                val slice = bufferView.slice(offset, length).getCopy();
+                val sliceBuffer = bufferView.slice(offset, length);
+                checkAllocatedSize(sliceBuffer, bufferView);
+
+                val slice = sliceBuffer.getCopy();
                 Assert.assertArrayEquals("Unexpected slice() result for offset " + offset + ", length " + length, expected, slice);
                 if (length == 0) {
                     Assert.assertEquals("Unexpected getReader() result for offset " + offset + ", length " + length,
@@ -338,6 +341,12 @@ public abstract class BufferViewTestBase {
 
     protected List<ByteBuffer> getContents(BufferView bufferView) {
         return Lists.newArrayList(bufferView.iterateBuffers());
+    }
+
+    protected void checkAllocatedSize(BufferView slice, BufferView base) {
+        Assert.assertEquals("Unexpected allocated length for slice.", slice.getAllocatedLength(), base.getLength());
+        AssertExtensions.assertGreaterThanOrEqual("Expected slice length to be at most the allocated length.",
+                slice.getLength(), slice.getAllocatedLength());
     }
 
     protected abstract BufferView toBufferView(ArrayView data);
