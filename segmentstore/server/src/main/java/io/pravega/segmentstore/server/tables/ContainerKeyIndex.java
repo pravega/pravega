@@ -535,10 +535,21 @@ class ContainerKeyIndex implements AutoCloseable {
         // directly from the index if unable to find anything and there is a chance the sought key actually exists.
         // Encountering a truncated Segment offset indicates that the Segment may have recently been compacted and
         // we are using a stale cache value.
-        return Futures.exceptionallyComposeExpecting(bucketReader.find(key, bucketOffset, timer),
-                ex -> ex instanceof StreamSegmentTruncatedException,
-                () -> getBucketOffsetDirect(segment, this.keyHasher.hash(key), timer)
-                        .thenComposeAsync(newOffset -> bucketReader.find(key, newOffset, timer), this.executor));
+        return Futures.exceptionallyExpecting(bucketReader.find(key, bucketOffset, timer),
+                ex -> ex instanceof StreamSegmentTruncatedException, null)
+                .thenComposeAsync(entry -> {
+                    if (entry != null) {
+                        // We found an entry.
+                        return CompletableFuture.completedFuture(entry);
+                    } else {
+                        // We have a valid TableBucket but were unable to locate the key using the cache, either
+                        // because the cache points to a truncated offset or because we are unable to determine
+                        // if the TableBucket has been rearranged due to a compaction. The rearrangement is a rare
+                        // occurrence and can only happen if more than one Key is mapped to a bucket (collision).
+                        return getBucketOffsetDirect(segment, this.keyHasher.hash(key), timer)
+                                .thenComposeAsync(newOffset -> bucketReader.find(key, newOffset, timer), this.executor);
+                    }
+                }, this.executor);
     }
 
     /**
