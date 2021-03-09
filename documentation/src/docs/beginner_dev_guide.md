@@ -28,7 +28,7 @@ To complete this guide, you need:
 <details open>
   <summary>Gradle 6.5.1+</summary>
   Installation : https://gradle.org/install/
-  
+<p>
   !! Verify Gradle is using the Java you expect. You can verify which JDK Gradle uses by running `gradle --version`. !!
 </details>
 
@@ -162,10 +162,8 @@ try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope
 }
 ```
 The above snippet creates an Event Writer and writes an event into the Pravega stream. Note that `writeEvent()` returns a `CompletableFuture`, which can be captured for use or will be resolved when calling `flush()` or `close()`, and, if destined for the same segment, the futures write in the order `writeEvent()` is called.
-<p>
-    
+
 When instantiating the EventStreamWriter above, we passed in a [UTF8StringSerializer](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/UTF8StringSerializer.java) instance. Pravega uses a [Serializer](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/Serializer.html) interface in its writers and readers to simplify the act of writing and reading an object’s bytes to and from streams. The [JavaSerializer](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/JavaSerializer.java) can handle any `Serializable` object.
-</p>
 
 # 4.3 Create a Pravega Event Reader and read the event back from the stream.
 
@@ -192,8 +190,8 @@ try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope
                 "readerGroup",
                 new UTF8StringSerializer(),
                 ReaderConfig.builder().build())) {
-            String event = reader.readNextEvent(5000).getEvent();
-            System.out.println(event);
+        String event = reader.readNextEvent(5000).getEvent();
+        System.out.println(event);
 }
 ```
 

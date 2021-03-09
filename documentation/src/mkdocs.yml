@@ -56,16 +56,16 @@ markdown_extensions:
 
 nav:
   - Overview: 'index.md'
-  - Guides:
-      - Quick Start: 'getting-started/quick-start.md'
-      - Getting Started: 'getting-started.md'
-      - Admin Guide:
-        - 'Cluster Overview': 'getting-started/admin-guide.md'
-        - 'Install the Operator': 'pravega-operator/charts/pravega-operator/README.md'
-        - 'Install a Cluster': 'pravega-operator/charts/pravega/README.md'
-        - 'Upgrade Pravega': 'pravega-operator/doc/operator-upgrade.md'
-      - Dev Guide:
-        - '1st Code Walk through': 'beginner_dev_guide.md'
+  - Quick Start Guide: 'getting-started/quick-start.md'
+  - Getting Started Guide: 'getting-started.md'
+  - Administrator's Guide:
+    - 'Cluster Overview': 'getting-started/admin-guide.md'
+    - 'Pravega Operator': 'pravega-operator/README.md'
+    - 'Install the Operator': 'pravega-operator/charts/pravega-operator/README.md'
+    - 'Install a Cluster': 'pravega-operator/charts/pravega/README.md'
+    - 'Upgrade Pravega': 'pravega-operator/doc/operator-upgrade.md'
+  - Developer's Guide:
+    - '1st Code Walk through': 'beginner_dev_guide.md'
   - Understanding Pravega:
       - 'Pravega Concepts': 'pravega-concepts.md'
       - 'Terminology': 'terminology.md'
