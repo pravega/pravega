@@ -131,7 +131,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         return Futures.loop(
                 () -> bytesRemaining.get() > 0 && null != currentChunkName,
                 () -> {
-                    Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null");
+                    Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null. currentChunkName=%s Segment=%s", currentChunkName, segmentMetadata.getName());
                     bytesToRead = Math.toIntExact(Math.min(bytesRemaining.get(), chunkToReadFrom.getLength() - (currentOffset.get() - startOffsetForCurrentChunk.get())));
                     if (currentOffset.get() >= startOffsetForCurrentChunk.get() + chunkToReadFrom.getLength()) {
                         // The current chunk is over. Move to the next one.
@@ -141,7 +141,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                             return txn.get(currentChunkName)
                                     .thenAcceptAsync(storageMetadata -> {
                                         chunkToReadFrom = (ChunkMetadata) storageMetadata;
-                                        Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null");
+                                        Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null. currentChunkName=%s Segment=%s", currentChunkName, segmentMetadata.getName());
                                         log.debug("{} read - reading from next chunk - op={}, segment={}, chunk={}", chunkedSegmentStorage.getLogPrefix(),
                                                 System.identityHashCode(this), handle.getSegmentName(), chunkToReadFrom);
                                     }, chunkedSegmentStorage.getExecutor());
@@ -257,7 +257,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                 () -> txn.get(currentChunkName)
                         .thenAcceptAsync(storageMetadata -> {
                             chunkToReadFrom = (ChunkMetadata) storageMetadata;
-                            Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null");
+                            Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null. currentChunkName=%s Segment=%s", currentChunkName, segmentMetadata.getName());
                             if (startOffsetForCurrentChunk.get() <= currentOffset.get()
                                     && startOffsetForCurrentChunk.get() + chunkToReadFrom.getLength() > currentOffset.get()) {
                                 // we have found a chunk that contains first byte we want to read
