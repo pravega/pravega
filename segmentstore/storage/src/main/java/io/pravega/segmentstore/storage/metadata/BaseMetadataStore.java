@@ -35,12 +35,12 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -145,18 +145,11 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     private final AtomicLong version;
 
     /**
-     * Lock object.
-     * This object should be used for additions and deletions to bufferedTxnData.
-     * This object should not be used for operations that enumerate the keys in bufferedTxnData.
-     */
-    private final Object bufferLock = new Object();
-
-    /**
      * Buffer for reading and writing transaction data entries to underlying KV store.
      * This allows lazy storing and avoiding unnecessary load for recently/frequently updated key value pairs.
      * Note that entries in this buffer should not be evicted while transaction using them are in flight.
      */
-    private final ConcurrentHashMap<String, TransactionData> bufferedTxnData;
+    private final Map<String, TransactionData> bufferedTxnData;
 
     /**
      * Set of active records from commits that are in-flight. These records should not be evicted until the active commits finish.
@@ -217,7 +210,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     public BaseMetadataStore(Executor executor) {
         version = new AtomicLong(System.currentTimeMillis()); // Start with unique number.
         fenced = new AtomicBoolean(false);
-        bufferedTxnData = new ConcurrentHashMap<>(); // Don't think we need anything fancy here. But we'll measure and see.
+        bufferedTxnData = Collections.synchronizedMap(new HashMap<>()); // Don't think we need anything fancy here. But we'll measure and see.
         activeKeys = ConcurrentHashMultiset.create();
         cache = CacheBuilder.newBuilder()
                 .maximumSize(maxEntriesInCache)
@@ -341,7 +334,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 log.trace("Skipping loading key from the store key = {}", key);
             } else {
                 // This check is safe to be outside the lock
-                val dataFromBuffer = getDataFromBuffer(key);
+                val dataFromBuffer = bufferedTxnData.get(key);
                 if (null == dataFromBuffer) {
                     loadFutures.add(loadFromStore(key));
                 }
@@ -351,7 +344,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 .thenRunAsync(() -> {
                     // validate everything is alright.
                     for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
-                        val dataFromBuffer = getDataFromBuffer(entry.getKey());
+                        val dataFromBuffer = bufferedTxnData.get(entry.getKey());
                         if (!(entry.getValue().isPinned())) {
                             Preconditions.checkState(activeKeys.contains(entry.getKey()), "key must be marked active. key=%s", entry.getKey());
                             Preconditions.checkState(null != dataFromBuffer, "Data from buffer must not be null.");
@@ -361,15 +354,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                         }
                     }
                 }, executor);
-    }
-
-    /**
-    * Get TransactionData from buffer.
-    */
-    private TransactionData getDataFromBuffer(String key) {
-        synchronized (bufferLock) {
-            return bufferedTxnData.get(key);
-        }
     }
 
     /**
@@ -403,9 +387,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                             delta--;
                         }
                     }
-                    synchronized (bufferLock) {
-                        bufferedTxnData.putAll(toAdd);
-                    }
+                    bufferedTxnData.putAll(toAdd);
                     bufferCount.addAndGet(delta);
                 }, executor);
     }
@@ -464,7 +446,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 modifiedValues.add(transactionData);
             }
             // make sure none of the keys used in this transaction have changed.
-            val dataFromBuffer = getDataFromBuffer(key);
+            val dataFromBuffer = bufferedTxnData.get(key);
             if (null != dataFromBuffer) {
                 if (!dataFromBuffer.isPinned()) {
                     Preconditions.checkState(null != dataFromBuffer.getDbObject(), "Missing tracking object");
@@ -506,14 +488,12 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     synchronized (evictionLock) {
                         if (0 == activeKeys.count(key)) {
                             // Synchronization prevents error when key is modified between the check and remove.
-                            synchronized (bufferLock) {
-                                val data = bufferedTxnData.get(key);
-                                if (null != data) {
-                                    // Move the key to cache
-                                    cache.put(key, data);
-                                    // Remove from buffer.
-                                    bufferedTxnData.remove(key);
-                                }
+                            val data = bufferedTxnData.get(key);
+                            if (null != data) {
+                                // Move the key to cache
+                                cache.put(key, data);
+                                // Remove from buffer.
+                                bufferedTxnData.remove(key);
                             }
                             count++;
                         }
@@ -569,7 +549,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         // Prevent the key from getting evicted.
         addToActiveKeySet(key);
 
-        return CompletableFuture.supplyAsync(() -> getDataFromBuffer(key), executor)
+        return CompletableFuture.supplyAsync(() -> bufferedTxnData.get(key), executor)
                 .thenApplyAsync(dataFromBuffer -> {
                     if (dataFromBuffer != null) {
                         METADATA_FOUND_IN_BUFFER.inc();
@@ -683,23 +663,21 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         Preconditions.checkState(null != copyForBuffer, "Copy for buffer must not be null.");
         Preconditions.checkState(null != copyForBuffer.getDbObject(), "Missing tracking object");
         // If some other transaction beat us then use that value.
-        synchronized (bufferLock) {
-            val oldValue = bufferedTxnData.putIfAbsent(key, copyForBuffer);
-            final TransactionData retValue;
-            if (oldValue != null) {
-                retValue = oldValue;
-            } else {
-                retValue = copyForBuffer;
-                bufferCount.incrementAndGet();
-            }
-            Preconditions.checkState(activeKeys.contains(key), "key must be marked active. Key=%s", key);
-            Preconditions.checkState(bufferedTxnData.containsKey(key), "bufferedTxnData must contain the key. Key=%s", key);
-            if (!retValue.isPinned()) {
-                Preconditions.checkState(null != retValue.dbObject, "Missing tracking object");
-            }
-
-            return retValue;
+        val oldValue = bufferedTxnData.putIfAbsent(key, copyForBuffer);
+        final TransactionData retValue;
+        if (oldValue != null) {
+            retValue = oldValue;
+        } else {
+            retValue = copyForBuffer;
+            bufferCount.incrementAndGet();
         }
+        Preconditions.checkState(activeKeys.contains(key), "key must be marked active. Key=%s", key);
+        Preconditions.checkState(bufferedTxnData.containsKey(key), "bufferedTxnData must contain the key. Key=%s", key);
+        if (!retValue.isPinned()) {
+            Preconditions.checkState(null != retValue.dbObject, "Missing tracking object");
+        }
+
+        return retValue;
     }
 
     /**
