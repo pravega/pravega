@@ -134,7 +134,7 @@ public abstract class PersistentStreamBase implements Stream {
                  .forEach(x -> builder.add(newSegmentRecord(0, startingSegmentNumber + x, creationTime,
                                                                     x * keyRangeChunk, (x + 1) * keyRangeChunk)));
 
-        EpochRecord epoch0 = new EpochRecord(0, 0, builder.build(), creationTime);
+        EpochRecord epoch0 = new EpochRecord(0, 0, builder.build(), creationTime, Optional.empty());
 
         return createEpochRecord(epoch0)
                 .thenCompose(r -> createHistoryChunk(epoch0))
@@ -1065,7 +1065,7 @@ public abstract class PersistentStreamBase implements Stream {
                         builder.addAll(newSegments);
                         // epoch record
                         EpochRecord epochRecord = new EpochRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(), 
-                                builder.build(), time);
+                                builder.build(), time, Optional.of(currentEpoch));
 
                         HistoryTimeSeriesRecord timeSeriesRecord = 
                                 new HistoryTimeSeriesRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(), 
@@ -1204,10 +1204,12 @@ public abstract class PersistentStreamBase implements Stream {
                                             timeStamp + 1, x.getKeyStart(), x.getKeyEnd())));
 
                             EpochRecord duplicateTxnEpoch = new EpochRecord(committingTxnRecord.getNewTxnEpoch(), 
-                                    transactionEpochRecord.getReferenceEpoch(), duplicateTxnSegmentsBuilder.build(), timeStamp);
+                                    transactionEpochRecord.getReferenceEpoch(), duplicateTxnSegmentsBuilder.build(),
+                                    timeStamp, Optional.of(transactionEpochRecord));
 
                             EpochRecord duplicateActiveEpoch = new EpochRecord(committingTxnRecord.getNewActiveEpoch(),
-                                    activeEpochRecord.getReferenceEpoch(), duplicateActiveSegmentsBuilder.build(), timeStamp + 1);
+                                    activeEpochRecord.getReferenceEpoch(), duplicateActiveSegmentsBuilder.build(),
+                                    timeStamp + 1, Optional.of(activeEpochRecord));
 
                             HistoryTimeSeriesRecord timeSeriesRecordTxnEpoch =
                                     new HistoryTimeSeriesRecord(duplicateTxnEpoch.getEpoch(), duplicateTxnEpoch.getReferenceEpoch(), 
@@ -2121,7 +2123,7 @@ public abstract class PersistentStreamBase implements Stream {
                    }
                 });
                 segmentsBuilder.addAll(createdSegments);
-                return new EpochRecord(epoch, referenceEpoch, segmentsBuilder.build(), time);
+                return new EpochRecord(epoch, referenceEpoch, segmentsBuilder.build(), time, Optional.of(lastRecord));
             });
         } else {
             return getEpochRecord(epoch);

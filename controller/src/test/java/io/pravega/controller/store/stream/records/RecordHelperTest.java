@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -113,7 +114,8 @@ public class RecordHelperTest {
                 new StreamSegmentRecord(2, 0, timestamp, 2 * keyRangeChunk, 3 * keyRangeChunk),
                 new StreamSegmentRecord(3, 0, timestamp, 3 * keyRangeChunk, 4 * keyRangeChunk),
                 new StreamSegmentRecord(4, 0, timestamp, 4 * keyRangeChunk, 1.0));
-        EpochRecord epochRecord = new EpochRecord(0, 0, ImmutableList.copyOf(list), timestamp);
+        EpochRecord epochRecord = new EpochRecord(0, 0, ImmutableList.copyOf(list),
+                timestamp, Optional.empty());
 
         assertFalse(RecordHelper.canScaleFor(Lists.newArrayList(0L, 1L, 5L), epochRecord));
         assertTrue(RecordHelper.canScaleFor(Lists.newArrayList(0L, 1L, 4L), epochRecord));
