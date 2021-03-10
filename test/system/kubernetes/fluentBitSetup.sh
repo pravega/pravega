@@ -84,9 +84,8 @@ for i in "$@"; do
 esac
 done
 
-# 'fetch_logs' requires the log files are named according to the
-# '<pod-name>_<namespace>_<container-name>-<container-id>.log' convention, which is done by default
-# via the tag expansion in the [INPUT] stanza.
+# 'fetch_logs' requires the log files are named according to the '<pod-name>_<namespace>_<container-name>-<container-id>.log'
+# convention, which is done by default via the tag expansion in the [INPUT] stanza.
 fetch_logs() {
     if [ ! -d $FLUENT_BIT_EXPORT_PATH ]; then
         mkdir -p $FLUENT_BIT_EXPORT_PATH
@@ -105,10 +104,7 @@ fetch_logs() {
 
 # Fetches logs from the pods of the BookKeeperCluster, PravegaCluster and ZooKeeperCluster.
 fetch_pravega_logs() {
-    zookeeper=$(kubectl get zookeepercluster -n=$NAMESPACE -o json | jq '.items[0].metadata.labels["app.kubernetes.io/name"]' | sed 's/"//g')
-    bookkeeper=$(kubectl get bookkeepercluster -n=$NAMESPACE -o json | jq '.items[0].metadata.labels["app.kubernetes.io/name"]' | sed 's/"//g')
-    pravega=$(kubectl get pravegacluster -n=$NAMESPACE -o json | jq '.items[0].metadata.labels["app.kubernetes.io/name"]' | sed 's/"//g')
-    pods=$(kubectl get pods -l "app in ($zookeeper,$bookkeeper,$pravega)" -n=$NAMESPACE -o custom-columns=:.metadata.name --no-headers)
+    pods=$(kubectl get pods -l "app in (zookeeper,bookkeeper-cluster,pravega-cluster)" -n=$NAMESPACE -o custom-columns=:.metadata.name --no-headers)
     fetch_logs "$pods"
 }
 
@@ -116,6 +112,12 @@ fetch_pravega_logs() {
 fetch_all_logs() {
     pods=$(kubectl get pods -n="$NAMESPACE" -o custom-columns=:.metadata.name --no-headers)
     fetch_logs "$pods"
+}
+
+# Fetches logs of all system test pods in the given namespace.
+fetch_system_test_logs() {
+  pods=$(kubectl get pods -n="$NAMESPACE" -l app='pravega-system-tests' -o custom-columns=:.metadata.name --no-headers)
+  fetch_logs "$pods"
 }
 
 #################################
@@ -507,6 +509,7 @@ usage() {
     echo -e ""
     echo -e "fetch-logs: Copies log files produced by the PravegaCluster (on a given namespace) to a local directory."
     echo -e "fetch-all-logs: Copies log files from *all* pods in a given namespace."
+    echo -e "fetch-system-test-logs: Copies log files from *all* system test pods in a given namespace."
     echo -e "\t-n=*|--namespace=*:          The namespace of the PravegaCluster/Pods. default: default"
     echo -e "\t-p=*|--export-path=*:        The path to save the logs to. default: /tmp/pravega-logs"
     echo -e ""
@@ -525,6 +528,9 @@ case $CMD in
         ;;
     fetch-logs|fetch-pravega-logs)
         fetch_pravega_logs
+        ;;
+    fetch-system-test-logs)
+        fetch_system_test_logs
         ;;
     fetch-all-logs)
         fetch_all_logs

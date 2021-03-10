@@ -1018,6 +1018,12 @@ project('test:system') {
         commandLine './kubernetes/fluentBitSetup.sh', 'install'
     }
 
+    task fetchSystemTestLogs(type: Exec) {
+        environment 'FLUENT_BIT_EXPORT_PATH', "logs"
+        commandLine './kubernetes/fluentBitSetup.sh', 'fetch-logs'
+        commandLine './kubernetes/fluentBitSetup.sh', 'fetch-system-test-logs'
+    }
+
     task startK8SystemTests(type: Test) {
         dependsOn 'copyTestsToK8sCluster', 'runFluentBitInstall' // ensure test artifacts are copied to the cluster.
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
