@@ -1429,9 +1429,8 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                      final OperationContext context, final Executor executor);
 
     /**
-     * Compares two Stream cuts and returns true if streamcut1 is strictly ahead of streamcut2 else returns false. 
-     * This method will return false for both strictly less than and overlapping streamcuts.
-     * A streamcut is considered greater than if for all key ranges the segment/offset in one streamcut is ahead of 
+     * Compares two Stream cuts and returns StreamCutComparison enum.
+     * A streamcut is considered greater than equals another if for all key ranges the segment/offset in one streamcut is ahead of 
      * second streamcut. 
      *
      * @param scope      stream scope.
@@ -1441,12 +1440,12 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param context    operation context.
      * @param executor   callers executor.
      *                   
-     * @return A completable future which when completed will hold a boolean which will indicate if streamcut1 is strictly
-     * ahead of streamcut2. 
+     * @return A completable future which when completed will hold an integer which will determine the order between 
+     * streamcut1 and streamcut2. 
      */
-    CompletableFuture<Boolean> streamCutStrictlyGreaterThan(final String scope, final String streamName,
-                                                            Map<Long, Long> streamCut1, Map<Long, Long> streamCut2,
-                                                            final OperationContext context, final Executor executor);
+    CompletableFuture<StreamCutComparison> compareStreamCut(final String scope, final String streamName,
+                                                Map<Long, Long> streamCut1, Map<Long, Long> streamCut2,
+                                                final OperationContext context, final Executor executor);
 
     /**
      * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.    
