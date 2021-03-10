@@ -469,6 +469,7 @@ EOF
         args+=(--set extraVolumes[1].hostPath.path=$FLUENT_BIT_HOST_LOGS_PATH)
     fi
 
+    helm repo add fluent https://fluent.github.io/helm-charts
     helm install $NAME fluent/fluent-bit "${args[@]}" \
         --set image.tag=$FLUENT_BIT_IMAGE_TAG \
         -n=$NAMESPACE
