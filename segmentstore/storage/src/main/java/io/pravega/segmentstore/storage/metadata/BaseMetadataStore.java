@@ -145,6 +145,13 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     private final AtomicLong version;
 
     /**
+     * Lock object.
+     * This object should be used for additions and deletions to bufferedTxnData.
+     * This object should not be used for operations that enumerate the keys in bufferedTxnData.
+     */
+    private final Object bufferLock = new Object();
+
+    /**
      * Buffer for reading and writing transaction data entries to underlying KV store.
      * This allows lazy storing and avoiding unnecessary load for recently/frequently updated key value pairs.
      * Note that entries in this buffer should not be evicted while transaction using them are in flight.
@@ -334,7 +341,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 log.trace("Skipping loading key from the store key = {}", key);
             } else {
                 // This check is safe to be outside the lock
-                val dataFromBuffer = bufferedTxnData.get(key);
+                val dataFromBuffer = getDataFromBuffer(key);
                 if (null == dataFromBuffer) {
                     loadFutures.add(loadFromStore(key));
                 }
@@ -344,7 +351,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 .thenRunAsync(() -> {
                     // validate everything is alright.
                     for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
-                        val dataFromBuffer = bufferedTxnData.get(entry.getKey());
+                        val dataFromBuffer = getDataFromBuffer(entry.getKey());
                         if (!(entry.getValue().isPinned())) {
                             Preconditions.checkState(activeKeys.contains(entry.getKey()), "key must be marked active. key=%s", entry.getKey());
                             Preconditions.checkState(null != dataFromBuffer, "Data from buffer must not be null.");
@@ -354,6 +361,15 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                         }
                     }
                 }, executor);
+    }
+
+    /**
+    * Get TransactionData from buffer.
+    */
+    private TransactionData getDataFromBuffer(String key) {
+        synchronized (bufferLock) {
+            return bufferedTxnData.get(key);
+        }
     }
 
     /**
@@ -387,7 +403,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                             delta--;
                         }
                     }
-                    bufferedTxnData.putAll(toAdd);
+                    synchronized (bufferLock) {
+                        bufferedTxnData.putAll(toAdd);
+                    }
                     bufferCount.addAndGet(delta);
                 }, executor);
     }
@@ -446,7 +464,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 modifiedValues.add(transactionData);
             }
             // make sure none of the keys used in this transaction have changed.
-            val dataFromBuffer = bufferedTxnData.get(key);
+            val dataFromBuffer = getDataFromBuffer(key);
             if (null != dataFromBuffer) {
                 if (!dataFromBuffer.isPinned()) {
                     Preconditions.checkState(null != dataFromBuffer.getDbObject(), "Missing tracking object");
@@ -487,11 +505,16 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     // synchronize so that we don't accidentally delete a key that becomes active after check here.
                     synchronized (evictionLock) {
                         if (0 == activeKeys.count(key)) {
-                            // Synchronization prevents error when key becomes active between the check and remove.
-                            // Move the key to cache
-                            cache.put(key, bufferedTxnData.get(key));
-                            // Remove from buffer.
-                            bufferedTxnData.remove(key);
+                            // Synchronization prevents error when key is modified between the check and remove.
+                            synchronized (bufferLock) {
+                                val data = bufferedTxnData.get(key);
+                                if (null != data) {
+                                    // Move the key to cache
+                                    cache.put(key, data);
+                                    // Remove from buffer.
+                                    bufferedTxnData.remove(key);
+                                }
+                            }
                             count++;
                         }
                     }
@@ -546,7 +569,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         // Prevent the key from getting evicted.
         addToActiveKeySet(key);
 
-        return CompletableFuture.supplyAsync(() -> bufferedTxnData.get(key), executor)
+        return CompletableFuture.supplyAsync(() -> getDataFromBuffer(key), executor)
                 .thenApplyAsync(dataFromBuffer -> {
                     if (dataFromBuffer != null) {
                         METADATA_FOUND_IN_BUFFER.inc();
@@ -660,20 +683,23 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         Preconditions.checkState(null != copyForBuffer, "Copy for buffer must not be null.");
         Preconditions.checkState(null != copyForBuffer.getDbObject(), "Missing tracking object");
         // If some other transaction beat us then use that value.
-        val oldValue = bufferedTxnData.putIfAbsent(key, copyForBuffer);
-        final TransactionData retValue;
-        if (oldValue != null) {
-            retValue = oldValue;
-        } else {
-            retValue = copyForBuffer;
-            bufferCount.incrementAndGet();
+        synchronized (bufferLock) {
+            val oldValue = bufferedTxnData.putIfAbsent(key, copyForBuffer);
+            final TransactionData retValue;
+            if (oldValue != null) {
+                retValue = oldValue;
+            } else {
+                retValue = copyForBuffer;
+                bufferCount.incrementAndGet();
+            }
+            Preconditions.checkState(activeKeys.contains(key), "key must be marked active. Key=%s", key);
+            Preconditions.checkState(bufferedTxnData.containsKey(key), "bufferedTxnData must contain the key. Key=%s", key);
+            if (!retValue.isPinned()) {
+                Preconditions.checkState(null != retValue.dbObject, "Missing tracking object");
+            }
+
+            return retValue;
         }
-        Preconditions.checkState(activeKeys.contains(key), "key must be marked active. Key=%s", key);
-        Preconditions.checkState(bufferedTxnData.containsKey(key), "bufferedTxnData must contain the key. Key=%s", key);
-        if (!retValue.isPinned()) {
-            Preconditions.checkState(null != retValue.dbObject, "Missing tracking object");
-        }
-        return retValue;
     }
 
     /**
@@ -879,42 +905,42 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
          * Version. This version number is independent of version in the store.
          * This is required to keep track of all modifications to data when it is changed while still in buffer without writing it to database.
          */
-        private long version;
+        private volatile long version;
 
         /**
          * Implementation specific object to keep track of underlying db version.
          */
-        private Object dbObject;
+        private volatile Object dbObject;
 
         /**
          * Whether this record is persisted or not.
          */
-        private boolean persisted;
+        private volatile boolean persisted;
 
         /**
          * Whether this record is pinned to the memory.
          */
-        private boolean pinned;
+        private volatile boolean pinned;
 
         /**
          * Whether this record is persisted or not.
          */
-        private boolean created;
+        private volatile boolean created;
 
         /**
          * Whether this record is pinned to the memory.
          */
-        private boolean deleted;
+        private volatile boolean deleted;
 
         /**
          * Key of the record.
          */
-        private String key;
+        private volatile String key;
 
         /**
          * Value of the record.
          */
-        private StorageMetadata value;
+        private volatile StorageMetadata value;
 
         /**
          * Builder that implements {@link ObjectBuilder}.

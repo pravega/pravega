@@ -81,7 +81,7 @@ public class ChunkMetadata extends StorageMetadata {
     /**
      * Sets the given bit for given mask.
      */
-    private ChunkMetadata setFlag(int mask, boolean value) {
+    synchronized private ChunkMetadata setFlag(int mask, boolean value) {
         status = value ? (status | mask) : (status & (~mask));
         return this;
     }
@@ -89,7 +89,7 @@ public class ChunkMetadata extends StorageMetadata {
     /**
      * Gets the status of the bit for given mask.
      */
-    private boolean getFlag(int mask) {
+    synchronized private boolean getFlag(int mask) {
         return (status & mask) != 0;
     }
 
