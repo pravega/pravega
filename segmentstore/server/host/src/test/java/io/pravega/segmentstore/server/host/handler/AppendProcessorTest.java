@@ -402,8 +402,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         ConnectionTracker tracker = mock(ConnectionTracker.class);
         AppendProcessor processor = AppendProcessor.defaultBuilder()
                 .store(store)
-                .connection(connection)
-                .connectionTracker(tracker)
+                .connection(new TrackedConnection(connection, tracker))
                 .statsRecorder(mockedRecorder)
                 .build();
         // Setup mock to enusure both the SetupAppends return the newer values.
