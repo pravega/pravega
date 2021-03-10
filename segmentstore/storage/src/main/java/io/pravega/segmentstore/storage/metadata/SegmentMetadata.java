@@ -229,7 +229,7 @@ public class SegmentMetadata extends StorageMetadata {
     /**
      * Sets the given bit for given mask.
      */
-    synchronized private SegmentMetadata setFlag(int mask, boolean value) {
+    private SegmentMetadata setFlag(int mask, boolean value) {
         status = value ? (status | mask) : (status & (~mask));
         return this;
     }
@@ -237,7 +237,7 @@ public class SegmentMetadata extends StorageMetadata {
     /**
      * Gets the status of the bit for given mask.
      */
-    synchronized private boolean getFlag(int mask) {
+    private boolean getFlag(int mask) {
         return (status & mask) != 0;
     }
 
