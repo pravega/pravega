@@ -518,9 +518,6 @@ usage() {
 
 case $CMD in
     install)
-        if ! validate_watcher; then
-            exit 1
-        fi
         install
         ;;
     uninstall)
