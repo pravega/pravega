@@ -1014,6 +1014,7 @@ project('test:system') {
     }
 
     task runFluentBitInstall(type: Exec) {
+        environment 'FLUENT_BIT_STORAGE_CLASS', System.getProperty("logStorageClass", "")
         environment 'FLUENT_BIT_HOST_LOGS_PATH', System.getProperty("k8HostLogPath", "")
         commandLine './kubernetes/fluentBitSetup.sh', 'install'
     }
