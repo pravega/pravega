@@ -91,7 +91,7 @@ public class StreamMetricsTest {
                 .with(MetricsConfig.ENABLE_STATISTICS, true)
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .build();
-        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(60));
+        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(Integer.MAX_VALUE));
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
@@ -223,17 +223,17 @@ public class StreamMetricsTest {
         StreamMetrics.getInstance().deleteReaderGroupFailed("failedRG", "failedRG");
         StreamMetrics.getInstance().updateReaderGroupFailed("failedRG", "failedRG");
         StreamMetrics.getInstance().updateTruncationSCFailed("failedRG", "failedRG");
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_STREAM_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.TRUNCATE_STREAM_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_READER_GROUP_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER_FAILED).count());
+        AssertExtensions.assertEventuallyEquals(1L, () -> (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count(), 5000);
+        AssertExtensions.assertEventuallyEquals(1L, () -> (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED).count(), 5000);
+        AssertExtensions.assertEventuallyEquals(1L, () -> (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM_FAILED).count(), 5000);
+        AssertExtensions.assertEventuallyEquals(1L, () -> (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED).count(), 5000);
+        AssertExtensions.assertEventuallyEquals(1L, () -> (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_STREAM_FAILED).count(), 5000);
+        AssertExtensions.assertEventuallyEquals(1L, () -> (long) MetricRegistryUtils.getCounter(MetricsNames.TRUNCATE_STREAM_FAILED).count(), 5000);
+        AssertExtensions.assertEventuallyEquals(1L, () -> (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM_FAILED).count(), 5000);
+        AssertExtensions.assertEventuallyEquals(1L, () -> (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_READER_GROUP_FAILED).count(), 5000);
+        AssertExtensions.assertEventuallyEquals(1L, () -> (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP_FAILED).count(), 5000);
+        AssertExtensions.assertEventuallyEquals(1L, () -> (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP_FAILED).count(), 5000);
+        AssertExtensions.assertEventuallyEquals(1L, () -> (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER_FAILED).count(), 5000);
     }
 
     @Test(timeout = 30000)
