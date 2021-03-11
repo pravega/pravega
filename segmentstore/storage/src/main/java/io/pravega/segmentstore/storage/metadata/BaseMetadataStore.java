@@ -268,7 +268,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     @Override
     public CompletableFuture<Void> commit(MetadataTransaction txn, boolean lazyWrite, boolean skipStoreCheck) {
-        Preconditions.checkArgument(null != txn);
+        Preconditions.checkArgument(null != txn, "txn must not be null");
         Preconditions.checkState(!txn.isReadonly(), "Attempt to modify in readonly transaction");
 
         val txnData = txn.getData();
@@ -328,7 +328,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     private CompletableFuture<Void> loadMissingKeys(MetadataTransaction txn, boolean skipStoreCheck, Map<String, TransactionData> txnData) {
         val loadFutures = new ArrayList<CompletableFuture<TransactionData>>();
         for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
-            Preconditions.checkState(activeKeys.contains(entry.getKey()), "key must be marked active.");
+            Preconditions.checkState(activeKeys.contains(entry.getKey()), "key must be marked active. key=%s", entry.getKey());
             val key = entry.getKey();
             if (skipStoreCheck || entry.getValue().isPinned()) {
                 log.trace("Skipping loading key from the store key = {}", key);
@@ -346,7 +346,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     for (Map.Entry<String, TransactionData> entry : txnData.entrySet()) {
                         val dataFromBuffer = bufferedTxnData.get(entry.getKey());
                         if (!(entry.getValue().isPinned())) {
-                            Preconditions.checkState(activeKeys.contains(entry.getKey()), "key must be marked active.");
+                            Preconditions.checkState(activeKeys.contains(entry.getKey()), "key must be marked active. key=%s", entry.getKey());
                             Preconditions.checkState(null != dataFromBuffer, "Data from buffer must not be null.");
                             if (!dataFromBuffer.isPinned()) {
                                 Preconditions.checkState(null != dataFromBuffer.getDbObject(), "Missing tracking object");
@@ -463,7 +463,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                 // Set the database object.
                 transactionData.setDbObject(dataFromBuffer.getDbObject());
             } else {
-                Preconditions.checkState(entry.getValue().isPinned(), "Transaction data evicted unexpectedly.");
+                Preconditions.checkState(entry.getValue().isPinned(), "Transaction data evicted unexpectedly. Key=%s", entry.getKey());
             }
         }
     }
@@ -512,6 +512,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      *            throws StorageMetadataException If there are any errors.
      */
     public CompletableFuture<Void> abort(MetadataTransaction txn) {
+        Preconditions.checkArgument(null != txn, "txn must not be null");
         // Do nothing
         return CompletableFuture.completedFuture(null);
     }
@@ -527,7 +528,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     @Override
     public CompletableFuture<StorageMetadata> get(MetadataTransaction txn, String key) {
-        Preconditions.checkArgument(null != txn);
+        Preconditions.checkArgument(null != txn, "txn must not be null");
         if (null == key) {
             return CompletableFuture.completedFuture(null);
         }
@@ -667,8 +668,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             retValue = copyForBuffer;
             bufferCount.incrementAndGet();
         }
-        Preconditions.checkState(activeKeys.contains(key), "key must be marked active.");
-        Preconditions.checkState(bufferedTxnData.containsKey(key), "bufferedTxnData must contain the key");
+        Preconditions.checkState(activeKeys.contains(key), "key must be marked active. Key=%s", key);
+        Preconditions.checkState(bufferedTxnData.containsKey(key), "bufferedTxnData must contain the key. Key=%s", key);
         if (!retValue.isPinned()) {
             Preconditions.checkState(null != retValue.dbObject, "Missing tracking object");
         }
@@ -727,9 +728,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     @Override
     public void update(MetadataTransaction txn, StorageMetadata metadata) {
-        Preconditions.checkArgument(null != txn);
-        Preconditions.checkArgument(null != metadata);
-        Preconditions.checkArgument(null != metadata.getKey());
+        Preconditions.checkArgument(null != txn, "txn should not be null.");
+        Preconditions.checkArgument(null != metadata, "metadata should not be null.");
+        Preconditions.checkArgument(null != metadata.getKey(), "metadata.key should not be null.");
         val txnData = txn.getData();
 
         val key = metadata.getKey();
@@ -754,8 +755,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     @Override
     public void markPinned(MetadataTransaction txn, StorageMetadata metadata) {
-        Preconditions.checkArgument(null != txn);
-        Preconditions.checkArgument(null != metadata);
+        Preconditions.checkArgument(null != txn, "txn must not be null.");
+        Preconditions.checkArgument(null != metadata, "metadata must not be null.");
         val txnData = txn.getData();
         val key = metadata.getKey();
 
@@ -779,9 +780,9 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     @Override
     public void create(MetadataTransaction txn, StorageMetadata metadata) {
-        Preconditions.checkArgument(null != txn);
-        Preconditions.checkArgument(null != metadata);
-        Preconditions.checkArgument(null != metadata.getKey());
+        Preconditions.checkArgument(null != txn, "txn must not be null.");
+        Preconditions.checkArgument(null != metadata, "metadata must not be null.");
+        Preconditions.checkArgument(null != metadata.getKey(), "metadata.key must not be null.");
         val txnData = txn.getData();
         txnData.put(metadata.getKey(), TransactionData.builder()
                 .key(metadata.getKey())
@@ -800,8 +801,8 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     @Override
     public void delete(MetadataTransaction txn, String key) {
-        Preconditions.checkArgument(null != txn);
-        Preconditions.checkArgument(null != key);
+        Preconditions.checkArgument(null != txn, "txn must not be null.");
+        Preconditions.checkArgument(null != key, "key must not be null.");
         val txnData = txn.getData();
 
         TransactionData data = TransactionData.builder().key(key).build();
