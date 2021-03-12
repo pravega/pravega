@@ -28,7 +28,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ScheduledExecutorService;
@@ -248,24 +247,21 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         // Find chunks to delete.
         val chunksToDelete = new ArrayList<GarbageChunkInfo>();
         int count = 0;
-        try {
-            // Block until you have at least one item.
-            GarbageChunkInfo info = garbageChunks.take();
-            log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
-            while (null != info ) {
-                queueSize.decrementAndGet();
-                chunksToDelete.add(info);
 
-                count++;
-                if (count >= maxItems) {
-                    break;
-                }
-                // Do not block
-                info = garbageChunks.poll();
-                log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
+        // Wait until you have at least one item or timeout expires.
+        GarbageChunkInfo info = Exceptions.handleInterruptedCall(() -> garbageChunks.poll(config.getGarbageCollectionDelay().toMillis(), TimeUnit.MILLISECONDS));
+        log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
+        while (null != info ) {
+            queueSize.decrementAndGet();
+            chunksToDelete.add(info);
+
+            count++;
+            if (count >= maxItems) {
+                break;
             }
-        } catch (InterruptedException e) {
-            throw new CompletionException(e);
+            // Do not block
+            info = garbageChunks.poll();
+            log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
         }
 
         // Sleep if no chunks to delete.
@@ -362,6 +358,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
                 loopFuture.cancel(true);
             }
             closed.set(true);
+            executor.shutdownNow();
             super.close();
         }
     }
