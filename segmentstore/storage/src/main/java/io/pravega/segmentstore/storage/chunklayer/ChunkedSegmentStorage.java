@@ -163,16 +163,17 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.readIndexCache = new ReadIndexCache(config.getMaxIndexedSegments(),
                 config.getMaxIndexedChunks());
-        this.systemJournal = new SystemJournal(containerId,
-                chunkStorage,
-                metadataStore,
-                config);
         this.taskProcessor = new MultiKeySequentialProcessor<>(this.executor);
         this.garbageCollector = new GarbageCollector(containerId,
                 chunkStorage,
                 metadataStore,
                 config,
                 executor);
+        this.systemJournal = new SystemJournal(containerId,
+                chunkStorage,
+                metadataStore,
+                garbageCollector,
+                config);
         this.closed = new AtomicBoolean(false);
         this.reporter = executor.scheduleAtFixedRate(this::report, 1000, 1000, TimeUnit.MILLISECONDS);
     }

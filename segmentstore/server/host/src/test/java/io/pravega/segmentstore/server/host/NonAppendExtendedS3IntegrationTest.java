@@ -36,6 +36,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -141,7 +142,9 @@ public class NonAppendExtendedS3IntegrationTest extends BookKeeperIntegrationTes
                     metadataStore,
                     this.executor,
                     ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                            .journalSnapshotCheckpointFrequency(Duration.ofMillis(1))
                             .appendEnabled(false)
+                            .selfCheckEnabled(true)
                             .build());
             return storage;
         }

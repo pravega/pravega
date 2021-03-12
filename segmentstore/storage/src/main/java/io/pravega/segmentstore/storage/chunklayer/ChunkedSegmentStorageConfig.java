@@ -44,7 +44,11 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_QUEUE_SIZE = Property.named("garbage.collection.queue.size.max", 16 * 1024);
     public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.millis", 10);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPTS = Property.named("garbage.collection.attempts.max", 3);
-
+    public static final Property<Integer> JOURNAL_SNAPSHOT_FREQUENCY = Property.named("journal.snapshot.duration.minutes", 5);
+    public static final Property<Integer> MAX_JOURNAL_RECORDS_PER_SNAPSHOT = Property.named("journal.snapshot.records.max", 100);
+    public static final Property<Integer> MAX_JOURNAL_READ_ATTEMPTS = Property.named("journal.snapshot.attempts.read.max", 10);
+    public static final Property<Integer> MAX_JOURNAL_WRITE_ATTEMPTS = Property.named("journal.snapshot.attempts.write.max", 10);
+    public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", false);
 
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
@@ -67,6 +71,11 @@ public class ChunkedSegmentStorageConfig {
             .garbageCollectionSleep(Duration.ofMillis(10))
             .garbageCollectionMaxAttempts(3)
             .indexBlockSize(1024 * 1024)
+            .journalSnapshotCheckpointFrequency(Duration.ofMinutes(5))
+            .maxJournalRecordsPerSnapshot(100)
+            .maxJournalReadAttempts(10)
+            .maxJournalWriteAttempts(10)
+            .selfCheckEnabled(false)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -178,6 +187,33 @@ public class ChunkedSegmentStorageConfig {
     final private int garbageCollectionMaxAttempts;
 
     /**
+     * Duration between two system journal snapshot.
+     */
+    @Getter
+    final private Duration journalSnapshotCheckpointFrequency;
+
+    /**
+     * Number of journal writes since last snapshot after which new snapshot is taken.
+     */
+    @Getter
+    final private int maxJournalRecordsPerSnapshot;
+
+    /**
+     * Max number of times snapshot read is retried.
+     */
+    @Getter
+    final private int maxJournalReadAttempts;
+
+    /**
+     * Max number of times snapshot write is retried.
+     */
+    @Getter
+    final private int maxJournalWriteAttempts;
+
+    @Getter
+    final private boolean selfCheckEnabled;
+
+    /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
@@ -201,6 +237,11 @@ public class ChunkedSegmentStorageConfig {
         this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
         this.garbageCollectionSleep = Duration.ofMillis(properties.getInt(GARBAGE_COLLECTION_SLEEP));
         this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPTS);
+        this.journalSnapshotCheckpointFrequency = Duration.ofMinutes(properties.getInt(JOURNAL_SNAPSHOT_FREQUENCY));
+        this.maxJournalRecordsPerSnapshot =  properties.getInt(MAX_JOURNAL_RECORDS_PER_SNAPSHOT);
+        this.maxJournalReadAttempts = properties.getInt(MAX_JOURNAL_READ_ATTEMPTS);
+        this.maxJournalWriteAttempts = properties.getInt(MAX_JOURNAL_WRITE_ATTEMPTS);
+        this.selfCheckEnabled = properties.getBoolean(SELF_CHECK_ENABLED);
         this.indexBlockSize = properties.getLong(READ_INDEX_BLOCK_SIZE);
     }
 

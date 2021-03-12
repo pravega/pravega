@@ -21,6 +21,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.time.Duration;
+
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
@@ -50,7 +52,10 @@ public class FileSystemIntegrationTest extends BookKeeperIntegrationTestBase {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withStorageFactory(setup -> useChunkedSegmentStorage ?
-                        new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                        new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                                .journalSnapshotCheckpointFrequency(Duration.ofMillis(1))
+                                .selfCheckEnabled(true)
+                                .build(),
                                 setup.getConfig(FileSystemStorageConfig::builder),
                                 setup.getStorageExecutor())
                         : new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), setup.getStorageExecutor())

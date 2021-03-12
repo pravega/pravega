@@ -110,6 +110,16 @@ public final class NameUtils {
     private static final String SYSJOURNAL_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.file%d";
 
     /**
+     * Format for Container System snapshot file name.
+     */
+    private static final String SYSJOURNAL_SNAPSHOT_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.snapshot%d";
+
+    /**
+     * Format for Container System checkpoint file name.
+     */
+    private static final String SYSJOURNAL_CHECKPOINT_NAME_PREFIX = "_system/containers/_sysjournal.epoch%d.container%d.checkpoint%d";
+
+    /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
      */
     private static final int TRANSACTION_PART_LENGTH = Long.BYTES * 8 / 4;
@@ -333,6 +343,29 @@ public final class NameUtils {
      */
     public static String getSystemJournalFileName(int containerId, long epoch, long currentFileIndex) {
         return String.format(SYSJOURNAL_NAME_FORMAT, epoch, containerId, currentFileIndex);
+    }
+
+
+    /**
+     * Gets file name of SystemJournal snapshot for given container instance.
+     * @param containerId The Id of the Container.
+     * @param epoch Epoch of the container instance.
+     * @param currentSnapshotIndex Current index for journal file.
+     * @return File name of SystemJournal for given container instance
+     */
+    public static String getSystemJournalSnapshotFileName(int containerId, long epoch, long currentSnapshotIndex) {
+        return String.format(SYSJOURNAL_SNAPSHOT_NAME_FORMAT, epoch, containerId, currentSnapshotIndex);
+    }
+
+    /**
+     * Gets file name prefix of SystemJournal checkpoint for given container instance.
+     * @param containerId The Id of the Container.
+     * @param epoch Epoch of the container instance.
+     * @param checkpointId Current index for journal file.
+     * @return File name of SystemJournal for given container instance
+     */
+    public static String getSystemJournalCheckpointFileNamePrefix(int containerId, long epoch, long checkpointId) {
+        return String.format(SYSJOURNAL_CHECKPOINT_NAME_PREFIX, epoch, containerId, checkpointId);
     }
 
     /**
