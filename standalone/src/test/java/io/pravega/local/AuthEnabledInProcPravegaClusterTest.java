@@ -14,7 +14,7 @@ import java.net.URI;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
+import org.junit.runner.RunWith;
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
@@ -22,6 +22,7 @@ import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
  * in the parent class.
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest {
     @Before
     @Override

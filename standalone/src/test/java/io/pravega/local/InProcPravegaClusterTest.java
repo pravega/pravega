@@ -24,6 +24,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.util.UUID;
@@ -35,6 +36,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static io.pravega.local.LocalPravegaEmulator.LocalPravegaEmulatorBuilder;
 import static org.junit.Assert.assertEquals;
@@ -46,6 +48,7 @@ import static org.junit.Assert.assertTrue;
  * with appropriate configuration for itself as well as for sub-classes.
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class InProcPravegaClusterTest {
 
     boolean restEnabled = true;

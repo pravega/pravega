@@ -14,15 +14,18 @@ import io.pravega.shared.security.auth.DefaultCredentials;
 import java.net.URI;
 
 import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.runner.RunWith;
 
 /**
  * This class holds tests for TLS and auth enabled in-process standalone cluster. It inherits the test methods defined
  * in the parent class.
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
     @Before
     @Override

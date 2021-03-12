@@ -37,7 +37,6 @@ import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.StorageLayoutType;
-import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.security.auth.Credentials;
@@ -53,7 +52,6 @@ import lombok.Cleanup;
 import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.bookkeeper.client.api.DigestType;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -64,7 +62,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 @ToString
 public class InProcPravegaCluster implements AutoCloseable {
 
-    private static final String LOCALHOST = "127.0.0.1";
+    private static final String LOCALHOST = "localhost";
     private static final int THREADPOOL_SIZE = 20;
     private boolean isInMemStorage;
 
@@ -188,7 +186,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         /*Start the ZK*/
         if (isInProcZK) {
-            zkUrl = LOCALHOST + ":" + zkPort;
+            zkUrl = "localhost:" + zkPort;
             startLocalZK();
         } else {
             URI zkUri = new URI("temp://" + zkUrl);
@@ -198,7 +196,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         if (isInProcHDFS) {
             startLocalHDFS();
-            hdfsUrl = String.format("hdfs://127.0.0.1:%d/", localHdfs.getNameNodePort());
+            hdfsUrl = String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort());
         }
 
         cleanUpZK();
@@ -278,7 +276,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                         .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
-                        .with(ServiceConfig.ZK_URL, LOCALHOST + ":" + zkPort)
+                        .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
                         .with(ServiceConfig.SECURE_ZK, this.secureZK)
                         .with(ServiceConfig.ZK_TRUSTSTORE_LOCATION, jksTrustFile)
                         .with(ServiceConfig.ZK_TRUST_STORE_PASSWORD_PATH, keyPasswordFile)
@@ -303,9 +301,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
-                .include(BookKeeperConfig.builder().with(BookKeeperConfig.BK_DIGEST_TYPE, DigestType.DUMMY.name()))
                 .include(AutoScalerConfig.builder()
-                        .with(AutoScalerConfig.CONTROLLER_URI, (this.enableTls ? "tls" : "tcp") + "://127.0.0.1:"
+                        .with(AutoScalerConfig.CONTROLLER_URI, (this.enableTls ? "tls" : "tcp") + "://localhost:"
                                                                                 + controllerPorts[0])
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
@@ -348,9 +345,9 @@ public class InProcPravegaCluster implements AutoCloseable {
         for (int i = 0; i < this.controllerCount; i++) {
             controllerServers[i] = startLocalController(i);
         }
-        controllerURI = (this.enableTls ? "tls" : "tcp") + "://127.0.0.1:" + controllerPorts[0];
+        controllerURI = (this.enableTls ? "tls" : "tcp") + "://localhost:" + controllerPorts[0];
         for (int i = 1; i < this.controllerCount; i++) {
-            controllerURI += ",127.0.0.1:" + controllerPorts[i];
+            controllerURI += ",localhost:" + controllerPorts[i];
         }
 
     }
@@ -388,7 +385,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl
                 .builder()
                 .port(this.controllerPorts[controllerId])
-                .publishedRPCHost(LOCALHOST)
+                .publishedRPCHost("localhost")
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .authorizationEnabled(this.enableAuth)
                 .tlsEnabled(this.enableTls)
