@@ -122,6 +122,8 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         server.startListening();
 
         // 2. Start controller
+        // the default watermarking frequency on the controller is 10 seconds.
+        System.setProperty("controller.watermarking.frequency.seconds", "5");
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 controllerPort, serviceHost, servicePort, containerCount);
 
@@ -227,9 +229,10 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         // read from stream cut of first watermark
         String readerGroup = "rg";
         readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
-                                                                                         .startingStreamCuts(firstMarkStreamCut)
-                                                                                         .endingStreamCuts(secondMarkStreamCut)
-                                                                                         .build());
+                .startingStreamCuts(firstMarkStreamCut)
+                .endingStreamCuts(secondMarkStreamCut)
+                .disableAutomaticCheckpoints()
+                .build());
 
         @Cleanup
         final EventStreamReader<Long> reader = clientFactory.createReader("myreader",
@@ -270,21 +273,21 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 120000)
     public void recreateStreamWatermarkTest() throws Exception {
-        // in each iteration create stream, note times and let watermark be generated. 
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
+        URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(controllerUri);
+
+        // in each iteration create stream, note times and let watermark be generated.
         // then delete stream and move to next iteration and verify that watermarks are generated. 
         for (int i = 0; i < 2; i++) {
             String scope = "scope";
             String stream = "recreate";
-            StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
 
-            URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
-            @Cleanup
-            StreamManager streamManager = StreamManager.create(controllerUri);
             streamManager.createScope(scope);
             streamManager.createStream(scope, stream, config);
-            
             // create writer
-            ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
             @Cleanup
             EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
             JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
@@ -309,7 +312,6 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
             fetchWatermarks(watermarkReader, watermarks, stopFlag);
 
             AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
-
             // stop run and seal and delete stream
             stopFlag.set(true);
             writerFuture.join();
@@ -402,9 +404,9 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         // read from stream cut of first watermark
         String readerGroup = "rgTx";
         readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
-                                                                           .startingStreamCuts(firstMarkStreamCut)
-                                                                           .endingStreamCuts(secondMarkStreamCut)
-                                                                           .build());
+                .startingStreamCuts(firstMarkStreamCut)
+                .endingStreamCuts(secondMarkStreamCut).disableAutomaticCheckpoints()
+                .build());
 
         @Cleanup
         final EventStreamReader<Long> reader = clientFactory.createReader("myreaderTx",
@@ -539,7 +541,8 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
             currentTime.set(timer.incrementAndGet());
             return writer.writeEvent(count.toString(), currentTime.get())
                     .thenAccept(v -> {
-                        if (count.incrementAndGet() % 10 == 0) {
+                        if (count.incrementAndGet() % 3 == 0) {
+                            log.info("===> Note time invoked");
                             writer.noteTime(currentTime.get());
                         }
                     });
@@ -572,13 +575,13 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
             Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
             if (marks.hasNext()) {
                 Map.Entry<Revision, Watermark> next = marks.next();
-                log.info("watermark = {}", next.getValue());
+                log.info("==> watermark = {}", next.getValue());
 
                 watermarks.add(next.getValue());
                 revision.set(next.getKey());
             }
             return null;
-        }, Duration.ofSeconds(10), executorService()), executorService());
+        }, Duration.ofSeconds(5), executorService()), executorService());
     }
 
 }
