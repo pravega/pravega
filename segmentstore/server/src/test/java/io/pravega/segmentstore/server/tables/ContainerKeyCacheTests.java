@@ -517,6 +517,42 @@ public class ContainerKeyCacheTests {
         }
     }
 
+    /**
+     * Test the {@link SegmentKeyCache.MigrationCandidate} class when cache is full.
+     */
+    @Test
+    public void testMigrationCandidateFailedCacheFull() {
+        @Cleanup
+        val fullCache = new DirectMemoryCache(10);
+        fullCache.insert(new ByteArraySegment(new byte[(int) (fullCache.getState().getMaxBytes() - fullCache.getBlockAlignment())]));
+
+        val keyCache = new SegmentKeyCache(1L, fullCache);
+        val rnd = new Random(0);
+
+        val batch = TableKeyBatch.update();
+        val key = newTableKey(rnd);
+        val keyHash = KEY_HASHER.hash(key.getKey());
+        batch.add(key, keyHash, key.getKey().getLength());
+        keyCache.includeUpdateBatch(batch, 0, 0);
+
+        List<SegmentKeyCache.CacheEntry> evictedEntries = null;
+        try {
+            // Migrate the tail index to a Cache Entry.
+            keyCache.setLastIndexedOffset(batch.getLength() + 1, 1);
+
+            // Try to evict all entries.
+            evictedEntries = keyCache.evictAll();
+
+            // We expect no evictions because we shouldn't have inserted anything.
+            Assert.assertEquals(0, evictedEntries.size());
+        } finally {
+            // Clean up the cache in case of an error. We do not want to leave data hanging around in the Cache.
+            if (evictedEntries != null) {
+                evictedEntries.forEach(SegmentKeyCache.CacheEntry::evict);
+            }
+        }
+    }
+
     private long batchInsert(long insertOffset, ContainerKeyCache keyCache, HashMap<TestKey, CacheBucketOffset> expectedResult, Random rnd) {
         val insertBatches = new HashMap<Long, TableKeyBatch>();
         long highestOffset = 0L;
