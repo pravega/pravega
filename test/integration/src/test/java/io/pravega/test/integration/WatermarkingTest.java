@@ -74,7 +74,9 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -88,23 +90,23 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class WatermarkingTest extends ThreadPooledTestSuite {
 
-    private final int controllerPort = TestUtils.getAvailableListenPort();
-    private final int servicePort = TestUtils.getAvailableListenPort();
+    private static final int controllerPort = TestUtils.getAvailableListenPort();
+    private static final int servicePort = TestUtils.getAvailableListenPort();
 
-    private TestingServer zkTestServer;
-    private ControllerWrapper controllerWrapper;
-    private PravegaConnectionListener server;
-    private ServiceBuilder serviceBuilder;
-    private StreamSegmentStore store;
-    private TableStore tableStore;
-    private AtomicLong timer = new AtomicLong();
+    private static TestingServer zkTestServer;
+    private static ControllerWrapper controllerWrapper;
+    private static PravegaConnectionListener server;
+    private static ServiceBuilder serviceBuilder;
+    private static StreamSegmentStore store;
+    private static TableStore tableStore;
+    private static AtomicLong timer = new AtomicLong();
 
     protected int getThreadPoolSize() {
         return 5;
     }
 
-    @Before
-    public void setup() throws Exception {
+    @BeforeClass
+    public static void setup() throws Exception {
         final String serviceHost = "localhost";
         final int containerCount = 4;
 
@@ -127,8 +129,8 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         timer.set(0);
     }
 
-    @After
-    public void cleanup() throws Exception {
+    @AfterClass
+    public static void cleanup() throws Exception {
         if (controllerWrapper != null) {
             controllerWrapper.close();
         }
