@@ -21,6 +21,7 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.ReaderGroupConfig;
@@ -246,6 +247,30 @@ public abstract class StreamMetadataTasksTest {
         StreamMetrics.reset();
         TransactionMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);
+    }
+
+    @Test(timeout = 30000)
+    public void testeventHelperNPE() throws Exception {
+        StreamMetadataStore streamMetadataStore = getStore();
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
+                BucketStore.ServiceType.WatermarkingService, 1);
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore(map);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
+        SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
+        List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 0.75));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.75, 1.0));
+
+        EventHelper helper = EventHelperMock.getEventHelperMock(executor, "host", ((AbstractStreamMetadataStore) streamMetadataStore).getHostTaskIndex());
+
+        StreamMetadataTasks streamMetadataTasks =  new StreamMetadataTasks(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelperMock, executor, "host", new GrpcAuthHelper(authEnabled, "key", 300), requestTracker, helper);
+
+        CompletableFuture<ScaleResponse> scaleResponse = streamMetadataTasks.manualScale(SCOPE, "hellow", Collections.singletonList(1L), newRanges, 30, null);
+        if (!scaleResponse.isDone()) {
+            ClientFactoryImpl clientFactory = mock(ClientFactoryImpl.class);
+            streamMetadataTasks.initializeStreamWriters(clientFactory, "_requestStream");
+        }
+        assertEquals(ScaleResponse.ScaleStreamStatus.FAILURE, scaleResponse.join().getStatus());
     }
 
     @Test(timeout = 30000)
