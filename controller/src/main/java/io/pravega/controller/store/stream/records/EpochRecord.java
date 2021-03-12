@@ -114,8 +114,7 @@ public class EpochRecord {
     private static class EpochRecordBuilder implements ObjectBuilder<EpochRecord> {
     }
 
-    private static class EpochRecordSerializer extends
-            VersionedSerializer.WithBuilder<EpochRecord, EpochRecord.EpochRecordBuilder> {
+    private static class EpochRecordSerializer extends VersionedSerializer.WithBuilder<EpochRecord, EpochRecord.EpochRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
