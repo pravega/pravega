@@ -135,7 +135,7 @@ public abstract class PersistentStreamBase implements Stream {
                  .forEach(x -> builder.add(newSegmentRecord(0, startingSegmentNumber + x, creationTime,
                                                                     x * keyRangeChunk, (x + 1) * keyRangeChunk)));
 
-        EpochRecord epoch0 = new EpochRecord(0, 0, builder.build(), creationTime, Optional.empty());
+        EpochRecord epoch0 = new EpochRecord(0, 0, builder.build(), creationTime, 0L, 0L);
 
         return createEpochRecord(epoch0)
                 .thenCompose(r -> createHistoryChunk(epoch0))
@@ -534,32 +534,11 @@ public abstract class PersistentStreamBase implements Stream {
         final AtomicReference<List<StreamSegmentRecord>> previous = new AtomicReference<>();
         return epochRecords.stream()
                            .map(record -> {
-                               long splits = 0;
-                               long merges = 0;
                                List<StreamSegmentRecord> segments = record.getSegments();
-                               if (previous.get() != null) {
-                                   splits = findSegmentSplitsMerges(previous.get(), segments);
-                                   merges = findSegmentSplitsMerges(segments, previous.get());
-                               }
                                previous.set(segments);
-                               return new ScaleMetadata(record.getCreationTime(), transform(segments), splits, merges);
+                               return new ScaleMetadata(record.getCreationTime(), transform(segments),
+                                       record.getSplits(), record.getMerges());
                            }).collect(Collectors.toList());
-    }
-
-    /**
-     * Method to calculate number of splits and merges.
-     *
-     * Principle to calculate the number of splits and merges:
-     * 1- An event has occurred if a reference range is present (overlaps) in at least two consecutive target ranges.
-     * 2- If the direction of the check in 1 is forward, then it is a split, otherwise it is a merge.
-     *
-     * @param referenceSegmentsList Reference segment list.
-     * @param targetSegmentsList Target segment list.
-     * @return Number of splits/merges.
-     */
-    private long findSegmentSplitsMerges(List<StreamSegmentRecord> referenceSegmentsList, List<StreamSegmentRecord> targetSegmentsList) {
-        return referenceSegmentsList.stream().filter(
-                segment -> targetSegmentsList.stream().filter(target -> target.overlaps(segment)).count() > 1 ).count();
     }
 
     @Override
@@ -1112,8 +1091,11 @@ public abstract class PersistentStreamBase implements Stream {
                         ImmutableList<StreamSegmentRecord> newSegments = newSegmentsBuilder.build();
                         builder.addAll(newSegments);
                         // epoch record
-                        EpochRecord epochRecord = new EpochRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(), 
-                                builder.build(), time, Optional.of(currentEpoch));
+                        ImmutableList<StreamSegmentRecord> epochSegments = builder.build();
+                        List<StreamSegmentRecord> segmentsList = convertToList(epochSegments);
+                        EpochRecord epochRecord = new EpochRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(),
+                                epochSegments, time, EpochRecord.findSegmentSplitsMerges(currentEpoch.getSegments(),
+                                segmentsList), EpochRecord.findSegmentSplitsMerges(segmentsList, currentEpoch.getSegments()));
 
                         HistoryTimeSeriesRecord timeSeriesRecord = 
                                 new HistoryTimeSeriesRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(), 
@@ -1126,6 +1108,14 @@ public abstract class PersistentStreamBase implements Stream {
                         return CompletableFuture.completedFuture(versionedMetadata);
                     }
                 });
+    }
+
+    private List<StreamSegmentRecord> convertToList(ImmutableList<StreamSegmentRecord> segmentList) {
+        List<StreamSegmentRecord> segList = new ArrayList<>(segmentList.size());
+        for (StreamSegmentRecord seg: segmentList) {
+            segList.add(seg);
+        }
+        return segList;
     }
  
     private CompletableFuture<Void> updateHistoryTimeSeries(HistoryTimeSeriesRecord record) {
@@ -1251,13 +1241,19 @@ public abstract class PersistentStreamBase implements Stream {
                                             committingTxnRecord.getNewActiveEpoch()),
                                             timeStamp + 1, x.getKeyStart(), x.getKeyEnd())));
 
+                            ImmutableList<StreamSegmentRecord> epochSegments = duplicateTxnSegmentsBuilder.build();
+                            List<StreamSegmentRecord> segmentList = convertToList(epochSegments);
                             EpochRecord duplicateTxnEpoch = new EpochRecord(committingTxnRecord.getNewTxnEpoch(), 
-                                    transactionEpochRecord.getReferenceEpoch(), duplicateTxnSegmentsBuilder.build(),
-                                    timeStamp, Optional.of(transactionEpochRecord));
+                                    transactionEpochRecord.getReferenceEpoch(), epochSegments,
+                                    timeStamp, EpochRecord.findSegmentSplitsMerges(transactionEpochRecord.getSegments(), segmentList),
+                                    EpochRecord.findSegmentSplitsMerges(segmentList, transactionEpochRecord.getSegments()));
 
+                            epochSegments = duplicateActiveSegmentsBuilder.build();
+                            segmentList = convertToList(epochSegments);
                             EpochRecord duplicateActiveEpoch = new EpochRecord(committingTxnRecord.getNewActiveEpoch(),
-                                    activeEpochRecord.getReferenceEpoch(), duplicateActiveSegmentsBuilder.build(),
-                                    timeStamp + 1, Optional.of(activeEpochRecord));
+                                    activeEpochRecord.getReferenceEpoch(), epochSegments,
+                                    timeStamp + 1, EpochRecord.findSegmentSplitsMerges(activeEpochRecord.getSegments(), segmentList),
+                                    EpochRecord.findSegmentSplitsMerges(segmentList, activeEpochRecord.getSegments()));
 
                             HistoryTimeSeriesRecord timeSeriesRecordTxnEpoch =
                                     new HistoryTimeSeriesRecord(duplicateTxnEpoch.getEpoch(), duplicateTxnEpoch.getReferenceEpoch(), 
@@ -2171,7 +2167,11 @@ public abstract class PersistentStreamBase implements Stream {
                    }
                 });
                 segmentsBuilder.addAll(createdSegments);
-                return new EpochRecord(epoch, referenceEpoch, segmentsBuilder.build(), time, Optional.of(lastRecord));
+                ImmutableList<StreamSegmentRecord> epochSegments = segmentsBuilder.build();
+                List<StreamSegmentRecord> segmentList = convertToList(epochSegments);
+                return new EpochRecord(epoch, referenceEpoch, epochSegments, time,
+                        EpochRecord.findSegmentSplitsMerges(lastRecord.getSegments(), segmentList),
+                        EpochRecord.findSegmentSplitsMerges(segmentList, lastRecord.getSegments()));
             });
         } else {
             return getEpochRecord(epoch);

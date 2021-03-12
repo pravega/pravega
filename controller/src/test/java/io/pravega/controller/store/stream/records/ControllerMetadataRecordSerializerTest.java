@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.Optional;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
@@ -50,7 +49,8 @@ public class ControllerMetadataRecordSerializerTest {
     @Test
     public void epochRecordTest() {
         List<StreamSegmentRecord> list = Lists.newArrayList(StreamSegmentRecord.newSegmentRecord(1, 0, 10L, 0.0, 1.0));
-        EpochRecord record = new EpochRecord(10, 0, ImmutableList.copyOf(list), 10L, Optional.empty());
+        EpochRecord record = new EpochRecord(10, 0, ImmutableList.copyOf(list), 10L,
+                0L, 0L);
         assertEquals(EpochRecord.fromBytes(record.toBytes()), record);
     }
     
