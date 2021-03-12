@@ -61,7 +61,7 @@ public class EventPointerImpl extends EventPointerInternal {
     public EventPointerInternal asImpl() {
         return this;
     }
-    
+
     public static EventPointer fromString(String eventPointer) {
         int i = eventPointer.lastIndexOf(":");
         Preconditions.checkArgument(i > 0, "Invalid event pointer: %s", eventPointer);
@@ -70,10 +70,10 @@ public class EventPointerImpl extends EventPointerInternal {
         return new EventPointerImpl(Segment.fromScopedName(eventPointer.substring(0, i)), Long.parseLong(offset[0]),
                                     Integer.parseInt(offset[1]));
     }
-    
+
     @Override
     public String toString() {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         sb.append(segment.getScopedName());
         sb.append(':');
         sb.append(eventStartOffset);
@@ -114,14 +114,14 @@ public class EventPointerImpl extends EventPointerInternal {
             revisionDataOutput.writeCompactInt(pointer.getEventLength());
         }
     }
-    
+
     @Override
     @SneakyThrows(IOException.class)
     public ByteBuffer toBytes() {
         ByteArraySegment serialized = SERIALIZER.serialize(this);
         return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
     }
-    
+
     @SneakyThrows(IOException.class)
     public static EventPointerInternal fromBytes(ByteBuffer data) {
         return SERIALIZER.deserialize(new ByteArraySegment(data));

@@ -47,7 +47,7 @@ import static io.pravega.client.stream.impl.ReaderGroupImpl.SILENT;
 @EqualsAndHashCode
 @Slf4j
 public class CheckpointState {
-    
+
     private static final CheckpointStateSerializer SERIALIZER = new CheckpointStateSerializer();
 
     private final List<String> checkpoints;
@@ -55,13 +55,13 @@ public class CheckpointState {
      * Maps CheckpointId to remaining hosts.
      */
     private final Map<String, List<String>> uncheckpointedHosts;
-    
+
     /**
      * Reverse of {@link #uncheckpointedHosts}. (derived).
      * Maps hosts to their outstanding checkpoints.
      */
     private Map<String, List<String>> checkpointIndex;
-    
+
     /**
      *  Maps CheckpointId to positions in segments.
      */
@@ -76,7 +76,7 @@ public class CheckpointState {
     public CheckpointState() {
         this(new ArrayList<>(), new HashMap<>(), new HashMap<>(), null, true);
     }
-    
+
     @Builder
     private CheckpointState(List<String> checkpoints, Map<String, List<String>> uncheckpointedHosts,
             Map<String, Map<Segment, Long>> checkpointPositions, Map<Segment, Long> lastCheckpointPosition,
@@ -102,16 +102,16 @@ public class CheckpointState {
         }
         recomputeCheckpointIndex();
     }
-    
+
     String getCheckpointForReader(String readerName) {
         List<String> checkpointsForReader = getCheckpointsForReader(readerName);
         return (checkpointsForReader.isEmpty()) ? null : checkpointsForReader.get(0);
     }
-    
+
     private List<String> getCheckpointsForReader(String readerName) {
         return checkpointIndex.getOrDefault(readerName, Collections.emptyList());
     }
-    
+
     private void recomputeCheckpointIndex() {
         checkpointIndex = new HashMap<>();
         for (Entry<String, List<String>> entry : uncheckpointedHosts.entrySet()) {
@@ -126,12 +126,12 @@ public class CheckpointState {
     void removeReader(String readerName, Map<Segment, Long> position) {
         List<String> toCheckpoint = checkpointIndex.remove(readerName);
         if (toCheckpoint != null) {
-            for (String checkpointId : toCheckpoint) {            
+            for (String checkpointId : toCheckpoint) {
                 readerCheckpointed(checkpointId, readerName, position);
             }
         }
     }
-    
+
     void readerCheckpointed(String checkpointId, String readerName, Map<Segment, Long> position) {
         log.debug("Reader : {} completed checkpointing for Checkpoint : {}", readerName, checkpointId);
         List<String> readers = uncheckpointedHosts.get(checkpointId);
@@ -140,7 +140,7 @@ public class CheckpointState {
             Preconditions.checkState(removed, "Reader already checkpointed.");
             List<String> cps = checkpointIndex.get(readerName);
             if (cps != null) {
-                cps.remove(checkpointId);                
+                cps.remove(checkpointId);
             }
             Map<Segment, Long> positions = checkpointPositions.get(checkpointId);
             positions.putAll(position);
@@ -156,7 +156,7 @@ public class CheckpointState {
             }
         }
     }
-    
+
     boolean isCheckpointComplete(String checkpointId) {
         return !uncheckpointedHosts.containsKey(checkpointId);
     }
@@ -164,7 +164,7 @@ public class CheckpointState {
     boolean isCheckpointSilent(String checkpointId) {
         return checkpointId.contains(SILENT);
     }
-    
+
     Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
         if (uncheckpointedHosts.containsKey(checkpointId)) {
             return null;
@@ -175,7 +175,7 @@ public class CheckpointState {
     Optional<Map<Segment, Long>> getPositionsForLatestCompletedCheckpoint() {
         return Optional.ofNullable(lastCheckpointPosition);
     }
-    
+
     boolean hasOngoingCheckpoint() {
         return !uncheckpointedHosts.isEmpty();
     }
@@ -189,7 +189,7 @@ public class CheckpointState {
                           .filter(checkpoint -> !(isCheckpointSilent(checkpoint) || isCheckpointComplete(checkpoint)))
                           .collect(Collectors.toList());
     }
-    
+
     void clearCheckpointsBefore(String checkpointId) {
         if (checkpointPositions.containsKey(checkpointId)) {
             for (Iterator<String> iterator = checkpoints.iterator(); iterator.hasNext();) {
@@ -217,10 +217,10 @@ public class CheckpointState {
         Map<Segment, Long> lcp = lastCheckpointPosition == null ? null : new HashMap<>(lastCheckpointPosition);
         return new CheckpointState(cps, ucph, cpps, lcp, isLastCheckpointPublished);
     }
-    
+
     @Override
     public String toString() {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         sb.append("CheckpointState { ongoingCheckpoints: ");
         sb.append(checkpoints.toString());
         sb.append(",  readersBlockingEachCheckpoint: ");

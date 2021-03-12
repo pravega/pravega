@@ -37,7 +37,7 @@ public class RevisionImpl implements Revision, Serializable {
     public int compareTo(Revision o) {
         Preconditions.checkArgument(segment.equals(o.asImpl().getSegment()));
         int result = Long.compare(offsetInSegment, o.asImpl().offsetInSegment);
-        return result != 0 ? result : Integer.compare(eventAtOffset, o.asImpl().eventAtOffset); 
+        return result != 0 ? result : Integer.compare(eventAtOffset, o.asImpl().eventAtOffset);
     }
 
     @Override
@@ -47,7 +47,7 @@ public class RevisionImpl implements Revision, Serializable {
 
     @Override
     public String toString() {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         sb.append(segment.getScopedName());
         sb.append(":");
         sb.append(offsetInSegment);
@@ -68,7 +68,7 @@ public class RevisionImpl implements Revision, Serializable {
     private Object writeReplace() throws ObjectStreamException {
         return new SerializedForm(toString());
     }
-    
+
     @Data
     private static class SerializedForm implements Serializable {
         private static final long serialVersionUID = 1L;
