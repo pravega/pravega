@@ -902,9 +902,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> streamCutStrictlyGreaterThan(String scope, String streamName, Map<Long, Long> streamCut1,
-                                                                   Map<Long, Long> streamCut2, OperationContext context, Executor executor) {
-        return Futures.completeOn(getStream(scope, streamName, context).isStreamCutStrictlyGreaterThan(streamCut1, streamCut2), executor);
+    public CompletableFuture<StreamCutComparison> compareStreamCut(String scope, String streamName, Map<Long, Long> streamCut1,
+                                                       Map<Long, Long> streamCut2, OperationContext context, Executor executor) {
+        return Futures.completeOn(getStream(scope, streamName, context).compareStreamCuts(streamCut1, streamCut2), executor);
     }
 
     @Override
