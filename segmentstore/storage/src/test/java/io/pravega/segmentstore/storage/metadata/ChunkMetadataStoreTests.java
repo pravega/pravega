@@ -941,6 +941,149 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
         }
     }
 
+    @Test
+    public void testReadonlyTransaction() throws Exception {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY0, KEY1)) {
+            assertNull(txn.get(KEY0));
+            txn.create(new MockStorageMetadata(KEY0, VALUE0));
+            Assert.assertNotNull(txn.get(KEY0));
+            txn.commit();
+        }
+
+        try (MetadataTransaction txn = metadataStore.beginTransaction(true, KEY0, KEY1)) {
+            assertNotNull(txn.get(KEY0));
+            Assert.assertNotNull(txn.get(KEY0));
+            AssertExtensions.assertThrows("create should throw an exception",
+                    () -> txn.create(new MockStorageMetadata(KEY0, VALUE0)),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("create should throw an exception",
+                    () -> txn.update(new MockStorageMetadata(KEY0, VALUE0)),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("create should throw an exception",
+                    () -> txn.delete(KEY0),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("create should throw an exception",
+                    () -> txn.commit(),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("create should throw an exception",
+                    () -> txn.commit(true),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("create should throw an exception",
+                    () -> txn.commit(true, true),
+                    ex -> ex instanceof IllegalStateException);
+        }
+    }
+
+    @Test
+    public void testTransactionCommitIllegalStateException() throws Exception {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY0, KEY1)) {
+            assertNull(txn.get(KEY0));
+            txn.create(new MockStorageMetadata(KEY0, VALUE0));
+            Assert.assertNotNull(txn.get(KEY0));
+            txn.commit();
+            AssertExtensions.assertThrows("commit should throw an exception",
+                    () -> txn.commit(),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("commit should throw an exception",
+                    () -> txn.commit(true),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("commit should throw an exception",
+                    () -> txn.commit(true, true),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("abort should throw an exception",
+                    () -> txn.abort(),
+                    ex -> ex instanceof IllegalStateException);
+        }
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY0, KEY1)) {
+            txn.update(new MockStorageMetadata(KEY0, VALUE0));
+            Assert.assertNotNull(txn.get(KEY0));
+            txn.abort();
+            AssertExtensions.assertThrows("create should throw an exception",
+                    () -> txn.commit(),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("commit should throw an exception",
+                    () -> txn.commit(true),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("commit should throw an exception",
+                    () -> txn.commit(true, true),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("abort should throw an exception",
+                    () -> txn.abort(),
+                    ex -> ex instanceof IllegalStateException);
+        }
+    }
+
+    @Test
+    public void testIllegalArgumentException() throws Exception {
+        AssertExtensions.assertThrows("commit should throw an exception",
+                () -> metadataStore.commit(null),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("commit should throw an exception",
+                () -> metadataStore.commit(null, true),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("commit should throw an exception",
+                () -> metadataStore.commit(null, true, true),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("abort should throw an exception",
+                () -> metadataStore.abort(null),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("create should throw an exception",
+                () -> metadataStore.create(null, new MockStorageMetadata(KEY0, VALUE0)),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("update should throw an exception",
+                () -> metadataStore.update(null, new MockStorageMetadata(KEY0, VALUE0)),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("delete should throw an exception",
+                () -> metadataStore.delete(null, KEY0),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("markPinned should throw an exception",
+                () -> metadataStore.markPinned(null, new MockStorageMetadata(KEY0, VALUE0)),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("get should throw an exception",
+                () -> metadataStore.get(null, KEY0),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("get should throw an exception",
+                () -> metadataStore.beginTransaction(true, null),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows("get should throw an exception",
+                () -> metadataStore.beginTransaction(true, new String[0]),
+                ex -> ex instanceof IllegalArgumentException);
+
+        try (MetadataTransaction txn = metadataStore.beginTransaction(true, KEY0, KEY1)) {
+            AssertExtensions.assertThrows("create should throw an exception",
+                    () -> metadataStore.create(txn, null),
+                    ex -> ex instanceof IllegalArgumentException);
+            AssertExtensions.assertThrows("create should throw an exception",
+                    () -> metadataStore.create(txn, new MockStorageMetadata(null, null)),
+                    ex -> ex instanceof IllegalArgumentException);
+
+            AssertExtensions.assertThrows("update should throw an exception",
+                    () -> metadataStore.update(txn, null),
+                    ex -> ex instanceof IllegalArgumentException);
+            AssertExtensions.assertThrows("update should throw an exception",
+                    () -> metadataStore.update(txn, new MockStorageMetadata(null, null)),
+                    ex -> ex instanceof IllegalArgumentException);
+
+            AssertExtensions.assertThrows("delete should throw an exception",
+                    () -> metadataStore.delete(txn, null),
+                    ex -> ex instanceof IllegalArgumentException);
+
+            AssertExtensions.assertThrows("markPinned should throw an exception",
+                    () -> metadataStore.markPinned(txn, null),
+                    ex -> ex instanceof IllegalArgumentException);
+
+            AssertExtensions.assertThrows("commit should throw an exception",
+                    () -> metadataStore.commit(txn),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("commit should throw an exception",
+                    () -> metadataStore.commit(txn, true),
+                    ex -> ex instanceof IllegalStateException);
+            AssertExtensions.assertThrows("commit should throw an exception",
+                    () -> metadataStore.commit(txn, true, true),
+                    ex -> ex instanceof IllegalStateException);
+        }
+    }
+
     private void assertNotNull(CompletableFuture<StorageMetadata> data) throws Exception {
         Assert.assertNotNull(data.get());
     }
