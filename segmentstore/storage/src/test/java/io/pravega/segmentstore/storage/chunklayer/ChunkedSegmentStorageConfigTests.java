@@ -67,6 +67,10 @@ public class ChunkedSegmentStorageConfigTests {
 
         TypedProperties typedProperties = new TypedProperties(props, "storage");
         ChunkedSegmentStorageConfig config = new ChunkedSegmentStorageConfig(typedProperties);
+        testDefaultValues(config);
+    }
+
+    private void testDefaultValues(ChunkedSegmentStorageConfig config) {
         Assert.assertEquals(config.isAppendEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isAppendEnabled());
         Assert.assertEquals(config.isLazyCommitEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isLazyCommitEnabled());
         Assert.assertEquals(config.isInlineDefragEnabled(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.isInlineDefragEnabled());
@@ -84,5 +88,10 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getGarbageCollectionSleep(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionSleep());
         Assert.assertEquals(config.getGarbageCollectionMaxAttempts(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionMaxAttempts());
         Assert.assertEquals(config.getIndexBlockSize(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getIndexBlockSize());
+    }
+
+    @Test
+    public void testDefaultBuildValues() {
+        testDefaultValues(ChunkedSegmentStorageConfig.builder().build());
     }
 }
