@@ -38,6 +38,13 @@ public interface BufferView {
     int getLength();
 
     /**
+     * Gets a value indicating the amount of memory (in bytes) allocated for this {@link BufferView}.
+     *
+     * @return The allocated memory size.
+     */
+    int getAllocatedLength();
+
+    /**
      * Creates a new {@link BufferView.Reader} that can be used to read this {@link BufferView}. This reader is
      * preferable to {@link #getReader()} that returns an {@link InputStream} as it contains optimized methods for copying
      * directly into other {@link BufferView} instances, such as {@link ByteArraySegment}s.
@@ -87,7 +94,7 @@ public interface BufferView {
     /**
      * Returns a copy of the contents of this {@link BufferView}.
      *
-     * @return A byte array with the same length as this ArrayView, containing a copy of the data within it.
+     * @return A byte array with the same length as this {@link BufferView}, containing a copy of the data within it.
      */
     byte[] getCopy();
 

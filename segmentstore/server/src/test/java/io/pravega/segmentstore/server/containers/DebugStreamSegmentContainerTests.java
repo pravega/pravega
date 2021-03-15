@@ -365,6 +365,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
+        Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
         // 3. Instead of waiting for the Writer to move data to Storage, we invoke the flushToStorage to verify that all
         // operations have been applied to Storage.
         val forceFlush = container.flushToStorage(TIMEOUT);
@@ -507,7 +509,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         TestContext(ScheduledExecutorService scheduledExecutorService) {
             this.storageFactory = new InMemoryStorageFactory(scheduledExecutorService);
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, scheduledExecutorService);
-            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE / 5);
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, scheduledExecutorService);
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
             this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
