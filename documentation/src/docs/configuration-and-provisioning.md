@@ -1,9 +1,15 @@
 # Pravega Configuration and Provisioning Guide
 
-This document summarizes the most important aspects to take consider for configuring and provisioning a
-Pravega Cluster in production infrastructure-agnostic way. Note that this document does not cover all the 
+This document summarizes the most important aspects to consider for configuring and provisioning a
+production Pravega Cluster in an infrastructure-agnostic way. Note that this document does not cover all the 
 parameters in the configuration of Pravega as they are [already documented](/config/config.properties). Similarly,
 this is not a guide to [deploy Pravega on Kubernetes](https://github.com/pravega/pravega-operator).
+
+* [Configuring Cluster Service Dependencies](#configuring-cluster-service-dependencies)
+* [Number of Segment Containers](#number-of-segment-containers)
+* [Segment Store Cache Size and Memory Settings](#segment-store-cache-size-and-memory-settings)
+* [Durable Log Configuration: Bookkeeper](#durable-log-configuration-bookkeeper)
+* [Right-Sizing Long-Term Storage](#right-sizing-long-term-storage)
 
 ## Configuring Cluster Service Dependencies
 
@@ -14,11 +20,12 @@ Zookeeper and Bookkeeper using NFS as Long-Term Storage.
 
 Relevant configuration parameters:
  
-- **`pravegaservice.cluster.name`**: Name of the cluster to which this instance of the SegmentStore belongs.
+- **`pravegaservice.cluster.name`, `controller.cluster.name`**: Name of the cluster to which this instance of the Segment 
+Store belongs.
 _Type_: `String`. _Default_: `pravega-cluster`. _Update-mode_: `read-only`.
 
-- **`pravegaservice.zk.connect.uri`**: Full URL (host:port) where to find a ZooKeeper that can be used for coordinating 
-this Pravega Cluster. 
+- **`pravegaservice.zk.connect.uri`, `controller.zk.connect.uri`**: Full URL (host:port) where to find a ZooKeeper that 
+can be used for coordinating this Pravega Cluster. 
 _Type_: `String`. _Default_: `localhost:2181`. _Update-mode_: `read-only`.
 
 - **`pravegaservice.dataLog.impl.name`**: DataLog implementation for Durable Data Log Storage. Valid values: BOOKKEEPER, 
@@ -49,10 +56,12 @@ _Type_: `String`. _Default_: ` `. _Update-mode_: `read-only`.
 metadata driver and resolving its metadata service location.
 _Type_: `String`. _Default_: `zk+hierarchical://localhost:2181/ledgers`. _Update-mode_: `read-only`.
 
+The above parameters express the dependencies within a Pravega cluster as follows:
 
+![Pravega Cluster Dependencies](img/cluster-dependency-configuration.png) 
 
-
-
+Following with the proposed example, we need to configure the above parameters as follows. First, assuming that our
+Zookeeper cluster is up and running (no dependencies here), the first step is to deploy Bookkeeper.  
 
 
 ## Number of Segment Containers
