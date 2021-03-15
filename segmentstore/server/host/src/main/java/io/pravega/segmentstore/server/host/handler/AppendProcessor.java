@@ -171,8 +171,18 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                                 if (u != null) {
                                     handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
                                 } else {
+                                    // Last event number stored according to Segment store.
                                     long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
-                                    this.writerStates.putIfAbsent(Pair.of(newSegment, writer), new WriterState(eventNumber));
+
+                                    // Create a new WriterState object based on the attribute value for the last event number for the writer.
+                                    // It should be noted that only one connection for a given segment writer is created by the client.
+                                    // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
+                                    // below the specified event number.
+                                    WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber));
+                                    if (current != null) {
+                                        log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
+                                                writer, eventNumber, current);
+                                    }
                                     connection.send(new AppendSetup(setupAppend.getRequestId(), newSegment, writer, eventNumber));
                                 }
                             } catch (Throwable e) {

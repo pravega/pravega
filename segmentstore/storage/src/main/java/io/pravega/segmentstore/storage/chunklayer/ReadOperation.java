@@ -18,7 +18,9 @@ import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
+import io.pravega.segmentstore.storage.metadata.ReadIndexBlockMetadata;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
+import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -129,7 +131,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         return Futures.loop(
                 () -> bytesRemaining.get() > 0 && null != currentChunkName,
                 () -> {
-                    Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null");
+                    Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null. currentChunkName=%s Segment=%s", currentChunkName, segmentMetadata.getName());
                     bytesToRead = Math.toIntExact(Math.min(bytesRemaining.get(), chunkToReadFrom.getLength() - (currentOffset.get() - startOffsetForCurrentChunk.get())));
                     if (currentOffset.get() >= startOffsetForCurrentChunk.get() + chunkToReadFrom.getLength()) {
                         // The current chunk is over. Move to the next one.
@@ -139,13 +141,13 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                             return txn.get(currentChunkName)
                                     .thenAcceptAsync(storageMetadata -> {
                                         chunkToReadFrom = (ChunkMetadata) storageMetadata;
-                                        Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null");
+                                        Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null. currentChunkName=%s Segment=%s", currentChunkName, segmentMetadata.getName());
                                         log.debug("{} read - reading from next chunk - op={}, segment={}, chunk={}", chunkedSegmentStorage.getLogPrefix(),
                                                 System.identityHashCode(this), handle.getSegmentName(), chunkToReadFrom);
                                     }, chunkedSegmentStorage.getExecutor());
                         }
                     } else {
-                        Preconditions.checkState(bytesToRead != 0, "bytesToRead is 0");
+                        Preconditions.checkState(bytesToRead != 0, "bytesToRead is 0. Segment=%s", segmentMetadata.getName());
                         // Read data from the chunk.
                         return CompletableFuture.runAsync(() -> {
                             // Create parallel requests to read each chunk.
@@ -202,7 +204,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         currentChunkName = segmentMetadata.getFirstChunk();
         chunkToReadFrom = null;
 
-        Preconditions.checkState(null != currentChunkName, "currentChunkName must not be null.");
+        Preconditions.checkState(null != currentChunkName, "currentChunkName must not be null. Segment=%s", segmentMetadata.getName());
 
         bytesRemaining.set(length);
         currentBufferOffset.set(bufferOffset);
@@ -223,19 +225,45 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                 currentChunkName = floorEntry.getChunkName();
             }
         }
+
+        val floorBlock = offset / chunkedSegmentStorage.getConfig().getIndexBlockSize();
+        val floorBlockStartOffset = floorBlock * chunkedSegmentStorage.getConfig().getIndexBlockSize();
+        CompletableFuture<Void>  f;
+        if (!segmentMetadata.isStorageSystemSegment() && startOffsetForCurrentChunk.get() < floorBlockStartOffset) {
+            f = txn.get(NameUtils.getSegmentReadIndexBlockName(segmentMetadata.getName(), floorBlockStartOffset))
+                    .thenAcceptAsync(storageMetadata -> {
+                        if (null != storageMetadata) {
+                            ReadIndexBlockMetadata blockMetadata = (ReadIndexBlockMetadata) storageMetadata;
+                            if (blockMetadata.getStartOffset() <= offset) {
+                                startOffsetForCurrentChunk.set(blockMetadata.getStartOffset());
+                                currentChunkName = blockMetadata.getChunkName();
+                                log.debug("{} read - found block index to start scanning - op={}, segment={}, chunk={}, startOffset={}, offset={}.",
+                                        chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
+                                        handle.getSegmentName(), currentChunkName, startOffsetForCurrentChunk.get(), offset);
+                            } else {
+                                log.warn("{} read - block entry offset must be floor to requested offset. op={} segment={} offset={} length={} block={}",
+                                        chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
+                                        segmentMetadata, offset, length, blockMetadata);
+                            }
+                        }
+                    });
+        } else {
+           f = CompletableFuture.completedFuture(null);
+        }
+
         // Navigate to the chunk that contains the first byte of requested data.
-        return Futures.loop(
+        return f.thenComposeAsync( vv -> Futures.loop(
                 () -> currentChunkName != null && !isLoopExited,
                 () -> txn.get(currentChunkName)
                         .thenAcceptAsync(storageMetadata -> {
                             chunkToReadFrom = (ChunkMetadata) storageMetadata;
-                            Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null");
+                            Preconditions.checkState(null != chunkToReadFrom, "chunkToReadFrom is null. currentChunkName=%s Segment=%s", currentChunkName, segmentMetadata.getName());
                             if (startOffsetForCurrentChunk.get() <= currentOffset.get()
                                     && startOffsetForCurrentChunk.get() + chunkToReadFrom.getLength() > currentOffset.get()) {
                                 // we have found a chunk that contains first byte we want to read
                                 log.debug("{} read - found chunk to read - op={}, segment={}, chunk={}, startOffset={}, length={}, readOffset={}.",
                                         chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
-                                        handle.getSegmentName(), chunkToReadFrom, startOffsetForCurrentChunk, chunkToReadFrom.getLength(), currentOffset);
+                                        handle.getSegmentName(), chunkToReadFrom, startOffsetForCurrentChunk.get(), chunkToReadFrom.getLength(), currentOffset);
                                 isLoopExited = true;
                                 return;
                             }
@@ -261,7 +289,8 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                     log.debug("{} read - chunk lookup - op={}, segment={}, offset={}, scanned={}, latency={}.",
                             chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this),
                             handle.getSegmentName(), offset, cntScanned.get(), elapsed.toMillis());
-                }, chunkedSegmentStorage.getExecutor());
+                }, chunkedSegmentStorage.getExecutor()),
+        chunkedSegmentStorage.getExecutor());
     }
 
     private void checkState() {
@@ -284,7 +313,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
 
         Exceptions.checkArrayRange(bufferOffset, length, buffer.length, "bufferOffset", "length");
 
-        if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
+        if (offset < 0) {
             throw new ArrayIndexOutOfBoundsException(String.format(
                     "Offset (%s) must be non-negative, and bufferOffset (%s) and length (%s) must be valid indices into buffer of size %s.",
                     offset, bufferOffset, length, buffer.length));

@@ -1462,19 +1462,19 @@ public abstract class StreamMetadataStoreTest {
 
         streamCut.put(0L, 0L);
         streamCut.put(1L, 10L);
-        assertFalse(store.streamCutStrictlyGreaterThan(scope, stream, streamCut, map1, null, executor).join());
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.Before);
 
         streamCut.put(0L, 10L);
         streamCut.put(1L, 10L);
-        assertTrue(store.streamCutStrictlyGreaterThan(scope, stream, streamCut, map1, null, executor).join());
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.EqualOrAfter);
 
         streamCut.put(0L, 1L);
         streamCut.put(1L, 11L);
-        assertFalse(store.streamCutStrictlyGreaterThan(scope, stream, streamCut, map1, null, executor).join());
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.Overlaps);
 
         streamCut.put(0L, 20L);
         streamCut.put(1L, 20L);
-        assertTrue(store.streamCutStrictlyGreaterThan(scope, stream, streamCut, map1, null, executor).join());
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.EqualOrAfter);
     }
 
     @Test
@@ -1966,10 +1966,9 @@ public abstract class StreamMetadataStoreTest {
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(rgId)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        rgConfig = ReaderGroupConfig.cloneConfig(rgConfig, rgId, 0L);
         final RGOperationContext rgContext = store.createRGContext(scopeRGTest, rgName);
         store.addReaderGroupToScope(scopeRGTest, rgName, rgConfig.getReaderGroupId()).join();
         store.createReaderGroup(scopeRGTest, rgName, rgConfig, System.currentTimeMillis(), rgContext, executor).join();

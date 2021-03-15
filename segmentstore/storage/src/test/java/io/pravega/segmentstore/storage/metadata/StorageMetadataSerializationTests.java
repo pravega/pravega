@@ -59,7 +59,7 @@ public class StorageMetadataSerializationTests {
     }
 
     @Test
-    public void testStorageMetadataSerialization() throws Exception {
+    public void testChunkMetadataSerialization() throws Exception {
         testStorageMetadataSerialization(ChunkMetadata.builder()
                 .name("name")
                 .nextChunk("nextChunk")
@@ -74,10 +74,99 @@ public class StorageMetadataSerializationTests {
                 .build());
     }
 
+
+    @Test
+    public void testMockMetadataDeepCopy() throws Exception {
+        testStorageMetadataDeepCopy(new MockStorageMetadata("Foo", "Bar"));
+    }
+
+    @Test
+    public void testSegmentMetadataDeepCopy() throws Exception {
+        testStorageMetadataDeepCopy(SegmentMetadata.builder()
+                .name("name")
+                .length(1)
+                .chunkCount(2)
+                .startOffset(3)
+                .status(5)
+                .maxRollinglength(6)
+                .firstChunk("firstChunk")
+                .lastChunk("lastChunk")
+                .lastModified(7)
+                .firstChunkStartOffset(8)
+                .lastChunkStartOffset(9)
+                .ownerEpoch(10)
+                .build());
+
+        // With nullable values
+        testStorageMetadataDeepCopy(SegmentMetadata.builder()
+                .name("name")
+                .length(1)
+                .chunkCount(2)
+                .startOffset(3)
+                .status(5)
+                .maxRollinglength(6)
+                .firstChunk(null)
+                .lastChunk(null)
+                .lastModified(7)
+                .firstChunkStartOffset(8)
+                .lastChunkStartOffset(9)
+                .ownerEpoch(10)
+                .build());
+    }
+
+    @Test
+    public void testChunkMetadataDeepCopy() throws Exception {
+        testStorageMetadataDeepCopy(ChunkMetadata.builder()
+                .name("name")
+                .nextChunk("nextChunk")
+                .length(1)
+                .status(2)
+                .build());
+        // With nullable values
+        testStorageMetadataDeepCopy(ChunkMetadata.builder()
+                .name("name")
+                .length(1)
+                .status(2)
+                .build());
+    }
+
+    @Test
+    public void testReadIndexBlockMetadataDeepCopy() throws Exception {
+        testStorageMetadataDeepCopy(ReadIndexBlockMetadata.builder()
+                .name("name")
+                .chunkName("chunkName")
+                .startOffset(1)
+                .status(2)
+                .build());
+
+        // Modify the status after object is built.
+        val index = ReadIndexBlockMetadata.builder()
+                .name("name")
+                .chunkName("chunkName")
+                .startOffset(1)
+                .status(2)
+                .build();
+        index.setActive(true);
+        Assert.assertTrue(index.isActive());
+        Assert.assertEquals(3, index.getStatus());
+
+        testStorageMetadataDeepCopy(ReadIndexBlockMetadata.builder()
+                .name("name")
+                .chunkName("chunkName")
+                .startOffset(1)
+                .status(3)
+                .build());
+    }
+
     private void testStorageMetadataSerialization(StorageMetadata original) throws Exception {
         val serializer = new StorageMetadata.StorageMetadataSerializer();
         val bytes = serializer.serialize(original);
         val obj = serializer.deserialize(bytes);
+        Assert.assertEquals(original, obj);
+    }
+
+    private void testStorageMetadataDeepCopy(StorageMetadata original) throws Exception {
+        val obj = original.deepCopy();
         Assert.assertEquals(original, obj);
     }
 
