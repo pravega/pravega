@@ -1474,6 +1474,75 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the {@link ContainerReadIndex#trimCache()} method.
+     */
+    @Test
+    public void testTrimCache() throws Exception {
+        // Create a CachePolicy with a set number of generations and a known max size.
+        // Each generation contains exactly one entry, so the number of generations is also the number of entries.
+        // We append one byte at each time. This allows us to test edge cases as well by having the finest precision when
+        // it comes to selecting which bytes we want evicted and which kept.
+        final int appendCount = 100;
+        final int segmentId = 123;
+        final byte[] appendData = new byte[2];
+
+        val removedEntryCount = new AtomicInteger();
+        @Cleanup
+        TestContext context = new TestContext();
+        context.metadata.enterRecoveryMode();
+        context.readIndex.enterRecoveryMode(context.metadata);
+
+        // To ease our testing, we disable appends and instruct the TestCache to report the same value for UsedBytes as it
+        // has for StoredBytes. This shields us from having to know internal details about the layout of the cache.
+        context.cacheStorage.usedBytesSameAsStoredBytes = true;
+        context.cacheStorage.disableAppends = true;
+        context.cacheStorage.deleteCallback = e -> removedEntryCount.incrementAndGet();
+
+        createSegment(segmentId, context);
+        val metadata = context.metadata.getStreamSegmentMetadata(segmentId);
+        metadata.setLength(appendCount * appendData.length);
+        for (int i = 0; i < appendCount; i++) {
+            long offset = i * appendData.length;
+            context.readIndex.append(segmentId, offset, new ByteArraySegment(appendData));
+        }
+
+        // Gradually increase the StorageLength of the segment and invoke trimCache twice at every step. We want to verify
+        // that it also does not evict more than it should if it has nothing to do.
+        int deltaIncrease = 0;
+        while (metadata.getStorageLength() < metadata.getLength()) {
+            val trim1 = context.readIndex.trimCache();
+            Assert.assertEquals("Not expecting any bytes trimmed.", 0, trim1);
+
+            // Every time we trim, increase the StorageLength by a bigger amount - but make sure we don't exceed the length of the segment.
+            deltaIncrease = (int) Math.min(metadata.getLength() - metadata.getStorageLength(), deltaIncrease + appendData.length);
+            metadata.setStorageLength(Math.min(metadata.getLength(), metadata.getStorageLength() + deltaIncrease));
+            removedEntryCount.set(0);
+            val trim2 = context.readIndex.trimCache();
+            Assert.assertEquals("Unexpected number of bytes trimmed.", deltaIncrease, trim2);
+            Assert.assertEquals("Unexpected number of cache entries evicted.", deltaIncrease / appendData.length, removedEntryCount.get());
+        }
+
+        // Take the index out of recovery mode.
+        context.metadata.exitRecoveryMode();
+        context.readIndex.exitRecoveryMode(true);
+
+        // Verify that the entries have actually been evicted.
+        for (int i = 0; i < appendCount; i++) {
+            long offset = i * appendData.length;
+            @Cleanup
+            val readResult = context.readIndex.read(segmentId, offset, appendData.length, TIMEOUT);
+            val first = readResult.next();
+            Assert.assertEquals("", ReadResultEntryType.Storage, first.getType());
+        }
+
+        // Verify trimCache() doesn't work when we are not in recovery mode.
+        AssertExtensions.assertThrows(
+                "trimCache worked in non-recovery mode.",
+                context.readIndex::trimCache,
+                ex -> ex instanceof IllegalStateException);
+    }
+
+    /**
      * Tests the {@link ContainerReadIndex#cleanup} method as well as its handling of inactive segments.
      */
     @Test
