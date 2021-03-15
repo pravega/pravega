@@ -68,6 +68,13 @@ public class EpochRecord {
         this.merges = merges;
     }
 
+    public boolean hasSplitsMerges() {
+        if (this.epoch != 0 && this.getSplits() != 0 && this.getMerges() != 0) {
+            return true;
+        }
+        return false;
+    }
+
     /**
      * Method to calculate number of splits and merges.
      *

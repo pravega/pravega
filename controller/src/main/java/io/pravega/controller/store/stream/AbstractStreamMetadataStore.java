@@ -533,7 +533,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Void> completeRollingTxn(String scope, String name, Map<Long, Long> sealedActiveEpochSegments,
                                                       VersionedMetadata<CommittingTransactionsRecord> record, OperationContext context, Executor executor) {
 
-        CompletableFuture<Void> future = Futures.completeOn(getStream(scope, name, context).completeRollingTxn(sealedActiveEpochSegments, record), executor);
+        CompletableFuture<Void> future = Futures.completeOn(getStream(scope, name, context)
+                .completeRollingTxn(sealedActiveEpochSegments, record), executor);
 
         future.thenCompose(result -> findNumSplitsMerges(scope, name, context, executor).thenAccept(simpleEntry ->
                 StreamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue())));
@@ -1036,15 +1037,23 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     //endregion
 
     private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, OperationContext context, Executor executor) {
-        return getScaleMetadata(scopeName, streamName, 0, Long.MAX_VALUE, context, executor).thenApply(scaleMetadataList -> {
-            AtomicLong totalNumSplits = new AtomicLong(0L);
-            AtomicLong totalNumMerges = new AtomicLong(0L);
-            scaleMetadataList.forEach(x -> {
-                totalNumMerges.addAndGet(x.getMerges());
-                totalNumSplits.addAndGet(x.getSplits());
-            });
+        return getStream(scopeName, streamName, context).getActiveEpoch(true).thenCompose(lastEpoch -> {
+            if (lastEpoch.hasSplitsMerges()) {
+                // the latest EpochRecord has a cumulative count of splits and merges.
+                return CompletableFuture.completedFuture(new SimpleEntry<>(lastEpoch.getSplits(),
+                        lastEpoch.getMerges()));
+            } else {
+                return getScaleMetadata(scopeName, streamName, 0, Long.MAX_VALUE, context, executor).thenApply(scaleMetadataList -> {
+                    AtomicLong totalNumSplits = new AtomicLong(0L);
+                    AtomicLong totalNumMerges = new AtomicLong(0L);
+                    scaleMetadataList.forEach(x -> {
+                        totalNumMerges.addAndGet(x.getMerges());
+                        totalNumSplits.addAndGet(x.getSplits());
+                    });
 
-            return new SimpleEntry<>(totalNumSplits.get(), totalNumMerges.get());
+                    return new SimpleEntry<>(totalNumSplits.get(), totalNumMerges.get());
+                });
+            }
         });
     }
 

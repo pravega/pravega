@@ -533,12 +533,17 @@ public abstract class PersistentStreamBase implements Stream {
     private List<ScaleMetadata> mapToScaleMetadata(List<EpochRecord> epochRecords) {
         final AtomicReference<List<StreamSegmentRecord>> previous = new AtomicReference<>();
         return epochRecords.stream()
-                           .map(record -> {
-                               List<StreamSegmentRecord> segments = record.getSegments();
-                               previous.set(segments);
-                               return new ScaleMetadata(record.getCreationTime(), transform(segments),
-                                       record.getSplits(), record.getMerges());
-                           }).collect(Collectors.toList());
+                .map(record -> {
+                    long splits = 0;
+                    long merges = 0;
+                    List<StreamSegmentRecord> segments = record.getSegments();
+                    if (previous.get() != null) {
+                        splits = EpochRecord.findSegmentSplitsMerges(previous.get(), segments);
+                        merges = EpochRecord.findSegmentSplitsMerges(segments, previous.get());
+                    }
+                    previous.set(segments);
+                    return new ScaleMetadata(record.getCreationTime(), transform(segments), splits, merges);
+                }).collect(Collectors.toList());
     }
 
     @Override
@@ -1091,11 +1096,12 @@ public abstract class PersistentStreamBase implements Stream {
                         ImmutableList<StreamSegmentRecord> newSegments = newSegmentsBuilder.build();
                         builder.addAll(newSegments);
                         // epoch record
+                        SimpleEntry<Long, Long> splitMergeCountLastEpoch = getSplitMergeCountsTillEpoch(currentEpoch).join();
                         ImmutableList<StreamSegmentRecord> epochSegments = builder.build();
                         List<StreamSegmentRecord> segmentsList = convertToList(epochSegments);
                         EpochRecord epochRecord = new EpochRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(),
-                                epochSegments, time, EpochRecord.findSegmentSplitsMerges(currentEpoch.getSegments(),
-                                segmentsList), EpochRecord.findSegmentSplitsMerges(segmentsList, currentEpoch.getSegments()));
+                        epochSegments, time, getNewEpochSplitCount(splitMergeCountLastEpoch.getKey(), currentEpoch.getSegments(), segmentsList),
+                                getNewEpochMergeCount(splitMergeCountLastEpoch.getValue(), currentEpoch.getSegments(), segmentsList));
 
                         HistoryTimeSeriesRecord timeSeriesRecord = 
                                 new HistoryTimeSeriesRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(), 
@@ -1108,6 +1114,32 @@ public abstract class PersistentStreamBase implements Stream {
                         return CompletableFuture.completedFuture(versionedMetadata);
                     }
                 });
+    }
+
+    private CompletableFuture<SimpleEntry<Long, Long>> getSplitMergeCountsTillEpoch(EpochRecord epochRecord) {
+        if (epochRecord.getSplits() == 0 && epochRecord.getMerges() == 0) {
+            //migration case: build the cumulative count from all previous epochs
+            return getScaleMetadata(0, Long.MAX_VALUE).thenApply(scaleMetadataList -> {
+                AtomicLong totalNumSplits = new AtomicLong(0L);
+                AtomicLong totalNumMerges = new AtomicLong(0L);
+                scaleMetadataList.forEach(x -> {
+                    totalNumMerges.addAndGet(x.getMerges());
+                    totalNumSplits.addAndGet(x.getSplits());
+                });
+
+                return new SimpleEntry<>(totalNumSplits.get(), totalNumMerges.get());
+            });
+        } else {
+            return CompletableFuture.completedFuture(new SimpleEntry<>(epochRecord.getSplits(), epochRecord.getMerges()));
+        }
+    }
+
+    private long getNewEpochSplitCount(final long splitCountPrevEpoch, List<StreamSegmentRecord> lastEpochSegments, List<StreamSegmentRecord> newEpochSegments) {
+        return splitCountPrevEpoch + EpochRecord.findSegmentSplitsMerges(lastEpochSegments, newEpochSegments);
+    }
+
+    private long getNewEpochMergeCount(final long mergeCountPrevEpoch, List<StreamSegmentRecord> lastEpochSegments, List<StreamSegmentRecord> newEpochSegments) {
+        return mergeCountPrevEpoch + EpochRecord.findSegmentSplitsMerges(newEpochSegments, lastEpochSegments);
     }
 
     private List<StreamSegmentRecord> convertToList(ImmutableList<StreamSegmentRecord> segmentList) {
@@ -1241,19 +1273,21 @@ public abstract class PersistentStreamBase implements Stream {
                                             committingTxnRecord.getNewActiveEpoch()),
                                             timeStamp + 1, x.getKeyStart(), x.getKeyEnd())));
 
+                            SimpleEntry<Long, Long> splitMergeCountTillLastEpoch = getSplitMergeCountsTillEpoch(transactionEpochRecord).join();
                             ImmutableList<StreamSegmentRecord> epochSegments = duplicateTxnSegmentsBuilder.build();
                             List<StreamSegmentRecord> segmentList = convertToList(epochSegments);
                             EpochRecord duplicateTxnEpoch = new EpochRecord(committingTxnRecord.getNewTxnEpoch(), 
                                     transactionEpochRecord.getReferenceEpoch(), epochSegments,
-                                    timeStamp, EpochRecord.findSegmentSplitsMerges(transactionEpochRecord.getSegments(), segmentList),
-                                    EpochRecord.findSegmentSplitsMerges(segmentList, transactionEpochRecord.getSegments()));
+                                    timeStamp, getNewEpochSplitCount(splitMergeCountTillLastEpoch.getKey(), transactionEpochRecord.getSegments(), segmentList),
+                                    getNewEpochMergeCount(splitMergeCountTillLastEpoch.getValue(), transactionEpochRecord.getSegments(), segmentList));
 
+                            splitMergeCountTillLastEpoch = getSplitMergeCountsTillEpoch(activeEpochRecord).join();
                             epochSegments = duplicateActiveSegmentsBuilder.build();
                             segmentList = convertToList(epochSegments);
                             EpochRecord duplicateActiveEpoch = new EpochRecord(committingTxnRecord.getNewActiveEpoch(),
                                     activeEpochRecord.getReferenceEpoch(), epochSegments,
-                                    timeStamp + 1, EpochRecord.findSegmentSplitsMerges(activeEpochRecord.getSegments(), segmentList),
-                                    EpochRecord.findSegmentSplitsMerges(segmentList, activeEpochRecord.getSegments()));
+                                    timeStamp + 1, getNewEpochSplitCount(splitMergeCountTillLastEpoch.getKey(), activeEpochRecord.getSegments(), segmentList),
+                                    getNewEpochMergeCount(splitMergeCountTillLastEpoch.getValue(), activeEpochRecord.getSegments(), segmentList));
 
                             HistoryTimeSeriesRecord timeSeriesRecordTxnEpoch =
                                     new HistoryTimeSeriesRecord(duplicateTxnEpoch.getEpoch(), duplicateTxnEpoch.getReferenceEpoch(), 
@@ -2167,11 +2201,12 @@ public abstract class PersistentStreamBase implements Stream {
                    }
                 });
                 segmentsBuilder.addAll(createdSegments);
+                SimpleEntry<Long, Long> splitMergeCountTillLastEpoch = getSplitMergeCountsTillEpoch(lastRecord).join();
                 ImmutableList<StreamSegmentRecord> epochSegments = segmentsBuilder.build();
                 List<StreamSegmentRecord> segmentList = convertToList(epochSegments);
                 return new EpochRecord(epoch, referenceEpoch, epochSegments, time,
-                        EpochRecord.findSegmentSplitsMerges(lastRecord.getSegments(), segmentList),
-                        EpochRecord.findSegmentSplitsMerges(segmentList, lastRecord.getSegments()));
+                        getNewEpochSplitCount(splitMergeCountTillLastEpoch.getKey(), lastRecord.getSegments(), segmentList),
+                        getNewEpochMergeCount(splitMergeCountTillLastEpoch.getValue(), lastRecord.getSegments(), segmentList));
             });
         } else {
             return getEpochRecord(epoch);
