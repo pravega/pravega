@@ -20,10 +20,6 @@ Zookeeper and Bookkeeper using NFS as Long-Term Storage.
 
 Relevant configuration parameters:
  
-- **`pravegaservice.cluster.name`, `controller.cluster.name`**: Name of the cluster to which this instance of the Segment 
-Store belongs.
-_Type_: `String`. _Default_: `pravega-cluster`. _Update-mode_: `read-only`.
-
 - **`pravegaservice.zk.connect.uri`, `controller.zk.connect.uri`**: Full URL (host:port) where to find a ZooKeeper that 
 can be used for coordinating this Pravega Cluster. 
 _Type_: `String`. _Default_: `localhost:2181`. _Update-mode_: `read-only`.
@@ -45,8 +41,8 @@ _Type_: `String`. _Default_: `localhost:2181`. _Update-mode_: `read-only`.
 
 - **`bookkeeper.ledger.path`**: Default root path for BookKeeper Ledger metadata. This property tells the BookKeeper 
 client where to look up Ledger Metadata for the BookKeeper cluster it is connecting to. If this property isn't uncommented, 
-then the default value for the path is the Pravega cluster namespace ("/pravega/<cluster-name>/") with "ledgers" appended:
-"/pravega/<cluster-name>/ledgers". Otherwise, it will take the value specified below. 
+then the default value for the path is the Pravega cluster namespace (`/pravega/<cluster-name>/`) with "ledgers" appended:
+`/pravega/<cluster-name>/ledgers`. Otherwise, it will take the value specified below. 
 _Type_: `String`. _Default_: `/pravega/bookkeeper/ledgers`. _Update-mode_: `read-only`.
 
 - **`filesystem.root`**: Root path where NFS shared directory needs to be mounted before segmentstore starts execution.
@@ -61,8 +57,36 @@ The above parameters express the dependencies within a Pravega cluster as follow
 ![Pravega Cluster Dependencies](img/cluster-dependency-configuration.png) 
 
 Following with the proposed example, we need to configure the above parameters as follows. First, assuming that our
-Zookeeper cluster is up and running (no dependencies here), the first step is to deploy Bookkeeper.  
+Zookeeper cluster is up and running at `zookeeper-service:2181` (no dependencies here), the first step is to deploy 
+Bookkeeper. The most important parameter to configure in Bookkeeper is `metadataServiceUri`, as dictates the metadata 
+location of Bookkeeper Ledgers, which is required by Pravega. Thus, in our cluster we need to configure 
+`metadataServiceUri` as: 
+- `metadataServiceUri=zk+hierarchical://zookeeper-service:2181/<bookkeeper.ledger.path>`
 
+The value assigned to the `metadataServiceUri` ensures that Bookkeeper will store the metadata of ledgers in the location
+that Pravega expects (i.e., `bookkeeper.ledger.path`). If you want to use an existing Bookkeeper cluster for Pravega,
+then you will need to set `bookkeeper.ledger.path` withthe value where that Bookkeeper cluster is already storing the
+metadata of ledgers.
+
+With Bookkeeper up and running, we need to configure the rest of parameters in Pravega. First, both the Controller and
+the Segment Store should point to the Zookeeper service:  
+- `[pravegaservice.zk.connect.uri|controller.zk.connect.uri]=zookeeper-service:2181`
+
+Note that both properties should be configured given that Pravega currently separates the configuration for Controller
+and Segment Store. In addition to that, and assuming that our Controller service has a service endpoint or DNS name
+(e.g., `controller-service:9090`), we need to point the Segment Store to that endpoint in order to properly configure
+the [Stream auto-scaling feedback loop](http://pravega.io/docs/latest/pravega-concepts/#elastic-streams-auto-scaling):
+- `autoScale.controller.connect.uri=pravega://controller-service:9090`
+
+Finally, we just need to configure the storage side of the Segment Store. On the one hand, the parameter 
+`pravegaservice.dataLog.impl.name` can be left with its default value (`BOOKKEEPER`), given that we use Bookkeeper as
+a durable log for Pravega. On the other hand, we need to configure `pravegaservice.storage.impl.name` to use a NFS
+service and pointing to the right mount point (e.g., `/pravega-data`):
+- `pravegaservice.storage.impl.name=FILESYSTEM`
+- `filesystem.root=/pravega-data`
+
+With this, we would be able to run our Pravega Cluster with Bookkeeper/Zookeeper and store data in the long term to a
+NFS service. 
 
 ## Number of Segment Containers
 
