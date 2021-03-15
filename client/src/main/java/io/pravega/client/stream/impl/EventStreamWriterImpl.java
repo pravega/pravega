@@ -118,10 +118,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         Preconditions.checkNotNull(event);
         Exceptions.checkNotClosed(closed.get(), this);
         ByteBuffer data = serializer.serialize(event);
+        int size = data.remaining();
         CompletableFuture<Void> ackFuture = new CompletableFuture<Void>();
         synchronized (writeFlushLock) {
             synchronized (writeSealLock) {
-                int size = data.remaining();
                 SegmentOutputStream segmentWriter = getSegmentWriter(routingKey, size);
                 segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
             }

@@ -30,10 +30,10 @@ public class HashHelperTest {
     @Test
     public void testHashToRange() {
         HashHelper hasher = HashHelper.seededWith("test");
-        assertEquals(hasher.hash(1), hasher.hash(1));
-        assertNotEquals(hasher.hash(1), hasher.hash(0));
-        assertNotEquals(hasher.hash(1), hasher.hash(-1));
-        assertNotEquals(hasher.hash(1), hasher.hash(2));
+        assertEquals(hasher.hashToRange(1), hasher.hashToRange(1), 0);
+        assertNotEquals(hasher.hashToRange(1), hasher.hashToRange(0));
+        assertNotEquals(hasher.hashToRange(1), hasher.hashToRange(-1));
+        assertNotEquals(hasher.hashToRange(1), hasher.hashToRange(2));
     }
     
     @Test
