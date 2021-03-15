@@ -331,7 +331,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         return this.operationProcessor
                 .process(op, OperationPriority.SystemCritical)
                 .thenApply(v -> {
-                    log.info("{}: MetadataCheckpointOperation({}} stored.", this.traceObjectId, op.getSequenceNumber());
+                    log.info("{}: MetadataCheckpointOperation({}) stored.", this.traceObjectId, op.getSequenceNumber());
                     return op.getSequenceNumber();
                 });
     }

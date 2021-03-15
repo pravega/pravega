@@ -422,7 +422,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 // and rebuild the metadata from the information we have so far.
                 if (this.processedCheckpoint) {
                     // A MetadataCheckpoint should be processed fully only if is the first checkpoint encountered.
-                    // Any subsequent MetadataCheckpoints should be partially processed and applied
+                    // Any subsequent MetadataCheckpoints should be partially processed and applied.
                     // But we can (should) only process at most one MetadataCheckpoint per recovery. Any additional
                     // ones are redundant (used just for Truncation purposes) and contain the same information as
                     // if we processed every operation in order, up to them.
