@@ -183,6 +183,11 @@ public class CompositeByteArraySegment extends AbstractBufferView implements Com
     }
 
     @Override
+    public int getAllocatedLength() {
+        return getAllocatedArrayCount() * this.bufferLayout.bufferSize;
+    }
+
+    @Override
     public CompositeReader getBufferViewReader() {
         return new CompositeReader();
     }
