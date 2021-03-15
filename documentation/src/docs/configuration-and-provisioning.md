@@ -162,9 +162,27 @@ which means that they would not be able to run IO. Therefore, we need to conside
 `[pravegaservice.container.count|controller.container.count]` is also imposing a limit on the maximum usable size of 
 the Pravega Cluster.   
 
-
-
 ## Segment Store Cache Size and Memory Settings
+
+In a Pravega Cluster, the Segment Store is perhaps the component that requires more effort in terms of memory configuration.
+A production-like cluster requires the memory settings to be defined correctly, or otherwise we could induce unnecessary
+instability in the system. In this section, the main configuration parameters we overview are the following:
+
+- **`pravegaservice.cache.size.max`**: Maximum size (in bytes) for the Local Shared Cache (shared by all Segment 
+Containers on this Segment Store instance). Valid values: Positive integer. Recommended values: Multiples of 1GB, 
+but less than XX:MaxDirectMemorySize. Choosing a lower size will conserve memory at the expense of a lot of cache misses 
+(resulting in Long Term Storage reads and possibly high latencies). Choosing a higher size will keep data in the cache 
+for longer, but at the expense of memory. The Segment Store uses a Direct Memory Cache backed by direct ByteBuffers, so 
+if XX:MaxDirectMemorySize is not set to a value higher than this one, the process will# eventually crash with an 
+OutOfMemoryError.
+
+- **`-Xmx`** (JVM SETTING):
+
+- **`-xx:MaxDirectMemorySize`** (JVM SETTING):
+
+ 
+
+![Segment Store Memory Configuration](img/segment-store-memory-configuration.png) 
 
 
 ## Durable Log Configuration: Bookkeeper
