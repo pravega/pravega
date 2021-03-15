@@ -69,10 +69,14 @@ public class EpochRecord {
     }
 
     public boolean hasSplitsMerges() {
-        if (this.epoch != 0 && this.getSplits() != 0 && this.getMerges() != 0) {
+        if (this.epoch == 0) {
             return true;
+        } else {
+            if (this.getSplits() != 0 && this.getMerges() != 0) {
+                return true;
+            }
+            return false;
         }
-        return false;
     }
 
     /**

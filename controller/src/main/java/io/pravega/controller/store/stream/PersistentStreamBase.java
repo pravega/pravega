@@ -1117,7 +1117,9 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     private CompletableFuture<SimpleEntry<Long, Long>> getSplitMergeCountsTillEpoch(EpochRecord epochRecord) {
-        if (epochRecord.getSplits() == 0 && epochRecord.getMerges() == 0) {
+        if (epochRecord.hasSplitsMerges()) {
+            return CompletableFuture.completedFuture(new SimpleEntry<>(epochRecord.getSplits(), epochRecord.getMerges()));
+        } else {
             //migration case: build the cumulative count from all previous epochs
             return getScaleMetadata(0, Long.MAX_VALUE).thenApply(scaleMetadataList -> {
                 AtomicLong totalNumSplits = new AtomicLong(0L);
@@ -1129,8 +1131,6 @@ public abstract class PersistentStreamBase implements Stream {
 
                 return new SimpleEntry<>(totalNumSplits.get(), totalNumMerges.get());
             });
-        } else {
-            return CompletableFuture.completedFuture(new SimpleEntry<>(epochRecord.getSplits(), epochRecord.getMerges()));
         }
     }
 
