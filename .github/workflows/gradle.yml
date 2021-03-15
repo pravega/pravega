@@ -102,7 +102,7 @@ jobs:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
           key: ${{github.run_id}}-${{github.job}}
       - name: Unit tests
-        run: ./gradlew client:test ${{env.GRADLE_OPTS}}
+        run: ./gradlew common:test client:test ${{env.GRADLE_OPTS}}
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
@@ -157,14 +157,10 @@ jobs:
         run: >
           ./gradlew
           segmentstore:server:test
+          segmentstore:server:host:test
           segmentstore:storage:test
           segmentstore:storage:impl:test
           bindings:test
-          --parallel ${{env.GRADLE_OPTS}}
-      - name: Segment Store Host Tests      # Run this separately since it conflicts with segmentstore:storage:impl:test.
-        run: >
-          ./gradlew
-          segmentstore:server:host:test
           --parallel ${{env.GRADLE_OPTS}}
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
@@ -193,6 +189,7 @@ jobs:
       - name: Unit tests
         run: >
           ./gradlew test
+          -x common:test
           -x client:test
           -x controller:test
           -x test:integration:test
