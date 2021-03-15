@@ -483,6 +483,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 opFutures.add(Futures.toVoid(tableStore.put(segmentName, Collections.singletonList(createTableEntry.apply(segmentName, i)), TIMEOUT)));
             }
         }
+        Futures.allOf(opFutures).join();
 
         // 3. Instead of waiting for the Writer to move data to Storage, we invoke the flushToStorage to verify that all
         // operations have been applied to Storage.
