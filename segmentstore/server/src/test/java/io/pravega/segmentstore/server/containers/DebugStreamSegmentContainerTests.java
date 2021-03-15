@@ -18,6 +18,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -71,6 +72,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.segmentstore.contracts.Attributes.CORE_ATTRIBUTE_ID_PREFIX;
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.recoverAllSegments;
@@ -299,7 +301,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         s.create(attributeSegment, TIMEOUT).join();
 
         ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(s, CONTAINER_ID, backUpMetadataSegment, backUpAttributeSegment,
-                executorService(), TIMEOUT).join();
+                executorService(), TIMEOUT);
 
         // back up metadata segment should exist
         Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(backUpMetadataSegment, TIMEOUT).join());
@@ -325,6 +327,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         int maxDataSize = 1024 * 1024; // 1MB
 
         StorageFactory storageFactory = new InMemoryStorageFactory(executorService());
+
         @Cleanup
         TestContext context1 = createContext(executorService());
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG, context1.dataLogFactory,

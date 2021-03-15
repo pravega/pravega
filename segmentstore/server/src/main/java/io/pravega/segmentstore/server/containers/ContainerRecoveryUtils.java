@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -43,6 +44,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static io.pravega.shared.NameUtils.getAttributeSegmentName;
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 
 /**
@@ -174,6 +176,20 @@ public class ContainerRecoveryUtils {
         // Get all segments for each container entry
         for (val containerEntry : containerMap.entrySet()) {
             Preconditions.checkNotNull(containerEntry.getValue());
+            val container = containerEntry.getValue();
+            val metadataSegment = getMetadataSegmentName(containerEntry.getKey());
+            val metadataAttributeSegment = getAttributeSegmentName(metadataSegment);
+            try {
+                container.getStreamSegmentInfo(metadataSegment, timeout).join();
+                container.getStreamSegmentInfo(metadataAttributeSegment, timeout).join();
+            } catch (Exception ex) {
+                if (!(Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException)) {
+                    throw ex;
+                } else {
+                    metadataSegmentsMap.put(containerEntry.getKey(), new HashSet<>());
+                    continue;
+                }
+            }
             val tableExtension = containerEntry.getValue().getExtension(ContainerTableExtension.class);
             val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
                     containerEntry.getKey()), args).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
@@ -184,6 +200,7 @@ public class ContainerRecoveryUtils {
                     metadataSegments.addAll(k.getEntries().stream()
                             .map(entry -> entry.getKey().toString())
                             .collect(Collectors.toSet())), executorService).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            log.error("MetadataSegments: {}", metadataSegments);
             metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
         }
         return metadataSegmentsMap;
@@ -239,12 +256,18 @@ public class ContainerRecoveryUtils {
      * @return              A CompletableFuture that, when completed normally, will indicate the operation
      * completed. If the operation failed, the future will be failed with the causing exception.
      */
-    public static CompletableFuture<Void> deleteMetadataAndAttributeSegments(Storage storage, int containerId, Duration timeout) {
+    public static void deleteMetadataAndAttributeSegments(Storage storage, int containerId, Duration timeout) {
         Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
-        return deleteSegmentFromStorage(storage, metadataSegmentName, timeout)
-                .thenAccept(x -> deleteSegmentFromStorage(storage, attributeSegmentName, timeout));
+        deleteSegmentFromStorage(storage, metadataSegmentName, timeout)
+                .thenAccept(x -> deleteSegmentFromStorage(storage, attributeSegmentName, timeout)).join();
+        if(storage.exists(metadataSegmentName, timeout).join()) {
+            deleteSegmentFromStorage(storage, metadataSegmentName, timeout).join();
+        }
+        if(storage.exists(attributeSegmentName, timeout).join()) {
+            deleteSegmentFromStorage(storage, attributeSegmentName, timeout).join();
+        }
     }
 
     /**
@@ -276,7 +299,7 @@ public class ContainerRecoveryUtils {
      * @return                           A CompletableFuture which when completed will indicate the operation has completed.
      *                                   If the operation failed, the future will be failed with the causing exception.
      */
-    public static CompletableFuture<Void> backUpMetadataAndAttributeSegments(Storage storage, int containerId,
+    public static void backUpMetadataAndAttributeSegments(Storage storage, int containerId,
                                                                              String backUpMetadataSegmentName,
                                                                              String backUpAttributeSegmentName,
                                                                              ExecutorService executorService,
@@ -284,9 +307,9 @@ public class ContainerRecoveryUtils {
         Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
-        return copySegment(storage, metadataSegmentName, backUpMetadataSegmentName, executorService, timeout)
-                .thenAcceptAsync(x -> copySegment(storage, attributeSegmentName, backUpAttributeSegmentName,
-                        executorService, timeout));
+        copySegment(storage, metadataSegmentName, backUpMetadataSegmentName, executorService, timeout).join();
+        copySegment(storage, attributeSegmentName, backUpAttributeSegmentName,
+                        executorService, timeout).join();
     }
 
     /**
@@ -431,14 +454,11 @@ public class ContainerRecoveryUtils {
             log.debug("Created '{}' as a back of metadata segment of container Id '{}'", backUpMetadataSegment, containerId);
 
             val finalContainerId = containerId;
-            futures.add(Futures.exceptionallyExpecting(
-                    ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
-                            backUpMetadataSegment, backUpAttributeSegment, executorService, timeout)
-                            .thenAccept(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout)
-                                    .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment))
-                            ), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
+            ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
+                    backUpMetadataSegment, backUpAttributeSegment, executorService, timeout);
+            ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout);
+            backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment);
         }
-        Futures.allOf(futures).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         return backUpMetadataSegments;
     }
 }
