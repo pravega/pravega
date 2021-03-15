@@ -90,6 +90,44 @@ NFS service.
 
 ## Number of Segment Containers
 
+Defining the number of [Segment Containers](http://pravega.io/docs/latest/segment-containers/) in a Pravega Cluster 
+is a relevant decision for one key reason: _it cannot be changed_ once the Pravega Cluster has been initialized. 
+Therefore, we need to think twice before setting this parameter in a production environment. The relevant parameters
+to reason about this topic are the following:
+
+- **`pravegaservice.container.count`, `controller.container.count`**: Number of Segment Containers in the system. 
+This value must be the same across all SegmentStore instances in this cluster. This value cannot be changed dynamically, 
+it will require special administrative tasks when changing. See documentation for details. Valid values: Positive integer.
+_Type_: `Integer`. _Default_: `4`. _Update-mode_: `read-only`.
+
+- **`pravegaservice.threadPool.core.size`**: Maximum number of threads in the Core SegmentStore Thread Pool. This pool 
+is used for all SegmentStore-related activities, except Netty-related tasks and Long Term Storage activities. Examples 
+include: handling inbound requests, processing reads, background maintenance operations and background operation processing.
+Valid values: Positive integer.
+_Type_: `Integer`. _Default_: `30`. _Update-mode_: `per-server`.
+
+A Segment Container defines the unit of IO parallelism in the system. Inherently, this yields to consider two main
+aspects when choosing the number of Segment Containers: 
+
+- _Compute resources per Segment Store_: Each Segment Container runs a set of services that consume CPU power. 
+This means that the number of Segment Containers in the system is limited by the available compute power in the cluster.
+As a rule of thumb, we can define a number of Segment Container per Segment Store according to the number of cores
+per instance (e.g., 1 or 2 Segment Containers per core, depending on the core power). Similarly, the size of the thread
+pool should be sized according to the number of segment containers (e.g., 2-4 threads per Segment Container, with a
+minimum number of 20 threads). 
+
+- _Initial number of Segment Stores_: This deployment decision plays a central role when it comes to define the number of Segment 
+Containers in the system. Clearly, the
+
+With the previous 2 aspects, we can define the number of Segment Containers in the system. Let's use a practical example.
+Image that we want to deploy a Pravega service using AWS instances of type `i3.4xlarge` (2 local NVMe drives, 32 vCPUs,
+186GB of RAM) for running Segment Stores and Bookies. 
+
+- _IO Scalability_:
+
+
+
+
 
 ## Segment Store Cache Size and Memory Settings
 
