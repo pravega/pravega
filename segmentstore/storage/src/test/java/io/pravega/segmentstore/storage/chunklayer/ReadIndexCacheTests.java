@@ -13,6 +13,7 @@ package io.pravega.segmentstore.storage.chunklayer;
 import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalNotification;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.test.common.AssertExtensions;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -217,4 +218,54 @@ public class ReadIndexCacheTests {
         Assert.assertEquals(5, cache.getSegmentsReadIndexCache().asMap().size());
         Assert.assertEquals(5, cache.getIndexEntryCache().asMap().size());
     }
+
+    @Test
+    public void testTruncateInvalidParameters() throws Exception {
+        String segmentName = "testSegment";
+
+        AssertExtensions.assertThrows("ReadIndexCache() allowed for invalid parameters",
+                () -> new ReadIndexCache(-1, 10),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("ReadIndexCache() allowed for invalid parameters",
+                () -> new ReadIndexCache(10, -1),
+                ex -> ex instanceof IllegalArgumentException);
+
+        ReadIndexCache cache = new ReadIndexCache(10, 10);
+        // Invalid parameters
+        AssertExtensions.assertThrows("addIndexEntry() allowed for invalid parameters",
+                () -> cache.addIndexEntry(null, "chunk", 0),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("addIndexEntry() allowed for invalid parameters",
+                () -> cache.addIndexEntry("segment", null, 0),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("addIndexEntry() allowed for invalid parameters",
+                () -> cache.addIndexEntry("segment", "chunk", -1),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows("addIndexEntries() allowed for invalid parameters",
+                () -> cache.addIndexEntries(null, new ArrayList<>()),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("addIndexEntries() allowed for invalid parameters",
+                () -> cache.addIndexEntries("segment", null),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows("truncateReadIndex() allowed for invalid parameters",
+                () -> cache.truncateReadIndex(null, 0),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("truncateReadIndex() allowed for invalid parameters",
+                () -> cache.truncateReadIndex("segment", -1),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows("remove() allowed for invalid parameters",
+                () -> cache.remove(null),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows("findFloor() allowed for invalid parameters",
+                () -> cache.findFloor("segment", -1),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("findFloor() allowed for invalid parameters",
+                () -> cache.findFloor(null, 1),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
 }

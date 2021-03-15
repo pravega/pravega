@@ -77,6 +77,11 @@ public class ByteArraySegment extends AbstractBufferView implements ArrayView {
     //region ArrayView Implementation
 
     @Override
+    public int getAllocatedLength() {
+        return this.array().length;
+    }
+
+    @Override
     public byte get(int index) {
         return this.buffer.get(this.buffer.position() + index);
     }
