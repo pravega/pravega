@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -200,7 +199,6 @@ public class ContainerRecoveryUtils {
                     metadataSegments.addAll(k.getEntries().stream()
                             .map(entry -> entry.getKey().toString())
                             .collect(Collectors.toSet())), executorService).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            log.error("MetadataSegments: {}", metadataSegments);
             metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
         }
         return metadataSegmentsMap;
@@ -260,8 +258,6 @@ public class ContainerRecoveryUtils {
         Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
-        deleteSegmentFromStorage(storage, metadataSegmentName, timeout)
-                .thenAccept(x -> deleteSegmentFromStorage(storage, attributeSegmentName, timeout)).join();
         if(storage.exists(metadataSegmentName, timeout).join()) {
             deleteSegmentFromStorage(storage, metadataSegmentName, timeout).join();
         }
@@ -307,9 +303,15 @@ public class ContainerRecoveryUtils {
         Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
-        copySegment(storage, metadataSegmentName, backUpMetadataSegmentName, executorService, timeout).join();
-        copySegment(storage, attributeSegmentName, backUpAttributeSegmentName,
-                        executorService, timeout).join();
+        boolean exists = storage.exists(metadataSegmentName, timeout).join();
+        if (exists) {
+            copySegment(storage, metadataSegmentName, backUpMetadataSegmentName, executorService, timeout).join();
+        }
+        exists = storage.exists(attributeSegmentName, timeout).join();
+        if (exists) {
+            copySegment(storage, attributeSegmentName, backUpAttributeSegmentName,
+                    executorService, timeout).join();
+        }
     }
 
     /**
@@ -441,12 +443,9 @@ public class ContainerRecoveryUtils {
      * @throws ExecutionException       When execution of the opreations encountered an error.
      */
     public static Map<Integer, String> createBackUpMetadataSegments(Storage storage, int containerCount, ExecutorService executorService,
-                                                                 Duration timeout)
-            throws InterruptedException, ExecutionException, TimeoutException {
+                                                                 Duration timeout) {
         String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         Map<Integer, String> backUpMetadataSegments = new HashMap<>();
-
-        val futures = new ArrayList<CompletableFuture<Void>>();
 
         for (int containerId = 0; containerId < containerCount; containerId++) {
             String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + fileSuffix;
@@ -454,9 +453,8 @@ public class ContainerRecoveryUtils {
             log.debug("Created '{}' as a back of metadata segment of container Id '{}'", backUpMetadataSegment, containerId);
 
             val finalContainerId = containerId;
-            ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
-                    backUpMetadataSegment, backUpAttributeSegment, executorService, timeout);
-            ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout);
+            backUpMetadataAndAttributeSegments(storage, containerId, backUpMetadataSegment, backUpAttributeSegment, executorService, timeout);
+            deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout);
             backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment);
         }
         return backUpMetadataSegments;
