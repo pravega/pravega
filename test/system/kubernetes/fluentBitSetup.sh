@@ -87,17 +87,17 @@ done
 # 'fetch_logs' requires the log files are named according to the '<pod-name>_<namespace>_<container-name>-<container-id>.log'
 # convention, which is done by default via the tag expansion in the [INPUT] stanza.
 fetch_logs() {
-    if [ ! -d $FLUENT_BIT_EXPORT_PATH ]; then
-        mkdir -p $FLUENT_BIT_EXPORT_PATH
+    if [ ! -d "$FLUENT_BIT_EXPORT_PATH" ]; then
+        mkdir -p "$FLUENT_BIT_EXPORT_PATH"
     fi
     pods=$@
     pravega_log_pod=$(kubectl get pods -l "app=$DEPLOYMENT_NAME" -o custom-columns=:.metadata.name --no-headers)
     logs=$(kubectl exec $pravega_log_pod -- ls "$MOUNT_PATH")
     # For now, assume that each log will have a prefix of 'kube.var.log.containers'.
-    for pod in ${pods[@]}; do
+    for pod in "${pods[@]}"; do
         matches=$(echo "$logs" | grep "${pod}_$NAMESPACE")
         for match in ${matches[@]}; do
-            kubectl cp $pravega_log_pod:$MOUNT_PATH/$match $FLUENT_BIT_EXPORT_PATH/$match -n=$NAMESPACE
+            kubectl cp "$pravega_log_pod:$MOUNT_PATH/$match" "$FLUENT_BIT_EXPORT_PATH/$match" -n=$NAMESPACE
         done;
     done
 }
