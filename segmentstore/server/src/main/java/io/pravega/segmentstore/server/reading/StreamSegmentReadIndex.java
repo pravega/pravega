@@ -220,6 +220,10 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     public boolean updateGenerations(int currentGeneration, int oldestGeneration, boolean essentialOnly) {
         Exceptions.checkNotClosed(this.closed, this);
 
+        // If we are told that only essential cache entries must be inserted, then we need to disable Storage read
+        // cache inserts (as we can always re-read that data from Storage).
+        this.storageCacheDisabled = essentialOnly;
+
         // Update the current generation with the provided info.
         this.summary.setCurrentGeneration(currentGeneration);
         return evictCacheEntries(entry -> isEvictable(entry, oldestGeneration)) > 0;
@@ -241,9 +245,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Identify & collect those entries that can be removed, then remove them from the index.
         ArrayList<ReadIndexEntry> toRemove = new ArrayList<>();
         synchronized (this.lock) {
-            // If we are told that only essential cache entries must be inserted, then we need to disable Storage read
-            // cache inserts (as we can always re-read that data from Storage).
-            this.storageCacheDisabled = essentialOnly;
             this.indexEntries.forEach(entry -> {
                 if (isEvictable.test(entry)) {
                     toRemove.add(entry);
