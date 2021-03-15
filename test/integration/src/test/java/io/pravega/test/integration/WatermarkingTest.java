@@ -479,7 +479,6 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
             return writer.writeEvent(count.toString(), currentTime.get())
                     .thenAccept(v -> {
                         if (count.incrementAndGet() % 3 == 0) {
-                            log.info("===> Note time invoked");
                             writer.noteTime(currentTime.get());
                         }
                     });
@@ -512,8 +511,6 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
             Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
             if (marks.hasNext()) {
                 Map.Entry<Revision, Watermark> next = marks.next();
-                log.info("==> watermark = {}", next.getValue());
-
                 watermarks.add(next.getValue());
                 revision.set(next.getKey());
             }
