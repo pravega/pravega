@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -413,6 +414,50 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
         AssertExtensions.assertGreaterThan("Not enough mergers were made for this test.", 0, mergeCount.get());
         AssertExtensions.assertGreaterThan("Not enough merge failures happened for this test.", 0, mergeFailCount.get());
+    }
+
+    /**
+     * Tests the StorageWriter in a Scenario where the Storage component throws arbitrary exceptions when requesting
+     * information about a segment. This simulates the Segment Aggregators failing to initialize and we ensure that the
+     * StorageWriter is resilient enough to handle this situation.
+     */
+    @Test
+    public void testWithSegmentAggregatorInitErrors() throws Exception {
+        final int failGetEvery = 2; // Fail very frequently - we want this tested well.
+
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+        context.writer.startAsync();
+
+        // Create a bunch of segments and Transactions.
+        ArrayList<Long> segmentIds = createSegments(context);
+
+        Supplier<Exception> exceptionSupplier = IntentionalException::new;
+        context.storage.setGetErrorInjector(new ErrorInjector<>(count -> count % failGetEvery == 0, exceptionSupplier));
+
+        // Append data.
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendDataBreadthFirst(segmentIds, segmentContents, context);
+
+        // Truncate half of the remaining segments, then seal all, then truncate all segments.
+        metadataCheckpoint(context);
+
+        // Wait for the writer to complete its job.
+        val writerStopped = new CompletableFuture<Void>();
+        Services.onStop(context.writer, () -> writerStopped.complete(null), writerStopped::completeExceptionally, executorService());
+        val fullyAck = context.dataSource.waitFullyAcked();
+
+        // Stop quickly if the writer fails. If not wait until fully acked.
+        CompletableFuture.anyOf(writerStopped, fullyAck).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // If the writer stopped prematurely, it should only be because it failed, so we should never get in here.
+        // However, just for sanity reasons, ensure that we have fully acked to the data source, as that is a prerequisite
+        // for verifying final output.
+        fullyAck.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Verify final output (and clear out any error injectors since we are done using the writer at this point).
+        context.storage.setGetErrorInjector(null);
+        verifyFinalOutput(segmentContents, Collections.emptyList(), context);
     }
 
     /**

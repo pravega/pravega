@@ -39,6 +39,7 @@ import java.util.UUID;
 import java.util.function.BiPredicate;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
+import lombok.Setter;
 
 /**
  * An update transaction that can apply changes to a SegmentMetadata.
@@ -79,6 +80,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Getter
     private long lastUsed;
     private boolean isChanged;
+    @Getter
+    @Setter
+    private boolean active;
 
     //endregion
 
@@ -108,6 +112,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         this.baseAttributeValues = baseMetadata.getAttributes();
         this.attributeUpdates = new HashMap<>();
         this.lastUsed = baseMetadata.getLastUsed();
+        this.active = true;
     }
 
     //endregion
@@ -126,11 +131,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Override
     public long getStorageLength() {
         return this.storageLength < 0 ? this.baseStorageLength : this.storageLength;
-    }
-
-    @Override
-    public boolean isActive() {
-        return true;
     }
 
     @Override
@@ -685,6 +685,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 "Target Segment Id mismatch. Expected %s, given %s.", this.id, target.getId());
         Preconditions.checkArgument(target.getName().equals(this.name),
                 "Target Segment Name mismatch. Expected %s, given %s.", name, target.getName());
+        Preconditions.checkState(isActive(), "Cannot apply changes for an inactive segment. Segment Id = %s, Segment Name = '%s'.", this.id, this.name);
 
         // Apply to base metadata.
         target.setLastUsed(this.lastUsed);
