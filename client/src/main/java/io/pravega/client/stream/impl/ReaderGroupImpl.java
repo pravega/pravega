@@ -462,7 +462,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public CompletableFuture<Map<Stream, StreamCut>> generateStreamCuts(ScheduledExecutorService backgroundExecutor) {
-        String checkpointId = generateSilientCheckpointId();
+        String checkpointId = generateSilentCheckpointId();
         log.debug("Fetching the current StreamCut using id {}", checkpointId);
         synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointId));
 
@@ -474,7 +474,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
      * Generate an internal Checkpoint Id. It is appended with a suffix {@link ReaderGroupImpl#SILENT} which ensures
      * that the readers do not generate an event where {@link io.pravega.client.stream.EventRead#isCheckpoint()} is true.
      */
-    private String generateSilientCheckpointId() {
+    private String generateSilentCheckpointId() {
         byte[] randomBytes = new byte[32];
         ThreadLocalRandom.current().nextBytes(randomBytes);
         return Base64.getEncoder().encodeToString(randomBytes) + SILENT;

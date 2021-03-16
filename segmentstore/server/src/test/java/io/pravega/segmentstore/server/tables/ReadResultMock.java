@@ -70,6 +70,7 @@ class ReadResultMock extends StreamSegmentReadResult implements ReadResult {
         Preconditions.checkState(isCopyOnRead(), "Copy-on-read required for all Table Segment read requests.");
         int relativeOffset = this.consumedLength;
         int length = Math.min(this.entryLength, Math.min(this.data.getLength(), getMaxResultLength()) - relativeOffset);
+        length = Math.min(length, getMaxReadAtOnce());
         this.consumedLength += length;
         return new Entry(relativeOffset, length);
     }
