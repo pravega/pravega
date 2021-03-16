@@ -175,6 +175,7 @@ but less than XX:MaxDirectMemorySize. Choosing a lower size will conserve memory
 for longer, but at the expense of memory. The Segment Store uses a Direct Memory Cache backed by direct ByteBuffers, so 
 if XX:MaxDirectMemorySize is not set to a value higher than this one, the process will# eventually crash with an 
 OutOfMemoryError.
+_Type_: `Integer`. _Default_: `4294967296`. _Update-mode_: `per-server`.
 
 - **`-Xmx`** (SEGMENT STORE JVM SETTING): Defines the maximum heap memory size for the JVM. 
 
@@ -227,18 +228,22 @@ we focus on the parameters that we have found important to properly configure in
 
 - **`bookkeeper.ensemble.size`**: Ensemble size for BookKeeper ledgers. This value need not be the same for all 
 Pravega SegmentStore instances in this cluster, but it highly recommended for consistency. 
+_Type_: `Integer`. _Default_: `3`. _Update-mode_: `per-server`.
 
 - **`bookkeeper.ack.quorum.size`**: Write Ack Quorum size for BookKeeper ledgers. This value need not be the same 
 for all Pravega SegmentStore instances in this cluster, but it highly recommended for consistency.
+_Type_: `Integer`. _Default_: `3`. _Update-mode_: `per-server`.
 
 - **`bookkeeper.write.quorum.size`**: Write Quorum size for BookKeeper ledgers. This value need not be the same for all 
 Pravega SegmentStore instances in this cluster, but it highly recommended for consistency.
+_Type_: `Integer`. _Default_: `3`. _Update-mode_: `per-server`.
 
 - **`-Xmx`** (BOOKKEEPER JVM SETTING): Defines the maximum heap memory size for the JVM. 
 
 - **`-XX:MaxDirectMemorySize`** (BOOKKEEPER JVM SETTING): Defines the maximum amount of direct memory for the JVM.
 
 - **`ledgerStorageClass`** (BOOKKEEPER SETTING): Ledger storage implementation class.
+_Type_: `Option`. _Default_: `org.apache.bookkeeper.bookie.SortedLedgerStorage`. _Update-mode_: `read-only`.
 
 First, let's focus on the configuration of the _Bookkeeper client in the Segment Store_. The parameters
 `bookkeeper.write.quorum.size` and `bookkeeper.ack.quorum.size` determine the 
@@ -303,10 +308,15 @@ the main configuration parameters involved are:
 
 - **_`controller.retention.frequency.minutes`_**: The Controller service periodically triggers the enforcement of
 Stream auto-retention (i.e., truncation) based on this parameter.
+_Type_: `Integer`. _Default_: `30`. _Update-mode_: `per-server`.
+
 - **_`controller.retention.bucket.count`_**: Controllers distribute the Streams that require periodic auto-retention
 across the number of (Stream) "buckets" defined in this parameter. Multiple Controller instances will share the load related
 to auto-retention by owning a subset of buckets.
+_Type_: `Integer`. _Default_: `1`. _Update-mode_: `read-only`.
+
 - **_`controller.retention.thread.count`_**: Number of threads in the Controller devoted to execute Stream auto-retention tasks.
+_Type_: `Integer`. _Default_: `1`. _Update-mode_: `per-server`.
  
 We can enforce two types of auto-retention policies on our Streams: _size-based_ and _time-based_. There is also
 a new [consumption-based retention model](https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Consumption-Based-Retention), 
