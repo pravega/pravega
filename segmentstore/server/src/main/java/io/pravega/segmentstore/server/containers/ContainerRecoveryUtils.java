@@ -103,6 +103,9 @@ public class ContainerRecoveryUtils {
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         while (segmentIterator.hasNext()) {
             val currentSegment = segmentIterator.next();
+            if (currentSegment == null) {
+                continue;
+            }
             int containerId = segToConMapper.getContainerId(currentSegment.getName());
             String currentSegmentName = currentSegment.getName();
             // skip recovery if the segment is an attribute segment or metadata segment.
@@ -179,8 +182,8 @@ public class ContainerRecoveryUtils {
             val metadataSegment = getMetadataSegmentName(containerEntry.getKey());
             val metadataAttributeSegment = getAttributeSegmentName(metadataSegment);
             try {
-                container.getStreamSegmentInfo(metadataSegment, timeout).join();
-                container.getStreamSegmentInfo(metadataAttributeSegment, timeout).join();
+                container.getStreamSegmentInfo(metadataSegment, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+                container.getStreamSegmentInfo(metadataAttributeSegment, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             } catch (Exception ex) {
                 if (!(Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException)) {
                     throw ex;
@@ -254,16 +257,12 @@ public class ContainerRecoveryUtils {
      * @return              A CompletableFuture that, when completed normally, will indicate the operation
      * completed. If the operation failed, the future will be failed with the causing exception.
      */
-    public static void deleteMetadataAndAttributeSegments(Storage storage, int containerId, Duration timeout) {
+    public static CompletableFuture<Void> deleteMetadataAndAttributeSegments(Storage storage, int containerId, Duration timeout) {
         Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
-        if(storage.exists(metadataSegmentName, timeout).join()) {
-            deleteSegmentFromStorage(storage, metadataSegmentName, timeout).join();
-        }
-        if(storage.exists(attributeSegmentName, timeout).join()) {
-            deleteSegmentFromStorage(storage, attributeSegmentName, timeout).join();
-        }
+        return  CompletableFuture.allOf(deleteSegmentFromStorage(storage, metadataSegmentName, timeout),
+                deleteSegmentFromStorage(storage, attributeSegmentName, timeout));
     }
 
     /**
@@ -295,7 +294,7 @@ public class ContainerRecoveryUtils {
      * @return                           A CompletableFuture which when completed will indicate the operation has completed.
      *                                   If the operation failed, the future will be failed with the causing exception.
      */
-    public static void backUpMetadataAndAttributeSegments(Storage storage, int containerId,
+    public static CompletableFuture<Void> backUpMetadataAndAttributeSegments(Storage storage, int containerId,
                                                                              String backUpMetadataSegmentName,
                                                                              String backUpAttributeSegmentName,
                                                                              ExecutorService executorService,
@@ -303,15 +302,8 @@ public class ContainerRecoveryUtils {
         Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
-        boolean exists = storage.exists(metadataSegmentName, timeout).join();
-        if (exists) {
-            copySegment(storage, metadataSegmentName, backUpMetadataSegmentName, executorService, timeout).join();
-        }
-        exists = storage.exists(attributeSegmentName, timeout).join();
-        if (exists) {
-            copySegment(storage, attributeSegmentName, backUpAttributeSegmentName,
-                    executorService, timeout).join();
-        }
+        return CompletableFuture.allOf(copySegment(storage, metadataSegmentName, backUpMetadataSegmentName, executorService, timeout),
+                copySegment(storage, attributeSegmentName, backUpAttributeSegmentName, executorService, timeout));
     }
 
     /**
@@ -404,6 +396,9 @@ public class ContainerRecoveryUtils {
      */
     protected static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor,
                                                          Duration timeout) {
+        if (!storage.exists(sourceSegment, timeout).join()) {
+            return CompletableFuture.completedFuture(null);
+        }
         byte[] buffer = new byte[BUFFER_SIZE];
         return storage.create(targetSegment, timeout).thenComposeAsync(targetHandle -> {
             return storage.getStreamSegmentInfo(sourceSegment, timeout).thenComposeAsync(info -> {
@@ -443,9 +438,12 @@ public class ContainerRecoveryUtils {
      * @throws ExecutionException       When execution of the opreations encountered an error.
      */
     public static Map<Integer, String> createBackUpMetadataSegments(Storage storage, int containerCount, ExecutorService executorService,
-                                                                 Duration timeout) {
+                                                                 Duration timeout)
+            throws InterruptedException, ExecutionException, TimeoutException {
         String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         Map<Integer, String> backUpMetadataSegments = new HashMap<>();
+
+        val futures = new ArrayList<CompletableFuture<Void>>();
 
         for (int containerId = 0; containerId < containerCount; containerId++) {
             String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + fileSuffix;
@@ -453,10 +451,14 @@ public class ContainerRecoveryUtils {
             log.debug("Created '{}' as a back of metadata segment of container Id '{}'", backUpMetadataSegment, containerId);
 
             val finalContainerId = containerId;
-            backUpMetadataAndAttributeSegments(storage, containerId, backUpMetadataSegment, backUpAttributeSegment, executorService, timeout);
-            deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout);
-            backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment);
+            futures.add(Futures.exceptionallyExpecting(
+                    ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
+                            backUpMetadataSegment, backUpAttributeSegment, executorService, timeout)
+                            .thenAccept(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout)
+                                    .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment))
+                            ), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
         }
+        Futures.allOf(futures).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         return backUpMetadataSegments;
     }
 }

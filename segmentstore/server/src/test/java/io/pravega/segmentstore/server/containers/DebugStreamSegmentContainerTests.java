@@ -299,7 +299,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         s.create(attributeSegment, TIMEOUT).join();
 
         ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(s, CONTAINER_ID, backUpMetadataSegment, backUpAttributeSegment,
-                executorService(), TIMEOUT);
+                executorService(), TIMEOUT).join();
 
         // back up metadata segment should exist
         Assert.assertTrue("Unexpected result for existing segment (no files).", s.exists(backUpMetadataSegment, TIMEOUT).join());
