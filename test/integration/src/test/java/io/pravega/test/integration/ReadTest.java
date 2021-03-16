@@ -82,8 +82,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -97,20 +97,19 @@ import static org.junit.Assert.assertTrue;
 public class ReadTest extends LeakDetectorTestSuite {
 
     private static final int TIMEOUT_MILLIS = 60000;
-    private ServiceBuilder serviceBuilder;
+    private static final ServiceBuilder SERVICE_BUILDER = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
     @Rule
     public Timeout globalTimeout = Timeout.millis(TIMEOUT_MILLIS);
 
-    @Before
-    public void setup() throws Exception {
-        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.initialize();
+    @BeforeClass
+    public static void setup() throws Exception {
+        SERVICE_BUILDER.initialize();
     }
 
-    @After
-    public void teardown() {
-        this.serviceBuilder.close();
+    @AfterClass
+    public static void teardown() {
+        SERVICE_BUILDER.close();
     }
 
     @Test(timeout = 10000)
@@ -120,7 +119,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         final byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         UUID clientId = UUID.randomUUID();
 
-        StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
+        StreamSegmentStore segmentStore = SERVICE_BUILDER.createStreamSegmentService();
 
         fillStoreForSegment(segmentName, data, entries, segmentStore);
 
@@ -153,7 +152,7 @@ public class ReadTest extends LeakDetectorTestSuite {
         int entries = 10;
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-        StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
+        StreamSegmentStore segmentStore = SERVICE_BUILDER.createStreamSegmentService();
         // fill segment store with 10 entries; the total data size is 100 bytes.
         fillStoreForSegment(segmentName, data, entries, segmentStore);
         @Cleanup
@@ -196,14 +195,14 @@ public class ReadTest extends LeakDetectorTestSuite {
     public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException, SegmentTruncatedException {
         String endpoint = "localhost";
         String scope = "scope";
-        String stream = "stream";
+        String stream = "readThroughSegmentClient";
         int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -245,15 +244,15 @@ public class ReadTest extends LeakDetectorTestSuite {
     public void readConditionalData() throws SegmentSealedException, EndOfSegmentException, SegmentTruncatedException {
         String endpoint = "localhost";
         String scope = "scope";
-        String stream = "stream";
+        String stream = "readConditionalData";
         int port = TestUtils.getAvailableListenPort();
         byte[] testString = "Hello world\n".getBytes();
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                this.serviceBuilder.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -291,14 +290,14 @@ public class ReadTest extends LeakDetectorTestSuite {
     @Test(timeout = 10000)
     public void readThroughStreamClient() throws ReinitializationRequiredException {
         String endpoint = "localhost";
-        String streamName = "abc";
+        String streamName = "readThroughStreamClient";
         String readerName = "reader";
-        String readerGroup = "group";
+        String readerGroup = "readThroughStreamClient-group";
         int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         String scope = "Scope1";
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
         server.startListening();
@@ -327,14 +326,14 @@ public class ReadTest extends LeakDetectorTestSuite {
     @Test(timeout = 10000)
     public void testEventPointer() throws ReinitializationRequiredException, NoSuchEventException {
         String endpoint = "localhost";
-        String streamName = "abc";
+        String streamName = "testEventPointer";
         String readerName = "reader";
-        String readerGroup = "group";
+        String readerGroup = "testEventPointer-group";
         int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world ";
         String scope = "Scope1";
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
         server.startListening();
@@ -386,8 +385,8 @@ public class ReadTest extends LeakDetectorTestSuite {
         ScheduledExecutorService readersWritersAndCheckers = ExecutorServiceHelpers.newScheduledThreadPool(4, "readers-writers-checkers");
         AtomicInteger finishedProcesses = new AtomicInteger(0);
         int port = TestUtils.getAvailableListenPort();
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
         server.startListening();
