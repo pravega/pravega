@@ -551,11 +551,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     if (dataFromBuffer != null) {
                         METADATA_FOUND_IN_BUFFER.inc();
                         // Make sure it is a deep copy.
-                        val retValue = dataFromBuffer.getValue();
-                        if (null != retValue) {
-                            return retValue.deepCopy();
-                        }
-                        return null;
+                        return copyToTransaction(txn, key, dataFromBuffer);
                     }
                     return null;
                 }, executor)
@@ -566,12 +562,27 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     // We did not find it in the buffer either.
                     // Try to find it in store.
                     return loadFromStore(key)
-                            .thenApplyAsync(TransactionData::getValue, executor);
+                            .thenApplyAsync(dataFromStore -> copyToTransaction(txn, key, dataFromStore), executor);
                 }, executor)
                 .whenCompleteAsync((v, ex) -> {
                     removeFromActiveKeySet(key);
                     GET_LATENCY.reportSuccessEvent(t.getElapsed());
                 }, executor);
+    }
+
+    private StorageMetadata copyToTransaction(MetadataTransaction txn, String key, TransactionData transactionData) {
+        if (null != transactionData) {
+            val txnLocalCopy = transactionData.toBuilder()
+                    .build();
+            txn.getData().put(key, txnLocalCopy);
+            if (null != transactionData.getValue()) {
+                // Make sure a deep copy is returned.
+                val retValue = transactionData.getValue().deepCopy();
+                txnLocalCopy.setValue(retValue);
+                return retValue;
+            }
+        }
+        return null;
     }
 
     private void removeFromActiveKeySet(String key) {
@@ -636,11 +647,15 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     private CompletableFuture<TransactionData> loadFromStore(String key) {
         log.trace("Loading key from the store key = {}", key);
         return readFromStore(key)
-                .thenApplyAsync(this::makeCopyForBuffer, executor)
-                .thenApplyAsync(copyForBuffer -> {
-                    Preconditions.checkState(null != copyForBuffer, "Copy for buffer must not be null.");
-                    Preconditions.checkState(null != copyForBuffer.getDbObject(), "Missing tracking object");
-                    return insertInBuffer(key, copyForBuffer);
+                .thenApplyAsync(copyFromStore -> {
+                    Preconditions.checkState(null != copyFromStore, "Data from table store must not be null.");
+                    Preconditions.checkState(null != copyFromStore.dbObject, "Missing tracking object");
+                    log.trace("Done Loading key from the store key = {}", copyFromStore.getKey());
+
+                    if (null != copyFromStore.getValue()) {
+                        Preconditions.checkState(0 != copyFromStore.getVersion(), "Version is not initialized");
+                    }
+                    return insertInBuffer(key, copyFromStore);
                 }, executor);
     }
 
@@ -674,28 +689,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
             Preconditions.checkState(null != retValue.dbObject, "Missing tracking object");
         }
         return retValue;
-    }
-
-    /**
-     * Gets a copy from buffer.
-     */
-    private TransactionData makeCopyForBuffer(TransactionData fromDb) {
-        Preconditions.checkState(null != fromDb, "Data from table store must not be null.");
-        Preconditions.checkState(null != fromDb.dbObject, "Missing tracking object");
-        log.trace("Done Loading key from the store key = {}", fromDb.getKey());
-
-        val copyForBuffer = fromDb.toBuilder()
-                .key(fromDb.getKey())
-                .build();
-        Preconditions.checkState(null != copyForBuffer.dbObject, "Missing tracking object");
-        if (null != fromDb.getValue()) {
-            Preconditions.checkState(0 != fromDb.getVersion(), "Version is not initialized");
-            // Make sure it is a deep copy.
-            copyForBuffer.setValue(fromDb.getValue().deepCopy());
-        }
-        Preconditions.checkState(null != copyForBuffer.dbObject, "Missing tracking object");
-        Preconditions.checkState(fromDb.dbObject == copyForBuffer.dbObject, "Missing tracking object");
-        return copyForBuffer;
     }
 
     @VisibleForTesting
@@ -879,42 +872,42 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
          * Version. This version number is independent of version in the store.
          * This is required to keep track of all modifications to data when it is changed while still in buffer without writing it to database.
          */
-        private long version;
+        private volatile long version;
 
         /**
          * Implementation specific object to keep track of underlying db version.
          */
-        private Object dbObject;
+        private volatile Object dbObject;
 
         /**
          * Whether this record is persisted or not.
          */
-        private boolean persisted;
+        private volatile boolean persisted;
 
         /**
          * Whether this record is pinned to the memory.
          */
-        private boolean pinned;
+        private volatile boolean pinned;
 
         /**
          * Whether this record is persisted or not.
          */
-        private boolean created;
+        private volatile boolean created;
 
         /**
          * Whether this record is pinned to the memory.
          */
-        private boolean deleted;
+        private volatile boolean deleted;
 
         /**
          * Key of the record.
          */
-        private String key;
+        private volatile String key;
 
         /**
          * Value of the record.
          */
-        private StorageMetadata value;
+        private volatile StorageMetadata value;
 
         /**
          * Builder that implements {@link ObjectBuilder}.
