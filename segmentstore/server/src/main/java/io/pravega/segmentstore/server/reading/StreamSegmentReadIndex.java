@@ -41,6 +41,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
@@ -215,21 +216,27 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         // Update the current generation with the provided info.
         this.summary.setCurrentGeneration(currentGeneration);
+        return evictCacheEntries(entry -> isEvictable(entry, oldestGeneration)) > 0;
+    }
 
+    private boolean isEvictable(ReadIndexEntry entry, int oldestGeneration) {
+        // We can only evict if both these conditions are met:
+        // 1. The entry is a Cache Entry (Redirect entries cannot be removed).
+        // 2. Every single byte in the entry has to exist in Storage.
+        // In addition, we are free to evict (regardless of Generation, but still subject to the above rules) if
+        // every single byte in the entry has been truncated out.
+        long lastOffset = entry.getLastStreamSegmentOffset();
+        return entry.isDataEntry()
+                && lastOffset < this.metadata.getStorageLength()
+                && (entry.getGeneration() < oldestGeneration || lastOffset < this.metadata.getStartOffset());
+    }
+
+    private long evictCacheEntries(Predicate<ReadIndexEntry> isEvictable) {
         // Identify & collect those entries that can be removed, then remove them from the index.
         ArrayList<ReadIndexEntry> toRemove = new ArrayList<>();
         synchronized (this.lock) {
             this.indexEntries.forEach(entry -> {
-                // We can only evict if both these conditions are met:
-                // 1. The entry is a Cache Entry (Redirect entries cannot be removed).
-                // 2. Every single byte in the entry has to exist in Storage.
-                // In addition, we are free to evict (regardless of Generation, but still subject to the above rules) if
-                // every single byte in the entry has been truncated out.
-                long lastOffset = entry.getLastStreamSegmentOffset();
-                boolean canRemove = entry.isDataEntry()
-                        && lastOffset < this.metadata.getStorageLength()
-                        && (entry.getGeneration() < oldestGeneration || lastOffset < this.metadata.getStartOffset());
-                if (canRemove) {
+                if (isEvictable.test(entry)) {
                     toRemove.add(entry);
                 }
             });
@@ -239,12 +246,18 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         // Update the summary (no need for holding the lock here; we are not modifying the index).
+        val totalSize = new AtomicLong();
         toRemove.forEach(e -> {
             deleteData(e);
             this.summary.removeOne(e.getGeneration());
+            totalSize.addAndGet(e.getLength());
         });
 
-        return !toRemove.isEmpty();
+        if (!toRemove.isEmpty()) {
+            log.debug("{}: Evicted {} entries totalling {} bytes.", this.traceObjectId, toRemove.size(), totalSize);
+        }
+
+        return totalSize.get();
     }
 
     //endregion
@@ -314,7 +327,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      */
     public void exitRecoveryMode(SegmentMetadata newMetadata) {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.recoveryMode, "Read Index is not in recovery mode.");
+        Preconditions.checkState(this.recoveryMode, "ReadIndex[%s] is not in recovery mode.", this.traceObjectId);
         Preconditions.checkNotNull(newMetadata, "newMetadata");
         Exceptions.checkArgument(newMetadata.getId() == this.metadata.getId(), "newMetadata", "New Metadata StreamSegmentId is different from existing one.");
         Exceptions.checkArgument(newMetadata.getLength() == this.metadata.getLength(), "newMetadata", "New Metadata Length is different from existing one.");
@@ -326,6 +339,15 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         this.metadata = newMetadata;
         this.recoveryMode = false;
         log.debug("{}: Exit RecoveryMode.", this.traceObjectId);
+    }
+
+    /**
+     * Evicts every eligible entry from the Cache that does not need to be there. See {@link #isEvictable} for conditions.
+     */
+    long trimCache() {
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(this.recoveryMode, "ReadIndex[%s] is not in recovery mode.", this.traceObjectId);
+        return evictCacheEntries(entry -> isEvictable(entry, Integer.MAX_VALUE)); // Evict anything we don't absolutely need.
     }
 
     //endregion
