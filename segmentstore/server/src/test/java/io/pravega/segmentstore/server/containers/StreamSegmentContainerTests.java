@@ -2378,7 +2378,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         return new TestContext(config, null);
     }
 
-    class TestContext implements AutoCloseable {
+    private class TestContext implements AutoCloseable {
         final SegmentContainerFactory containerFactory;
         final SegmentContainer container;
         private final WatchableInMemoryStorageFactory storageFactory;
