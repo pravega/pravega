@@ -43,7 +43,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static io.pravega.shared.NameUtils.getAttributeSegmentName;
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 
 /**
@@ -184,10 +183,11 @@ public class ContainerRecoveryUtils {
 
             // Store the segments in a set
             Set<String> metadataSegments = new HashSet<>();
-            keyIterator.forEachRemaining(k ->
+            Futures.exceptionallyExpecting(keyIterator.forEachRemaining(k ->
                     metadataSegments.addAll(k.getEntries().stream()
                             .map(entry -> entry.getKey().toString())
-                            .collect(Collectors.toSet())), executorService).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+                            .collect(Collectors.toSet())), executorService),
+                    ex -> ex instanceof StreamSegmentNotExistsException, null).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             metadataSegmentsMap.put(containerEntry.getKey(), metadataSegments);
         }
         return metadataSegmentsMap;
