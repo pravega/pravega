@@ -58,18 +58,18 @@ The above parameters express the dependencies within a Pravega cluster as follow
 
 Following with the proposed example, we need to configure the above parameters as follows. First, assuming that our
 Zookeeper cluster is up and running at `zookeeper-service:2181` (no dependencies here), the first step is to deploy 
-Bookkeeper. The most important parameter to configure in Bookkeeper is `metadataServiceUri`, as dictates the metadata 
-location of Bookkeeper Ledgers, which is required by Pravega. Thus, in our cluster we need to configure 
+Bookkeeper. The most important parameter to configure in Bookkeeper is `metadataServiceUri`, as it dictates the metadata 
+location of Bookkeeper ledgers, which is required by Pravega. Thus, in our cluster we need to configure 
 `metadataServiceUri` as: 
 - `metadataServiceUri=zk+hierarchical://zookeeper-service:2181/<bookkeeper.ledger.path>`
 
 The value assigned to the `metadataServiceUri` ensures that Bookkeeper will store the metadata of ledgers in the location
 that Pravega expects (i.e., `bookkeeper.ledger.path`). If you want to use an existing Bookkeeper cluster for Pravega,
-then you will need to set `bookkeeper.ledger.path` withthe value where that Bookkeeper cluster is already storing the
+then you will need to set `bookkeeper.ledger.path` with the location at which the Bookkeeper cluster is already storing the
 metadata of ledgers.
 
 With Bookkeeper up and running, we need to configure the rest of parameters in Pravega. First, both the Controller and
-the Segment Store should point to the Zookeeper service:  
+the Segment Store services should point to the Zookeeper service:  
 - `[pravegaservice.zk.connect.uri|controller.zk.connect.uri]=zookeeper-service:2181`
 
 Note that both properties should be configured given that Pravega currently separates the configuration for Controller
@@ -81,9 +81,9 @@ the [Stream auto-scaling feedback loop](http://pravega.io/docs/latest/pravega-co
 Finally, we just need to configure the storage side of the Segment Store. On the one hand, the parameter 
 `pravegaservice.dataLog.impl.name` can be left with its default value (`BOOKKEEPER`), given that we use Bookkeeper as
 a durable log for Pravega. On the other hand, we need to configure `pravegaservice.storage.impl.name` to use a NFS
-service and pointing to the right mount point (e.g., `/pravega-data`):
+service and pointing to the right mount point (e.g., `NFS-IP/pravega-data`):
 - `pravegaservice.storage.impl.name=FILESYSTEM`
-- `filesystem.root=/pravega-data`
+- `filesystem.root=NFS-IP/pravega-data`
 
 With this, we would be able to run our Pravega Cluster with Bookkeeper/Zookeeper and store data in the long term to a
 NFS service. 
@@ -120,7 +120,7 @@ Containers and/or threads higher than necessary may lead to performance degradat
 - _Initial number of Segment Stores_: This deployment decision plays a central role when it comes to define the number 
 of Segment Containers in the system and may vary depending on the deployment scenario. On the one hand, an on-premise 
 environment we may have a fixed amount of hardware available to run Pravega, in which case the number of Segment Store 
-instance may be known. On the other hand, in a cloud environment a reasonable approach would be to right-size the initial 
+instances may be known. On the other hand, in a cloud environment a reasonable approach would be to right-size the initial 
 number of Segment Store instances based on the expected load. We have published performance analysis that can help users 
 to understand the load that a Pravega Cluster can sustain, as well as the associated latency numbers 
 [[1]](https://blog.pravega.io/2020/10/01/when-speeding-makes-sense-fast-consistent-durable-and-scalable-streaming-data-with-pravega/), 
@@ -197,7 +197,7 @@ Segment Store process may create a significant amount of objects under small eve
 there is enough heap memory to do not induce constant GC activity.
 
 - _JVM Direct Memory (`-XX:MaxDirectMemorySize`)_: In general, we should provision the Segment Store with more direct 
-memory than Heap memory. The reason is that the Segment Store read cache, Netty and the Bookkeeper client make a
+memory than heap memory. The reason is that the Segment Store read cache, Netty and the Bookkeeper client make a
 significant use of direct memory as a result of an IO workload. As a rule of thumb, we should reserve at least 1GB or 
 2GB for Netty and Bookkeeper client in the Segment Store, and assign the rest of direct memory to the read cache.
 
@@ -272,7 +272,8 @@ our Pravega Cluster, the Segment Store will be able to continue writing even if 
 Bookkeeper servers fail. In other words, as long as there are `bookkeeper.ensemble.size` Bookkeeper servers
 available, Pravega will be able to accept writes from applications. To this end, to maximize failure tolerance,
 we suggest to keep `bookkeeper.ensemble.size` at the minimum value possible:
-- `bookkeeper.ensemble.size` = `bookkeeper.ack.quorum.size` = `bookkeeper.write.quorum.size` = 3. This configuration
+
+- `bookkeeper.ensemble.size` = `bookkeeper.ack.quorum.size` = `bookkeeper.write.quorum.size` = 3: This configuration
 ensures 3-way replication per write, prevents overloading a slow Bookkeeper server, and tolerates the highest
 number of Bookkeeper server failures.
 
@@ -285,8 +286,9 @@ Memory (`-XX:MaxDirectMemorySize=4g`) for Bookkeeper servers. Direct memory is e
 - _Ledger storage implementation_: Bookkeeper offers different implementations to store ledgers' data. In Pravega,
 we recommend using the simplest ledger storage implementation: the Interleaved Ledger Storage
 (`ledgerStorageClass=org.apache.bookkeeper.bookie.InterleavedLedgerStorage`). There are two main reasons that
-justify this decisions: i) Pravega does not read from Bookkeeper in normal conditions, just upon a Segment
-Containerrecovery. This means that Pravega does not need any extra complexity associated to optimize ledger
+justify this decision: i) Pravega does not read from Bookkeeper in normal conditions, just upon a [Segment
+Container recovery](http://pravega.io/docs/latest/segment-store-service/#container-startup-normalrecovery). 
+This means that Pravega does not need any extra complexity associated to optimize ledger
 reads in Bookkeeper. ii) We have observed a lower resource usage and better stability in Bookkeeper when 
 using Interleaved Ledger Storage compared to 
 DBLedger[[2]](https://blog.pravega.io/2021/03/10/when-speed-meets-parallelism-pravega-performance-under-parallel-streaming-workloads/).
@@ -300,10 +302,10 @@ to estimate storage costs. Even more, users may have a legacy Long-Term Storage 
 capacity to store Pravega streams. In either case, we need guidelines to estimate the Long-Term Storage space 
 requirements for Pravega[[3]](https://github.com/pravega/pravega/issues/4503 ).    
 
-There are two ways to reduce the amount of data stored in a Pravega Stream: deleting or truncating the Stream. 
+There are two ways to reduce the amount of data stored in a Pravega Stream: _deleting or truncating the Stream_. 
 In this guide, we focus on Stream truncation, and more concretely, on how to provision Long-Term Storage capacity
 when Stream truncation is performed automatically in Pravega via 
-[_Stream auto-retention_][http://pravega.io/docs/latest/pravega-concepts/#stream-retention-policies]. In this regard,
+[_Stream auto-retention_](http://pravega.io/docs/latest/pravega-concepts/#stream-retention-policies). In this regard,
 the main configuration parameters involved are:
 
 - **_`controller.retention.frequency.minutes`_**: The Controller service periodically triggers the enforcement of
@@ -341,14 +343,14 @@ storage space in most cases (i.e., storing some data in 1 Stream has lower metad
 
 With the above points in mind, let's go for a practical example. Let's assume that our workload consists on an average
 ingestion rate of 1GBps and we have only 1 Stream in the system. Also, the serializers we use in our application have 
-a write amplification of 1.3x. Also, we foresee an additional 5% of storage cost related to Pravega's metadata. Given 
+a write amplification of 1.3x and we foresee an additional 5% of storage cost related to Pravega's metadata. Given 
 that, let's exercise how much Long-Term Storage capacity we would need with the following auto-retention policies:
 
 - _Size-based auto-retention of 1TB_: This policy attempts to keep at least 1TB of data related to our Stream.
 Therefore, the Long-Term Storage space needed would be at least: `1TB · 1.3 + 1TB · 0.05 = 1.35TB`. 
 
 - _Time-based retention of 1 day_: With this policy, Pravega will keep data for our Stream for at least 1 day.
-This means that our Long-Term Storage may require to store at least: `86400s * 1GB * 1.3 + 86400s * 1GB * 0.05 = 116.7TB`.
+This means that our Long-Term Storage may require to store at least: `86400s * 1GBps * 1.3 + 86400s * 1GBps * 0.05 = 116.7TB`.
 
 Note that the above storage estimations are lower bounds. They assume that the Pravega auto-retention service immediately
 truncates the Stream once the retention policy has been met. However, the Pravega auto-retention service is implemented
@@ -371,8 +373,8 @@ we will configure `controller.retention.bucket.count=24`. With this, we could sc
 the new instances will share the load along with with the previous ones.
 
 - _Controller retention thread pool size_: In general, having 1 thread (`controller.retention.thread.count=1`, default)
-per Controller devoted to auto-retention should be enough in most cases. However, if you expect your workload to be very 
+per Controller devoted to auto-retention should be enough. However, if you expect your workload to be very 
 intensive in terms of auto-retention (i.e., thousands of Streams, stringent retention requirements) consider to increase
-the thread pool size to 2 to 4 threads. 
+the thread pool size to 2-4 threads. 
 
 
