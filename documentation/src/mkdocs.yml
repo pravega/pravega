@@ -15,25 +15,25 @@ edit_uri: 'tree/master/documentation/src/docs'
 
 # theme: 'readthedocs'
 theme:
-  name: null
-  custom_dir: mkdocs-material/material
+  name: material
+  custom_dir: custom_theme
 
   # 404 page
-  static_templates:
-    - 404.html
+  #static_templates:
+  #  - 404.html
 
   # Necessary for search to work properly
-  include_search_page: false
-  search_index_only: true
+  #include_search_page: false
+  #search_index_only: true
 
   # Default values, taken from mkdocs_theme.yml
-  language: en
-  font:
-    text: Roboto
-    code: Roboto Mono
-  favicon: assets/favicon.png
-  icon:
-    logo: logo
+  #language: en
+  #font:
+  #  text: Roboto
+  #  code: Roboto Mono
+  favicon: assets/favicon.ico
+  #icon:
+  #  logo: logo
 
 
 # Extensions
