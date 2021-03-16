@@ -368,6 +368,7 @@ public class K8sClient {
     @SneakyThrows(ApiException.class)
     public CompletableFuture<Object> getCustomObject(String customResourceGroup, String version, String namespace,
                                                      String plural, String name) {
+        log.info("getCustomObject:: {} {} {} {} {}", customResourceGroup, version, namespace, plural, name);
         CustomObjectsApi api = new CustomObjectsApi();
         K8AsyncCallback<Object> callback = new K8AsyncCallback<>("getCustomObject");
         api.getNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, name, callback);
