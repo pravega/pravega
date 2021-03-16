@@ -451,6 +451,11 @@ definitions:
         format: int64
       timeBasedRetention:
         $ref: "#/definitions/TimeBasedRetention"
+      maxValue:
+        type: integer
+        format: int64
+      maxTimeBasedRetention  :
+        $ref: "#/definitions/TimeBasedRetention"
   StreamState:
     type: object
     properties:

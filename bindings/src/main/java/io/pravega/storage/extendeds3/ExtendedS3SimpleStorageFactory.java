@@ -12,20 +12,22 @@ package io.pravega.storage.extendeds3;
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
+import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Factory for ExtendedS3 {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link ExtendedS3ChunkStorage}.
  */
 @RequiredArgsConstructor
-public class ExtendedS3SimpleStorageFactory implements StorageFactory {
+public class ExtendedS3SimpleStorageFactory implements SimpleStorageFactory {
     @NonNull
     private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
 
@@ -33,15 +35,25 @@ public class ExtendedS3SimpleStorageFactory implements StorageFactory {
     private final ExtendedS3StorageConfig config;
 
     @NonNull
-    private final ExecutorService executor;
+    @Getter
+    private final ScheduledExecutorService executor;
 
     @Override
-    public Storage createStorageAdapter() {
-        ChunkedSegmentStorage storageProvider = new ChunkedSegmentStorage(
-                new ExtendedS3ChunkStorage(createS3Client(), this.config),
+    public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(containerId,
+                new ExtendedS3ChunkStorage(createS3Client(), this.config, this.executor, true, true),
+                metadataStore,
                 this.executor,
                 this.chunkedSegmentStorageConfig);
-        return storageProvider;
+        return chunkedSegmentStorage;
+    }
+
+    /**
+     * Creates a new instance of a Storage adapter.
+     */
+    @Override
+    public Storage createStorageAdapter() {
+        throw new UnsupportedOperationException("SimpleStorageFactory requires ChunkMetadataStore");
     }
 
     private S3Client createS3Client() {

@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import com.google.common.collect.Lists;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.ObjectClosedException;
@@ -86,7 +87,7 @@ public class ByteBufWrapperTests extends BufferViewTestBase {
     }
 
     @Test
-    public void testGetContents() {
+    public void testIterateBuffers() {
         val data = newData();
         @Cleanup("release")
         val buf = wrap(data);
@@ -94,8 +95,26 @@ public class ByteBufWrapperTests extends BufferViewTestBase {
         val bufferView = toBufferView(data);
 
         val expectedBuffers = Arrays.asList(buf.nioBuffers());
-        val actualBuffers = bufferView.getContents();
+        val actualBuffers = Lists.newArrayList(bufferView.iterateBuffers());
         AssertExtensions.assertListEquals("", expectedBuffers, actualBuffers, ByteBuffer::equals);
+    }
+
+    @Test
+    public void testAllocatedLength() {
+        val b1 = Unpooled.wrappedBuffer(new byte[100]).slice(10, 20);
+        val b2 = Unpooled.directBuffer(100).slice(10, 20);
+        val b3 = Unpooled.wrappedUnmodifiableBuffer(b1, b2);
+        System.out.println("100 " + b1.capacity() + " " + new ByteBufWrapper(b1).getAllocatedLength());
+        System.out.println("100 " + b2.capacity() + " " + new ByteBufWrapper(b2).getAllocatedLength());
+        System.out.println("200 " + b3.capacity() + " " + new ByteBufWrapper(b3).getAllocatedLength());
+    }
+
+    @Override
+    protected void checkAllocatedSize(BufferView slice, BufferView base) {
+        // We don't have a good way to extract the actual allocated size from a ByteBuf, so we can only verify that the
+        // allocated length is at least what the length of the buffer is.
+        AssertExtensions.assertGreaterThanOrEqual("Expected slice length to be at most the allocated length.",
+                slice.getLength(), slice.getAllocatedLength());
     }
 
     @Override

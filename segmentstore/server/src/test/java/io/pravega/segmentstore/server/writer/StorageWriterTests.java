@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -164,7 +165,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
      * the cache lookup for a CachedStreamSegmentAppendOperation returns null.
      */
     @Test
-    public void testWithDataSourceFatalErrors() throws Exception {
+    public void testWithDataSourceFatalErrors() {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
@@ -416,6 +417,50 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the StorageWriter in a Scenario where the Storage component throws arbitrary exceptions when requesting
+     * information about a segment. This simulates the Segment Aggregators failing to initialize and we ensure that the
+     * StorageWriter is resilient enough to handle this situation.
+     */
+    @Test
+    public void testWithSegmentAggregatorInitErrors() throws Exception {
+        final int failGetEvery = 2; // Fail very frequently - we want this tested well.
+
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+        context.writer.startAsync();
+
+        // Create a bunch of segments and Transactions.
+        ArrayList<Long> segmentIds = createSegments(context);
+
+        Supplier<Exception> exceptionSupplier = IntentionalException::new;
+        context.storage.setGetErrorInjector(new ErrorInjector<>(count -> count % failGetEvery == 0, exceptionSupplier));
+
+        // Append data.
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendDataBreadthFirst(segmentIds, segmentContents, context);
+
+        // Truncate half of the remaining segments, then seal all, then truncate all segments.
+        metadataCheckpoint(context);
+
+        // Wait for the writer to complete its job.
+        val writerStopped = new CompletableFuture<Void>();
+        Services.onStop(context.writer, () -> writerStopped.complete(null), writerStopped::completeExceptionally, executorService());
+        val fullyAck = context.dataSource.waitFullyAcked();
+
+        // Stop quickly if the writer fails. If not wait until fully acked.
+        CompletableFuture.anyOf(writerStopped, fullyAck).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // If the writer stopped prematurely, it should only be because it failed, so we should never get in here.
+        // However, just for sanity reasons, ensure that we have fully acked to the data source, as that is a prerequisite
+        // for verifying final output.
+        fullyAck.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Verify final output (and clear out any error injectors since we are done using the writer at this point).
+        context.storage.setGetErrorInjector(null);
+        verifyFinalOutput(segmentContents, Collections.emptyList(), context);
+    }
+
+    /**
      * Tests the StorageWriter in a Scenario where it needs to gracefully recover from a Container failure, and not all
      * previously written data has been acknowledged to the DataSource.
      * General test flow:
@@ -651,6 +696,47 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                 Assert.assertTrue("Not all processors were closed.", p.isClosed());
             }
         }
+    }
+
+    /**
+     * Tests the {@link StorageWriter#forceFlush} method.
+     */
+    @Test
+    public void testForceFlush() throws Exception {
+        // Special config that increases the flush thresholds and keeps the read timeout to something manageable (for empty reads).
+        val config = WriterConfig
+                .builder()
+                .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1024 * 1024)
+                .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 5000L)
+                .with(WriterConfig.MAX_ITEMS_TO_READ_AT_ONCE, 100)
+                .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 100L)
+                .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
+
+                .build();
+        @Cleanup
+        TestContext context = new TestContext(config);
+        context.writer.startAsync();
+
+        ArrayList<Long> segmentIds = createSegments(context);
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendDataBreadthFirst(segmentIds, segmentContents, context);
+
+        // Do not queue up a checkpoint - make it impossible for the Writer to acknowledge anything on its own path.
+        // Instead, force-flush and verify the output when done.
+        val ff1 = context.writer.forceFlush(context.metadata.getOperationSequenceNumber(), TIMEOUT);
+        val result1 = ff1.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertTrue("Expected something to be flushed.", result1);
+
+        // Verify result.
+        verifyFinalOutput(segmentContents, Collections.emptyList(), context);
+
+        // Do a second force-flush. At this point there should be nothing left to flush, so ensure the StorageWriter
+        // cannot write to Storage or update attributes.
+        context.storage.close();
+        context.dataSource.setPersistAttributesErrorInjector(new ErrorInjector<>(i -> true, Exception::new));
+        val ff2 = context.writer.forceFlush(context.metadata.getOperationSequenceNumber(), TIMEOUT);
+        val result2 = ff2.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertFalse("Not expected anything to be flushed the second time.", result2);
     }
 
     /**
@@ -1030,7 +1116,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+        public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
             Exceptions.checkNotClosed(this.closed.get(), this);
             this.firstUnAcked.set(this.operations.size());
             return CompletableFuture.completedFuture(new WriterFlushResult());

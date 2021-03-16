@@ -14,6 +14,7 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.test.integration.utils.SetupUtils;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,8 +35,9 @@ public class SingleThreadEndToEndTest {
         writer.writeEvent(1);
         writer.flush();
         @Cleanup
-        EventStreamReader<Integer> reader = setupUtils.getIntegerReader("stream");
-
+        val rgm = setupUtils.createReaderGroupManager("stream");
+        @Cleanup
+        EventStreamReader<Integer> reader = setupUtils.getIntegerReader("stream", rgm);
         EventRead<Integer> event = reader.readNextEvent(10000);
         Assert.assertEquals(1, (int) event.getEvent());
     }

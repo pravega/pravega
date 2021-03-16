@@ -10,8 +10,7 @@
 package io.pravega.controller.mocks;
 
 import io.pravega.auth.AuthHandler;
-import io.pravega.auth.ServerConfig;
-import io.pravega.controller.server.security.auth.UserPrincipal;
+import io.pravega.shared.security.auth.UserPrincipal;
 
 import java.security.Principal;
 
@@ -37,11 +36,6 @@ public class FakeAuthHandler implements AuthHandler {
         } else {
             return Permissions.NONE;
         }
-    }
-
-    @Override
-    public void initialize(ServerConfig serverConfig) {
-
     }
 
     public static String testAuthToken(String userName) {

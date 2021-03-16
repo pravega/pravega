@@ -8,14 +8,13 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.controller.store;
-
 import io.pravega.common.util.BitConverter;
-import org.apache.commons.lang3.tuple.Pair;
-
+import io.pravega.common.util.ByteArraySegment;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * Properties of a Scope and operations that can be performed on it.
@@ -79,9 +78,17 @@ public interface Scope {
     CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final int limit, final String continuationToken,
                                                               final Executor executor);
 
+    CompletableFuture<UUID> getReaderGroupId(String rgName);
+
     default byte[] newId() {
         byte[] b = new byte[2 * Long.BYTES];
-        BitConverter.writeUUID(b, 0, UUID.randomUUID());
+        BitConverter.writeUUID(new ByteArraySegment(b), UUID.randomUUID());
+        return b;
+    }
+
+    default byte[] getIdInBytes(UUID id) {
+        byte[] b = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(b), id);
         return b;
     }
 }

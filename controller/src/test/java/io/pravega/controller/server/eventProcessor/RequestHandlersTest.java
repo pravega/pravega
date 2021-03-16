@@ -33,14 +33,17 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.Version;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.Version;
-import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
@@ -71,12 +74,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -101,7 +102,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public abstract class RequestHandlersTest {
-    protected ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework zkClient;
 
     private final String scope = "scope";
@@ -666,6 +667,9 @@ public abstract class RequestHandlersTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                new CreateReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);
         String fairness = "fairness";
@@ -716,6 +720,9 @@ public abstract class RequestHandlersTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                new CreateReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);
         String fairness = "fairness";
@@ -765,6 +772,9 @@ public abstract class RequestHandlersTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                new CreateReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);
         String fairness = "fairness";
@@ -859,6 +869,9 @@ public abstract class RequestHandlersTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                new CreateReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);
         String fairness = "fairness";
@@ -907,6 +920,9 @@ public abstract class RequestHandlersTest {
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                new CreateReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);
         String fairness = "fairness";

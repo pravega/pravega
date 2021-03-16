@@ -19,6 +19,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
 
+import java.time.Duration;
+
 /**
  * Configuration for {@link ChunkedSegmentStorage}.
  */
@@ -31,8 +33,18 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> MAX_INDEXED_SEGMENTS = Property.named("readindex.segments.max", 1024);
     public static final Property<Integer> MAX_INDEXED_CHUNKS_PER_SEGMENTS = Property.named("readindex.chunksPerSegment.max", 1024);
     public static final Property<Integer> MAX_INDEXED_CHUNKS = Property.named("readindex.chunks.max", 16 * 1024);
+    public static final Property<Long> READ_INDEX_BLOCK_SIZE = Property.named("readindex.block.size", 1024 * 1024L);
     public static final Property<Boolean> APPENDS_ENABLED = Property.named("appends.enable", true);
+    public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", true);
+    public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
     public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", SegmentRollingPolicy.MAX_CHUNK_LENGTH);
+    public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
+    public static final Property<Integer> GARBAGE_COLLECTION_DELAY = Property.named("garbage.collection.delay.seconds", 60);
+    public static final Property<Integer> GARBAGE_COLLECTION_MAX_CONCURRENCY = Property.named("garbage.collection.concurrency.max", 10);
+    public static final Property<Integer> GARBAGE_COLLECTION_MAX_QUEUE_SIZE = Property.named("garbage.collection.queue.size.max", 16 * 1024);
+    public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.millis", 10);
+    public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPTS = Property.named("garbage.collection.attempts.max", 3);
+
 
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
@@ -46,6 +58,15 @@ public class ChunkedSegmentStorageConfig {
             .maxIndexedChunksPerSegment(1024)
             .maxIndexedChunks(16 * 1024)
             .appendEnabled(true)
+            .lazyCommitEnabled(true)
+            .inlineDefragEnabled(true)
+            .lateWarningThresholdInMillis(100)
+            .garbageCollectionDelay(Duration.ofSeconds(60))
+            .garbageCollectionMaxConcurrency(10)
+            .garbageCollectionMaxQueueSize(16 * 1024)
+            .garbageCollectionSleep(Duration.ofMillis(10))
+            .garbageCollectionMaxAttempts(3)
+            .indexBlockSize(1024 * 1024)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -95,10 +116,66 @@ public class ChunkedSegmentStorageConfig {
     final private int maxIndexedChunks;
 
     /**
+     * The fixed block size used for creating block index entries.
+     */
+    @Getter
+    final private long indexBlockSize;
+
+    /**
      * Whether the append functionality is enabled or disabled.
      */
     @Getter
     final private boolean appendEnabled;
+
+    /**
+     * Whether the lazy commit functionality is enabled or disabled.
+     * Underlying implementation might buffer frequently or recently updated metadata keys to optimize read/write performance.
+     * To further optimize it may provide "lazy committing" of changes where there is application specific way to recover from failures.(Eg. when only length of chunk is changed.)
+     * Note that otherwise for each commit the data is written to underlying key-value store.
+     */
+    @Getter
+    final private boolean lazyCommitEnabled;
+
+    /**
+     * Whether the inline defrag functionality is enabled or disabled.
+     */
+    @Getter
+    final private boolean inlineDefragEnabled;
+
+    @Getter
+    final private int lateWarningThresholdInMillis;
+
+    /**
+     * Minimum delay in seconds between when garbage chunks are marked for deletion and actually deleted.
+     */
+    @Getter
+    final private Duration garbageCollectionDelay;
+
+    /**
+     * Number of chunks deleted concurrently.
+     * This number should be small enough so that it does interfere foreground requests.
+     */
+    @Getter
+    final private int garbageCollectionMaxConcurrency;
+
+    /**
+     * Max size of garbage collection queue.
+     */
+    @Getter
+    final private int garbageCollectionMaxQueueSize;
+
+    /**
+     * Duration for which garbage collector sleeps if there is no work.
+     */
+    @Getter
+    final private Duration garbageCollectionSleep;
+
+
+    /**
+     * Max number of attempts per chunk for garbage collection.
+     */
+    @Getter
+    final private int garbageCollectionMaxAttempts;
 
     /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
@@ -107,14 +184,24 @@ public class ChunkedSegmentStorageConfig {
      */
     ChunkedSegmentStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.appendEnabled = properties.getBoolean(APPENDS_ENABLED);
+        this.lazyCommitEnabled = properties.getBoolean(LAZY_COMMIT_ENABLED);
+        this.inlineDefragEnabled = properties.getBoolean(INLINE_DEFRAG_ENABLED);
         this.maxBufferSizeForChunkDataTransfer = properties.getInt(MAX_BUFFER_SIZE_FOR_APPENDS);
-        this.minSizeLimitForConcat = properties.getLong(MIN_SIZE_LIMIT_FOR_CONCAT);
+        // Don't use appends for concat when appends are disabled.
+        this.minSizeLimitForConcat = this.appendEnabled ? properties.getLong(MIN_SIZE_LIMIT_FOR_CONCAT) : 0;
         this.maxSizeLimitForConcat = properties.getLong(MAX_SIZE_LIMIT_FOR_CONCAT);
         this.maxIndexedSegments = properties.getInt(MAX_INDEXED_SEGMENTS);
         this.maxIndexedChunksPerSegment = properties.getInt(MAX_INDEXED_CHUNKS_PER_SEGMENTS);
         this.maxIndexedChunks = properties.getInt(MAX_INDEXED_CHUNKS);
         long defaultMaxLength = properties.getLong(DEFAULT_ROLLOVER_SIZE);
         this.defaultRollingPolicy = new SegmentRollingPolicy(defaultMaxLength);
+        this.lateWarningThresholdInMillis = properties.getInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
+        this.garbageCollectionDelay = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_DELAY));
+        this.garbageCollectionMaxConcurrency = properties.getInt(GARBAGE_COLLECTION_MAX_CONCURRENCY);
+        this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
+        this.garbageCollectionSleep = Duration.ofMillis(properties.getInt(GARBAGE_COLLECTION_SLEEP));
+        this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPTS);
+        this.indexBlockSize = properties.getLong(READ_INDEX_BLOCK_SIZE);
     }
 
     /**

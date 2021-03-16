@@ -20,6 +20,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
@@ -82,7 +83,12 @@ class TableMetadataStore extends MetadataStore {
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
-        return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, attributes), true, timeout)
+
+        // Container Metadata Segment is a System Table Segment. It is Internal, but it is not Critical (i.e., does not
+        // prevent the good functioning of the Segment Store). It is OK if "modify" operations on this segment are
+        // throttled as that would not prevent the Segment Store from making forward progress.
+        val segmentType = SegmentType.builder().tableSegment().system().internal().build();
+        return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, segmentType, attributes), true, timeout)
                 .thenAccept(segmentId -> {
                     this.initialized.set(true);
                     log.info("{}: Metadata Segment pinned. Name = '{}', Id = '{}'", this.traceObjectId, this.metadataSegmentName, segmentId);
@@ -90,12 +96,12 @@ class TableMetadataStore extends MetadataStore {
     }
 
     @Override
-    CompletableFuture<Void> createSegment(String segmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+    CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Collection<AttributeUpdate> attributes, Duration timeout) {
         // Make sure we don't try to create the Metadata Segment - it is reserved.
         ensureInitialized();
         Preconditions.checkArgument(!this.metadataSegmentName.equals(segmentName),
                 "Cannot create Metadata Segment if already initialized.");
-        return super.createSegment(segmentName, attributes, timeout);
+        return super.createSegment(segmentName, segmentType, attributes, timeout);
     }
 
     @Override

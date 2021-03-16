@@ -113,6 +113,9 @@ public final class Config {
     public static final Property<Integer> PROPERTY_ACCESS_TOKEN_TTL_SECONDS = Property.named(
             "security.auth.delegationToken.ttl.seconds", 600, "auth.accessTokenTtlSeconds");
 
+    public static final Property<Boolean> PROPERTY_WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS = Property.named(
+            "security.auth.readerGroupStreams.writesWithReadPermissions.enable", true);
+
     public static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named(
             "security.tls.enable", false, "auth.tlsEnabled");
 
@@ -164,8 +167,11 @@ public final class Config {
     public static final Property<Integer> PROPERTY_TXN_MIN_LEASE = Property.named(
             "transaction.lease.count.min", 10000, "transaction.minLeaseValue");
 
-    public static final Property<Integer> PROPERTY_TXN_MAX_LEASE = Property.named(
-            "transaction.lease.count.max", 120000, "transaction.maxLeaseValue");
+    public static final Property<Long> PROPERTY_TXN_MAX_LEASE = Property.named(
+            "transaction.lease.count.max", 120000L, "transaction.maxLeaseValue");
+
+    public static final Property<Integer> PROPERTY_TXN_MAX_EXECUTION_TIMEBOUND_DAYS = Property.named(
+            "transaction.execution.timeBound.days", 1);
 
     public static final Property<Integer> PROPERTY_TXN_TTL_HOURS = Property.named(
             "transaction.ttl.hours", 24, "transaction.ttlHours");
@@ -219,6 +225,7 @@ public final class Config {
     public static final String TOKEN_SIGNING_KEY;
     public static final int ACCESS_TOKEN_TTL_IN_SECONDS;
     public static final String TLS_ENABLED_FOR_SEGMENT_STORE;
+    public static final boolean WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS;
 
     public static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR;
     public static final boolean REQUEST_TRACING_ENABLED;
@@ -243,6 +250,7 @@ public final class Config {
     //Transaction configuration
     public static final long MIN_LEASE_VALUE;
     public static final long MAX_LEASE_VALUE;
+    public static final int MAX_TXN_EXECUTION_TIMEBOUND_DAYS;
 
     // Completed Transaction TTL
     public static final int COMPLETED_TRANSACTION_TTL_IN_HOURS;
@@ -298,6 +306,7 @@ public final class Config {
         USER_PASSWORD_FILE = p.get(PROPERTY_PWD_AUTH_HANDLER_ACCOUNTS_STORE);
         TOKEN_SIGNING_KEY = p.get(PROPERTY_TOKEN_SIGNING_KEY);
         ACCESS_TOKEN_TTL_IN_SECONDS = p.getInt(PROPERTY_ACCESS_TOKEN_TTL_SECONDS);
+        WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS = p.getBoolean(PROPERTY_WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS);
 
         TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
         TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
@@ -322,7 +331,8 @@ public final class Config {
         REST_KEYSTORE_PASSWORD_FILE_PATH = p.get(PROPERTY_REST_KEYSTORE_PASSWORD_FILE_PATH);
 
         MIN_LEASE_VALUE = p.getInt(PROPERTY_TXN_MIN_LEASE);
-        MAX_LEASE_VALUE = p.getInt(PROPERTY_TXN_MAX_LEASE);
+        MAX_LEASE_VALUE = p.getLong(PROPERTY_TXN_MAX_LEASE);
+        MAX_TXN_EXECUTION_TIMEBOUND_DAYS = p.getInt(PROPERTY_TXN_MAX_EXECUTION_TIMEBOUND_DAYS);
         COMPLETED_TRANSACTION_TTL_IN_HOURS = p.getInt(PROPERTY_TXN_TTL_HOURS);
         MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = p.getInt(PROPERTY_RETENTION_FREQUENCY_MINUTES);
         RETENTION_BUCKET_COUNT = p.getInt(PROPERTY_RETENTION_BUCKET_COUNT);
@@ -437,6 +447,7 @@ public final class Config {
                 .tlsKeyFile(Config.TLS_KEY_FILE)
                 .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
                 .accessTokenTTLInSeconds(Config.ACCESS_TOKEN_TTL_IN_SECONDS)
+                .isRGWritesWithReadPermEnabled(Config.WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS)
                 .replyWithStackTraceOnError(Config.REPLY_WITH_STACK_TRACE_ON_ERROR)
                 .requestTracingEnabled(Config.REQUEST_TRACING_ENABLED)
                 .build();

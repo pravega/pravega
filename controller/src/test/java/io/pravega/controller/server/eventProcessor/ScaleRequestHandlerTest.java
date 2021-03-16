@@ -31,6 +31,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequest
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.State;
@@ -38,7 +39,6 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
@@ -69,12 +69,10 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -101,7 +99,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public abstract class ScaleRequestHandlerTest {
-    protected ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework zkClient;
 
     private final String scope = "scope";
@@ -191,7 +189,8 @@ public abstract class ScaleRequestHandlerTest {
     public void testScaleRequest() throws ExecutionException, InterruptedException {
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
-        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, streamStore, executor);
+        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler,
+                null, null, null, null, null, null, null, streamStore, executor);
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
         streamMetadataTasks.setRequestEventWriter(writer);
@@ -288,7 +287,8 @@ public abstract class ScaleRequestHandlerTest {
     public void testScaleRequestWithMinimumSegment() throws ExecutionException, InterruptedException {
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
-        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, streamStore, executor);
+        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler,
+                null, null, null, null, null, null, null, streamStore, executor);
         EventWriterMock writer = new EventWriterMock();
         streamMetadataTasks.setRequestEventWriter(writer);
 
@@ -380,7 +380,7 @@ public abstract class ScaleRequestHandlerTest {
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
-                null, null, null, null, streamStore, executor);
+                null, null, null, null, null, null, null, streamStore, executor);
         CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
 
         // 1 create transaction on old epoch and set it to committing
@@ -451,7 +451,7 @@ public abstract class ScaleRequestHandlerTest {
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
-                null, null, null, null, streamStore, executor);
+                null, null, null, null, null, null, null, streamStore, executor);
         CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
 
         // 1 create transaction on old epoch and set it to committing
@@ -509,7 +509,7 @@ public abstract class ScaleRequestHandlerTest {
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
-                null, null, null, null, streamStore, executor);
+                null, null, null, null, null, null, null, streamStore, executor);
         CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
 
         // 1 create transaction on old epoch and set it to committing
@@ -928,7 +928,7 @@ public abstract class ScaleRequestHandlerTest {
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null,
-                null, null, null, streamStore, executor);
+                null, null, null, null, null, null, streamStore, executor);
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
         streamMetadataTasks.setRequestEventWriter(writer);

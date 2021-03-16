@@ -38,10 +38,9 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.watermark.WatermarkSerializer;
-import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
-import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
@@ -57,7 +56,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -75,7 +73,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -93,7 +90,7 @@ public class WatermarkingTest extends AbstractSystemTest {
     private Service controllerInstance;
     private URI controllerURI;
     private StreamManager streamManager;
-    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -123,6 +120,7 @@ public class WatermarkingTest extends AbstractSystemTest {
     @After
     public void tearDown() {
         streamManager.close();
+        ExecutorServiceHelpers.shutdown(executorService);
     }
 
     @Test
@@ -152,13 +150,6 @@ public class WatermarkingTest extends AbstractSystemTest {
         // scale the stream several times so that we get complex positions
         Stream streamObj = Stream.of(SCOPE, STREAM);
         scale(controller, streamObj);
-
-        // wait until mark stream is created
-        AtomicBoolean markStreamCreated = new AtomicBoolean(false);
-        Futures.loop(() -> !markStreamCreated.get(), 
-                () -> Futures.exceptionallyExpecting(controller.getCurrentSegments(SCOPE, NameUtils.getMarkStreamForStream(STREAM)), 
-                    e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                .thenAccept(v -> markStreamCreated.set(v != null)), executorService);
 
         @Cleanup
         ClientFactoryImpl syncClientFactory = new ClientFactoryImpl(SCOPE,
@@ -236,17 +227,18 @@ public class WatermarkingTest extends AbstractSystemTest {
         // read events from the reader. 
         // verify that events read belong to the bound
         EventRead<Long> event = reader.readNextEvent(10000L);
-        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
-        assertNotNull(currentTimeWindow);
-        assertNotNull(currentTimeWindow.getLowerTimeBound());
-        assertNotNull(currentTimeWindow.getUpperTimeBound());
-        log.info("current time window = {}", currentTimeWindow);
+        AtomicReference<TimeWindow> currentTimeWindow = new AtomicReference<>();
+        AssertExtensions.assertEventuallyEquals(true, () -> {
+            currentTimeWindow.set(reader.getCurrentTimeWindow(streamObj));
+            return currentTimeWindow.get() != null && currentTimeWindow.get().getLowerTimeBound() != null && currentTimeWindow.get().getUpperTimeBound() != null;
+        }, 100000);
+        log.info("current time window = {}", currentTimeWindow.get());
 
         while (event.getEvent() != null) {
             Long time = event.getEvent();
             log.info("event read = {}", time);
             event.getPosition();
-            assertTrue(time >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(time >= currentTimeWindow.get().getLowerTimeBound());
             event = reader.readNextEvent(10000L);
             if (event.isCheckpoint()) {
                 event = reader.readNextEvent(10000L);

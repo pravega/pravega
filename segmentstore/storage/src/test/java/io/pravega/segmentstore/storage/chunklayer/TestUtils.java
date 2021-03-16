@@ -11,13 +11,16 @@ package io.pravega.segmentstore.storage.chunklayer;
 
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
+import io.pravega.segmentstore.storage.metadata.ReadIndexBlockMetadata;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadata;
+import io.pravega.shared.NameUtils;
 import lombok.val;
 import org.junit.Assert;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.TreeMap;
 
 /**
  * Test utility.
@@ -92,7 +95,7 @@ public class TestUtils {
         // Assert
         Assert.assertNotNull(segmentMetadata.getFirstChunk());
         Assert.assertNotNull(segmentMetadata.getLastChunk());
-        int expectedLength = 0;
+        long expectedLength = 0;
         int i = 0;
         val chunks = getChunkList(metadataStore, segmentName);
         for (val chunk : chunks) {
@@ -110,6 +113,68 @@ public class TestUtils {
     }
 
     /**
+     * Checks the existence of read index block metadata records for given segment.
+     * @param chunkedSegmentStorage  ChunkedSegmentStorage.
+     * @param metadataStore  Metadata store to query.
+     * @param segmentName    Name of the segment.
+     * @param startOffset    Start offset of the segment.
+     * @param endOffset      End offset of the segment.
+     * @param checkReadIndex True if readIndex entries should be checked.
+     * @throws Exception Exceptions are thrown in case of any errors.
+     */
+    public static void checkReadIndexEntries(ChunkedSegmentStorage chunkedSegmentStorage, ChunkMetadataStore metadataStore, String segmentName, long startOffset, long endOffset, boolean checkReadIndex) throws Exception {
+        val blockSize = chunkedSegmentStorage.getConfig().getIndexBlockSize();
+        val segmentReadIndex = chunkedSegmentStorage.getReadIndexCache().getSegmentsReadIndexCache().getIfPresent(segmentName);
+        try (val txn = metadataStore.beginTransaction(true, new String[] {segmentName})) {
+            val segmentMetadata = (SegmentMetadata) txn.get(segmentName).get();
+            Assert.assertNotNull(segmentMetadata);
+            TreeMap<Long, String> index = new TreeMap<>();
+            String current = segmentMetadata.getFirstChunk();
+            long offset = segmentMetadata.getFirstChunkStartOffset();
+            while (null != current) {
+                val chunk = (ChunkMetadata) txn.get(current).get();
+                Assert.assertNotNull(chunk);
+                if (checkReadIndex && startOffset <= offset) {
+                    Assert.assertNotNull("Offset=" + offset, segmentReadIndex.getOffsetToChunkNameIndex().get(offset));
+                    Assert.assertEquals("Offset=" + offset, chunk.getName(), segmentReadIndex.getOffsetToChunkNameIndex().get(offset).getChunkName());
+                }
+                index.put(offset, chunk.getName());
+                offset += chunk.getLength();
+                current = chunk.getNextChunk();
+            }
+            if (checkReadIndex) {
+                for (val entry : segmentReadIndex.getOffsetToChunkNameIndex().entrySet()) {
+                    Assert.assertNotNull("Offset=" + entry.getKey(), index.get(entry.getKey()));
+                    Assert.assertEquals("Offset=" + entry.getKey(), entry.getValue().getChunkName(), index.get(entry.getKey()));
+                }
+            }
+
+            long blockStartOffset;
+            for (blockStartOffset = 0; blockStartOffset < segmentMetadata.getLength(); blockStartOffset +=  blockSize) {
+                // For all offsets below start offset, there should not be any index entries.
+                if (segmentMetadata.getStartOffset() > blockStartOffset) {
+                    Assert.assertNull("for offset:" + blockStartOffset, txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, blockStartOffset)).get());
+                }
+
+                // For all valid offsets, there should be index entries.
+                if (segmentMetadata.getStartOffset() <= blockStartOffset) {
+                    val blockIndexEntry = (ReadIndexBlockMetadata) txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, blockStartOffset)).get();
+                    Assert.assertNotNull("for offset:" + blockStartOffset, blockIndexEntry);
+                    Assert.assertNotNull("for offset:" + blockStartOffset, txn.get(blockIndexEntry.getChunkName()));
+                    val mappedChunk = index.floorEntry(blockStartOffset);
+                    Assert.assertNotNull(mappedChunk);
+                    Assert.assertEquals("for offset:" + blockStartOffset, mappedChunk.getValue(), blockIndexEntry.getChunkName());
+                }
+            }
+            // For all offsets after end of the segment, there should not be any index entries
+            Assert.assertNull("for offset:" + segmentMetadata.getLength(),
+                    txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, segmentMetadata.getLength())).get());
+            Assert.assertNull("for offset:" + segmentMetadata.getLength() + blockSize,
+                    txn.get(NameUtils.getSegmentReadIndexBlockName(segmentName, segmentMetadata.getLength() + blockSize)).get());
+        }
+    }
+
+    /**
      * Retrieves the {@link StorageMetadata} with given key from given {@link ChunkMetadataStore}.
      *
      * @param metadataStore Metadata store to query.
@@ -118,8 +183,8 @@ public class TestUtils {
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static StorageMetadata get(ChunkMetadataStore metadataStore, String key) throws Exception {
-        try (val txn = metadataStore.beginTransaction()) {
-            return txn.get(key);
+        try (val txn = metadataStore.beginTransaction(true, new String[] {key})) {
+            return txn.get(key).get();
         }
     }
 
@@ -132,8 +197,8 @@ public class TestUtils {
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static SegmentMetadata getSegmentMetadata(ChunkMetadataStore metadataStore, String key) throws Exception {
-        try (val txn = metadataStore.beginTransaction()) {
-            return (SegmentMetadata) txn.get(key);
+        try (val txn = metadataStore.beginTransaction(true, new String[] {key})) {
+            return (SegmentMetadata) txn.get(key).get();
         }
     }
 
@@ -146,8 +211,8 @@ public class TestUtils {
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static ChunkMetadata getChunkMetadata(ChunkMetadataStore metadataStore, String key) throws Exception {
-        try (val txn = metadataStore.beginTransaction()) {
-            return (ChunkMetadata) txn.get(key);
+        try (val txn = metadataStore.beginTransaction(true, new String[] {key})) {
+            return (ChunkMetadata) txn.get(key).get();
         }
     }
 
@@ -160,13 +225,14 @@ public class TestUtils {
      * @throws Exception Exceptions are thrown in case of any errors.
      */
     public static ArrayList<ChunkMetadata> getChunkList(ChunkMetadataStore metadataStore, String key) throws Exception {
-        try (val txn = metadataStore.beginTransaction()) {
+        try (val txn = metadataStore.beginTransaction(true, new String[] {key})) {
             val segmentMetadata = getSegmentMetadata(metadataStore, key);
             Assert.assertNotNull(segmentMetadata);
             ArrayList<ChunkMetadata> chunkList = new ArrayList<ChunkMetadata>();
             String current = segmentMetadata.getFirstChunk();
             while (null != current) {
-                val chunk = (ChunkMetadata) txn.get(current);
+                val chunk = (ChunkMetadata) txn.get(current).get();
+                Assert.assertNotNull(chunk);
                 chunkList.add(chunk);
                 current = chunk.getNextChunk();
             }
@@ -177,20 +243,20 @@ public class TestUtils {
     /**
      * Checks if all chunks actually exist in storage for given segment.
      *
-     * @param storageProvider {@link ChunkStorage} instance to check.
+     * @param chunkStorage {@link ChunkStorage} instance to check.
      * @param metadataStore   {@link ChunkMetadataStore} instance to check.
      * @param segmentName     Segment name to check.
      * @throws Exception Exceptions are thrown in case of any errors.
      */
-    public static void checkChunksExistInStorage(ChunkStorage storageProvider, ChunkMetadataStore metadataStore, String segmentName) throws Exception {
+    public static void checkChunksExistInStorage(ChunkStorage chunkStorage, ChunkMetadataStore metadataStore, String segmentName) throws Exception {
         int chunkCount = 0;
         long dataSize = 0;
         val segmentMetadata = getSegmentMetadata(metadataStore, segmentName);
         HashSet<String> visited = new HashSet<>();
         val chunkList = getChunkList(metadataStore, segmentName);
         for (ChunkMetadata chunkMetadata : chunkList) {
-            Assert.assertTrue(storageProvider.exists(chunkMetadata.getName()));
-            val info = storageProvider.getInfo(chunkMetadata.getName());
+            Assert.assertTrue(chunkStorage.exists(chunkMetadata.getName()).get());
+            val info = chunkStorage.getInfo(chunkMetadata.getName()).get();
             Assert.assertTrue(String.format("Actual %s, Expected %d", chunkMetadata, info.getLength()),
                     chunkMetadata.getLength() <= info.getLength());
             chunkCount++;

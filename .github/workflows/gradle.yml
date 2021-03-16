@@ -1,0 +1,262 @@
+#
+# Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+name: build
+
+# Set up when this workflow will run.
+on:
+  push:
+    branches:
+      - master                 # On every push to the master branch.
+      - 'r[0-9]+.[0-9]+'       # On every push to a release branch.
+  pull_request:                # On every pull request, regardless of source/target branch.
+  release:
+    types:
+      - published              # On every published release.
+
+# Define a few constants that are shared across all the jobs.
+env:
+  GLOBAL_CACHE_PATH: |
+    .gradle
+    ~/.gradle
+    ~/.m2
+  GLOBAL_CACHE_KEY: gradle-m2-java-11
+  GLOBAL_CACHE_RESTORE_KEYS: |
+    gradle-m2-java-
+    gradle-m2
+  # We cache the source code, resources and build output. This is generated on the build job and reused in dependent jobs.
+  BUILD_CACHE_PATH: ./*
+  # We cache test execution (including history) and reports (code coverage) per test job. This helps speed up workflow re-runs.
+  TEST_OUTPUT_CACHE_PATH: |
+    .gradle
+    **/build/test-results
+    **/**/build/test-results
+    **/**/**/build/test-results
+    **/build/jacoco
+    **/**/build/jacoco
+    **/**/**/build/jacoco
+    **/build/reports
+    **/**/build/reports
+    **/**/**/build/reports
+  # Set 'GRADLE_OPTS' to pass additional custom parameters to each ./gradlew invocation in this workflow.
+  # Example '--info' or '--debug'.
+  #GRADLE_OPTS: --info
+
+# The workflow begins with a compilation and static analysis job that also caches the build output and source code,
+# followed by a number of parallel test jobs (which make use of that cached artifacts).
+#
+# Once the build job and all the test jobs complete successfully, a final (no-op) job ("build_and_test_complete") will
+# automatically complete. This job must NOT be renamed as the GitHub Pravega Repository gates merges into master on
+# this step passing.
+#
+# Finally, a "snapshot" job is triggered only for pushes (commits) to master and release branches, which publishes all
+# artifacts to a public repository.
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Build Information
+        run: echo Building a '${{ github.event_name }}' for target '${{ github.ref }}'.
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Gradle & Maven Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+      - name: Build Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
+      - name: Compile & Static Analysis
+        run: ./gradlew jar compileTest rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel ${{env.GRADLE_OPTS}}
+
+  unit_client:
+    name: Client Unit Tests
+    needs: build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Gradle & Maven Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+      - name: Build Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
+      - name: Test Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
+          key: ${{github.run_id}}-${{github.job}}
+      - name: Unit tests
+        run: ./gradlew client:test ${{env.GRADLE_OPTS}}
+      - name: Codecov
+        uses: codecov/codecov-action@v1.0.15
+
+  unit_controller:
+    name: Controller Unit Tests
+    needs: build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Gradle & Maven Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+      - name: Build Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
+      - name: Test Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
+          key: ${{github.run_id}}-${{github.job}}
+      - name: Controller Unit tests
+        run: ./gradlew controller:test ${{env.GRADLE_OPTS}}
+      - name: Codecov
+        uses: codecov/codecov-action@v1.0.15
+
+  unit_segment_store:
+    name: Segment Store Unit Tests
+    needs: build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Gradle & Maven Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+      - name: Build Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
+      - name: Test Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
+          key: ${{github.run_id}}-${{github.job}}
+      - name: Segment Store Unit tests
+        run: >
+          ./gradlew
+          segmentstore:server:test
+          segmentstore:storage:test
+          segmentstore:storage:impl:test
+          bindings:test
+          --parallel ${{env.GRADLE_OPTS}}
+      - name: Segment Store Host Tests      # Run this separately since it conflicts with segmentstore:storage:impl:test.
+        run: >
+          ./gradlew
+          segmentstore:server:host:test
+          --parallel ${{env.GRADLE_OPTS}}
+      - name: Codecov
+        uses: codecov/codecov-action@v1.0.15
+
+  unit_other:
+    name: All Other Unit Tests
+    needs: build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Gradle & Maven Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+      - name: Build Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
+      - name: Test Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
+          key: ${{github.run_id}}-${{github.job}}
+      - name: Unit tests
+        run: >
+          ./gradlew test
+          -x client:test
+          -x controller:test
+          -x test:integration:test
+          -x bindings:test
+          -x segmentstore:storage:impl:test
+          -x segmentstore:storage:test
+          -x segmentstore:server:host:test
+          -x segmentstore:server:test
+          --parallel ${{env.GRADLE_OPTS}}
+      - name: Codecov
+        uses: codecov/codecov-action@v1.0.15
+
+  integration:
+    name: Integration Tests
+    needs: build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Gradle & Maven Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+      - name: Build Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
+      - name: Test Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
+          key: ${{github.run_id}}-${{github.job}}
+      - name: Integration Tests
+        run: ./gradlew test:integration:test ${{env.GRADLE_OPTS}}
+
+  # DO NOT RENAME THIS JOB. Mergers to master branch are gated on this completing successfully.
+  build_and_test_complete:
+    name: CI Complete
+    needs: [build, integration, unit_other, unit_segment_store, unit_controller, unit_client]
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Check Build Status
+        run: echo Build, static analysis, unit and integration tests successful.
+
+  snapshot:
+    name: Artifactory Snapshot
+    needs: [build_and_test_complete]
+    # Only run this on PUSH (no pull requests) and only on the master branch and release branches.
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/r0.') || startsWith(github.ref, 'refs/heads/r1.')) }}
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Gradle & Maven Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+      - name: Build Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
+      - name: Assemble
+        run: ./gradlew assemble --parallel ${{env.GRADLE_OPTS}}
+      - name: Publish Shapshot
+        run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=${{secrets.BINTRAY_USER}} -PpublishPassword=${{secrets.BINTRAY_KEY}} ${{env.GRADLE_OPTS}}

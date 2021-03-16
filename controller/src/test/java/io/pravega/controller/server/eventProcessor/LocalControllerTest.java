@@ -9,13 +9,21 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.ControllerFailureException;
+import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.control.impl.ReaderGroupConfigRejectedException;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.concurrent.Futures;
@@ -24,11 +32,15 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.test.common.ThreadPooledTestSuite;
+
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -42,7 +54,13 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.mockito.ArgumentMatchers.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -78,9 +96,9 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         when(this.mockControllerService.listScopes(eq("last"), anyInt())).thenReturn(
                 CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyList(), "last")));
         AsyncIterator<String> iterator = this.testController.listScopes();
-        Assert.assertEquals(iterator.getNext().join(), "a");
-        Assert.assertEquals(iterator.getNext().join(), "b");
-        Assert.assertEquals(iterator.getNext().join(), "c");
+        assertEquals(iterator.getNext().join(), "a");
+        assertEquals(iterator.getNext().join(), "b");
+        assertEquals(iterator.getNext().join(), "c");
         Assert.assertNull(iterator.getNext().join());
     }
     
@@ -242,6 +260,293 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.updateStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testCreateReaderGroup() throws ExecutionException, InterruptedException {
+        final Segment seg0 = new Segment("scope", "stream1", 0L);
+        final Segment seg1 = new Segment("scope", "stream1", 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of("scope", "stream1"),
+                new StreamCutImpl(Stream.of("scope", "stream1"), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of("scope", "stream1"),
+                new StreamCutImpl(Stream.of("scope", "stream1"), endStreamCut));
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        final ReaderGroupConfig config = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 0L);
+        StreamMetadataTasks mockStreamMetaTasks = mock(StreamMetadataTasks.class);
+        final String scope = "scope";
+        final String rgName = "subscriber";
+        when(this.mockControllerService.getStreamMetadataTasks()).thenReturn(mockStreamMetaTasks);
+        Controller.ReaderGroupConfiguration expectedConfig = ModelHelper.decode(scope, rgName, config);
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupResponse.newBuilder()
+                        .setConfig(expectedConfig)
+                        .setStatus(Controller.CreateReaderGroupResponse.Status.SUCCESS).build()));
+        ReaderGroupConfig responseCfg = this.testController.createReaderGroup(scope, rgName, config).join();
+        Assert.assertEquals(UUID.fromString(expectedConfig.getReaderGroupId()), responseCfg.getReaderGroupId());
+        Assert.assertEquals(expectedConfig.getRetentionType(), responseCfg.getRetentionType().ordinal());
+        Assert.assertEquals(expectedConfig.getGeneration(), responseCfg.getGeneration());
+        Assert.assertEquals(expectedConfig.getGroupRefreshTimeMillis(), responseCfg.getGroupRefreshTimeMillis());
+        Assert.assertEquals(expectedConfig.getAutomaticCheckpointIntervalMillis(), responseCfg.getAutomaticCheckpointIntervalMillis());
+        Assert.assertEquals(expectedConfig.getMaxOutstandingCheckpointRequest(), responseCfg.getMaxOutstandingCheckpointRequest());
+
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupResponse.newBuilder()
+                                .setConfig(expectedConfig)
+                                .setStatus(Controller.CreateReaderGroupResponse.Status.FAILURE).build()));
+
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupResponse.newBuilder()
+                        .setConfig(expectedConfig)
+                        .setStatus(Controller.CreateReaderGroupResponse.Status.INVALID_RG_NAME).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupResponse.newBuilder()
+                        .setConfig(expectedConfig)
+                        .setStatus(Controller.CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(mockStreamMetaTasks.createReaderGroupInternal(anyString(), any(), any(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(Controller.CreateReaderGroupResponse.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.createReaderGroup("scope", "subscriber", config).join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testGetReaderGroupConfig() throws ExecutionException, InterruptedException {
+        final String scope = "scope";
+        final String streamName = "stream1";
+        final Segment seg0 = new Segment(scope, streamName, 0L);
+        final Segment seg1 = new Segment(scope, streamName, 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(scope, streamName),
+                new StreamCutImpl(Stream.of(scope, streamName), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(scope, streamName),
+                new StreamCutImpl(Stream.of(scope, streamName), endStreamCut));
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        ReaderGroupConfig config = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 0L);
+        final String rgName = "subscriber";
+        Controller.ReaderGroupConfiguration expectedConfig = ModelHelper.decode(scope, rgName, config);
+        when(this.mockControllerService.getReaderGroupConfig(anyString(), anyString())).thenReturn(
+                CompletableFuture.completedFuture(Controller.ReaderGroupConfigResponse.newBuilder()
+                        .setStatus(Controller.ReaderGroupConfigResponse.Status.SUCCESS)
+                        .setConfig(expectedConfig)
+                        .build()));
+
+        Assert.assertEquals(this.testController.getReaderGroupConfig(scope, rgName).join()
+                        .getAutomaticCheckpointIntervalMillis(),
+                        config.getAutomaticCheckpointIntervalMillis());
+
+        when(this.mockControllerService.getReaderGroupConfig(anyString(), anyString())).thenReturn(
+                CompletableFuture.completedFuture(Controller.ReaderGroupConfigResponse.newBuilder()
+                        .setStatus(Controller.ReaderGroupConfigResponse.Status.FAILURE)
+                        .setConfig(Controller.ReaderGroupConfiguration.getDefaultInstance())
+                        .build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.getReaderGroupConfig("scope", "subscriber").join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.getReaderGroupConfig(anyString(), anyString())).thenReturn(
+                CompletableFuture.completedFuture(Controller.ReaderGroupConfigResponse.newBuilder()
+                        .setStatus(Controller.ReaderGroupConfigResponse.Status.RG_NOT_FOUND)
+                        .setConfig(Controller.ReaderGroupConfiguration.getDefaultInstance())
+                        .build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.getReaderGroupConfig("scope", "subscriber").join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.getReaderGroupConfig("scope", "subscriber")).thenReturn(
+                CompletableFuture.completedFuture(Controller.ReaderGroupConfigResponse.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.getReaderGroupConfig("scope", "subscriber").join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testDeleteReaderGroup() throws ExecutionException, InterruptedException {
+        final  UUID someUUID = UUID.randomUUID();
+        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteReaderGroupStatus.newBuilder()
+                        .setStatus(Controller.DeleteReaderGroupStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.deleteReaderGroup("scope", "subscriber", someUUID).join());
+
+        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteReaderGroupStatus.newBuilder()
+                        .setStatus(Controller.DeleteReaderGroupStatus.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.deleteReaderGroup("scope", "subscriber", someUUID).join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteReaderGroupStatus.newBuilder()
+                        .setStatus(Controller.DeleteReaderGroupStatus.Status.RG_NOT_FOUND).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.deleteReaderGroup("scope", "stream", someUUID).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteReaderGroupStatus.newBuilder()
+                        .setStatus(Controller.DeleteReaderGroupStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.deleteReaderGroup("scope", "subscriber", someUUID).join());
+        
+        when(this.mockControllerService.deleteReaderGroup(anyString(), anyString(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.DeleteReaderGroupStatus.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.deleteReaderGroup("scope", "subscriber", someUUID).join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testUpdateReaderGroup() throws ExecutionException, InterruptedException {
+        final Segment seg0 = new Segment("scope", "stream1", 0L);
+        final Segment seg1 = new Segment("scope", "stream1", 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of("scope", "stream1"),
+                new StreamCutImpl(Stream.of("scope", "stream1"), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of("scope", "stream1"),
+                new StreamCutImpl(Stream.of("scope", "stream1"), endStreamCut));
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        ReaderGroupConfig config = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 0L);
+        when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
+                        .setStatus(Controller.UpdateReaderGroupResponse.Status.SUCCESS).setGeneration(1L).build()));
+        Assert.assertNotNull(this.testController.updateReaderGroup("scope", "subscriber", config).join());
+
+        when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
+                        .setStatus(Controller.UpdateReaderGroupResponse.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.updateReaderGroup("scope", "subscriber", config).join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
+                        .setStatus(Controller.UpdateReaderGroupResponse.Status.INVALID_CONFIG).build()));
+        assertThrows("Expected ReaderGroupConfigRejectedException",
+                () -> this.testController.updateReaderGroup("scope", "subscriber", config).join(),
+                ex -> ex instanceof ReaderGroupConfigRejectedException);
+
+        when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
+                        .setStatus(Controller.UpdateReaderGroupResponse.Status.RG_NOT_FOUND).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.updateReaderGroup("scope", "subscriber", config).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.updateReaderGroup(anyString(), anyString(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.UpdateReaderGroupResponse.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.updateReaderGroup("scope", "subscriber", config).join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testUpdateSubscriberStreamCut() throws ExecutionException, InterruptedException {
+        UUID someId = UUID.randomUUID();
+        StreamCut streamCut = new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap());
+        when(this.mockControllerService.updateSubscriberStreamCut(anyString(), anyString(), anyString(), any(), anyLong(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
+                        .setStatus(Controller.UpdateSubscriberStatus.Status.SUCCESS).build()));
+        Assert.assertTrue(this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", someId, 0L, streamCut).join());
+
+        when(this.mockControllerService.updateSubscriberStreamCut(anyString(), anyString(), anyString(), any(), anyLong(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
+                        .setStatus(Controller.UpdateSubscriberStatus.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", someId, 0L, streamCut).join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.updateSubscriberStreamCut(anyString(), anyString(), anyString(), any(), anyLong(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
+                        .setStatus(Controller.UpdateSubscriberStatus.Status.STREAM_NOT_FOUND).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber",
+                        someId, 0L, streamCut).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.updateSubscriberStreamCut(anyString(), anyString(), anyString(), any(), anyLong(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
+                        .setStatus(Controller.UpdateSubscriberStatus.Status.SUBSCRIBER_NOT_FOUND).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", someId, 0L, streamCut).join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.updateSubscriberStreamCut(anyString(), anyString(), anyString(), any(), anyLong(), any())).thenReturn(
+                CompletableFuture.completedFuture(Controller.UpdateSubscriberStatus.newBuilder()
+                        .setStatus(Controller.UpdateSubscriberStatus.Status.GENERATION_MISMATCH).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.updateSubscriberStreamCut("scope", "stream", "subscriber", someId, 0L, streamCut).join(),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testListSubscribers() throws ExecutionException, InterruptedException {
+        List<String> subscriberList = new ArrayList<>(3);
+        subscriberList.add("sub1");
+        subscriberList.add("sub2");
+        subscriberList.add("sub3");
+        Controller.SubscribersResponse result = Controller.SubscribersResponse.newBuilder()
+                .addAllSubscribers(subscriberList).setStatus(Controller.SubscribersResponse.Status.SUCCESS).build();
+
+        when(this.mockControllerService.listSubscribers(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(result));
+        List<String> returnedSubscribers = this.testController.listSubscribers("scope", "stream").join();
+        Assert.assertEquals(3, returnedSubscribers.size());
+        Assert.assertTrue(returnedSubscribers.contains("sub1"));
+        Assert.assertTrue(returnedSubscribers.contains("sub2"));
+        Assert.assertTrue(returnedSubscribers.contains("sub3"));
+
+        List<String> emptyList = new ArrayList<String>();
+        result = Controller.SubscribersResponse.newBuilder()
+                .addAllSubscribers(emptyList).setStatus(Controller.SubscribersResponse.Status.SUCCESS).build();
+        when(this.mockControllerService.listSubscribers(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(result));
+        returnedSubscribers = this.testController.listSubscribers("scope", "stream").join();
+        Assert.assertEquals(0, returnedSubscribers.size());
+
+        result = Controller.SubscribersResponse.newBuilder()
+                .addAllSubscribers(emptyList).setStatus(Controller.SubscribersResponse.Status.STREAM_NOT_FOUND).build();
+        when(this.mockControllerService.listSubscribers(any(), any())).thenReturn(
+                CompletableFuture.completedFuture(result));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.listSubscribers("scope", "unknownstream").join(),
+                ex -> ex instanceof IllegalArgumentException);
+
     }
 
     @Test
@@ -423,7 +728,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         when(this.mockControllerService.getCurrentSegmentsKeyValueTable(any(), any())).thenReturn(
                 CompletableFuture.completedFuture(segmentsList));
         KeyValueTableSegments segments = this.testController.getCurrentSegmentsForKeyValueTable("scope", "kvtable").get();
-        Assert.assertEquals(3, segments.getSegments().size());
+        assertEquals(3, segments.getSegments().size());
     }
 
     @Test
@@ -434,7 +739,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         when(this.mockControllerService.listKeyValueTables(anyString(), anyString(), anyInt())).thenReturn(
                 CompletableFuture.completedFuture(listOfKVTables));
         KeyValueTableInfo info = this.testController.listKeyValueTables("scope").getNext().get();
-        Assert.assertEquals("kvtable1", info.getKeyValueTableName());
+        assertEquals("kvtable1", info.getKeyValueTableName());
     }
 
     @Test
@@ -464,4 +769,38 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 ex -> ex instanceof ControllerFailureException);
     }
 
+    @Test
+    public void testGetOrRefreshDelegationToken() {
+        String token = this.testController.getOrRefreshDelegationTokenFor("scope", "stream", null).join();
+         if (this.authEnabled) {
+             assertNotNull(token);
+         } else {
+             assertEquals("", token);
+         }
+    }
+
+    @Test
+    public void testGetCurrentSegments() {
+        Controller.StreamInfo info = Controller.StreamInfo.newBuilder().setScope("scope").setStream("stream").build();
+        Controller.SegmentId segment1 = Controller.SegmentId.newBuilder().setSegmentId(1).setStreamInfo(info).build();
+        Controller.SegmentId segment2 = Controller.SegmentId.newBuilder().setSegmentId(2).setStreamInfo(info).build();
+        Controller.SegmentId segment3 = Controller.SegmentId.newBuilder().setSegmentId(3).setStreamInfo(info).build();
+
+        Controller.SegmentRange segmentRange1 = Controller.SegmentRange.newBuilder().setSegmentId(segment1).setMinKey(0.1).setMaxKey(0.3).build();
+        Controller.SegmentRange segmentRange2 = Controller.SegmentRange.newBuilder().setSegmentId(segment2).setMinKey(0.4).setMaxKey(0.6).build();
+        Controller.SegmentRange segmentRange3 = Controller.SegmentRange.newBuilder().setSegmentId(segment3).setMinKey(0.7).setMaxKey(1.0).build();
+
+        List<Controller.SegmentRange> segmentsList = new ArrayList<Controller.SegmentRange>(3);
+        segmentsList.add(segmentRange1);
+        segmentsList.add(segmentRange2);
+        segmentsList.add(segmentRange3);
+
+        when(this.mockControllerService.getCurrentSegments("scope", "stream")).thenReturn(
+                CompletableFuture.completedFuture(segmentsList));
+
+        StreamSegments currentSegments = this.testController.getCurrentSegments("scope", "stream").join();
+        assertEquals(3, currentSegments.getSegments().size());
+        assertEquals(new Segment("scope", "stream", 1), currentSegments.getSegmentForKey(0.2));
+        assertEquals(new Segment("scope", "stream", 3), currentSegments.getSegmentForKey(0.9));
+    }
 }

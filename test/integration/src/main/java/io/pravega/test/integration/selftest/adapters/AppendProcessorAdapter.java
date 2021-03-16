@@ -13,20 +13,28 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
 import io.pravega.segmentstore.server.host.handler.ConnectionTracker;
 import io.pravega.segmentstore.server.host.handler.ServerConnection;
+import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
+import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.segment.ScaleType;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +57,8 @@ public class AppendProcessorAdapter extends StoreAdapter {
     @GuardedBy("handlers")
     private final HashMap<String, SegmentHandler> handlers;
     private final ConnectionTracker connectionTracker;
+    private AutoScaleMonitor autoScaleMonitor;
+    private final ScheduledExecutorService testExecutor;
 
     //endregion
 
@@ -66,6 +76,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
         this.segmentStoreAdapter = new SegmentStoreAdapter(testConfig, builderConfig, testExecutor);
         this.handlers = new HashMap<>();
         this.connectionTracker = new ConnectionTracker();
+        this.testExecutor = testExecutor;
     }
 
     //endregion
@@ -75,11 +86,16 @@ public class AppendProcessorAdapter extends StoreAdapter {
     @Override
     protected void startUp() throws Exception {
         this.segmentStoreAdapter.startUp();
+        this.autoScaleMonitor = new AutoScaleMonitor(this.segmentStoreAdapter.getStreamSegmentStore(), AutoScalerConfig.builder().build());
     }
 
     @Override
     protected void shutDown() {
         this.segmentStoreAdapter.shutDown();
+        if (this.autoScaleMonitor != null) {
+            this.autoScaleMonitor.close();
+            this.autoScaleMonitor = null;
+        }
     }
 
     @Override
@@ -95,7 +111,8 @@ public class AppendProcessorAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> append(String segmentName, Event event, Duration timeout) {
+    public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
+        String segmentName = streamToSegment(streamName);
         SegmentHandler handler;
         synchronized (this.handlers) {
             handler = this.handlers.get(segmentName);
@@ -108,10 +125,14 @@ public class AppendProcessorAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> createStream(String segmentName, Duration timeout) {
+    public CompletableFuture<Void> createStream(String streamName, Duration timeout) {
+        String segmentName = streamToSegment(streamName);
+        val attributes = Arrays.asList(
+                new AttributeUpdate(Attributes.SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ScaleType.NoScaling.getValue()),
+                new AttributeUpdate(Attributes.SCALE_POLICY_RATE, AttributeUpdateType.Replace, 0L));
         return this.segmentStoreAdapter
                 .getStreamSegmentStore()
-                .createStreamSegment(segmentName, null, timeout)
+                .createStreamSegment(segmentName, SegmentType.STREAM_SEGMENT, attributes, timeout)
                 .thenRun(() -> {
                     SegmentHandler handler = new SegmentHandler(segmentName, this.testConfig.getProducerCount(), this.segmentStoreAdapter.getStreamSegmentStore());
                     synchronized (this.handlers) {
@@ -123,7 +144,8 @@ public class AppendProcessorAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> deleteStream(String segmentName, Duration timeout) {
+    public CompletableFuture<Void> deleteStream(String streamName, Duration timeout) {
+        String segmentName = streamToSegment(streamName);
         return this.segmentStoreAdapter
                 .getStreamSegmentStore()
                 .deleteStreamSegment(segmentName, timeout)
@@ -132,6 +154,10 @@ public class AppendProcessorAdapter extends StoreAdapter {
                         this.handlers.remove(segmentName);
                     }
                 });
+    }
+
+    private String streamToSegment(String streamName) {
+        return streamName + "/segment0";
     }
 
     //endregion
@@ -216,6 +242,7 @@ public class AppendProcessorAdapter extends StoreAdapter {
                                                   .store(segmentStore)
                                                   .connection(this)
                                                   .connectionTracker(connectionTracker)
+                                                  .statsRecorder(autoScaleMonitor.getStatsRecorder())
                                                   .build();
             this.nextSequence = 1;
             this.resultFutures = new HashMap<>();
@@ -273,24 +300,26 @@ public class AppendProcessorAdapter extends StoreAdapter {
 
         @Override
         public void send(WireCommand cmd) {
-            if (cmd instanceof WireCommands.DataAppended) {
-                val ack = (WireCommands.DataAppended) cmd;
-                val results = new ArrayList<CompletableFuture<Void>>();
-                synchronized (this.resultFutures) {
-                    val writerResultFutures = this.resultFutures.get(ack.getWriterId());
-                    long startEventNumber = Math.max(0, ack.getPreviousEventNumber()) + 1;
-                    for (long eventNumber = startEventNumber; eventNumber <= ack.getEventNumber(); eventNumber++) {
-                        val f = writerResultFutures.remove(eventNumber);
-                        if (f != null) {
-                            results.add(f);
+            testExecutor.execute(() -> {
+                if (cmd instanceof WireCommands.DataAppended) {
+                    val ack = (WireCommands.DataAppended) cmd;
+                    val results = new ArrayList<CompletableFuture<Void>>();
+                    synchronized (this.resultFutures) {
+                        val writerResultFutures = this.resultFutures.get(ack.getWriterId());
+                        long startEventNumber = Math.max(0, ack.getPreviousEventNumber()) + 1;
+                        for (long eventNumber = startEventNumber; eventNumber <= ack.getEventNumber(); eventNumber++) {
+                            val f = writerResultFutures.remove(eventNumber);
+                            if (f != null) {
+                                results.add(f);
+                            }
                         }
-                    }
 
+                    }
+                    results.forEach(c -> c.complete(null));
+                } else if (cmd instanceof WireCommands.AppendSetup) {
+                    this.appendSetup.get().complete(null);
                 }
-                results.forEach(c -> c.complete(null));
-            } else if (cmd instanceof WireCommands.AppendSetup) {
-                this.appendSetup.get().complete(null);
-            }
+            });
         }
 
         @Override

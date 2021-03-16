@@ -23,7 +23,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -169,11 +169,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region TableStore Implementation
 
     @Override
-    public CompletableFuture<Void> createSegment(@NonNull String segmentName, boolean sorted, Duration timeout) {
+    public CompletableFuture<Void> createSegment(@NonNull String segmentName, SegmentType segmentType, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
         attributes.putAll(DEFAULT_COMPACTION_ATTRIBUTES);
-        if (sorted) {
+        if (segmentType.isSortedTableSegment()) {
             attributes.put(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE);
         }
 
@@ -185,8 +185,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
-        logRequest("createSegment", segmentName);
-        return this.segmentContainer.createStreamSegment(segmentName, attributeUpdates, timeout);
+        segmentType = SegmentType.builder(segmentType).tableSegment().build(); // Ensure at least a TableSegment type.
+        logRequest("createSegment", segmentName, segmentType);
+        return this.segmentContainer.createStreamSegment(segmentName, segmentType, attributeUpdates, timeout);
     }
 
     @Override
@@ -317,27 +318,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 builder.includeResult(CompletableFuture.completedFuture(null));
             } else {
                 // Find the sought entry in the segment, based on its key.
-                // We first attempt an optimistic read, which involves fewer steps, and only invalidate the cache and read
-                // directly from the index if unable to find anything and there is a chance the sought key actually exists.
-                // Encountering a truncated Segment offset indicates that the Segment may have recently been compacted and
-                // we are using a stale cache value.
                 BufferView key = builder.getKeys().get(i);
-                builder.includeResult(Futures
-                        .exceptionallyExpecting(bucketReader.find(key, offset, timer), ex -> ex instanceof StreamSegmentTruncatedException, null)
-                        .thenComposeAsync(entry -> {
-                            if (entry != null) {
-                                // We found an entry; need to figure out if it was a deletion or not.
-                                return CompletableFuture.completedFuture(maybeDeleted(entry));
-                            } else {
-                                // We have a valid TableBucket but were unable to locate the key using the cache, either
-                                // because the cache points to a truncated offset or because we are unable to determine
-                                // if the TableBucket has been rearranged due to a compaction. The rearrangement is a rare
-                                // occurrence and can only happen if more than one Key is mapped to a bucket (collision).
-                                return this.keyIndex.getBucketOffsetDirect(segment, keyHash, timer)
-                                        .thenComposeAsync(newOffset -> bucketReader.find(key, newOffset, timer), this.executor)
-                                        .thenApply(this::maybeDeleted);
-                            }
-                        }, this.executor));
+                builder.includeResult(this.keyIndex.findBucketEntry(segment, bucketReader, key, offset, timer).thenApply(this::maybeDeleted));
             }
         }
 

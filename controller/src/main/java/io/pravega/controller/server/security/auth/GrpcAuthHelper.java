@@ -60,10 +60,12 @@ public class GrpcAuthHelper {
 
     public String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel, AuthContext ctx) {
         if (isAuthorized(resource, expectedLevel, ctx)) {
+            log.trace("Successfully authorized principal {} for {} access to resource {}",
+                    ctx == null ? null : ctx.getPrincipal(), expectedLevel, resource);
             return "";
         } else {
             if (ctx == null || ctx.getPrincipal() == null) {
-                throw new AuthenticationException("Could't extract Principal");
+                throw new AuthenticationException("Couldn't extract Principal");
             }
             String message = String.format("Principal [%s] not allowed [%s] access for resource [%s]",
                     ctx.getPrincipal(), expectedLevel, resource);
@@ -87,6 +89,10 @@ public class GrpcAuthHelper {
             return createDelegationToken(resource, expectedLevel, tokenSigningKey);
         }
         return "";
+    }
+
+    public String createDelegationToken(String resource, AuthHandler.Permissions expectedLevel) {
+        return createDelegationToken(resource, expectedLevel, this.tokenSigningKey);
     }
 
     private String createDelegationToken(String resource, AuthHandler.Permissions expectedLevel, String tokenSigningKey) {

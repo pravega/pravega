@@ -43,12 +43,10 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.TestingServerStarter;
-
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.curator.framework.CuratorFramework;
@@ -75,7 +73,7 @@ public class IntermittentCnxnFailureTest {
 
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
 
     private ControllerService controllerService;
 

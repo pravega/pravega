@@ -20,24 +20,25 @@ import com.spotify.docker.client.messages.swarm.PortConfig;
 import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
+import com.spotify.docker.client.messages.swarm.Task;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import com.spotify.docker.client.messages.swarm.TaskStatus;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import static io.pravega.test.system.framework.DockerBasedTestExecutor.DOCKER_CLIENT_PORT;
-import static org.junit.Assert.assertNotNull;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
-import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import com.spotify.docker.client.messages.swarm.Task;
+import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.test.system.framework.DockerBasedTestExecutor.DOCKER_CLIENT_PORT;
+import static org.junit.Assert.assertNotNull;
 
 @Slf4j
 public abstract class DockerBasedService implements io.pravega.test.system.framework.services.Service {
@@ -51,7 +52,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     private static final String CMD_SHELL = "CMD-SHELL"; // Docker Instruction used to run a health check command.
     final DockerClient dockerClient;
     final String serviceName;
-    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(3, "test");
 
     DockerBasedService(final String serviceName) {
         this.dockerClient = DefaultDockerClient.builder().uri("http://" + MASTER_IP + ":" + DOCKER_CLIENT_PORT).build();

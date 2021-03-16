@@ -13,17 +13,13 @@ import com.emc.object.Range;
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.S3ObjectMetadata;
-import com.emc.object.s3.bean.AccessControlList;
-import com.emc.object.s3.bean.CanonicalUser;
 import com.emc.object.s3.bean.CopyPartResult;
-import com.emc.object.s3.bean.Grant;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
 import com.emc.object.s3.request.AbortMultipartUploadRequest;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
 import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.PutObjectRequest;
-import com.emc.object.s3.request.SetObjectAclRequest;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.io.StreamHelpers;
@@ -35,6 +31,8 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkNotFoundException;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorageException;
 import io.pravega.segmentstore.storage.chunklayer.ConcatArgument;
+import io.pravega.segmentstore.storage.chunklayer.InvalidOffsetException;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.http.HttpStatus;
@@ -43,6 +41,8 @@ import java.io.InputStream;
 
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * {@link ChunkStorage} for extended S3 based storage.
@@ -59,13 +59,20 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     //region members
     private final ExtendedS3StorageConfig config;
     private final S3Client client;
+    private final boolean shouldClose;
+    private final AtomicBoolean closed;
+    private final boolean supportsAppend;
 
     //endregion
 
     //region constructor
-    public ExtendedS3ChunkStorage(S3Client client, ExtendedS3StorageConfig config) {
+    public ExtendedS3ChunkStorage(S3Client client, ExtendedS3StorageConfig config, Executor executor, boolean supportsAppend, boolean shouldClose) {
+        super(executor);
         this.config = Preconditions.checkNotNull(config, "config");
         this.client = Preconditions.checkNotNull(client, "client");
+        this.closed = new AtomicBoolean(false);
+        this.shouldClose = shouldClose;
+        this.supportsAppend = supportsAppend;
     }
     //endregion
 
@@ -78,7 +85,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
     @Override
     public boolean supportsAppend() {
-        return true;
+        return supportsAppend;
     }
 
     @Override
@@ -104,10 +111,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             throw new ChunkNotFoundException(chunkName, "doOpenWrite");
         }
 
-        AccessControlList acls = client.getObjectAcl(config.getBucket(), config.getPrefix() + chunkName);
-        boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
-
-        return new ChunkHandle(chunkName, !canWrite);
+        return new ChunkHandle(chunkName, false);
     }
 
     @Override
@@ -130,10 +134,14 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
     @Override
     protected int doWrite(ChunkHandle handle, long offset, int length, InputStream data) throws ChunkStorageException {
+        Preconditions.checkState(supportsAppend, "supportsAppend is false.");
         try {
             val objectPath = getObjectPath(handle.getChunkName());
             // Check object exists.
-            client.getObjectMetadata(config.getBucket(), objectPath);
+            val metadata = client.getObjectMetadata(config.getBucket(), objectPath);
+            if (metadata.getContentLength() != offset) {
+                throw new InvalidOffsetException(handle.getChunkName(), metadata.getContentLength(), offset, "doWrite");
+            }
 
             // Put data.
             client.putObject(this.config.getBucket(), objectPath,
@@ -210,12 +218,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
     }
 
     private void setPermission(ChunkHandle handle, Permission permission) {
-        AccessControlList acl = client.getObjectAcl(config.getBucket(), getObjectPath(handle.getChunkName()));
-        acl.getGrants().clear();
-        acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), permission));
-
-        client.setObjectAcl(
-                new SetObjectAclRequest(config.getBucket(), getObjectPath(handle.getChunkName())).withAcl(acl));
+        throw new UnsupportedOperationException("ExtendedS3ChunkStorage does not support ACL");
     }
 
     @Override
@@ -237,6 +240,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
 
     @Override
     protected ChunkHandle doCreate(String chunkName) throws ChunkStorageException {
+        Preconditions.checkState(supportsAppend, "supportsAppend is false.");
         try {
             if (!client.listObjects(config.getBucket(), getObjectPath(chunkName)).getObjects().isEmpty()) {
                 throw new ChunkAlreadyExistsException(chunkName, "Chunk already exists");
@@ -245,11 +249,7 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             S3ObjectMetadata metadata = new S3ObjectMetadata();
             metadata.setContentLength((long) 0);
 
-            PutObjectRequest request = new PutObjectRequest(config.getBucket(), getObjectPath(chunkName), null);
-
-            AccessControlList acl = new AccessControlList();
-            acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
-            request.setAcl(acl);
+            PutObjectRequest request = new PutObjectRequest(config.getBucket(), getObjectPath(chunkName), null).withObjectMetadata(metadata);
 
             if (config.isUseNoneMatch()) {
                 request.setIfNoneMatch("*");
@@ -259,6 +259,21 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
             return ChunkHandle.writeHandle(chunkName);
         } catch (Exception e) {
             throw convertException(chunkName, "doCreate", e);
+        }
+    }
+
+    @Override
+    protected ChunkHandle doCreateWithContent(String chunkName, int length, InputStream data) throws ChunkStorageException {
+        try {
+            val objectPath = getObjectPath(chunkName);
+
+            S3ObjectMetadata metadata = new S3ObjectMetadata().withContentType("application/octet-stream").withContentLength(length);
+            val request = new PutObjectRequest(this.config.getBucket(), objectPath, data).withObjectMetadata(metadata);
+            client.putObject(request);
+
+            return ChunkHandle.writeHandle(chunkName);
+        } catch (Exception e) {
+            throw convertException(chunkName, "doCreateWithContent", e);
         }
     }
 
@@ -287,6 +302,15 @@ public class ExtendedS3ChunkStorage extends BaseChunkStorage {
         } catch (Exception e) {
             throw convertException(handle.getChunkName(), "doDelete", e);
         }
+    }
+
+    @Override
+    @SneakyThrows
+    public void close() {
+        if (shouldClose && !this.closed.getAndSet(true)) {
+            this.client.destroy();
+        }
+        super.close();
     }
 
     private ChunkStorageException convertException(String chunkName, String message, Exception e)  {

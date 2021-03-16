@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -155,7 +154,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     }
 
     @Override
-    public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+    public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.connector
@@ -301,7 +300,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                                                     this.executor);
                                 }, this.executor),
                         this.executor)
-                .thenApply(ignored -> new TableWriterFlushResult(keyUpdates.getLastIndexedOffset(), keyUpdates.getHighestCopiedOffset()));
+                .thenApply(updateCount -> new TableWriterFlushResult(keyUpdates.getLastIndexedOffset(), keyUpdates.getHighestCopiedOffset(), updateCount));
     }
 
     @SneakyThrows(DataCorruptionException.class)
@@ -542,10 +541,15 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         }
     }
 
-    @RequiredArgsConstructor
     private static class TableWriterFlushResult extends WriterFlushResult {
         final long lastIndexedOffset;
         final long highestCopiedOffset;
+
+        TableWriterFlushResult(long lastIndexedOffset, long highestCopiedOffset, int updateCount) {
+            this.lastIndexedOffset = lastIndexedOffset;
+            this.highestCopiedOffset = highestCopiedOffset;
+            withFlushedAttributes(updateCount);
+        }
     }
 
     //endregion

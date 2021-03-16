@@ -39,11 +39,14 @@ public interface StreamSegmentStore {
      * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
-     * @return A CompletableFuture that, when completed normally, will indicate the append completed
-     *         successfully and contains the new length of the segment. If the operation failed, the
-     *         future will be failed with the causing exception. (NOTE: the length is not
-     *         necessarily the same as offset immediately following the data because the append may
-     *         have been batched together with others internally.)
+     * @return A CompletableFuture that, when completed normally, will indicate the append completed successfully and
+     * contains the new length of the segment. If the operation failed, the future will be failed with the causing exception.
+     * (NOTE: the length is not necessarily the same as offset immediately following the data because the append may have
+     * been batched together with others internally.) Notable exceptions:
+     * - {@link BadAttributeUpdateException} If {@code attributeUpdates} is non-null and non-empty and at least one of
+     * the {@link AttributeUpdate} instances within that collection has {@link AttributeUpdate#getUpdateType()} equal to
+     * {@link AttributeUpdateType#ReplaceIfEquals} or {@link AttributeUpdateType#ReplaceIfGreater} and the condition for
+     * this update is rejected.
      * @throws NullPointerException If any of the arguments are null, except attributeUpdates.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't
      *                                  check if the StreamSegment does not exist - that exception 
@@ -65,11 +68,17 @@ public interface StreamSegmentStore {
      * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
-     * @return A CompletableFuture that, when completed normally, will indicate the append completed
-     *         successfully and contains the new length of the segment. If the operation failed, the
-     *         future will be failed with the causing exception. (NOTE: the length is not
-     *         necessarily the same as offset immediately following the data because the append may
-     *         have been batched together with others internally.)
+     * @return A CompletableFuture that, when completed normally, will indicate the append completed successfully and
+     * contains the new length of the segment. If the operation failed, the future will be failed with the causing exception.
+     * (NOTE: the length is not necessarily the same as offset immediately following the data because the append may have
+     * been batched together with others internally.) Notable exceptions:
+     * - {@link BadAttributeUpdateException} If {@code attributeUpdates} is non-null and non-empty and at least one of
+     * the {@link AttributeUpdate} instances within that collection has {@link AttributeUpdate#getUpdateType()} equal to
+     * {@link AttributeUpdateType#ReplaceIfEquals} or {@link AttributeUpdateType#ReplaceIfGreater} and the condition for
+     * this update is rejected.
+     * - {@link BadOffsetException} if the current length of the given Segment does not match the given {@code offset}.
+     * IMPORTANT: If the append fails validation due to both {@link BadAttributeUpdateException} and {@link BadOffsetException},
+     * then {@link BadAttributeUpdateException} will take precedence.
      * @throws NullPointerException If any of the arguments are null, except attributeUpdates.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't
      *                                  check if the StreamSegment does not exist - that exception
@@ -85,7 +94,10 @@ public interface StreamSegmentStore {
      *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, when completed normally, will indicate the update completed successfully.
-     * If the operation failed, the future will be failed with the causing exception.
+     * If the operation failed, the future will be failed with the causing exception. Notable exceptions:
+     * - {@link BadAttributeUpdateException} If at least one of the {@link AttributeUpdate} instances within {@code attributeUpdates}
+     * has {@link AttributeUpdate#getUpdateType()} equal to {@link AttributeUpdateType#ReplaceIfEquals} or
+     * {@link AttributeUpdateType#ReplaceIfGreater} and the condition for this update is rejected.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
@@ -150,12 +162,14 @@ public interface StreamSegmentStore {
      * @param streamSegmentName The name of the StreamSegment to create.
      * @param attributes        A Collection of Attribute-Values to set on the newly created StreamSegment. May be null.
      *                          See Notes about AttributeUpdates in the interface Javadoc.
+     * @param segmentType       Type of Segment to create. This cannot change after creation.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout);
+    CompletableFuture<Void> createStreamSegment(String streamSegmentName, SegmentType segmentType, Collection<AttributeUpdate> attributes,
+                                                Duration timeout);
 
     /**
      * Merges a StreamSegment into another. If the StreamSegment is not already sealed, it will seal it.

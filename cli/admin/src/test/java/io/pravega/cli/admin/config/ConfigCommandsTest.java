@@ -11,6 +11,7 @@ package io.pravega.cli.admin.config;
 
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.utils.TestUtils;
+import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -22,6 +23,7 @@ public class ConfigCommandsTest {
     public void testSetAndListConfigCommands() throws Exception {
         Properties pravegaProperties = new Properties();
         pravegaProperties.setProperty("cli.controller.rest.uri", "test");
+        @Cleanup
         AdminCommandState adminCommandState = new AdminCommandState();
         adminCommandState.getConfigBuilder().include(pravegaProperties);
         String commandResult = TestUtils.executeCommand("config list", adminCommandState);

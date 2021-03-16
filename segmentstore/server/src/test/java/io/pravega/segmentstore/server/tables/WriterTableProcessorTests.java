@@ -13,10 +13,11 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArrayComparator;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -403,7 +404,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
     private void checkSortedKeyIndex(HashMap<BufferView, TableEntry> existingEntries, TestContext context) {
         val expectedKeys = new ArrayList<>(existingEntries.keySet());
-        expectedKeys.sort(new ByteArrayComparator()::compare);
+        expectedKeys.sort(BufferViewComparator.create()::compare);
         val actualKeys = new ArrayList<BufferView>();
         context.sortedKeyIndex.iterator(context.sortedKeyIndex.getIteratorRange(null, null), TIMEOUT)
                 .forEachRemaining(actualKeys::addAll, executorService()).join();
@@ -565,7 +566,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.segmentMock.append(new ByteArraySegment(new byte[(int) INITIAL_LAST_INDEXED_OFFSET]), null, TIMEOUT).join();
 
             // Create the Table Segment Mock to be used by the sorted key index.
-            this.tableStoreMock.createSegment(SEGMENT_NAME, TIMEOUT).join();
+            this.tableStoreMock.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         }
 
         private class TableWriterConnectorImpl implements TableWriterConnector {

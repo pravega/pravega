@@ -32,6 +32,7 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -47,6 +48,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Optional;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -107,6 +110,11 @@ public class InMemoryStream extends PersistentStreamBase {
 
     @GuardedBy("writersLock")
     private final Map<String, VersionedMetadata<WriterMark>> writerMarks = new HashMap<>();
+
+    private final Object subscribersLock = new Object();
+
+    @GuardedBy("subscribersLock")
+    private final List<VersionedMetadata<StreamSubscriber>> streamSubscribers = new ArrayList<>();
 
     InMemoryStream(String scope, String name) {
         this(scope, name, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis());
@@ -301,6 +309,12 @@ public class InMemoryStream extends PersistentStreamBase {
                 this.state = new VersionedMetadata<>(state, new Version.IntVersion(0));
             }
         }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    CompletableFuture<Void> createSubscribersRecordIfAbsent() {
+        Preconditions.checkNotNull(streamSubscribers);
         return CompletableFuture.completedFuture(null);
     }
 
@@ -821,6 +835,75 @@ public class InMemoryStream extends PersistentStreamBase {
             }
         }
         return result;
+    }
+
+    @Override
+    public CompletableFuture<Void> addSubscriber(String subscriber, long generation) {
+        synchronized (subscribersLock) {
+            Optional<VersionedMetadata<StreamSubscriber>> foundSubscriber = streamSubscribers.stream()
+                    .filter(sub -> sub.getObject().getSubscriber().equals(subscriber)).findAny();
+            if (foundSubscriber.isEmpty()) {
+                streamSubscribers.add(new VersionedMetadata<>(new StreamSubscriber(subscriber, generation, ImmutableMap.of(),
+                        System.currentTimeMillis()), new Version.IntVersion(0)));
+            } else {
+                if (foundSubscriber.get().getObject().getGeneration() < generation) {
+                    setSubscriberData(new VersionedMetadata<>(new StreamSubscriber(subscriber, generation,
+                            foundSubscriber.get().getObject().getTruncationStreamCut(),
+                            System.currentTimeMillis()), foundSubscriber.get().getVersion()));
+                }
+            }
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation) {
+        synchronized (subscribersLock) {
+            Optional<VersionedMetadata<StreamSubscriber>> foundSubscriber = streamSubscribers.stream()
+                    .filter(sub -> sub.getObject().getSubscriber().equals(subscriber)).findAny();
+            if (foundSubscriber.isPresent() && generation >= foundSubscriber.get().getObject().getGeneration()) {
+                streamSubscribers.remove(foundSubscriber.get());
+            }
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriberRecord(String subscriber) {
+        CompletableFuture<VersionedMetadata<StreamSubscriber>> result = new CompletableFuture<>();
+        synchronized (subscribersLock) {
+            Optional<VersionedMetadata<StreamSubscriber>> existingSubscriber = streamSubscribers.stream()
+                    .filter(s2 -> s2.getObject().getSubscriber().equals(subscriber)).findFirst();
+            if (existingSubscriber.isEmpty()) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "subscriber not found"));
+            } else {
+                result.complete(existingSubscriber.get());
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<List<String>> listSubscribers() {
+        List<String> result;
+        synchronized (subscribersLock) {
+            result = streamSubscribers.stream().map(s -> s.getObject().getSubscriber()).collect(Collectors.toList());
+        }
+        return CompletableFuture.completedFuture(result);
+    }
+
+    @Override
+    public CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriberData) {
+        VersionedMetadata<StreamSubscriber> updatedSubscriber = updatedCopy(subscriberData);
+        synchronized (subscribersLock) {
+            Optional<VersionedMetadata<StreamSubscriber>> previousSubscriber = streamSubscribers.stream()
+                    .filter(s -> s.getObject().getSubscriber().equals(subscriberData.getObject().getSubscriber())).findAny();
+            if (previousSubscriber.isPresent()) {
+                streamSubscribers.remove(previousSubscriber.get());
+            }
+            streamSubscribers.add(updatedSubscriber);
+        }
+        return CompletableFuture.completedFuture(updatedSubscriber.getVersion());
     }
 
     @Override

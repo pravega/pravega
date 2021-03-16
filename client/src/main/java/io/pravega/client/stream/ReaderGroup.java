@@ -47,7 +47,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * @return Reader group name
      */
     String getGroupName();
-    
+
     /**
      * Initiate a checkpoint. This causes all readers in the group to receive a special
      * {@link EventRead} that contains the provided checkpoint name. This can be used to provide an
@@ -59,7 +59,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * obtained an exception will be set on the future.
      * 
      * This method can be called and a new checkpoint can be initiated while another is still in
-     * progress if they have different names. If this method is is called again before the
+     * progress if they have different names. If this method is called again before the
      * checkpoint has completed with the same name the future returned to the second caller will
      * refer to the same checkpoint object as the first.
      * 
@@ -168,6 +168,14 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      */
     @Beta
     CompletableFuture<Map<Stream, StreamCut>> generateStreamCuts(ScheduledExecutorService backgroundExecutor);
+
+    /**
+     * Update Retention Stream-Cut for Streams in this Reader Group.
+     * See {@link ReaderGroupConfig.StreamDataRetention#MANUAL_RELEASE_AT_USER_STREAMCUT}
+     * @param streamCuts A Map with a Stream-Cut for each Stream.
+     *                   StreamCut indicates position in the Stream till which data has been consumed and can be deleted.
+     */
+    void updateRetentionStreamCut(Map<Stream, StreamCut> streamCuts);
 
     /**
      * Returns current distribution of number of segments assigned to each reader in the reader group. 

@@ -12,6 +12,7 @@ package io.pravega.cli.admin.bookkeeper;
 import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TestUtils;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.logs.DataFrameRecord;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -20,6 +21,20 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.test.common.AssertExtensions;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.PrintStream;
+import java.net.NetworkInterface;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Properties;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import org.apache.bookkeeper.test.BookKeeperClusterTestCase;
 import org.apache.curator.framework.CuratorFramework;
@@ -29,19 +44,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.PrintStream;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Properties;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Test basic functionality of Bookkeeper commands.
@@ -54,14 +56,28 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
     private final InputStream originalIn = System.in;
 
     public BookkeeperCommandsTest() {
-        super(3);
+        super(1);
     }
 
     @Before
     public void setUp() throws Exception {
         baseConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
         baseClientConf.setLedgerManagerFactoryClassName("org.apache.bookkeeper.meta.FlatLedgerManagerFactory");
-        super.setUp();
+        Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+        boolean successfulSetup = false;
+        while (interfaces.hasMoreElements()) {
+            try {
+                super.setUp();
+                successfulSetup = true;
+                break;
+            } catch (Exception e) {
+                // On some environments, using default interface does not allow to resolve the host name. We keep
+                // iterating over existing interfaces to start the Bookkeeper cluster.
+                super.tearDown();
+                baseConf.setListeningInterface(interfaces.nextElement().getName());
+            }
+        }
+        assert successfulSetup;
 
         STATE.set(new AdminCommandState());
         Properties bkProperties = new Properties();
@@ -69,6 +85,9 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         bkProperties.setProperty("pravegaservice.zk.connect.uri", zkUtil.getZooKeeperConnectString());
         bkProperties.setProperty("bookkeeper.ledger.path", "/ledgers");
         bkProperties.setProperty("bookkeeper.zk.metadata.path", "ledgers");
+        bkProperties.setProperty("bookkeeper.ensemble.size", "1");
+        bkProperties.setProperty("bookkeeper.ack.quorum.size", "1");
+        bkProperties.setProperty("bookkeeper.write.quorum.size", "1");
         bkProperties.setProperty("pravegaservice.clusterName", "");
         STATE.get().getConfigBuilder().include(bkProperties);
 
@@ -185,14 +204,20 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
     }
 
     private void createLedgerInBookkeeperTestCluster(int logId) throws Exception {
-        BookKeeperConfig bookKeeperConfig = BookKeeperConfig.builder().with(BookKeeperConfig.ZK_METADATA_PATH, "ledgers")
+        BookKeeperConfig bookKeeperConfig = BookKeeperConfig.builder()
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.ZK_METADATA_PATH, "ledgers")
                 .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers")
                 .with(BookKeeperConfig.ZK_ADDRESS, zkUtil.getZooKeeperConnectString()).build();
         @Cleanup
         CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient(zkUtil.getZooKeeperConnectString(), new RetryOneTime(5000));
         curatorFramework.start();
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "bk-test");
         @Cleanup
-        BookKeeperLogFactory bookKeeperLogFactory = new BookKeeperLogFactory(bookKeeperConfig, curatorFramework, Executors.newSingleThreadScheduledExecutor());
+        BookKeeperLogFactory bookKeeperLogFactory = new BookKeeperLogFactory(bookKeeperConfig, curatorFramework, executorService);
         bookKeeperLogFactory.initialize();
         @Cleanup
         DurableDataLog log = bookKeeperLogFactory.createDurableDataLog(logId);

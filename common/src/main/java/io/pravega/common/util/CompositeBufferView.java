@@ -35,6 +35,7 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
     private final List<BufferView> components;
     @Getter
     private final int length;
+    private volatile int allocatedLength = -1;
 
     //endregion
 
@@ -65,6 +66,15 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
     //endregion
 
     //region BufferView implementation
+
+    @Override
+    public int getAllocatedLength() {
+        if (this.allocatedLength < 0) {
+            this.allocatedLength = this.components.stream().mapToInt(BufferView::getAllocatedLength).sum();
+        }
+
+        return this.allocatedLength;
+    }
 
     @Override
     public Reader getBufferViewReader() {
@@ -138,20 +148,15 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
     }
 
     @Override
-    public List<ByteBuffer> getContents() {
-        ArrayList<ByteBuffer> result = new ArrayList<>(this.components.size());
-        for (BufferView c : this.components) {
-            result.addAll(c.getContents());
-        }
-
-        return result;
-    }
-
-    @Override
     public <ExceptionT extends Exception> void collect(Collector<ExceptionT> bufferCollector) throws ExceptionT {
         for (BufferView bv : this.components) {
             bv.collect(bufferCollector);
         }
+    }
+
+    @Override
+    public Iterator<ByteBuffer> iterateBuffers() {
+        return Iterators.concat(Iterators.transform(this.components.iterator(), BufferView::iterateBuffers));
     }
 
     @Override
@@ -188,10 +193,10 @@ class CompositeBufferView extends AbstractBufferView implements BufferView {
         }
 
         @Override
-        public int readBytes(ByteArraySegment segment) {
+        public int readBytes(ByteBuffer byteBuffer) {
             BufferView.Reader current = getCurrent();
             if (current != null) {
-                int len = current.readBytes(segment);
+                int len = current.readBytes(byteBuffer);
                 this.available -= len;
                 assert this.available >= 0;
                 return len;

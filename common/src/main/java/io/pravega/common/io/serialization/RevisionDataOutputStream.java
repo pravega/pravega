@@ -9,11 +9,13 @@
  */
 package io.pravega.common.io.serialization;
 
-import io.pravega.common.io.BufferViewSink;
+import com.google.common.base.Preconditions;
+import io.pravega.common.io.DirectDataOutput;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
 import java.io.DataOutputStream;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
@@ -22,16 +24,33 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.ToIntFunction;
 import javax.annotation.concurrent.NotThreadSafe;
+import lombok.Getter;
 
 /**
- * RevisionDataOutput implementation that makes use of the {@link #DataOutputStream} for data encoding.
+ * RevisionDataOutput implementation that mimics the encoding in {@link DataOutputStream}.
  */
 @NotThreadSafe
-abstract class RevisionDataOutputStream extends DataOutputStream implements RevisionDataOutput {
+abstract class RevisionDataOutputStream extends FilterOutputStream implements RevisionDataOutput {
+    //region Members
+
+    private DirectDataOutput structuredWriter;
+    @Getter
+    private int size;
+
+    //endregion
+
     //region Constructor
 
     private RevisionDataOutputStream(OutputStream outputStream) {
         super(outputStream);
+        this.structuredWriter = (out instanceof DirectDataOutput) ? (DirectDataOutput) out : new IndirectWriter();
+        this.size = 0;
+    }
+
+    protected final void setOut(OutputStream out, int length) throws IOException {
+        super.out = out;
+        this.structuredWriter = (out instanceof DirectDataOutput) ? (DirectDataOutput) out : new IndirectWriter();
+        this.structuredWriter.writeInt(length);
     }
 
     /**
@@ -49,6 +68,127 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         } else {
             return new NonSeekableRevisionDataOutput(outputStream);
         }
+    }
+
+    //endregion
+
+    //region DataOutput Implementation
+
+    @Override
+    public void flush() throws IOException {
+        this.out.flush();
+    }
+
+    @Override
+    public void write(int b) throws IOException {
+        this.out.write(b);
+        this.size++;
+    }
+
+    @Override
+    public void write(byte[] array, int off, int len) throws IOException {
+        this.out.write(array, off, len);
+        this.size += len;
+    }
+
+    @Override
+    public final void writeBoolean(boolean value) throws IOException {
+        write(value ? 1 : 0);
+    }
+
+    @Override
+    public final void writeByte(int b) throws IOException {
+        write(b);
+    }
+
+    @Override
+    public void writeChar(int c) throws IOException {
+        writeShort(c);
+    }
+
+    @Override
+    public void writeShort(int s) throws IOException {
+        this.structuredWriter.writeShort(s);
+        this.size += Short.BYTES;
+    }
+
+    @Override
+    public void writeInt(int i) throws IOException {
+        this.structuredWriter.writeInt(i);
+        this.size += Integer.BYTES;
+    }
+
+    @Override
+    public void writeLong(long l) throws IOException {
+        this.structuredWriter.writeLong(l);
+        this.size += Long.BYTES;
+    }
+
+    @Override
+    public void writeFloat(float f) throws IOException {
+        writeInt(Float.floatToIntBits(f));
+    }
+
+    @Override
+    public void writeDouble(double d) throws IOException {
+        writeLong(Double.doubleToLongBits(d));
+    }
+
+    @Override
+    public void writeBytes(String s) throws IOException {
+        int len = s.length();
+        for (int i = 0; i < len; ++i) {
+            this.out.write((byte) s.charAt(i));
+        }
+
+        this.size += len;
+    }
+
+    @Override
+    public final void writeChars(String s) throws IOException {
+        int len = s.length();
+        for (int i = 0; i < len; ++i) {
+            writeChar(s.charAt(i));
+        }
+    }
+
+    @Override
+    public final void writeUTF(String str) throws IOException {
+        // Note: this method was borrowed from DataOutputStream without any changes.
+        final int stringLength = str.length();
+        final int utfLength = getUTFLength(str) - 2;
+        Preconditions.checkArgument(utfLength <= 65535, "Encoded string too long: %s bytes", utfLength);
+
+        byte[] byteArray = new byte[utfLength + 2];
+        int index = 0;
+        byteArray[index++] = (byte) ((utfLength >>> 8) & 0xFF);
+        byteArray[index++] = (byte) ((utfLength >>> 0) & 0xFF);
+
+        int c;
+        int i;
+        for (i = 0; i < stringLength; i++) {
+            c = str.charAt(i);
+            if (c < 1 || c > 127) {
+                break;
+            }
+            byteArray[index++] = (byte) c;
+        }
+
+        for (; i < stringLength; i++) {
+            c = str.charAt(i);
+            if (c >= 1 && c <= 127) {
+                byteArray[index++] = (byte) c;
+            } else if (c > 2047) {
+                byteArray[index++] = (byte) (0xE0 | ((c >> 12) & 0x0F));
+                byteArray[index++] = (byte) (0x80 | ((c >> 6) & 0x3F));
+                byteArray[index++] = (byte) (0x80 | ((c >> 0) & 0x3F));
+            } else {
+                byteArray[index++] = (byte) (0xC0 | ((c >> 6) & 0x1F));
+                byteArray[index++] = (byte) (0x80 | ((c >> 0) & 0x3F));
+            }
+        }
+
+        write(byteArray);
     }
 
     //endregion
@@ -311,12 +451,11 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         writeCompactInt(buf.getLength());
 
         // Copy the buffer contents to this OutputStream. This will write all its bytes.
-        if (this.out instanceof BufferViewSink) {
-            ((BufferViewSink) this.out).writeBuffer(buf);
-            super.written += buf.getLength();
-        } else {
-            buf.copyTo(this);
-        }
+        this.structuredWriter.writeBuffer(buf);
+
+        // Increase our size here regardless of what structuredWriter does. See IndirectWriter.writerBuffer for how
+        // this is offset in certain cases.
+        this.size += buf.getLength();
     }
 
     @Override
@@ -368,6 +507,40 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
 
     //endregion
 
+    //region IndirectWriter
+
+    /**
+     * Structured data writer for cases when the underlying {@link OutputStream} does not support {@link DirectDataOutput}.
+     */
+    private class IndirectWriter implements DirectDataOutput {
+        @Override
+        public void writeShort(int shortValue) throws IOException {
+            BitConverter.writeShort(out, (short) shortValue);
+        }
+
+        @Override
+        public void writeInt(int intValue) throws IOException {
+            BitConverter.writeInt(out, intValue);
+        }
+
+        @Override
+        public void writeLong(long longValue) throws IOException {
+            BitConverter.writeLong(out, longValue);
+        }
+
+        @Override
+        public void writeBuffer(BufferView buffer) throws IOException {
+            buffer.copyTo(RevisionDataOutputStream.this);
+            // BufferView.copyTo will cause our "size" to increase, but an external DirectDataOutput will not do that.
+            // To avoid wrapping the external DirectDataOutput with another wrapper, we increase the size in
+            // RevisionDataOutputStream.writeBuffer() regardless of case, so we need to make an adjustment here to offset
+            // for that.
+            size -= buffer.getLength();
+        }
+    }
+
+    //endregion
+
     //region Implementations
 
     /**
@@ -389,8 +562,9 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
             super(outputStream);
 
             // Pre-allocate 4 bytes so we can write the length later, but remember this position.
-            this.initialPosition = ((RandomAccessOutputStream) outputStream).size();
-            BitConverter.writeInt(outputStream, 0);
+            RandomAccessOutputStream ros = (RandomAccessOutputStream) outputStream;
+            this.initialPosition = ros.size();
+            ros.writeInt(0);
         }
 
         @Override
@@ -400,7 +574,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
             int length = ros.size() - this.initialPosition - Integer.BYTES;
 
             // Write the length at the appropriate position.
-            BitConverter.writeInt(ros.subStream(this.initialPosition, Integer.BYTES), length);
+            ros.writeInt(length, this.initialPosition);
         }
 
         @Override
@@ -438,9 +612,9 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         @Override
         public void close() throws IOException {
             // We do not want to close the underlying Stream as it may be reused.
-            if (this.length != size()) {
+            if (this.length != getSize()) {
                 // Check if we wrote the number of bytes we declared, otherwise we will have problems upon deserializing.
-                throw new SerializationException(String.format("Unexpected number of bytes written. Declared: %d, written: %d.", this.length, size()));
+                throw new SerializationException(String.format("Unexpected number of bytes written. Declared: %d, written: %d.", this.length, getSize()));
             } else if (requiresExplicitLength()) {
                 // We haven't written anything nor declared a length. Write the length prior to exiting.
                 length(0);
@@ -461,8 +635,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         @Override
         public void length(int length) throws IOException {
             if (requiresExplicitLength()) {
-                BitConverter.writeInt(this.realStream, length);
-                super.out = this.realStream;
+                setOut(this.realStream, length);
                 this.length = length;
             }
         }

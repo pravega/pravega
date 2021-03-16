@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -52,6 +53,36 @@ public class StreamSegmentReadResultTests {
         r2.setCopyOnRead(false);
         expectedMakeCopy.set(false);
         r2.next();
+    }
+
+    /**
+     * Tests the ability to handle {@link StreamSegmentReadResult#setMaxReadAtOnce(int)}.
+     */
+    @Test
+    public void testMaxReadAtOnce() {
+        final int maxReadAtOnce = 10;
+        StreamSegmentReadResult.NextEntrySupplier nes = (offset, length, makeCopy) -> TestReadResultEntry.endOfSegment(offset, length);
+
+        // Set it to a small value.
+        @Cleanup
+        StreamSegmentReadResult r1 = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
+        r1.setMaxReadAtOnce(maxReadAtOnce);
+        val r11 = r1.next();
+        Assert.assertEquals(maxReadAtOnce, r11.getRequestedReadLength());
+
+        // Set it to 0.
+        @Cleanup
+        StreamSegmentReadResult r2 = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
+        r2.setMaxReadAtOnce(0);
+        val r21 = r2.next();
+        Assert.assertEquals(MAX_RESULT_LENGTH, r21.getRequestedReadLength());
+
+        // Set it to more than max result length.
+        @Cleanup
+        StreamSegmentReadResult r3 = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
+        r3.setMaxReadAtOnce(MAX_RESULT_LENGTH + 123);
+        val r31 = r3.next();
+        Assert.assertEquals(MAX_RESULT_LENGTH, r31.getRequestedReadLength());
     }
 
     /**

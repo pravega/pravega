@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.util.SequencedItemList;
+import io.pravega.common.util.AbstractDrainingQueue;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.ContainerMetadata;
@@ -24,12 +24,15 @@ import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
+import io.pravega.segmentstore.storage.ThrottlerSourceListenerCollection;
 import io.pravega.segmentstore.storage.cache.CacheFullException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -41,9 +44,9 @@ class MemoryStateUpdater {
     //region Private
 
     private final ReadIndex readIndex;
-    private final SequencedItemList<Operation> inMemoryOperationLog;
-    private final Runnable commitSuccess;
+    private final AbstractDrainingQueue<Operation> inMemoryOperationLog;
     private final AtomicBoolean recoveryMode;
+    private final ThrottlerSourceListenerCollection readListeners;
 
     //endregion
 
@@ -54,19 +57,37 @@ class MemoryStateUpdater {
      *
      * @param inMemoryOperationLog InMemory Operation Log.
      * @param readIndex            The ReadIndex to update.
-     * @param commitSuccess        (Optional) A callback to be invoked whenever an Operation or set of Operations are
-     *                             successfully committed.
      */
-    MemoryStateUpdater(SequencedItemList<Operation> inMemoryOperationLog, ReadIndex readIndex, Runnable commitSuccess) {
+    MemoryStateUpdater(AbstractDrainingQueue<Operation> inMemoryOperationLog, ReadIndex readIndex) {
         this.inMemoryOperationLog = Preconditions.checkNotNull(inMemoryOperationLog, "inMemoryOperationLog");
         this.readIndex = Preconditions.checkNotNull(readIndex, "readIndex");
-        this.commitSuccess = commitSuccess;
         this.recoveryMode = new AtomicBoolean();
+        this.readListeners = new ThrottlerSourceListenerCollection();
     }
 
     //endregion
 
     //region Operations
+
+    /**
+     * Registers a {@link ThrottleSourceListener} that will be notified on every Operation Log read.
+     *
+     * @param listener The {@link ThrottleSourceListener} to register.
+     */
+    void registerReadListener(@NonNull ThrottleSourceListener listener) {
+        this.readListeners.register(listener);
+    }
+
+    /**
+     * Notifies all registered {@link ThrottleSourceListener} that an Operation Log read has been truncated.
+     */
+    void notifyLogRead() {
+        this.readListeners.notifySourceChanged();
+    }
+
+    public int getInMemoryOperationLogSize() {
+        return this.inMemoryOperationLog.size();
+    }
 
     /**
      * Gets the {@link CacheUtilizationProvider} shared across all Segment Containers hosted in this process that can
@@ -97,6 +118,16 @@ class MemoryStateUpdater {
     void exitRecoveryMode(boolean successfulRecovery) throws DataCorruptionException {
         this.readIndex.exitRecoveryMode(successfulRecovery);
         this.recoveryMode.set(false);
+    }
+
+    /**
+     * Performs a cleanup of the {@link ReadIndex} by releasing resources allocated for segments that are no longer active
+     * and trimming to cache to the minimum essential.
+     */
+    void cleanupReadIndex() {
+        Preconditions.checkState(this.recoveryMode.get(), "cleanupReadIndex can only be performed in recovery mode.");
+        this.readIndex.cleanup(null);
+        this.readIndex.trimCache();
     }
 
     /**
@@ -139,9 +170,6 @@ class MemoryStateUpdater {
         if (!this.recoveryMode.get()) {
             // Trigger Future Reads on those segments which were touched by Appends or Seals.
             this.readIndex.triggerFutureReads(segmentIds);
-            if (this.commitSuccess != null) {
-                this.commitSuccess.run();
-            }
         }
     }
 
@@ -188,13 +216,14 @@ class MemoryStateUpdater {
             }
         }
 
-        boolean added = this.inMemoryOperationLog.add(operation);
-        if (!added) {
+        try {
+            this.inMemoryOperationLog.add(operation);
+        } catch (InMemoryLog.OutOfOrderOperationException ex) {
             // This is a pretty nasty one. It's safer to shut down the container than continue.
             // We either recorded the Operation correctly, but invoked this callback out of order, or we really
             // recorded the Operation in the wrong order (by sequence number). In either case, we will be inconsistent
             // while serving reads, so better stop now than later.
-            throw new DataCorruptionException("About to have added a Log Operation to InMemoryOperationLog that was out of order.");
+            throw new DataCorruptionException("About to have added a Log Operation to InMemoryOperationLog that was out of order.", ex);
         }
     }
 

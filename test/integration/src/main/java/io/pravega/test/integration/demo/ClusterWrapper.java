@@ -10,7 +10,7 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.controller.server.security.auth.StrongPasswordProcessor;
+import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
@@ -24,8 +24,12 @@ import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
+import io.pravega.shared.security.auth.PasswordAuthHandlerInput;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.SneakyThrows;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 
@@ -38,25 +42,42 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-import io.pravega.test.integration.utils.PasswordAuthHandlerInput.Entry;
+import io.pravega.shared.security.auth.PasswordAuthHandlerInput.Entry;
 
 /**
  * This class is intended to be used in integration tests for setting up and running a Pravega cluster. It is
  * much like the ControllerWrapper; This one wraps both Controller and Segment Store.
  */
+@ToString
 @Slf4j
+@Builder
+@AllArgsConstructor
 public class ClusterWrapper implements AutoCloseable {
 
     private File passwordInputFile;
 
     @Getter
-    private final int controllerPort = TestUtils.getAvailableListenPort();
+    @Builder.Default
+    private int controllerPort = TestUtils.getAvailableListenPort();
 
     @Getter
-    private final int segmentStorePort = TestUtils.getAvailableListenPort();
+    @Builder.Default
+    private int segmentStorePort = TestUtils.getAvailableListenPort();
+
+    /**
+     * Represents the port on which the Controller REST API listens.
+     *
+     * We don't want to enable Controller REST APIs by default, as most tests do not exercise them. While the port
+     * can be set directly via the builder method, it is recommended that callers use {@code controllerRestEnabled}
+     * instead, which results in dynamic assignment of this port.
+     */
+    @Getter
+    @Builder.Default
+    private int controllerRestPort = -1;
 
     @Getter
-    private final String serviceHost = "localhost";
+    @Builder.Default
+    private String serviceHost = "localhost";
 
     // The servers
     private TestingServer zookeeperServer;
@@ -65,82 +86,71 @@ public class ClusterWrapper implements AutoCloseable {
 
     private ServiceBuilder serviceBuilder;
 
-    private ScheduledExecutorService executor;
+    @Builder.Default
+    private ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
-    // Configuration
-    private boolean isAuthEnabled;
-    private String tokenSigningKeyBasis;
-    private int tokenTtlInSeconds;
+    @Getter
+    @Builder.Default
+    private boolean authEnabled = false;
+
+    @Getter
+    @Builder.Default
+    private String tokenSigningKeyBasis = "super-secret";
+
+    @Getter
+    @Builder.Default
+    private boolean rgWritesWithReadPermEnabled = true;
+
+    @Getter
+    @Builder.Default
+    private int tokenTtlInSeconds = 600;
+
+    @Getter
     private List<PasswordAuthHandlerInput.Entry> passwordAuthHandlerEntries;
-    private int containerCount = 4; // default container count
 
-    public ClusterWrapper(boolean isAuthEnabled, int tokenTtlInSeconds) {
-         this(isAuthEnabled, "secret", tokenTtlInSeconds,  null, 4);
-    }
+    @Getter
+    @Builder.Default
+    private int containerCount = 4;
 
-    public ClusterWrapper() {
-        this(false, "", 600, null, 4);
-    }
+    @Getter
+    @Builder.Default
+    private boolean tlsEnabled = false;
 
-    public ClusterWrapper(boolean isAuthEnabled, String tokenSigningKeyBasis, int tokenTtlInSeconds,
-                          List<PasswordAuthHandlerInput.Entry> passwordAuthHandlerEntries, int containerCount) {
-        executor = Executors.newSingleThreadScheduledExecutor();
+    @Builder.Default
+    private boolean controllerRestEnabled = false;
 
-        this.isAuthEnabled = isAuthEnabled;
-        this.tokenSigningKeyBasis = tokenSigningKeyBasis;
-        this.tokenTtlInSeconds = tokenTtlInSeconds;
-        if (isAuthEnabled) {
-            if (passwordAuthHandlerEntries == null) {
-                this.passwordAuthHandlerEntries = Arrays.asList(defaultAuthHandlerEntry());
+    @Getter
+    private String tlsServerCertificatePath;
 
-            } else {
-                this.passwordAuthHandlerEntries = passwordAuthHandlerEntries;
-            }
+    @Getter
+    private String tlsServerKeyPath;
+
+    @Getter
+    @Builder.Default
+    private boolean tlsHostVerificationEnabled = false;
+
+    @Getter
+    private String tlsServerKeystorePath;
+
+    @Getter
+    private String tlsServerKeystorePasswordPath;
+
+    private ClusterWrapper() {}
+
+    @SneakyThrows
+    public void start() {
+        if (this.isAuthEnabled() && passwordAuthHandlerEntries == null) {
+            this.passwordAuthHandlerEntries = Arrays.asList(defaultAuthHandlerEntry());
         }
-        this.containerCount = containerCount;
-    }
-
-    public void initialize() {
-        try {
-            startZookeeper();
-            startSegmentStore();
-            startController();
-            log.info("Done initializing.");
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        if (this.controllerRestEnabled && this.controllerRestPort <= 0) {
+            this.controllerRestPort = TestUtils.getAvailableListenPort();
         }
-    }
-
-    private void startZookeeper() throws Exception {
-        zookeeperServer = new TestingServerStarter().start();
-        log.info("Done starting Zookeeper.");
-    }
-
-    private void startController() {
-        // Create and start controller service
-        controllerServerWrapper = createControllerWrapper();
-        controllerServerWrapper.awaitRunning();
-        log.info("Done starting Controller");
-    }
-
-    private void startSegmentStore() throws DurableDataLogException {
-        serviceBuilder = createServiceBuilder();
-        serviceBuilder.initialize();
-
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
-
-        if (isAuthEnabled) {
-            passwordInputFile = createAuthFile(this.passwordAuthHandlerEntries);
-        }
-
-        segmentStoreServer = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store, tableStore,
-            SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
-            isAuthEnabled ? new TokenVerifierImpl(tokenSigningKeyBasis) : null,
-            null, null, true, serviceBuilder.getLowPriorityExecutor());
-
-        segmentStoreServer.startListening();
-        log.info("Done starting Segment Store");
+        startZookeeper();
+        log.info("Started Zookeeper");
+        startSegmentStore();
+        log.info("Started Segment store");
+        startController();
+        log.info("Started Controller");
     }
 
     @Override
@@ -160,15 +170,61 @@ public class ClusterWrapper implements AutoCloseable {
         }
     }
 
+    /**
+     * Returns the Zookeeper Server's connection string in the format: `ip-address:port`.
+     *
+     * @return Zookeeper connection string. Example: "127.0.0.1:33051".
+     */
+    public String zookeeperConnectString() {
+        return this.zookeeperServer != null ? this.zookeeperServer.getConnectString() : "";
+    }
+
+    public String controllerUri() {
+        return String.format("%s://localhost:%d", isTlsEnabled() ? "tls" : "tcp", controllerPort);
+    }
+
+    public String controllerRestUri() {
+        return String.format("%s://localhost:%d", isTlsEnabled() ? "https" : "http", controllerRestPort);
+    }
+
+    private void startZookeeper() throws Exception {
+        zookeeperServer = new TestingServerStarter().start();
+    }
+
+    private void startController() {
+        // Create and start controller service
+        controllerServerWrapper = createControllerWrapper();
+        controllerServerWrapper.awaitRunning();
+    }
+
+    private void startSegmentStore() throws DurableDataLogException {
+        serviceBuilder = createServiceBuilder();
+        serviceBuilder.initialize();
+
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+
+        if (authEnabled) {
+            passwordInputFile = createAuthFile(this.passwordAuthHandlerEntries);
+        }
+
+        segmentStoreServer = new PravegaConnectionListener(this.tlsEnabled, false, "localhost", segmentStorePort, store, tableStore,
+            SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
+            authEnabled ? new TokenVerifierImpl(tokenSigningKeyBasis) : null,
+            this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor());
+
+        segmentStoreServer.startListening();
+    }
+
     private ServiceBuilder createServiceBuilder() {
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, 1))
                 .include(AutoScalerConfig.builder()
-                        .with(AutoScalerConfig.CONTROLLER_URI, this.controllerUri())
-                        .with(AutoScalerConfig.TOKEN_SIGNING_KEY, this.tokenSigningKeyBasis)
-                        .with(AutoScalerConfig.AUTH_ENABLED, this.isAuthEnabled));
+                        .with(AutoScalerConfig.CONTROLLER_URI, controllerUri())
+                        .with(AutoScalerConfig.TOKEN_SIGNING_KEY, tokenSigningKeyBasis)
+                        .with(AutoScalerConfig.AUTH_ENABLED, authEnabled));
 
         return ServiceBuilder.newInMemoryBuilder(configBuilder.build());
     }
@@ -178,15 +234,27 @@ public class ClusterWrapper implements AutoCloseable {
         if (passwordInputFile != null) {
             passwordInputFilePath = passwordInputFile.getPath();
         }
-        return new ControllerWrapper(zookeeperServer.getConnectString(),
-                false, true,
-                controllerPort, serviceHost, segmentStorePort, containerCount, -1,
-                isAuthEnabled, passwordInputFilePath,
-                tokenSigningKeyBasis, tokenTtlInSeconds);
-    }
 
-    public String controllerUri() {
-        return "tcp://localhost:" + controllerPort;
+        return ControllerWrapper.builder()
+                .connectionString(zookeeperServer.getConnectString())
+                .disableEventProcessor(false)
+                .disableControllerCluster(true)
+                .controllerPort(controllerPort)
+                .serviceHost(serviceHost)
+                .servicePort(segmentStorePort)
+                .containerCount(containerCount)
+                .restPort(controllerRestPort)
+                .enableAuth(authEnabled)
+                .passwordAuthHandlerInputFilePath(passwordInputFilePath)
+                .tokenSigningKey(tokenSigningKeyBasis)
+                .isRGWritesWithReadPermEnabled(rgWritesWithReadPermEnabled)
+                .accessTokenTtlInSeconds(tokenTtlInSeconds)
+                .enableTls(tlsEnabled)
+                .serverCertificatePath(tlsServerCertificatePath)
+                .serverKeyPath(tlsServerKeyPath)
+                .serverKeystorePath(tlsServerKeystorePath)
+                .serverKeystorePasswordPath(tlsServerKeystorePasswordPath)
+                .build();
     }
 
     private Entry defaultAuthHandlerEntry() {

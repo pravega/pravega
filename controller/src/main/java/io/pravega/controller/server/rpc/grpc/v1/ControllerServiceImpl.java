@@ -9,8 +9,10 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableMap;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
@@ -23,10 +25,13 @@ import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.security.auth.AuthorizationResource;
-import io.pravega.controller.server.security.auth.AuthorizationResourceImpl;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.AuthorizationResource;
+import io.pravega.shared.security.auth.AuthorizationResourceImpl;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.server.security.auth.StreamAuthParams;
 import io.pravega.controller.server.security.auth.handler.AuthContext;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -64,6 +69,16 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfiguration;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupConfigResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 
 import java.util.ArrayList;
@@ -79,9 +94,11 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
+import lombok.NonNull;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.lang3.tuple.Pair;
+
 /**
  * gRPC Service API implementation for the Controller.
  */
@@ -101,14 +118,19 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     // Send to the client server traces on error message replies.
     private final boolean replyWithStackTraceOnError;
 
+    private final boolean isRGStreamWritesWithReadPermEnabled;
+
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
     private final int pageLimit;
 
     private final AuthorizationResource authorizationResource = new AuthorizationResourceImpl();
 
-    public ControllerServiceImpl(ControllerService controllerService, GrpcAuthHelper authHelper, RequestTracker requestTracker, boolean replyWithStackTraceOnError) {
-        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, PAGE_LIMIT);
+    public ControllerServiceImpl(ControllerService controllerService, GrpcAuthHelper authHelper,
+                                 RequestTracker requestTracker, boolean replyWithStackTraceOnError,
+                                 boolean isRGStreamWritesWithReadPermEnabled) {
+        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError,
+                isRGStreamWritesWithReadPermEnabled, PAGE_LIMIT);
     }
 
     @Override
@@ -121,6 +143,70 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void createReaderGroup(ReaderGroupConfiguration request, StreamObserver<CreateReaderGroupResponse> responseObserver) {
+        String scope = request.getScope();
+        String rgName = request.getReaderGroupName();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createReaderGroup",
+                scope, rgName);
+        log.info(requestTag.getRequestId(), "createReaderGroup called for ReaderGroup {}/{}.", scope, rgName);
+        AuthHandler.Permissions requiredPermission = this.isRGStreamWritesWithReadPermEnabled ?
+                AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE;
+
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                authorizationResource.ofReaderGroupsInScope(scope), requiredPermission),
+                delegationToken -> controllerService.createReaderGroup(scope, rgName,
+                        ModelHelper.encode(request), System.currentTimeMillis()),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void updateReaderGroup(ReaderGroupConfiguration request, StreamObserver<UpdateReaderGroupResponse> responseObserver) {
+        String scope = request.getScope();
+        String rgName = request.getReaderGroupName();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "updateReaderGroup",
+                scope, rgName);
+        log.info(requestTag.getRequestId(), "updateReaderGroup called for ReaderGroup {}/{}.", scope, rgName);
+        AuthHandler.Permissions requiredPermission = this.isRGStreamWritesWithReadPermEnabled ?
+                AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE;
+
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                authorizationResource.ofReaderGroupsInScope(scope), requiredPermission),
+                delegationToken -> controllerService.updateReaderGroup(scope, rgName, ModelHelper.encode(request)),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void getReaderGroupConfig(ReaderGroupInfo request, StreamObserver<ReaderGroupConfigResponse> responseObserver) {
+        String scope = request.getScope();
+        String rgName = request.getReaderGroup();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getReaderGroupConfig",
+                scope, rgName);
+        log.info(requestTag.getRequestId(), "getReaderGroupConfig called for Reader Group {}/{}.", scope, rgName);
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                authorizationResource.ofReaderGroupsInScope(scope), AuthHandler.Permissions.READ),
+                delegationToken -> controllerService.getReaderGroupConfig(scope, rgName),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void deleteReaderGroup(ReaderGroupInfo request, StreamObserver<DeleteReaderGroupStatus> responseObserver) {
+        String scope = request.getScope();
+        String rgName = request.getReaderGroup();
+        String rgId = request.getReaderGroupId();
+        long generation = request.getGeneration();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteReaderGroup",
+                scope, rgName);
+        log.info(requestTag.getRequestId(), "deleteReaderGroup called for Reader Group {}/{}.", scope, rgName);
+        AuthHandler.Permissions requiredPermission = this.isRGStreamWritesWithReadPermEnabled ?
+                AuthHandler.Permissions.READ : AuthHandler.Permissions.READ_UPDATE;
+
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                authorizationResource.ofReaderGroupsInScope(scope), requiredPermission),
+                delegationToken -> controllerService.deleteReaderGroup(scope, rgName, rgId),
+                responseObserver, requestTag);
+    }
+
+    @Override
     public void createKeyValueTable(KeyValueTableConfig request, StreamObserver<CreateKeyValueTableStatus> responseObserver) {
         String scope = request.getScope();
         String kvt = request.getKvtName();
@@ -128,7 +214,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 scope, kvt);
         log.info(requestTag.getRequestId(), "createKeyValueTable called for KVTable {}/{}.", scope, kvt);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofKeyValueTableInScope(scope, kvt), AuthHandler.Permissions.READ_UPDATE),
+                authorizationResource.ofKeyValueTablesInScope(scope), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.createKeyValueTable(scope, kvt,
                         ModelHelper.encode(request),
                         System.currentTimeMillis()),
@@ -216,12 +302,48 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createStream",
                                                                             scope, stream);
         log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.", scope, stream);
+
+        StreamAuthParams streamAuthParams = new StreamAuthParams(scope, stream, this.isRGStreamWritesWithReadPermEnabled);
+        AuthHandler.Permissions requiredPermission = streamAuthParams.requiredPermissionForWrites();
+
+        log.debug("requiredPermission is [{}], for scope [{}] and stream [{}]", requiredPermission, scope, stream);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofStreamsInScope(scope), AuthHandler.Permissions.READ_UPDATE),
-                                             delegationToken -> controllerService.createStream(scope, stream,
-                                                                                               ModelHelper.encode(request),
-                                                                                               System.currentTimeMillis()),
-                                             responseObserver, requestTag);
+                authorizationResource.ofStreamsInScope(scope), requiredPermission),
+                delegationToken -> controllerService.createStream(scope, stream,
+                        ModelHelper.encode(request),
+                        System.currentTimeMillis()),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void listSubscribers(StreamInfo request, StreamObserver<SubscribersResponse> responseObserver) {
+        String scope = request.getScope();
+        String stream = request.getStream();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "listSubscriber",
+                scope, stream);
+        log.info(requestTag.getRequestId(), "listSubscribers called for stream {}/{}.", scope, stream);
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                authorizationResource.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.listSubscribers(scope, stream),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void updateSubscriberStreamCut(SubscriberStreamCut request, StreamObserver<UpdateSubscriberStatus> responseObserver) {
+        String scope = request.getStreamCut().getStreamInfo().getScope();
+        String stream = request.getStreamCut().getStreamInfo().getStream();
+        String subscriber = request.getSubscriber();
+        String readerGroupId = request.getReaderGroupId();
+        long generation = request.getGeneration();
+        StreamCut streamCut = request.getStreamCut();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "updateSubscriberStreamCut",
+                scope, stream);
+        log.info(requestTag.getRequestId(), "updateSubscriberStreamCut called for stream {}/{}.", scope, stream);
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                authorizationResource.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.updateSubscriberStreamCut(scope, stream, subscriber, readerGroupId, generation,
+                        ImmutableMap.copyOf(ModelHelper.encode(streamCut))),
+                responseObserver, requestTag);
     }
 
     @Override
@@ -231,11 +353,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "updateStream",
                 scope, stream);
         log.info(requestTag.getRequestId(), "updateStream called for stream {}/{}.", scope, stream);
-        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
-                authorizationResource.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ_UPDATE),
-                                             delegationToken -> controllerService.updateStream(scope, stream,
-                                                                                               ModelHelper.encode(request)),
-                                             responseObserver, requestTag);
+
+        Supplier<String> authorizationSupplier = () -> this.grpcAuthHelper.checkAuthorization(
+                StreamAuthParams.toResourceString(scope, stream), AuthHandler.Permissions.READ_UPDATE);
+
+        authenticateExecuteAndProcessResults(authorizationSupplier,
+                authorizationResult -> controllerService.updateStream(scope, stream, ModelHelper.encode(request)),
+                responseObserver, requestTag);
     }
 
     @Override
@@ -278,26 +402,129 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 delegationToken -> controllerService.deleteStream(request.getScope(), request.getStream()), responseObserver, requestTag);
     }
 
+    private AccessOperation translate(@NonNull StreamInfo.AccessOperation accessOperation) {
+        return AccessOperation.valueOf(accessOperation.name());
+    }
+
     @Override
     public void getCurrentSegments(StreamInfo request, StreamObserver<SegmentRanges> responseObserver) {
-        log.info("getCurrentSegments called for stream {}/{}.", request.getScope(), request.getStream());
-        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofStreamInScope(request.getScope(), request.getStream()),
-                AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> {
-                    logIfEmpty(delegationToken, "getCurrentSegments", request.getScope(), request.getStream());
-                    return controllerService.getCurrentSegments(request.getScope(), request.getStream())
-                            .thenApply(segmentRanges -> SegmentRanges.newBuilder()
-                                    .addAllSegmentRanges(segmentRanges)
-                                    .setDelegationToken(delegationToken)
-                                    .build());
+        final String scope = request.getScope();
+        final String stream = request.getStream();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getCurrentSegments",
+                request.getScope(), request.getStream());
+
+        log.info(requestTag.getRequestId(), "getCurrentSegments called for stream {}/{}.", scope, stream);
+        String resource = StreamAuthParams.toResourceString(scope, stream);
+
+        final boolean isDelegationTokenRequested = !request.getAccessOperation().equals(StreamInfo.AccessOperation.NONE);
+
+        authenticateExecuteAndProcessResults(() -> {
+                    if (isDelegationTokenRequested) {
+                        // For backward compatibility: older clients still depend on delegation tokens generated
+                        // by this method for both reads and writes.
+                        return this.grpcAuthHelper.checkAuthorizationAndCreateToken(resource, AuthHandler.Permissions.READ_UPDATE);
+                    } else {
+                        return this.grpcAuthHelper.checkAuthorization(resource, AuthHandler.Permissions.READ);
+                    }
                 },
-                responseObserver);
+                authorizationResult -> {
+                    logIfEmpty(authorizationResult, "getCurrentSegments", scope, stream);
+                    return controllerService.getCurrentSegments(scope, stream)
+                            .thenApply(segmentRanges -> {
+                                SegmentRanges.Builder builder = SegmentRanges.newBuilder().addAllSegmentRanges(segmentRanges);
+                                if (isDelegationTokenRequested) {
+                                    builder.setDelegationToken(authorizationResult);
+                                }
+                                return builder.build();
+                            });
+                },
+                responseObserver, requestTag);
+    }
+
+    @VisibleForTesting
+    public Supplier<String> delegationTokenSupplier(StreamInfo request) {
+        return () -> {
+            if (!this.isAuthEnabled()) {
+                return "";
+            }
+
+            StreamAuthParams authParams = new StreamAuthParams(request.getScope(), request.getStream(),
+                    translate(request.getAccessOperation()), this.isRGStreamWritesWithReadPermEnabled);
+
+            // StreamResource will be a stream representation (ex: "prn:://scope:myScope/stream:_RGmyApp") of the
+            // reader group (ex: "prn:://scope:myScope/reader-group:myApp). We use stream representation in claims
+            // put in delegation tokens for Segment Store's use, even though we use the regular representation for
+            // authorization here in the Controller.
+            String streamResource = authParams.streamResourceString();
+            String resource = authParams.resourceString();
+
+            if (authParams.isAccessOperationUnspecified()) {
+                // For backward compatibility: Older clients will not send access operation in the request.
+                log.debug("Access operation was unspecified for request with scope {} and stream {}",
+                        request.getScope(), request.getStream());
+                final AuthHandler.Permissions authAndTokenPermission = AuthHandler.Permissions.READ_UPDATE;
+                this.grpcAuthHelper.checkAuthorization(resource, authAndTokenPermission);
+                return this.grpcAuthHelper.createDelegationToken(streamResource, authAndTokenPermission);
+            } else {
+                log.trace("Access operation was {} for request with scope {} and stream {}",
+                        translate(request.getAccessOperation()), request.getScope(), request.getStream());
+
+                // The resource string that'll be used in the delegation token for use of the segment store
+                final String tokenResource;
+
+                // The operation that'll be specified as granted for the resource in the token. The bearer of the token
+                // will be allowed to perform the specified operation.
+                final AuthHandler.Permissions tokenPermission;
+
+                // This is the permission that the client is requesting to be assigned on the delegation token.
+                AuthHandler.Permissions requestedPermissions = authParams.requestedPermission();
+
+                if (authParams.isStreamUserDefined()) {
+                    // The operation itself requires the caller to possess read permissions.
+                    AuthHandler.Permissions minimumPermissions = AuthHandler.Permissions.READ;
+
+                    if (requestedPermissions.equals(AuthHandler.Permissions.READ_UPDATE) ||
+                            requestedPermissions.equals(minimumPermissions)) {
+                        this.grpcAuthHelper.checkAuthorization(streamResource, requestedPermissions);
+                        tokenResource = streamResource;
+                        tokenPermission = requestedPermissions;
+                    } else {
+                        // The minimum permission that the user must have to be able to invoke this call. This
+                        // authorizes the operation.
+                        this.grpcAuthHelper.checkAuthorization(streamResource, minimumPermissions);
+
+                        // Here, we check whether the user is authorized for the requested access.
+                        this.grpcAuthHelper.checkAuthorization(streamResource, requestedPermissions);
+                        tokenResource = streamResource;
+                        tokenPermission = requestedPermissions;
+                    }
+                } else {
+                    final AuthHandler.Permissions authorizationPermission;
+                    if (requestedPermissions.equals(AuthHandler.Permissions.READ_UPDATE)) {
+                        authorizationPermission = authParams.requiredPermissionForWrites();
+                        tokenPermission = AuthHandler.Permissions.READ_UPDATE;
+                    } else if (requestedPermissions.equals(AuthHandler.Permissions.READ)) {
+                        authorizationPermission = AuthHandler.Permissions.READ;
+                        tokenPermission = requestedPermissions;
+                    } else {
+                        authorizationPermission = AuthHandler.Permissions.READ;
+                        tokenPermission = AuthHandler.Permissions.READ;
+                    }
+                    log.trace("resource: {}, authorizationPermission: {}", authParams.resourceString(), authorizationPermission);
+                    this.grpcAuthHelper.checkAuthorization(authParams.resourceString(), authorizationPermission);
+                    tokenResource = streamResource;
+                }
+                return this.grpcAuthHelper.createDelegationToken(tokenResource, tokenPermission);
+            }
+        };
     }
 
     @Override
     public void getEpochSegments(GetEpochSegmentsRequest request, StreamObserver<SegmentRanges> responseObserver) {
-        log.info("getEpochSegments called for stream {}/{} and epoch {}", request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getEpoch());
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getEpochSegments",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), Integer.toString(request.getEpoch()));
+        log.info(requestTag.getRequestId(), "getEpochSegments called for stream {}/{} and epoch {}", request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getEpoch());
+
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.
@@ -310,25 +537,41 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                                                                      .setDelegationToken(delegationToken)
                                                                                      .build());
                 },
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
     public void getSegments(GetSegmentsRequest request, StreamObserver<SegmentsAtTime> responseObserver) {
-        log.debug("getSegments called for stream " + request.getStreamInfo().getScope() + "/" +
-                request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(),
-                        request.getStreamInfo().getStream()),
-                AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> {
-                    logIfEmpty(delegationToken, "getSegments", request.getStreamInfo().getScope(),
-                            request.getStreamInfo().getStream());
-                    return controllerService.getSegmentsAtHead(request.getStreamInfo().getScope(),
-                            request.getStreamInfo().getStream())
+        final StreamInfo streamInfo = request.getStreamInfo();
+        final String scope = streamInfo.getScope();
+        final String stream = streamInfo.getStream();
+        log.debug("getSegments called for stream " + scope + "/" + stream);
+
+        // Older clients will not set requestPermissions, so it'll be set as "". Newer clients will set it as `NONE`.
+        // For backward compatibility, this operation returns a delegation token for older clients along with the
+        // segments. For newer clients, it doesn't.
+        final boolean shouldReturnDelegationToken = !streamInfo.getAccessOperation().equals(StreamInfo.AccessOperation.NONE);
+        authenticateExecuteAndProcessResults(() -> {
+                    if (shouldReturnDelegationToken) {
+                        // For backward compatibility: older clients still depend on delegation token generated
+                        // by this method for both reads and writes.
+                        return this.grpcAuthHelper.checkAuthorizationAndCreateToken(
+                                authorizationResource.ofStreamInScope(scope, stream),
+                                AuthHandler.Permissions.READ_UPDATE);
+                    } else {
+                        return this.grpcAuthHelper.checkAuthorization(
+                                authorizationResource.ofStreamInScope(scope, stream),
+                                AuthHandler.Permissions.READ);
+                    }
+                },
+                authorizationResult -> {
+                    logIfEmpty(authorizationResult, "getSegments", scope, stream);
+                    return controllerService.getSegmentsAtHead(scope, stream)
                             .thenApply(segments -> {
-                                SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder()
-                                        .setDelegationToken(delegationToken);
+                                SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder();
+                                if (shouldReturnDelegationToken) {
+                                        builder.setDelegationToken(authorizationResult);
+                                }
                                 for (Entry<SegmentId, Long> entry : segments.entrySet()) {
                                     builder.addSegments(SegmentLocation.newBuilder()
                                             .setSegmentId(entry.getKey())
@@ -343,7 +586,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getSegmentsImmediatelyFollowing(SegmentId segmentId, StreamObserver<SuccessorResponse> responseObserver) {
-        log.info("getSegmentsImmediatelyFollowing called for segment {} ", segmentId);
+        String segment = NameUtils.getQualifiedStreamSegmentName(segmentId.getStreamInfo().getScope(), segmentId.getStreamInfo().getStream(), segmentId.getSegmentId());
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getSegmentsImmediatelyFollowing",
+               segment);
+
+        log.info(requestTag.getRequestId(), "getSegmentsImmediatelyFollowing called for segment {} ", segment);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(segmentId.getStreamInfo().getScope(),
                         segmentId.getStreamInfo().getStream()), AuthHandler.Permissions.READ),
@@ -413,10 +660,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
-        log.info("getURI called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getSegmentId());
+        String segment = NameUtils.getQualifiedStreamSegmentName(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getSegmentId());
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getURI", segment);
+        log.info(requestTag.getRequestId(), "getURI called for segment {}.", segment);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
-                authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
+                StreamAuthParams.toResourceString(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.getURI(request),
                 responseObserver);
@@ -455,8 +703,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createTransaction(CreateTxnRequest request, StreamObserver<Controller.CreateTxnResponse> responseObserver) {
-        log.info("createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createTransaction",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), Long.toString(request.getLease()));
+        log.info(requestTag.getRequestId(), "createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
+
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
@@ -468,7 +719,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                                                                       .setTxnId(ModelHelper.decode(pair.getKey()))
                                                                                       .addAllActiveSegments(pair.getValue())
                                                                                       .build()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
@@ -504,7 +755,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
         final UUID txnId = ModelHelper.encode(request.getTxnId());
-        log.info("pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "pingTransaction",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), txnId.toString());
+        log.info(requestTag.getRequestId(), "pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
@@ -513,13 +766,15 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getStreamInfo().getStream(),
                         txnId,
                         request.getLease()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
         final UUID txnId = ModelHelper.encode(request.getTxnId());
-        log.info("checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "checkTransactionState",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), txnId.toString());
+        log.info(requestTag.getRequestId(), "checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), txnId);
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
@@ -527,7 +782,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 delegationToken -> controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         txnId),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
@@ -716,9 +971,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void getDelegationToken(StreamInfo request, StreamObserver<DelegationToken> responseObserver)  {
         log.info("getDelegationToken called for stream {}/{}.", request.getScope(), request.getStream());
-        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
-                authorizationResource.ofStreamInScope(request.getScope(), request.getStream()),
-                AuthHandler.Permissions.READ_UPDATE),
+        authenticateExecuteAndProcessResults(this.delegationTokenSupplier(request),
                 delegationToken -> {
                     logIfEmpty(delegationToken, "getDelegationToken", request.getScope(), request.getStream());
                     return CompletableFuture.completedFuture(DelegationToken
@@ -733,27 +986,31 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void noteTimestampFromWriter(Controller.TimestampFromWriter request, StreamObserver<Controller.TimestampResponse> responseObserver) {
         StreamInfo streamInfo = request.getPosition().getStreamInfo();
-        log.info("noteWriterMark called for stream {}/{}, writer={} time={}", streamInfo.getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "noteTimestampFromWriter", streamInfo.getScope(), streamInfo.getStream(), request.getWriter());
+        log.info(requestTag.getRequestId(), "noteWriterMark called for stream {}/{}, writer={} time={}", streamInfo.getScope(),
                 streamInfo.getStream(), request.getWriter(), request.getTimestamp());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken  -> controllerService.noteTimestampFromWriter(streamInfo.getScope(),
                         streamInfo.getStream(), request.getWriter(), request.getTimestamp(), request.getPosition().getCutMap()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
     public void removeWriter(Controller.RemoveWriterRequest request, StreamObserver<Controller.RemoveWriterResponse> responseObserver) {
         StreamInfo streamInfo = request.getStream();
-        log.info("writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "removeWriter", streamInfo.getScope(), streamInfo.getStream(), request.getWriter());
+        log.info(requestTag.getRequestId(), "writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
                 streamInfo.getStream(), request.getWriter());
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
                 authorizationResource.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken  -> controllerService.removeWriter(streamInfo.getScope(),
                         streamInfo.getStream(), request.getWriter()),
-                responseObserver);
+                responseObserver, requestTag);
     }
     // endregion
     

@@ -128,7 +128,7 @@ public class ServiceBuilder implements AutoCloseable {
         this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), instancePrefix + "storage-io", Thread.NORM_PRIORITY);
         this.lowPriorityExecutor = executorBuilder.apply(serviceConfig.getLowPriorityThreadPoolSize(),
                 instancePrefix + "low-priority-cleanup", Thread.MIN_PRIORITY);
-        this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor);
+        this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor, this.storageExecutor);
 
         this.cacheManager = new CacheManager(serviceConfig.getCachePolicy(), this.coreExecutor);
     }
@@ -454,7 +454,7 @@ public class ServiceBuilder implements AutoCloseable {
     public static class ComponentSetup implements ConfigSetup {
         private final ServiceBuilder builder;
 
-        private ComponentSetup(ServiceBuilder builder) {
+        public ComponentSetup(ServiceBuilder builder) {
             this.builder = builder;
         }
 
@@ -502,5 +502,20 @@ public class ServiceBuilder implements AutoCloseable {
         }
     }
 
+    /**
+     * Setup helper for a ServiceBuilder component.
+     */
+    public static class ConfigSetupHelper implements ConfigSetup {
+        private final ServiceBuilderConfig builderConfig;
+
+        public ConfigSetupHelper(ServiceBuilderConfig builderConfig) {
+            this.builderConfig = builderConfig;
+        }
+
+        @Override
+        public <T> T getConfig(Supplier<? extends ConfigBuilder<T>> builderConstructor) {
+            return this.builderConfig.getConfig(builderConstructor);
+        }
+    }
     //endregion
 }

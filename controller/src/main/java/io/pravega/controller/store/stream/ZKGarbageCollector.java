@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.ZKStoreHelper;
@@ -21,7 +22,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -73,7 +73,7 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
         this.zkStoreHelper = zkStoreHelper;
         this.gcProcessingSupplier = gcProcessingSupplier;
         this.periodInMillis = gcPeriod.toMillis();
-        this.gcExecutor = Executors.newSingleThreadScheduledExecutor();
+        this.gcExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "gc");
         this.gcLoop = new AtomicReference<>();
         this.currentBatch = new AtomicInteger(0);
         this.latestVersion = new AtomicInteger(0);
@@ -207,6 +207,6 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
             return x;
         });
 
-        gcExecutor.shutdown();
+        gcExecutor.shutdownNow();
     }
 }

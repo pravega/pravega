@@ -33,15 +33,13 @@ import io.pravega.controller.task.Stream.TestTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
 import io.pravega.test.common.TestingServerStarter;
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -58,7 +56,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -90,7 +87,7 @@ public class ControllerClusterListenerTest {
         curatorClient.start();
 
         // 3. Start executor service.
-        executor = Executors.newScheduledThreadPool(5);
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
 
         // 4. start cluster event listener
         clusterZK = new ClusterZKImpl(curatorClient, ClusterType.CONTROLLER);
@@ -113,7 +110,7 @@ public class ControllerClusterListenerTest {
     @After
     public void shutdown() throws Exception {
         clusterZK.close();
-        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), executor);
+        ExecutorServiceHelpers.shutdown(executor);
         curatorClient.close();
         zkServer.close();
     }
@@ -211,7 +208,11 @@ public class ControllerClusterListenerTest {
 
         TxnSweeper txnSweeper = spy(new TxnSweeper(streamStore, txnTasks, 100, executor));
         // any attempt to sweep txnHost should have been ignored
+        AtomicBoolean txnSweeperRealMethod = new AtomicBoolean(false);
         doAnswer(invocation -> {
+            if (txnSweeperRealMethod.get()) {
+                return invocation.callRealMethod();
+            }
             txnHostSweepIgnore.complete(null);
             return false;
         }).when(txnSweeper).isReady();
@@ -240,8 +241,11 @@ public class ControllerClusterListenerTest {
         // Future for txnsweeper.failedProcess to be called the first time
         CompletableFuture<Void> requestHostSweepIgnore = new CompletableFuture<>();
         CompletableFuture<Void> requestHostSweep2 = new CompletableFuture<>();
-
+        AtomicBoolean requestSweeperRealMethod = new AtomicBoolean(false);
         doAnswer(invocation -> {
+            if (requestSweeperRealMethod.get()) {
+                return invocation.callRealMethod();
+            }
             requestHostSweepIgnore.complete(null);
             return false;
         }).when(requestSweeper).isReady();
@@ -313,7 +317,7 @@ public class ControllerClusterListenerTest {
         verify(requestSweeper, atLeast(1)).isReady();
 
         // Reset the mock to call real method on txnsweeper.isReady.
-        doCallRealMethod().when(txnSweeper).isReady();
+        txnSweeperRealMethod.set(true);
 
         // Complete txn sweeper initialization by adding event writers.
         txnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
@@ -325,7 +329,7 @@ public class ControllerClusterListenerTest {
         verify(txnSweeper, times(1)).sweepFailedProcesses(any());
 
         // Reset the mock to call real method on requestSweeper.isReady.
-        doCallRealMethod().when(requestSweeper).isReady();
+        requestSweeperRealMethod.set(true);
 
         // Complete requestSweeper initialization by adding event writers.
         streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());

@@ -45,8 +45,7 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
         this.deserializer = deserializer;
         this.startingOffset = startingOffset;
         this.endingOffset = endingOffset;
-        input = factory.createEventReaderForSegment(segment);
-        input.setOffset(startingOffset);        
+        input = factory.createEventReaderForSegment(segment, startingOffset, endingOffset);
     }
 
     @Override

@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -25,6 +27,8 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -85,6 +89,12 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Boolean> checkStreamExists(final String scopeName,
                                                  final String streamName);
 
+    /**
+     * Api to check if a stream exists in the store or not.
+     * @param scopeName scope name
+     * @return true if stream exists, false otherwise
+     */
+    CompletableFuture<Boolean> checkScopeExists(final String scopeName);
 
     /**
      * Api to get creation time for the stream. 
@@ -253,7 +263,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param existing      versioned StreamConfigurationRecord
      * @param context       operation context
      * @param executor      callers executor
-     * @return future of opration
+     * @return future of operation
      */
     CompletableFuture<Void> completeUpdateConfiguration(final String scope,
                                                         final String name,
@@ -288,13 +298,236 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                                            final Executor executor);
 
     /**
+     * Method to create an operation context for ReaderGroup. A context ensures that multiple calls to store for the same data are avoided
+     * within the same operation. All api signatures are changed to accept context. If context is supplied, the data will be
+     * looked up within the context and, upon a cache miss, will be fetched from the external store and cached within the context.
+     * Once an operation completes, the context is discarded.
+     *
+     * @param scope Reader Group scope.
+     * @param name  REader Group name.
+     * @return Return a Reader Group Context
+     */
+    RGOperationContext createRGContext(final String scope, final String name);
+
+    /**
+     * Api to get the versioned state for Reader Group from metadata.
+     *
+     * @param scope scope name
+     * @param name Reader Group name
+     * @param ignoreCached ignore cached value and fetch from store.
+     * @param context operation context
+     * @param executor callers executor
+     * @return Future which when completed has the VersionedState.
+     */
+    CompletableFuture<VersionedMetadata<ReaderGroupState>> getVersionedReaderGroupState(final String scope, final String name, final boolean ignoreCached, final RGOperationContext context, final Executor executor);
+
+    /**
+     * Api to get the state for Reader Group from metadata.
+     *
+     * @param scope scope name
+     * @param name stream name
+     * @param ignoreCached ignore cached value and fetch from store.
+     * @param context operation context
+     * @param executor callers executor
+     * @return Future of ReaderGroupState.
+     */
+    CompletableFuture<ReaderGroupState> getReaderGroupState(final String scope, final String name, final boolean ignoreCached, final RGOperationContext context, final Executor executor);
+
+    /**
+     * Add ReaderGroup to scope.
+     *
+     * @param scopeName       scope name
+     * @param rgName          Reader Group name
+     * @param readerGroupId   Reader Group Identifier
+     * @return boolean indicating whether the stream was created
+     */
+    CompletableFuture<Void> addReaderGroupToScope(final String scopeName,
+                                              final String rgName,
+                                              final UUID readerGroupId);
+
+    /**
+     * Creates a new stream with the given name and configuration.
+     *
+     * @param scopeName       scope name
+     * @param rgName          Reader Group name
+     * @param configuration   Reader Group configuration
+     * @param createTimestamp Reader Group creation timestamp
+     * @param context         Reader Group operation context
+     * @param executor        callers executor
+     * @return boolean indicating whether the stream was created
+     */
+    CompletableFuture<Void> createReaderGroup(final String scopeName,
+                                                            final String rgName,
+                                                            final ReaderGroupConfig configuration,
+                                                            final long createTimestamp,
+                                                            final RGOperationContext context,
+                                                            final Executor executor);
+
+    /**
+     * Updates the configuration of an existing Reader Group.
+     *
+     * @param scope         Reader Group scope
+     * @param name          Reader Group name.
+     * @param configuration new Reader Group configuration.
+     * @param context       operation context
+     * @param executor      callers executor
+     * @return Future of operation
+     */
+    CompletableFuture<Void> startRGConfigUpdate(final String scope,
+                                                final String name,
+                                                final ReaderGroupConfig configuration,
+                                                final RGOperationContext context,
+                                                final Executor executor);
+
+    /**
+     * Completes the update of Reader Group Configuration.
+     *
+     * @param scope         Reader Group scope
+     * @param name          Reader Group name.
+     * @param configRecord  Reader Group Config record.
+     * @param context       operation context.
+     * @param executor      callers executor.
+     * @return Future of operation
+     */
+    CompletableFuture<Void> completeRGConfigUpdate(final String scope,
+                                                    final String name,
+                                                    final VersionedMetadata<ReaderGroupConfigRecord> configRecord,
+                                                    final RGOperationContext context,
+                                                    final Executor executor);
+
+    /**
+     * Delete a Reader Group with the given scope & name.
+     *
+     * @param scopeName       scope name
+     * @param rgName          Reader Group name
+     * @param context         Reader Group operation context
+     * @param executor        callers executor
+     * @return boolean indicating whether the stream was created
+     */
+    CompletableFuture<Void> deleteReaderGroup(final String scopeName,
+                                              final String rgName,
+                                              final RGOperationContext context,
+                                              final Executor executor);
+
+    /**
+     * Api to update versioned state of ReaderGroup as a CAS operation.
+     *
+     * @param scope scope name.
+     * @param name ReaderGroup name.
+     * @param state desired state
+     * @param previous current state with version
+     * @param context operation context
+     * @param executor executor
+     * @return Future which when completed contains the updated state and version if successful or exception otherwise.
+     */
+    CompletableFuture<VersionedMetadata<ReaderGroupState>> updateReaderGroupVersionedState(final String scope, final String name,
+                                                                     final ReaderGroupState state, final VersionedMetadata<ReaderGroupState> previous,
+                                                                     final RGOperationContext context, final Executor executor);
+
+    /**
+     * Fetches the current ReaderGroup configuration.
+     *
+     * @param scope    ReaderGroup scope
+     * @param name     ReaderGroup name.
+     * @param context  operation context
+     * @param executor callers executor
+     * @return current ReaderGroup configuration record.
+     */
+    CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getReaderGroupConfigRecord(final String scope, final String name,
+                                                            final RGOperationContext context,
+                                                            final Executor executor);
+
+    /**
+     * Creates a new subscribers record in metadata for an existing stream.
+     *
+     * @param scopeName         stream scope name.
+     * @param streamName        stream name.
+     * @param subscriber        new subscriber Reader Group.
+     * @param generation        subscriber generation number.
+     * @param context           operation context
+     * @param executor          callers executor
+     * @return Future of operation
+     */
+    CompletableFuture<Void> addSubscriber(final String scopeName, final String streamName, String subscriber, long generation,
+                                             final OperationContext context, final Executor executor);
+
+    /**
+     * Deletes the subscriber Reader Group from Stream Metadata.
+     *
+     * @param scope         stream scope
+     * @param name          stream name.
+     * @param subscriber    subscriber Reader Group to be removed.
+     * @param generation    subscriber generation.
+     * @param context       operation context
+     * @param executor      callers executor
+     * @return Future of operation
+     */
+    CompletableFuture<Void> deleteSubscriber(final String scope,
+                                             final String name,
+                                             final String subscriber,
+                                             final long generation,
+                                             final OperationContext context,
+                                             final Executor executor);
+
+    /**
+     * Updates the subscribers metadata for an existing stream.
+     *
+     * @param scope         stream scope
+     * @param name          stream name.
+     * @param subscriber new stream subscriber.
+     * @param generation subscriber generation.
+     * @param streamCut     new truncation streamcut of subscriber.
+     * @param previousRecord previous truncation streamcut of subscriber.
+     * @param context       operation context
+     * @param executor      callers executor
+     * @return Future of operation
+     */
+    CompletableFuture<Void> updateSubscriberStreamCut(final String scope,
+                                                     final String name,
+                                                     final String subscriber,
+                                                     final long generation,
+                                                     final ImmutableMap<Long, Long> streamCut,
+                                                     final VersionedMetadata<StreamSubscriber> previousRecord,
+                                                     final OperationContext context,
+                                                     final Executor executor);
+
+    /**
+     * Fetches the current stream subscribers record.
+     *
+     * @param scope        stream scope
+     * @param name         stream name.
+     * @param subscriber   subscriber name.
+     * @param context      operation context.
+     * @param executor     callers executor.
+     * @return current stream configuration.
+     */
+    CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriber(final String scope, final String name,
+                                                                                       final String subscriber,
+                                                                                       final OperationContext context,
+                                                                                       final Executor executor);
+
+    /**
+     * List scopes with pagination. This api continues listing scopes from the supplied continuation token
+     * and returns a count limited list of scopes and a new continuation token.
+     *
+     * @param scope scope name.
+     * @param stream stream for which to list subscribers.
+     * @param context operation context.
+     * @param executor executor.
+     * @return A list of subscribers for Stream.
+     */
+    CompletableFuture<List<String>> listSubscribers(final String scope, final String stream,
+                                                    final OperationContext context, final Executor executor);
+
+
+    /**
      * Start new stream truncation.
      *
      * @param scope         stream scope
      * @param name          stream name.
      * @param streamCut     new stream cut.
-     * @param context       operation context
-     * @param executor      callers executor
+     * @param context       operation context.
+     * @param executor      callers executor.
      * @return future of operation.
      */
     CompletableFuture<Void> startTruncation(final String scope,
@@ -309,8 +542,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param scope               stream scope
      * @param name                stream name.
      * @param record              versioned record
-     * @param context             operation context
-     * @param executor            callers executor
+     * @param context             operation context.
+     * @param executor            callers executor.
      * @return boolean indicating whether the stream was updated
      */
     CompletableFuture<Void> completeTruncation(final String scope,
@@ -1195,4 +1428,49 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Integer> getSegmentSealedEpoch(final String scope, final String streamName, final long segmentId,
                                                      final OperationContext context, final Executor executor);
 
+    /**
+     * Compares two Stream cuts and returns StreamCutComparison enum.
+     * A streamcut is considered greater than equals another if for all key ranges the segment/offset in one streamcut is ahead of 
+     * second streamcut. 
+     *
+     * @param scope      stream scope.
+     * @param streamName stream name.
+     * @param streamCut1 Stream cut to check
+     * @param streamCut2 Streamcut to check against
+     * @param context    operation context.
+     * @param executor   callers executor.
+     *                   
+     * @return A completable future which when completed will hold an integer which will determine the order between 
+     * streamcut1 and streamcut2. 
+     */
+    CompletableFuture<StreamCutComparison> compareStreamCut(final String scope, final String streamName,
+                                                Map<Long, Long> streamCut1, Map<Long, Long> streamCut2,
+                                                final OperationContext context, final Executor executor);
+
+    /**
+     * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.    
+     *
+     * @param scope      stream scope.
+     * @param streamName stream name.
+     * @param streamCut Stream cut to check.
+     * @param retentionSet Retention set
+     * @param context    operation context.
+     * @param executor   callers executor.
+     *
+     * @return A completable future which when completed will the reference record to the latest stream cut from retention set which
+     * is strictly before the supplied streamcut. 
+     */
+    CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(final String scope, final String streamName,
+                                                                                   Map<Long, Long> streamCut, final RetentionSet retentionSet,
+                                                                                   final OperationContext context, final Executor executor);
+
+    /**
+     * Api to check if a ReaderGroup exists in the store or not.
+     * @param scope scope name
+     * @param rgName Name ReaderGroup name
+     * @return true if stream exists, false otherwise
+     */
+    CompletableFuture<Boolean> checkReaderGroupExists(final String scope, final String rgName);
+
+    CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName);
 }

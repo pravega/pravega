@@ -80,6 +80,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.After;
 import org.junit.Before;
@@ -93,6 +94,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
+@Slf4j
 public class AppendTest extends LeakDetectorTestSuite {
     private ServiceBuilder serviceBuilder;
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
@@ -209,6 +211,7 @@ public class AppendTest extends LeakDetectorTestSuite {
 
     static Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
         channel.writeInbound(request);
+        log.info("Request {} sent to Segment store", request);
         Object encodedReply = channel.readOutbound();
         for (int i = 0; encodedReply == null && i < 50; i++) {
             channel.runPendingTasks();
@@ -216,6 +219,7 @@ public class AppendTest extends LeakDetectorTestSuite {
             encodedReply = channel.readOutbound();
         }
         if (encodedReply == null) {
+            log.error("Error while try waiting for a response from Segment Store");
             throw new IllegalStateException("No reply to request: " + request);
         }
         WireCommand decoded = CommandDecoder.parseCommand((ByteBuf) encodedReply);
@@ -254,9 +258,11 @@ public class AppendTest extends LeakDetectorTestSuite {
                 serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
+        @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        @Cleanup
         Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
@@ -286,9 +292,11 @@ public class AppendTest extends LeakDetectorTestSuite {
                 serviceBuilder.getLowPriorityExecutor());
         server.startListening();
 
+        @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), clientCF);
+        @Cleanup
         Controller controller = new MockController(endpoint, port, connectionPool, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
@@ -423,5 +431,5 @@ public class AppendTest extends LeakDetectorTestSuite {
         System.out.println("Max latency: " + (maxLatency.get() / 1000000.0));
         return timer.getElapsedMillis();
     }
-    
+
 }

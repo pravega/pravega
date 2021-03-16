@@ -183,15 +183,15 @@ public final class SetupUtils {
     /**
      * Create a stream reader for reading Integer events.
      *
-     * @param streamName    Name of the test stream.
-     *
+     * @param streamName         Name of the test stream.
+     * @param readerGroupManager RGM.
      * @return Stream reader instance.
      */
-    public EventStreamReader<Integer> getIntegerReader(final String streamName) {
+    public EventStreamReader<Integer> getIntegerReader(final String streamName, ReaderGroupManager readerGroupManager) {
         Preconditions.checkState(this.started.get(), "Services not yet started");
         Preconditions.checkNotNull(streamName);
+        Preconditions.checkNotNull(readerGroupManager);
 
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
         final String readerGroup = "testReaderGroup" + scope + streamName;
         readerGroupManager.createReaderGroup(
                 readerGroup,
@@ -199,13 +199,20 @@ public final class SetupUtils {
 
         final String readerGroupId = UUID.randomUUID().toString();
         return clientFactory.createReader(readerGroupId, readerGroup, new IntegerSerializer(),
-                                          ReaderConfig.builder().build());
+                ReaderConfig.builder().build());
     }
-    
+
+    public ReaderGroupManager createReaderGroupManager(final String streamName) {
+        Preconditions.checkState(this.started.get(), "Services not yet started");
+        Preconditions.checkNotNull(streamName);
+
+        return ReaderGroupManager.withScope(scope, clientConfig);
+    }
+
     public URI getControllerUri() {
         return clientConfig.getControllerURI();
     }
-    
+
     public URI getControllerRestUri() {
         return URI.create("http://localhost:" + controllerRESTPort);
     }

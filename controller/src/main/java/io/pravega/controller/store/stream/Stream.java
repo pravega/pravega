@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -25,6 +26,7 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -77,7 +79,7 @@ interface Stream {
      * @return CompletableFuture which, upon completion, has the creation time of the stream. 
      */
     CompletableFuture<Long> getCreationTime();
-
+    
     /**
      * Starts updating the configuration of an existing stream.
      *
@@ -107,6 +109,43 @@ interface Stream {
      * @return current stream configuration.
      */
     CompletableFuture<VersionedMetadata<StreamConfigurationRecord>> getVersionedConfigurationRecord();
+
+    /**
+     * Create subscribers record for storing metadata about Stream Subscribers.
+     * Also add this new Subscriber to the Record.
+     * @param subscriber first subscriber to be added the SubscribersRecord in Stream Metadata.
+     * @return future of operation.
+     */
+    CompletableFuture<Void> addSubscriber(String subscriber, long generation);
+
+    /**
+     * Fetches the record corresponding to the subscriber
+     * @return record holding information about this subscriber for the Stream.
+     */
+    CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriberRecord(String subscriber);
+
+    /**
+     * Fetches names for all subscribers of the Stream
+     * @return iterator to iterate over all subscribers for the Stream.
+     */
+    CompletableFuture<List<String>> listSubscribers();
+
+    /**
+     * Update subscribers record for the Stream.
+     * @param previous - Subscriber Record that would be replaced by this update API
+     * @param subscriber  subscriber name.
+     * @param streamCut - new subscriber streamcut
+     * @return future of operation.
+     */
+    CompletableFuture<Void> updateSubscriberStreamCut(final VersionedMetadata<StreamSubscriber> previous,
+                                                      final String subscriber, long generation, final ImmutableMap<Long, Long> streamCut);
+
+    /**
+     * Remove subscriber from list of Subscribers for the Stream.
+     * @param subscriber  subscriber to be removed.
+     * @return future of operation.
+     */
+    CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation);
 
     /**
      * Starts truncating an existing stream.
@@ -644,4 +683,25 @@ interface Stream {
      * @return Completable future that, upon completion, holds the epoch in which the segment was sealed.
      */
     CompletableFuture<Integer> getSegmentSealedEpoch(long segmentId);
+
+    /**
+     * Compares two Stream cuts and returns StreamCutComparison:
+     * A streamcut is considered greater than other if for all key ranges the segment/offset in one streamcut is ahead of 
+     * second streamcut. 
+     * 
+     * @param cut1 streamcut to check
+     * @param cut2 streamcut to check against. 
+     *
+     * @return CompletableFuture which, upon completion, will contain comparison result of streamcut1 and streamcut2.
+     */
+    CompletableFuture<StreamCutComparison> compareStreamCuts(Map<Long, Long> cut1, Map<Long, Long> cut2);
+
+    /**
+     * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.
+     * 
+     * @param streamCut streamcut to check
+     * @return A completable future which when completed will the reference record to the latest stream cut from retention set which
+     * is strictly before the supplied streamcut. 
+     */
+    CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long, Long> streamCut, RetentionSet retentionSet);
 }

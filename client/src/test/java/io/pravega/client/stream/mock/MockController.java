@@ -22,6 +22,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
@@ -65,10 +66,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+
+import io.pravega.shared.security.auth.AccessOperation;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
+import static io.pravega.shared.NameUtils.getScopedReaderGroupName;
+import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 
 @AllArgsConstructor
 public class MockController implements Controller {
@@ -86,6 +91,7 @@ public class MockController implements Controller {
         private final Map<Stream, StreamConfiguration> streams = new HashMap<>();
         private final Map<Stream, Boolean> streamSealStatus = new HashMap<>();
         private final Map<KeyValueTableInfo, KeyValueTableConfiguration> keyValueTables = new HashMap<>();
+        private final Map<String, ReaderGroupConfig> readerGroups = new HashMap<>();
     }
 
     @Override
@@ -172,7 +178,14 @@ public class MockController implements Controller {
         return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams,
                 this::getSegmentsForStream, Segment::getScopedName, this::createSegment);
     }
-    
+
+    @Synchronized
+    public CompletableFuture<Boolean> createRGStream(String scope, String rgName) {
+        String rgStream = NameUtils.getStreamForReaderGroup(rgName);
+        StreamConfiguration rgStreamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        return createStreamInternal(scope, rgStream, rgStreamConfig);
+    }
+
     @Synchronized
     List<Segment> getSegmentsForStream(Stream stream) {
         StreamConfiguration config = getStreamConfiguration(stream);
@@ -197,6 +210,12 @@ public class MockController implements Controller {
             result.add(new Segment(kvt.getScope(), kvt.getKeyValueTableName(), i));
         }
         return result;
+    }
+
+    @Synchronized
+    List<Segment> getSegmentsForReaderGroup(String scopedRgName) {
+        Stream rgStream = Stream.of(scopedRgName);
+        return getSegmentsForStream(rgStream);
     }
 
     @Synchronized
@@ -234,9 +253,61 @@ public class MockController implements Controller {
         return null;
     }
 
+    private ReaderGroupConfig getReaderGroupConfiguration(String rgStream) {
+        for (MockScope scope : createdScopes.values()) {
+            ReaderGroupConfig c = scope.readerGroups.get(rgStream);
+            if (c != null) {
+                return c;
+            }
+        }
+        return null;
+    }
+
     @Override
     public CompletableFuture<Boolean> updateStream(String scope, String streamName, StreamConfiguration streamConfig) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<ReaderGroupConfig> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+        createInScope(scopeName, getScopedReaderGroupName(scopeName, getStreamForReaderGroup(rgName)), config, s -> s.readerGroups,
+                this::getSegmentsForReaderGroup, Segment::getScopedName, this::createSegment);
+        return CompletableFuture.completedFuture(config);
+    }
+
+    @Override
+    public CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(String scope, String rgName) {
+        return CompletableFuture.completedFuture(getReaderGroupConfiguration(getScopedReaderGroupName(scope, getStreamForReaderGroup(rgName))));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName, final UUID readerGroupId) {
+        String key = getScopedReaderGroupName(scope, getStreamForReaderGroup(rgName));
+        return deleteFromScope(scope, key, s -> s.readerGroups, this::getSegmentsForReaderGroup, Segment::getScopedName, this::deleteSegment);
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Long> updateReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+        String key = getScopedReaderGroupName(scopeName, getStreamForReaderGroup(rgName));
+        MockScope scopeMeta = createdScopes.get(scopeName);
+        assert scopeMeta != null : "Scope not created";
+        assert scopeMeta.readerGroups.containsKey(key) : "ReaderGroup is not created";
+        long newGen = scopeMeta.readerGroups.get(key).getGeneration() + 1;
+        scopeMeta.readerGroups.replace(key, scopeMeta.readerGroups.get(key),
+                ReaderGroupConfig.cloneConfig(config, config.getReaderGroupId(), newGen));
+        return CompletableFuture.completedFuture(newGen);
+    }
+
+    @Override
+    public CompletableFuture<List<String>> listSubscribers(String scope, String streamName) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<Boolean> updateSubscriberStreamCut(String scope, String streamName, String subscriber,
+                                                                UUID readerGroupId, long generation, StreamCut streamCut) {
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
@@ -406,7 +477,7 @@ public class MockController implements Controller {
 
     private StreamSegments getCurrentSegments(Stream stream) {
         if (isStreamSealed(stream)) {
-            return new StreamSegments(new TreeMap<>(), "");
+            return new StreamSegments(new TreeMap<>());
         } else {
             List<Segment> segmentsInStream = getSegmentsForStream(stream);
             TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
@@ -414,7 +485,7 @@ public class MockController implements Controller {
                 SegmentWithRange s = createRange(stream.getScope(), stream.getStreamName(), segmentsInStream.size(), i);
                 segments.put(s.getRange().getHigh(), s);
             }
-            return new StreamSegments(segments, "");
+            return new StreamSegments(segments);
         }
     }
 
@@ -425,7 +496,7 @@ public class MockController implements Controller {
             SegmentWithRange s = createRange(kvt.getScope(), kvt.getKeyValueTableName(), segmentsInStream.size(), i);
             segments.put(s.getRange().getHigh(), s);
         }
-        return new KeyValueTableSegments(segments, "");
+        return new KeyValueTableSegments(segments);
     }
 
     @Synchronized
@@ -668,7 +739,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
+    public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName, AccessOperation accessOperation) {
         return CompletableFuture.completedFuture("");
     }
 

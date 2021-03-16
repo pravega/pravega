@@ -14,6 +14,7 @@ import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import lombok.Getter;
 
 import java.util.concurrent.Executor;
 
@@ -22,6 +23,7 @@ import java.util.concurrent.Executor;
  */
 public class NoOpStorageFactory implements StorageFactory {
     private final StorageExtraConfig config;
+    @Getter
     private final Executor executor;
     private final StorageFactory systemStorageFactory;
     private final StorageFactory userStorageFactory;

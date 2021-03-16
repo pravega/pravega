@@ -13,13 +13,13 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.common.util.SequencedItemList;
+import io.pravega.segmentstore.contracts.SequencedElement;
 import lombok.RequiredArgsConstructor;
 
 /**
  * Base class for a Log Operation.
  */
-public abstract class Operation implements SequencedItemList.Element {
+public abstract class Operation implements SequencedElement {
     //region Members
 
     public static final long NO_SEQUENCE_NUMBER = Long.MIN_VALUE;
@@ -72,6 +72,15 @@ public abstract class Operation implements SequencedItemList.Element {
         Exceptions.checkArgument(value >= 0, "value", "Sequence Number must be a non-negative number.");
 
         this.sequenceNumber = value;
+    }
+
+    /**
+     * Gets a value indicating the type of this operation.
+     *
+     * @return The {@link OperationType}.
+     */
+    public OperationType getType() {
+        return OperationType.Normal;
     }
 
     @Override

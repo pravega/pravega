@@ -23,6 +23,7 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -263,13 +264,35 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
+    public long trimCache() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkState(isRecoveryMode(), "trimCache can only be invoked in recovery mode.");
+
+        List<StreamSegmentReadIndex> indices;
+        synchronized (this.lock) {
+            indices = new ArrayList<>(this.readIndices.values());
+        }
+
+        long totalTrimmedBytes = 0;
+        for (StreamSegmentReadIndex index : indices) {
+            totalTrimmedBytes += index.trimCache();
+        }
+
+        if (totalTrimmedBytes > 0) {
+            log.info("{}: Trimmed {} bytes.", this.traceObjectId, totalTrimmedBytes);
+        }
+
+        return totalTrimmedBytes;
+    }
+
+    @Override
     public void enterRecoveryMode(ContainerMetadata recoveryMetadataSource) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(!isRecoveryMode(), "Read Index is already in recovery mode.");
         Preconditions.checkNotNull(recoveryMetadataSource, "recoveryMetadataSource");
         Preconditions.checkArgument(recoveryMetadataSource.isRecoveryMode(), "Given ContainerMetadata is not in recovery mode.");
 
-        // Swap metadata with recovery metadata (but still keep track of recovery metadata.
+        // Swap metadata with recovery metadata (but still keep track of recovery metadata).
         synchronized (this.lock) {
             Preconditions.checkArgument(this.metadata.getContainerId() == recoveryMetadataSource.getContainerId(),
                     "Given ContainerMetadata refers to a different container than this ReadIndex.");
@@ -338,7 +361,7 @@ public class ContainerReadIndex implements ReadIndex {
      * @param streamSegmentId The Id of the StreamSegment whose ReadIndex to get.
      */
     @VisibleForTesting
-    StreamSegmentReadIndex getIndex(long streamSegmentId) {
+    public StreamSegmentReadIndex getIndex(long streamSegmentId) {
         synchronized (this.lock) {
             return this.readIndices.getOrDefault(streamSegmentId, null);
         }
@@ -373,13 +396,19 @@ public class ContainerReadIndex implements ReadIndex {
                     throw new StreamSegmentNotExistsException(segmentMetadata.getName());
                 }
 
-                index = new StreamSegmentReadIndex(this.config, segmentMetadata, this.cacheManager.getCacheStorage(), this.storage, this.executor, isRecoveryMode());
+                index = createSegmentIndex(this.config, segmentMetadata, this.cacheManager.getCacheStorage(), this.storage, this.executor, isRecoveryMode());
                 this.cacheManager.register(index);
                 this.readIndices.put(streamSegmentId, index);
             }
         }
 
         return index;
+    }
+
+    @VisibleForTesting
+    StreamSegmentReadIndex createSegmentIndex(ReadIndexConfig config, SegmentMetadata metadata, CacheStorage cacheStorage,
+                                              ReadOnlyStorage storage, ScheduledExecutorService executor, boolean recoveryMode) {
+        return new StreamSegmentReadIndex(config, metadata, cacheStorage, storage, executor, recoveryMode);
     }
 
     @GuardedBy("lock")
