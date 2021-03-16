@@ -289,4 +289,24 @@ DBLedger[[2]](https://blog.pravega.io/2021/03/10/when-speed-meets-parallelism-pr
 
 ## Right-Sizing Long-Term Storage
 
+Pravega's design enables users to store stream data virtually without bounds. However, in practical terms, we need
+to understand what will be the storage capacity required in Long-Term Storage, either to provision such a system or
+to estimate storage costs. Even more, users may have a legacy Long-Term Storage and want to devote part of its
+capacity to store Pravega streams. In either case, we need guidelines to estimate the Long-Term Storage space 
+requirements for Pravega[[3]](https://github.com/pravega/pravega/issues/4503 ).    
+
+There are two ways to reduce the amount of data stored in a Pravega Stream: deleting or truncating the Stream. 
+In this guide, we focus on Stream truncation, and more concretely, on how to provision Long-Term Storage capacity
+when Stream truncation is performed automatically in Pravega via 
+[_Stream auto-retention_][http://pravega.io/docs/latest/pravega-concepts/#stream-retention-policies]. In this regard,
+the main configuration parameters involved are:
+
+- **`controller.retention.frequency.minutes`**:
+- **`controller.retention.bucket.count`**:
+- **`controller.retention.thread.count`**:
+ 
+We can enforce two types of auto-retention policies on our Streams: _time-based_ and _size-based_. There is also
+a new [consumption-based retention model](https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Consumption-Based-Retention), 
+but it can be combined with the previous policies as well. 
+
 
