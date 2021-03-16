@@ -102,7 +102,7 @@ jobs:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
           key: ${{github.run_id}}-${{github.job}}
       - name: Unit tests
-        run: ./gradlew common:test client:test ${{env.GRADLE_OPTS}}
+        run: ./gradlew client:test common:test testcommon:test ${{env.GRADLE_OPTS}}
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
@@ -133,7 +133,7 @@ jobs:
         uses: codecov/codecov-action@v1.0.15
 
   unit_segment_store:
-    name: Segment Store Unit Tests
+    name: Segment Store Service Unit Tests
     needs: build
     runs-on: ubuntu-20.04
     steps:
@@ -158,6 +158,35 @@ jobs:
           ./gradlew
           segmentstore:server:test
           segmentstore:server:host:test
+          bindings:test
+          --parallel ${{env.GRADLE_OPTS}}
+      - name: Codecov
+        uses: codecov/codecov-action@v1.0.15
+
+  unit_storeage:
+    name: Storage Unit Tests
+    needs: build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Gradle & Maven Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+      - name: Build Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.run_id}}
+      - name: Test Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
+          key: ${{github.run_id}}-${{github.job}}
+      - name: Segment Store Unit tests
+        run: >
+          ./gradlew
           segmentstore:storage:test
           segmentstore:storage:impl:test
           bindings:test
@@ -189,8 +218,9 @@ jobs:
       - name: Unit tests
         run: >
           ./gradlew test
-          -x common:test
           -x client:test
+          -x common:test
+          -x testcommon:test
           -x controller:test
           -x test:integration:test
           -x bindings:test
