@@ -56,7 +56,7 @@ import static org.mockito.Mockito.mock;
 public class CheckpointTest {
 
     private static final long CLOCK_ADVANCE_INTERVAL = 60 * 1000000000L;
-    private static ServiceBuilder SERVICE_BUILDER = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+    private static final ServiceBuilder SERVICE_BUILDER = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
 
     @BeforeClass
     public static void setup() throws Exception {

@@ -70,7 +70,7 @@ public class FuturesTests extends ThreadPooledTestSuite {
     }
     
     @Test
-    public void testGetAndHandleException() throws RuntimeException, TimeoutException {
+    public void testGetAndHandleException() throws TimeoutException {
         CompletableFuture<String> future = new CompletableFuture<String>();
         future.complete("success");
         assertEquals("success", getAndHandleExceptions(future, RuntimeException::new));
