@@ -187,10 +187,22 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      * @return A CompletableFuture that, when complete, will indicate that the read has been performed in its entirety.
      */
     private CompletableFuture<Queue<Operation>> readData(Void ignored) {
+        val lastRead = this.state.getLastRead();
+        if (lastRead != null && !lastRead.isEmpty()) {
+            // This happens if, during a previous iteration, we had an unexpected error preventing processReadResult from
+            // execution to completion (i.e., SegmentAggregator.initialize() failed). In that case, it is imperative that
+            // we do not miss out on operations, otherwise that can translate to either a blocking error (no progress can
+            // be made) or a data loss.
+            log.info("{}: Iteration[{}] Not performing a new read because there are still {} items unprocessed from the previous iteration.",
+                    this.traceObjectId, this.state.getIterationId(), lastRead.size());
+            return CompletableFuture.completedFuture(lastRead);
+        }
+
         try {
             Duration readTimeout = getReadTimeout();
             return this.dataSource
                     .read(this.config.getMaxItemsToReadAtOnce(), readTimeout)
+                    .thenApply(this.state::setLastRead)
                     .exceptionally(ex -> {
                         ex = Exceptions.unwrap(ex);
                         if (ex instanceof TimeoutException) {
@@ -233,16 +245,24 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         return Futures.loop(
                 () -> canRun() && !readResult.isEmpty(),
                 () -> {
-                    Operation op = readResult.poll();
+                    // Peek, but do not remove, the first operation. We want to ensure that we have properly processed it
+                    // so that we don't lose track of it.
+                    Operation op = readResult.peek();
                     return processOperation(op).thenRun(() -> {
                         // We have now internalized all operations from this batch; and even if subsequent operations in this iteration
                         // fail, we no longer need to re-read these operations, so update the state with the last read SeqNo.
                         this.state.setLastReadSequenceNumber(op.getSequenceNumber());
+                        readResult.poll(); // Actually remove the operation now.
                         result.operationProcessed(op);
                     });
                 },
                 this.executor)
-                .thenRun(() -> logStageEvent("InputRead", result));
+                .thenRun(() -> {
+                    // Clear the last read result from the state before exiting.
+                    Preconditions.checkState(readResult.isEmpty(), "processReadResult exited normally but there are still {} items to process.", readResult.size());
+                    this.state.setLastRead(null);
+                    logStageEvent("InputRead", result);
+                });
     }
 
     private CompletableFuture<Void> processOperation(Operation op) {
@@ -282,7 +302,12 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                     try {
                         aggregator.add(op);
                     } catch (DataCorruptionException ex) {
+                        // Re-throw.
                         throw new CompletionException(ex);
+                    } catch (Exception ex) {
+                        // If we get any exception while processing this, then we will likely get it every time we attempt
+                        // to do it again. Best if we bail out and attempt a recovery in this case.
+                        throw new CompletionException(new DataCorruptionException("Unable to process operation " + op, ex));
                     }
                 });
     }
