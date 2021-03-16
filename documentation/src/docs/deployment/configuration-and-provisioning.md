@@ -176,9 +176,10 @@ for longer, but at the expense of memory. The Segment Store uses a Direct Memory
 if XX:MaxDirectMemorySize is not set to a value higher than this one, the process will# eventually crash with an 
 OutOfMemoryError.
 
-- **`-Xmx`** (JVM SETTING): Defines the maximum heap memory size for the JVM. 
+- **`-Xmx`** (SEGMENT STORE JVM SETTING): Defines the maximum heap memory size for the JVM. 
 
-- **`-XX:MaxDirectMemorySize`** (JVM SETTING): Defines the maximum amount of direct memory for the JVMXX
+- **`-XX:MaxDirectMemorySize`** (SEGMENT STORE JVM SETTING): Defines the maximum amount of direct memory for the JVM.
+
 When configuring the memory settings for the Segment Store, we need to take into account three points: the host
 machine available memory, the Segment Store heap memory, and the Segment Store direct memory usage. The diagram
 below illustrates these elements:
@@ -194,12 +195,12 @@ be fully aware of it to define the rest of memory settings.
 Segment Store process may create a significant amount of objects under small event workloads, so we need to ensure that
 there is enough heap memory to do not induce constant GC activity.
 
--_JVM Direct Memory (`-XX:MaxDirectMemorySize`): In general, we should provision the Segment Store with more direct 
+- _JVM Direct Memory (`-XX:MaxDirectMemorySize`)_: In general, we should provision the Segment Store with more direct 
 memory than Heap memory. The reason is that the Segment Store read cache, Netty and the Bookkeeper client make a
 significant use of direct memory as a result of an IO workload. As a rule of thumb, we should reserve at least 1GB or 
 2GB for Netty and Bookkeeper client in the Segment Store, and assign the rest of direct memory to the read cache.
 
-- Segment Store read cache size (`pravegaservice.cache.size.max`): As mentioned before, all the available direct memory
+- _Segment Store read cache size (`pravegaservice.cache.size.max`)_: As mentioned before, all the available direct memory
 (`-XX:MaxDirectMemorySize`) not used by Netty/Bookkeeper client should be contributed to the read cache. A larger 
 read cache improves performance for read workloads, especially if we consider mixed read patterns.
 
@@ -215,8 +216,70 @@ pods with 16GB of memory defined as a limit. In this case, a valid configuration
 developed a [provisioner tool for Pravega](https://github.com/pravega/pravega-tools/tree/master/pravega-provisioner) 
 to help you reason about these aspects.
 
+## Durable Log Configuration: Apache Bookkeeper
 
-## Durable Log Configuration: Bookkeeper
+Pravega guarantees that every acknowledged written event is durably stored and replicated. This is possible 
+thanks to the durable log abstraction that the Segment Store offers, which relies on Apache Bookkeeper.
+Therefore, the configuration of both the Bookkeeper client at the Segment Store and the configuration of 
+Apache Bookkeeper service itself are critical for a production cluster. Note that we do not attempt to fully cover 
+the configuration of Bookkeeper ([available here](https://bookkeeper.apache.org/docs/latest/reference/config/)). Instead, 
+we focus on the parameters that we have found important to properly configure in our practical experience:
+
+- **`bookkeeper.ensemble.size`**: Ensemble size for BookKeeper ledgers. This value need not be the same for all 
+Pravega SegmentStore instances in this cluster, but it highly recommended for consistency. 
+
+- **`bookkeeper.ack.quorum.size`**: Write Ack Quorum size for BookKeeper ledgers. This value need not be the same 
+for all Pravega SegmentStore instances in this cluster, but it highly recommended for consistency.
+
+- **`bookkeeper.write.quorum.size`**: Write Quorum size for BookKeeper ledgers. This value need not be the same for all 
+Pravega SegmentStore instances in this cluster, but it highly recommended for consistency.
+
+- **`ledgerStorageClass`** (BOOKKEEPER SETTING):
+
+- **`-Xmx`** (BOOKKEEPER JVM SETTING): Defines the maximum heap memory size for the JVM. 
+
+- **`-XX:MaxDirectMemorySize`** (BOOKKEEPER JVM SETTING): Defines the maximum amount of direct memory for the JVM.
+
+First, let's focus on the configuration of the _Bookkeeper client in the Segment Store_. The parameters
+`bookkeeper.write.quorum.size` and `bookkeeper.ack.quorum.size` determine the 
+[level of durability](https://bookkeeper.apache.org/docs/latest/development/protocol/) (i.e., replicas) 
+for data stored in the durable log until it is moved to long-term storage. For context, these parameters dictate
+the upper (`bookkeeper.write.quorum.size`) and lower (`bookkeeper.ack.quorum.size`) bounds of the degree of replication
+for your data in Bookkeeper. While the Bookkeeper client will attempt to write `bookkeeper.ack.quorum.size` copies
+of each write, it will only write for `bookkeeper.ack.quorum.size` acknowledgements to proceed with the next write.
+Therefore, it only guarantees that each and every write has at least `bookkeeper.ack.quorum.size` replicas, despite
+many of them can have up to `bookkeeper.write.quorum.size` replicas. This is important to consider when reasoning 
+about the expected number of replicas of our data. But there is another important aspect to consider when setting
+these parameters: _stability_. Bookkeeper servers perform various background tasks, including ledger re-replication,
+auditing and garbage collection cycles. If our Pravega Cluster is under heavy load and Bookkeeper servers are close
+to saturation, it may be the case that one Bookeeper server processes requests at a lower rate than others while
+the mentioned background tasks are running. In this case, setting `bookkeeper.ack.quorum.size < bookkeeper.write.quorum.size` 
+may lead to overload the slowest Bookkeeper server, as the client does not wait for its acknowledgements to continue writing data.
+For this reason, in a production cluster we recommend to configuring:
+- `bookkeeper.ack.quorum.size` = `bookkeeper.write.quorum.size` = 3: We define the number of acknowledgements equal
+to the write quorum, which leads the Bookkeeper client to wait for all Bookkeeper servers to confirm every write.
+This decision trades-off some write latency penalty in exchange of stability, which is reasonable in a production
+environment. Also, we recommend setting 3 replicas as it is the de-facto standard to guarantee durability.
+
+Another relevant configuration parameter in the Bookkeeper client is `bookkeeper.ensemble.size`, as it
+determines the failure tolerance for Bookkeeper servers. That is, if we instantiate `N` Bookkeeper servers in
+our Pravega Cluster, the Segment Store will be able to continue writing even if `N - bookkeeper.ensemble.size`
+Bookkeeper servers fail. In other words, as long as there are `bookkeeper.ensemble.size` Bookkeeper servers
+available, Pravega will be able to accept writes from applications. To this end, to maximize failure tolerance,
+we suggest to keep `bookkeeper.ensemble.size` at the minimum value possible:
+- `bookkeeper.ensemble.size` = `bookkeeper.ack.quorum.size` = `bookkeeper.write.quorum.size` = 3. This configuration
+ensures 3-way replication per write, prevents overloading a slow Bookkeeper server, and tolerates the highest
+number of Bookkeeper server failures.
+
+While there are many aspects to consider in the configuration of Bookkeeper, we highlight the following ones:
+
+- _Bookkeeper memory_: In production, we recommend at least 4GB of JVM Heap memory (`-Xmx=4g`) and 4GB of JVM Direct
+Memory (`-XX:MaxDirectMemorySize=4g`) for Bookkeeper servers. Direct memory is especially important, as Netty 
+(internally used by Bookkeeper) may need a significant amount of memory to allocate buffers.
+
+- _Ledger storage implementation_: Bookkeeper 
+
+ 
 
 
 ## Right-Sizing Long-Term Storage
