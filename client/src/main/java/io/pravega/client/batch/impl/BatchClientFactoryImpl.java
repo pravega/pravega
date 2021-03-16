@@ -78,13 +78,17 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     }
 
     @Override
-    public StreamCut firstStreamCut(Segment segment) {
-        return streamCutHelper.fetchFirstStreamCut(segment);
-    }
+    public SegmentRange currentSegmentRange(final Segment segment) {
+        final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
+                .create(controller, segment.getStream().getScope(), segment.getStream().getStreamName(), AccessOperation.READ);
 
-    @Override
-    public StreamCut lastStreamCut(Segment segment) {
-        return streamCutHelper.fetchLastStreamCut(segment);
+        SegmentInfo segmentInfo = segmentToInfo(segment, tokenProvider);
+
+        return SegmentRangeImpl.builder()
+                .segment(segment)
+                .startOffset(segmentInfo.getStartingOffset())
+                .endOffset(segmentInfo.getWriteOffset())
+                .build();
     }
 
     private StreamSegmentsIterator listSegments(final Stream stream, final Optional<StreamCut> startStreamCut,

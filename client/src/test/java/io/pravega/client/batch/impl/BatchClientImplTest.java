@@ -141,6 +141,27 @@ public class BatchClientImplTest {
         assertFalse(segmentIterator.hasNext());
     }
 
+    @Test(timeout = 5000)
+    public void testGetCurrentSegment() throws Exception {
+
+        PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
+        MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory, false);
+        Stream stream = createStream(SCOPE, STREAM, 1, mockController);
+        @Cleanup
+        BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, ClientConfig.builder().build(), connectionFactory);
+
+        Iterator<SegmentRange> segmentIterator = client.getSegments(stream, null, null).getIterator();
+        assertTrue(segmentIterator.hasNext());
+
+        SegmentRange expectedSegmentRange = segmentIterator.next();
+        assertFalse(segmentIterator.hasNext());
+
+        SegmentRange currentSegmentRange = client.currentSegmentRange(expectedSegmentRange.asImpl().getSegment());
+        assertEquals(expectedSegmentRange, currentSegmentRange);
+    }
+
     private Stream createStream(String scope, String streamName, int numSegments, MockController mockController) {
         Stream stream = new StreamImpl(scope, streamName);
         mockController.createScope(scope);

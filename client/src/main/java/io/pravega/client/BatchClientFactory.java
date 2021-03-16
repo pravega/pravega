@@ -82,20 +82,12 @@ public interface BatchClientFactory extends AutoCloseable {
     <T> SegmentIterator<T> readSegment(SegmentRange segment, Serializer<T> deserializer);
 
     /**
-     * Return first offset for a given {@link Segment}.
+     * Return {@link SegmentRange} with lowest and highest offset for the given {@link Segment}.
      *
      * @param segment The {@link Segment}
-     * @return {@link StreamCut} pointing to the starting offset of the {@link Segment}.
+     * @return {@link SegmentRange} representing the entire {@link Segment}.
      */
-    StreamCut firstStreamCut(Segment segment);
-
-    /**
-     * Return last offset for a given {@link Segment}.
-     *
-     * @param segment The {@link Segment}
-     * @return {@link StreamCut} pointing to the last offset of the {@link Segment}.
-     */
-    StreamCut lastStreamCut(Segment segment);
+    SegmentRange currentSegmentRange(Segment segment);
 
     /**
      * Closes the client factory. This will close any connections created through it.
