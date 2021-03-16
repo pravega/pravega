@@ -234,11 +234,11 @@ for all Pravega SegmentStore instances in this cluster, but it highly recommende
 - **`bookkeeper.write.quorum.size`**: Write Quorum size for BookKeeper ledgers. This value need not be the same for all 
 Pravega SegmentStore instances in this cluster, but it highly recommended for consistency.
 
-- **`ledgerStorageClass`** (BOOKKEEPER SETTING):
-
 - **`-Xmx`** (BOOKKEEPER JVM SETTING): Defines the maximum heap memory size for the JVM. 
 
 - **`-XX:MaxDirectMemorySize`** (BOOKKEEPER JVM SETTING): Defines the maximum amount of direct memory for the JVM.
+
+- **`ledgerStorageClass`** (BOOKKEEPER SETTING): Ledger storage implementation class.
 
 First, let's focus on the configuration of the _Bookkeeper client in the Segment Store_. The parameters
 `bookkeeper.write.quorum.size` and `bookkeeper.ack.quorum.size` determine the 
@@ -252,7 +252,7 @@ many of them can have up to `bookkeeper.write.quorum.size` replicas. This is imp
 about the expected number of replicas of our data. But there is another important aspect to consider when setting
 these parameters: _stability_. Bookkeeper servers perform various background tasks, including ledger re-replication,
 auditing and garbage collection cycles. If our Pravega Cluster is under heavy load and Bookkeeper servers are close
-to saturation, it may be the case that one Bookeeper server processes requests at a lower rate than others while
+to saturation, it may be the case that one Bookkeeper server processes requests at a lower rate than others while
 the mentioned background tasks are running. In this case, setting `bookkeeper.ack.quorum.size < bookkeeper.write.quorum.size` 
 may lead to overload the slowest Bookkeeper server, as the client does not wait for its acknowledgements to continue writing data.
 For this reason, in a production cluster we recommend to configuring:
@@ -277,9 +277,14 @@ While there are many aspects to consider in the configuration of Bookkeeper, we 
 Memory (`-XX:MaxDirectMemorySize=4g`) for Bookkeeper servers. Direct memory is especially important, as Netty 
 (internally used by Bookkeeper) may need a significant amount of memory to allocate buffers.
 
-- _Ledger storage implementation_: Bookkeeper 
-
- 
+- _Ledger storage implementation_: Bookkeeper offers different implementations to store ledgers' data. In Pravega,
+we recommend using the simplest ledger storage implementation: the Interleaved Ledger Storage
+(`ledgerStorageClass=org.apache.bookkeeper.bookie.InterleavedLedgerStorage`). There are two main reasons that
+justify this decisions: i) Pravega does not read from Bookkeeper in normal conditions, just upon a Segment
+Containerrecovery. This means that Pravega does not need any extra complexity associated to optimize ledger
+reads in Bookkeeper. ii) We have observed a lower resource usage and better stability in Bookkeeper when 
+using Interleaved Ledger Storage compared to 
+DBLedger[[2]](https://blog.pravega.io/2021/03/10/when-speed-meets-parallelism-pravega-performance-under-parallel-streaming-workloads/).
 
 
 ## Right-Sizing Long-Term Storage
