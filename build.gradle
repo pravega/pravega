@@ -1047,6 +1047,7 @@ project('test:system') {
             systemProperty "dockerRegistryUrl", System.getProperty("dockerRegistryUrl") + "/"
         }
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation", "false")
+        systemProperty "skipLogDownload", System.getProperty("skipLogDownload", "false")
         systemProperty "imagePrefix", System.getProperty("imagePrefix", "pravega")  // the default value of imagePrefix is pravega.
         systemProperty "pravegaImageName", System.getProperty("pravegaImageName", "pravega") // pravega image name
         systemProperty "bookkeeperImageName", System.getProperty("bookkeeperImageName", "bookkeeper") // bookkeeper image name
