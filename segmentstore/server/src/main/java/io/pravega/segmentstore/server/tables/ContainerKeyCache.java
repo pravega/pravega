@@ -87,7 +87,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     }
 
     @Override
-    public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
+    public boolean updateGenerations(int currentGeneration, int oldestGeneration, boolean essentialOnly) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         // Instruct each Segment Cache to perform its own cache management, collect eviction candidates, and remove them
@@ -96,6 +96,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         synchronized (this.segmentCaches) {
             this.currentCacheGeneration = currentGeneration;
             for (SegmentKeyCache segmentCache : this.segmentCaches.values()) {
+                segmentCache.setEssentialCacheOnly(essentialOnly);
                 evictions.addAll(segmentCache.evictBefore(oldestGeneration));
             }
         }

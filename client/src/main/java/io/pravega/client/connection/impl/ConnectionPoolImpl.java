@@ -35,6 +35,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.metrics.ClientMetricUpdater;
 import io.pravega.shared.metrics.MetricListener;
 import io.pravega.shared.metrics.MetricNotifier;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import lombok.Data;
@@ -142,6 +143,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
         CompletableFuture<FlowHandler> handler = establishConnection(location);
         Connection connection = new Connection(location, handler);
         return connection.getFlowHandler().thenApply(h -> h.createConnectionWithFlowDisabled(rp));
+    }
+
+    @Override
+    public void getClientConnection(Flow flow, PravegaNodeUri location, ReplyProcessor rp, CompletableFuture<ClientConnection> connection) {
+        getClientConnection(flow, location, rp).thenApply(connection::complete).exceptionally( e -> connection.completeExceptionally(new ConnectionFailedException(e)));
     }
 
     private static boolean isUnused(Connection connection) {
