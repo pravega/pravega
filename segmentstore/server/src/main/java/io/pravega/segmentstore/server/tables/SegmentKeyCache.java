@@ -475,6 +475,9 @@ class SegmentKeyCache {
             } catch (CacheEntryEvictedException cex) {
                 // Pass-through exception. If this is the case, the entry has already been evicted so not more we can do.
                 throw cex;
+            } catch (CacheDisabledException cex) {
+                log.debug("SegmentKeyCache[{}]: Not updating cache for {} due to non-essential cache entries disabled.", segmentId, this);
+                return false;
             } catch (Throwable ex) {
                 // There is nothing we can do here. Invoke the general handler to remove this from the cache.
                 log.warn("SegmentKeyCache[{}]: Cache Entry update failed for {}.", segmentId, this, ex);
