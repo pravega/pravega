@@ -210,6 +210,7 @@ public class SystemJournal {
      * @throws InterruptedException Exception in case of any error.
      */
     public void commitRecord(SystemJournalRecord record) throws ChunkStorageException, ExecutionException, InterruptedException {
+        Preconditions.checkArgument(null != record, "record must not be null");
         commitRecords(Collections.singletonList(record));
     }
 
@@ -222,8 +223,8 @@ public class SystemJournal {
      * @throws InterruptedException Exception in case of any error.
      */
     public void commitRecords(Collection<SystemJournalRecord> records) throws ChunkStorageException, ExecutionException, InterruptedException {
-        Preconditions.checkState(null != records);
-        Preconditions.checkState(records.size() > 0);
+        Preconditions.checkArgument(null != records, "records must not be null");
+        Preconditions.checkArgument(records.size() > 0, "records must not be empty");
 
         SystemJournalRecordBatch batch = SystemJournalRecordBatch.builder().systemJournalRecords(records).build();
         ByteArraySegment bytes;
@@ -411,12 +412,12 @@ public class SystemJournal {
                 long length = chunkInfo.getLength();
 
                 ChunkMetadata lastChunk = (ChunkMetadata) txn.get(segmentMetadata.getLastChunk()).get();
-                Preconditions.checkState(null != lastChunk);
+                Preconditions.checkState(null != lastChunk, "lastChunk must not be null. Segment=%s", segmentMetadata);
                 lastChunk.setLength(length);
                 txn.update(lastChunk);
                 segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + length);
             }
-            Preconditions.checkState(segmentMetadata.isOwnershipChanged());
+            Preconditions.checkState(segmentMetadata.isOwnershipChanged(), "ownershipChanged must be true. Segment=%s", segmentMetadata);
             segmentMetadata.checkInvariants();
             txn.update(segmentMetadata);
         }
@@ -439,8 +440,8 @@ public class SystemJournal {
      * Apply chunk addition.
      */
     private void applyChunkAddition(MetadataTransaction txn, HashMap<String, Long> chunkStartOffsets, String segmentName, String oldChunkName, String newChunkName, long offset) throws Exception {
-        Preconditions.checkState(null != oldChunkName);
-        Preconditions.checkState(null != newChunkName && !newChunkName.isEmpty());
+        Preconditions.checkState(null != oldChunkName, "oldChunkName must not be null");
+        Preconditions.checkState(null != newChunkName && !newChunkName.isEmpty(), "newChunkName must not be null or empty");
 
         SegmentMetadata segmentMetadata = (SegmentMetadata) txn.get(segmentName).get();
         segmentMetadata.checkInvariants();
@@ -459,7 +460,7 @@ public class SystemJournal {
         // Set first and last pointers.
         if (!oldChunkName.isEmpty()) {
             ChunkMetadata oldChunk = (ChunkMetadata) txn.get(oldChunkName).get();
-            Preconditions.checkState(null != oldChunk);
+            Preconditions.checkState(null != oldChunk, "oldChunk must not be null. oldChunkName=%s", oldChunkName);
 
             // In case the old segment store was still writing some zombie chunks when ownership changed
             // then new offset may invalidate tail part of chunk list.
@@ -522,7 +523,7 @@ public class SystemJournal {
             txn.delete(currentMetadata.getName());
             segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() - 1);
         }
-        Preconditions.checkState(firstChunkStartsAt == startOffset);
+        Preconditions.checkState(firstChunkStartsAt == startOffset, "firstChunkStartsAt (%s) must be equal to startOffset (%s)", firstChunkStartsAt, startOffset);
         segmentMetadata.setFirstChunk(currentChunkName);
         if (null == currentChunkName) {
             segmentMetadata.setLastChunk(null);
@@ -570,8 +571,9 @@ public class SystemJournal {
             }
 
             // Validate
-            Preconditions.checkState(chunkCount == segmentMetadata.getChunkCount(), "Wrong chunk count.");
-            Preconditions.checkState(dataSize == segmentMetadata.getLength() - segmentMetadata.getFirstChunkStartOffset(), "Data size does not match dataSize.");
+            Preconditions.checkState(chunkCount == segmentMetadata.getChunkCount(), "Wrong chunk count. Segment=%s", segmentMetadata);
+            Preconditions.checkState(dataSize == segmentMetadata.getLength() - segmentMetadata.getFirstChunkStartOffset(),
+                    "Data size does not match dataSize (%s). Segment=%s", dataSize, segmentMetadata);
 
             // Add to the system snapshot.
             systemSnapshot.segmentSnapshotRecords.add(segmentSnapshot);
@@ -610,7 +612,7 @@ public class SystemJournal {
             systemJournalOffset += bytes.getLength();
             newChunkRequired = false;
         } else {
-            Preconditions.checkState(chunkStorage.supportsAppend() && config.isAppendEnabled());
+            Preconditions.checkState(chunkStorage.supportsAppend() && config.isAppendEnabled(), "Append mode not enabled or chunk storage does not support appends.");
             val bytesWritten = chunkStorage.write(currentHandle, systemJournalOffset, bytes.getLength(),
                     new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())).get();
             Preconditions.checkState(bytesWritten == bytes.getLength(),
@@ -622,7 +624,7 @@ public class SystemJournal {
     /**
      * Indicates whether given segment is a system segment.
      *
-     * @param segmentName Name of the sgement to check.
+     * @param segmentName Name of the segment to check.
      * @return True if given segment is a system segment.
      */
     public boolean isStorageSystemSegment(String segmentName) {

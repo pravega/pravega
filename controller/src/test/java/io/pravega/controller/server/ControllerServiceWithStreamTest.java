@@ -63,7 +63,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -366,8 +365,6 @@ public abstract class ControllerServiceWithStreamTest {
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
         Controller.CreateReaderGroupResponse rgStatus =  consumer.createReaderGroup(SCOPE, "rg1",

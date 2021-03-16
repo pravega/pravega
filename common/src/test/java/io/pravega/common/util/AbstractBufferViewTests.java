@@ -81,6 +81,7 @@ public class AbstractBufferViewTests {
         val e = BufferView.empty();
         Assert.assertSame("Expecting same instance.", e, BufferView.empty());
         Assert.assertEquals(0, e.getLength());
+        Assert.assertEquals(0, e.getAllocatedLength());
         Assert.assertEquals(0, e.getCopy().length);
         Assert.assertSame(e, e.slice(0, 0));
         AssertExtensions.assertThrows("", () -> e.slice(0, 1), ex -> ex instanceof IndexOutOfBoundsException);
