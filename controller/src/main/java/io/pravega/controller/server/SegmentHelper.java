@@ -634,19 +634,19 @@ public class SegmentHelper implements AutoCloseable {
     <T extends Request & WireCommand> void processAndRethrowException(long requestId, T request, Throwable e) {
         Throwable unwrap = Exceptions.unwrap(e);
         if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
-            log.warn(requestId, "Connection dropped");
+            log.warn(requestId, "Connection dropped.");
             throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
         } else if (unwrap instanceof AuthenticationException) {
-            log.warn(requestId, "Authentication Exception");
+            log.warn(requestId, "Authentication Exception.");
             throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
         } else if (unwrap instanceof TokenExpiredException) {
-            log.warn(requestId, "Token expired");
+            log.warn(requestId, "Token expired.");
             throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
         } else if (unwrap instanceof TimeoutException) {
             log.warn(requestId, "Request timed out.");
             throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
         } else {
-            log.error(requestId, "Request failed", e);
+            log.error(requestId, "Request failed.", e);
             throw new CompletionException(e);
         }
     }

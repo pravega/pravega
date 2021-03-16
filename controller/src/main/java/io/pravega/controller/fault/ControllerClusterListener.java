@@ -91,7 +91,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                         // This event should be due to ZK connection errors. If it is session lost error then
                         // ControllerServiceMain would handle it. Otherwise it is a fleeting error that can go
                         // away with retries, and hence we ignore it.
-                        log.warn("Received error event from controller host {}", host);
+                        log.info("Received error event from controller host {}", host);
                         break;
                 }
             }, executor);
@@ -104,7 +104,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                             .map(Host::getHostId)
                             .collect(Collectors.toSet());
                 } catch (ClusterException e) {
-                    log.error("Error fetching cluster members {}", e);
+                    log.warn("Error fetching cluster members {}", e);
                     throw new CompletionException(e);
                 }
             };
@@ -136,8 +136,7 @@ public class ControllerClusterListener extends AbstractIdleService {
     private CompletableFuture<Void> sweepAll(Supplier<Set<String>> processes) {
         return Futures.allOf(sweepers.stream().map(sweeper -> RetryHelper.withIndefiniteRetriesAsync(() -> {
             if (!sweeper.isReady()) {
-                log.trace("sweeper not ready, retrying with exponential backoff");
-                throw new RuntimeException(String.format("sweeper %s not ready", sweeper.getClass()));
+                throw new RuntimeException(String.format("sweeper %s not ready, retrying with exponential backoff.", sweeper.getClass()));
             }
             return sweeper.sweepFailedProcesses(processes);
         }, e -> log.warn(e.getMessage()), executor)).collect(Collectors.toList()));
