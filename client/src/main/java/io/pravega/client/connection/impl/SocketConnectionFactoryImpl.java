@@ -68,7 +68,7 @@ public class SocketConnectionFactoryImpl implements ConnectionFactory {
         if (configuredThreads != null) {
             return Integer.parseInt(configuredThreads);
         }
-        return Runtime.getRuntime().availableProcessors();
+        return Math.max(2, Runtime.getRuntime().availableProcessors());
     }
 
     @Override
