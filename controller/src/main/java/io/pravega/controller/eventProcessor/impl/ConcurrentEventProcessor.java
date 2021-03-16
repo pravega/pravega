@@ -142,7 +142,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
             // note: Since stop was requested we will not do any processing on new event.
             // Event processor will pick the next event until it is eventually stopped. But we will keep ignoring them.
             // And since this class does its own checkpointing, so we are not updating our last checkpoint.
-            log.info("processing requested after processor is stopped");
+            log.warn("processing requested after processor is stopped.");
         }
     }
 
@@ -155,7 +155,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         }
 
         if (RetryableException.isRetryable(cause)) {
-            log.info("ConcurrentEventProcessor Processing failed, Retryable Exception {}. Putting the event back.", cause.getClass().getName());
+            log.warn("ConcurrentEventProcessor Processing failed, Retryable Exception {}. Putting the event back.", cause.getClass().getName());
 
             Writer<R> writer;
             if (internalWriter != null) {

@@ -240,8 +240,8 @@ public class StreamMetadataTasks extends TaskBase {
         return Futures.exceptionallyExpecting(streamMetadataStore.getState(scope, stream, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
                 .thenCompose(state -> {
-                    log.debug("CREATING RG Stream...{}", state.toString());
                     if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                        log.debug("Creating StateSynchronizer Stream {}", stream);
                         return createStreamRetryOnLockFailure(scope,
                                 stream,
                                 config,
@@ -440,7 +440,8 @@ public class StreamMetadataTasks extends TaskBase {
                     return Futures.failedFuture(new IllegalStateException(String.format("Error creating StateSynchronizer Stream for Reader Group %s: %s",
                             readerGroup, createStatus.toString())));
                 })).exceptionally(ex -> {
-            log.debug("RG Stream Create failed with error: " + ex.getMessage());
+            log.warn("Error creating StateSynchronizer Stream:{} for Reader Group: {}. Exception: {} ",
+                    NameUtils.getStreamForReaderGroup(readerGroup), readerGroup, ex.getMessage());
             Throwable cause = Exceptions.unwrap(ex);
             throw new CompletionException(cause);
         });
@@ -456,7 +457,6 @@ public class StreamMetadataTasks extends TaskBase {
         try {
             NameUtils.validateReaderGroupName(rgName);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Create ReaderGroup failed due to invalid name {}", rgName);
             return CompletableFuture.completedFuture(CreateReaderGroupResponse.newBuilder()
                     .setStatus(CreateReaderGroupResponse.Status.INVALID_RG_NAME).build());
         }
@@ -557,7 +557,7 @@ public class StreamMetadataTasks extends TaskBase {
                                           }))));
                              });
                         } else {
-                          log.warn("Reader group update failed as another update is in progress.");
+                          log.error("Reader group update failed as another update was in progress.");
                             UpdateReaderGroupResponse response = UpdateReaderGroupResponse.newBuilder()
                                     .setStatus(UpdateReaderGroupResponse.Status.FAILURE)
                                     .setGeneration(config.getGeneration()).build();
@@ -720,7 +720,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(x -> eventHelper.checkDone(() -> isUpdated(scope, stream, newConfig, context))
                                         .thenApply(y -> UpdateStreamStatus.Status.SUCCESS)));
                     } else {
-                        log.warn(requestId, "Another update in progress for {}/{}",
+                        log.error(requestId, "Another update in progress for {}/{}",
                                 scope, stream);
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
                     }
