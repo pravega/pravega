@@ -28,6 +28,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -61,6 +62,8 @@ class SegmentKeyCache {
     @Getter
     private final long segmentId;
     private final CacheStorage cacheStorage;
+    @Setter
+    private volatile boolean essentialCacheOnly;
     @GuardedBy("this")
     private long lastIndexedOffset;
     @GuardedBy("this")
@@ -508,16 +511,27 @@ class SegmentKeyCache {
 
         @GuardedBy("this")
         private void storeInCache(ArrayView data) {
-            int newAddress;
             if (this.cacheAddress == EVICTED_ADDRESS) {
                 throw new CacheEntryEvictedException();
-            } else if (this.cacheAddress >= 0) {
-                newAddress = SegmentKeyCache.this.cacheStorage.replace(this.cacheAddress, data);
-            } else {
-                newAddress = SegmentKeyCache.this.cacheStorage.insert(data);
             }
 
-            this.cacheAddress = newAddress;
+            if (SegmentKeyCache.this.essentialCacheOnly) {
+                // All our entries are considered "non-essential" (they can all be regenerated from persisted data).
+                // If we shouldn't insert these, and if we need to update an existing one, we need to remove it so that
+                // we don't serve stale data to upstream code.
+                if (this.cacheAddress >= 0) {
+                    SegmentKeyCache.this.cacheStorage.delete(this.cacheAddress);
+                    this.cacheAddress = EVICTED_ADDRESS;
+                }
+
+                throw new CacheDisabledException(); // This is handled upstream.
+            }
+
+            if (this.cacheAddress >= 0) {
+                this.cacheAddress = SegmentKeyCache.this.cacheStorage.replace(this.cacheAddress, data);
+            } else {
+                this.cacheAddress = SegmentKeyCache.this.cacheStorage.insert(data);
+            }
         }
 
         /**
@@ -562,6 +576,12 @@ class SegmentKeyCache {
     private static class CacheEntryEvictedException extends IllegalStateException {
         CacheEntryEvictedException() {
             super("CacheEntry evicted.");
+        }
+    }
+
+    private static class CacheDisabledException extends IllegalStateException {
+        CacheDisabledException() {
+            super("Cache disabled for non-essential data.");
         }
     }
 
