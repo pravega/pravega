@@ -33,11 +33,13 @@ public final class SegmentMetadataComparer {
         String idPrefix = message + " SegmentId " + expected.getId();
         Assert.assertEquals(idPrefix + " getId() mismatch.", expected.getId(), actual.getId());
         Assert.assertEquals(idPrefix + " isDeleted() mismatch.", expected.isDeleted(), actual.isDeleted());
+        Assert.assertEquals(idPrefix + " isDeletedInStorage() mismatch.", expected.isDeletedInStorage(), actual.isDeletedInStorage());
         Assert.assertEquals(idPrefix + " getStorageLength() mismatch.", expected.getStorageLength(), actual.getStorageLength());
         Assert.assertEquals(idPrefix + " getStartOffset() mismatch.", expected.getStartOffset(), actual.getStartOffset());
         Assert.assertEquals(idPrefix + " getLength() mismatch.", expected.getLength(), actual.getLength());
         Assert.assertEquals(idPrefix + " getName() mismatch.", expected.getName(), actual.getName());
         Assert.assertEquals(idPrefix + " isSealed() mismatch.", expected.isSealed(), actual.isSealed());
+        Assert.assertEquals(idPrefix + " isSealedInStorage() mismatch.", expected.isSealedInStorage(), actual.isSealedInStorage());
         Assert.assertEquals(idPrefix + " isMerged() mismatch.", expected.isMerged(), actual.isMerged());
         assertSameAttributes(idPrefix + " getAttributes() mismatch:", expected.getAttributes(), actual);
         Assert.assertEquals(idPrefix + " isPinned() mismatch.", expected.isPinned(), actual.isPinned());
