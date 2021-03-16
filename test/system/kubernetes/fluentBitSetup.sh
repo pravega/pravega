@@ -284,8 +284,8 @@ orphans() {
                 epoch=\${previous%%,*}
                 name=\${previous#*,}
                 # Compress and redirect to file as if it was compressed by logrotate.
-                echo "Compressing \$name -> \$name.log-\$epoch.gz"
-                gzip -c \$name > "\$name.log-\$epoch.gz"
+                echo "Compressing \$name -> \$name-\$epoch.gz"
+                gzip -c \$name > "\$name-\$epoch.gz"
                 rm \$name
                 fi
             previous="\$current"
