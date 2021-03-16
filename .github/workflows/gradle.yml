@@ -163,7 +163,7 @@ jobs:
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
-  unit_storeage:
+  unit_storage:
     name: Storage Unit Tests
     needs: build
     runs-on: ubuntu-20.04
@@ -189,7 +189,6 @@ jobs:
           ./gradlew
           segmentstore:storage:test
           segmentstore:storage:impl:test
-          bindings:test
           --parallel ${{env.GRADLE_OPTS}}
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15

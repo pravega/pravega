@@ -88,13 +88,6 @@ allprojects {
         mavenLocal()
     }
 
-    gradle.projectsEvaluated {
-        tasks.withType(JavaCompile) {
-            sourceCompatibility = JavaVersion.VERSION_1_8
-            targetCompatibility = JavaVersion.VERSION_1_8
-            options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
-        }
-    }
     version = getProjectVersion()
     group = "io.pravega"
 

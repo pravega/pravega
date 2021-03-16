@@ -38,7 +38,6 @@ import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import lombok.Data;
-import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -189,7 +188,6 @@ public class ConnectionPoolImpl implements ConnectionPool {
     }
 
     @Override
-    @Synchronized
     public void close() {
         log.info("Shutting down connection pool");
         if (closed.compareAndSet(false, true)) {

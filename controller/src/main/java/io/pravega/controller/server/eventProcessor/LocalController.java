@@ -156,7 +156,7 @@ public class LocalController implements Controller {
             case FAILURE:
                 throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
             case INVALID_STREAM_NAME:
-                throw new IllegalArgumentException("Illegal stream name: " + streamConfig);
+                throw new IllegalArgumentException("Illegal stream name: " + streamName + " config: " + streamConfig);
             case SCOPE_NOT_FOUND:
                 throw new IllegalArgumentException("Scope does not exist: " + scope + " config: " + streamConfig);
             case STREAM_EXISTS:
