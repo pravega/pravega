@@ -30,6 +30,7 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.common.Exceptions;
 import io.pravega.client.control.impl.Controller;
 
 import java.time.Duration;
@@ -203,16 +204,22 @@ public class ControllerWrapper implements AutoCloseable {
     }
 
 
-    public boolean awaitTasksModuleInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
-        return this.controllerServiceMain.awaitServiceStarting().awaitTasksModuleInitialization(timeout, timeUnit);
+    public boolean awaitTasksModuleInitialization(long timeout, TimeUnit timeUnit) {
+        return Exceptions.handleInterruptedCall(() -> {
+            return this.controllerServiceMain.awaitServiceStarting().awaitTasksModuleInitialization(timeout, timeUnit);
+        });
     }
 
-    public ControllerService getControllerService() throws InterruptedException {
-        return this.controllerServiceMain.awaitServiceStarting().getControllerService();
+    public ControllerService getControllerService() {
+        return Exceptions.handleInterruptedCall(() -> {
+            return this.controllerServiceMain.awaitServiceStarting().getControllerService();
+        });
     }
 
-    public Controller getController() throws InterruptedException {
-        return this.controllerServiceMain.awaitServiceStarting().getController();
+    public Controller getController() {
+        return Exceptions.handleInterruptedCall(() -> {
+            return this.controllerServiceMain.awaitServiceStarting().getController();
+        });
     }
 
     public void awaitRunning() {

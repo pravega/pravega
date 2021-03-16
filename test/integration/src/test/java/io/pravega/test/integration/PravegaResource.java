@@ -75,10 +75,12 @@ public class PravegaResource extends ExternalResource {
                 controllerPort, serviceHost, servicePort, containerCount);
     }
 
+    @Override
     protected void before() throws Exception {
         controllerWrapper.awaitRunning();
     }
 
+    @Override
     @SneakyThrows
     protected void after() {
         if (controllerWrapper != null) {
@@ -95,7 +97,7 @@ public class PravegaResource extends ExternalResource {
         }
     }
 
-    public Controller getLocalController() throws InterruptedException {
+    public Controller getLocalController() {
         return controllerWrapper.getController();
     }
 
