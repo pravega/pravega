@@ -84,6 +84,18 @@ public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
 
     @Test
     @Override
+    public void consumptionBasedRetentionSizeLimitWithOverlappingMinTest() {
+        // no op
+    }
+
+    @Test
+    @Override
+    public void consumptionBasedRetentionTimeLimitWithOverlappingMinTest() {
+        // no op
+    }
+
+    @Test
+    @Override
     public void sizeBasedRetentionStreamTest() {
         // no op
     }

@@ -84,7 +84,7 @@ public class ModelHelperTest {
         Assert.assertEquals(123, streamConfig.getScalingPolicy().getTargetRate());
         Assert.assertEquals(RetentionPolicy.RetentionType.TIME, streamConfig.getRetentionPolicy().getRetentionType());
         Assert.assertEquals(Duration.ofDays(1234L).toMillis(), streamConfig.getRetentionPolicy().getRetentionParam());
-        Assert.assertEquals(Duration.ofDays(1234L).toMillis(), streamConfig.getRetentionPolicy().getRetentionMax());
+        Assert.assertEquals(Long.MAX_VALUE, streamConfig.getRetentionPolicy().getRetentionMax());
 
         retentionConfig.setValue(0L);
         TimeBasedRetention tr = new TimeBasedRetention();
@@ -94,7 +94,7 @@ public class ModelHelperTest {
         Assert.assertEquals(RetentionPolicy.RetentionType.TIME, streamConfig.getRetentionPolicy().getRetentionType());
         Duration retentionDuration = Duration.ofDays(10L).plusHours(4L).plusMinutes(7L);
         Assert.assertEquals(retentionDuration.toMillis(), streamConfig.getRetentionPolicy().getRetentionParam());
-        Assert.assertEquals(retentionDuration.toMillis(), streamConfig.getRetentionPolicy().getRetentionMax());
+        Assert.assertEquals(Long.MAX_VALUE, streamConfig.getRetentionPolicy().getRetentionMax());
 
         retentionConfig = new RetentionConfig();
         retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
@@ -179,7 +179,7 @@ public class ModelHelperTest {
         Assert.assertEquals(1234, streamConfig.getScalingPolicy().getTargetRate());
         Assert.assertEquals(RetentionPolicy.RetentionType.SIZE, streamConfig.getRetentionPolicy().getRetentionType());
         Assert.assertEquals(12345L * 1024 * 1024, streamConfig.getRetentionPolicy().getRetentionParam());
-        Assert.assertEquals(12345L * 1024 * 1024, streamConfig.getRetentionPolicy().getRetentionMax());
+        Assert.assertEquals(Long.MAX_VALUE, streamConfig.getRetentionPolicy().getRetentionMax());
 
     }
 

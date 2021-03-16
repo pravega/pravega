@@ -114,6 +114,7 @@ class HDFSChunkStorage extends BaseChunkStorage {
                 }
             }
         }
+        super.close();
     }
 
     @Override
