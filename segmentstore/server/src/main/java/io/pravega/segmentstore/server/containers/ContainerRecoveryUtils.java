@@ -185,12 +185,8 @@ public class ContainerRecoveryUtils {
                 container.getStreamSegmentInfo(metadataSegment, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
                 container.getStreamSegmentInfo(metadataAttributeSegment, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             } catch (Exception ex) {
-                if (!(Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException)) {
-                    throw ex;
-                } else {
-                    metadataSegmentsMap.put(containerEntry.getKey(), new HashSet<>());
-                    continue;
-                }
+                metadataSegmentsMap.put(containerEntry.getKey(), new HashSet<>());
+                continue;
             }
             val tableExtension = containerEntry.getValue().getExtension(ContainerTableExtension.class);
             val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
