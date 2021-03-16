@@ -178,16 +178,6 @@ public class ContainerRecoveryUtils {
         // Get all segments for each container entry
         for (val containerEntry : containerMap.entrySet()) {
             Preconditions.checkNotNull(containerEntry.getValue());
-            val container = containerEntry.getValue();
-            val metadataSegment = getMetadataSegmentName(containerEntry.getKey());
-            val metadataAttributeSegment = getAttributeSegmentName(metadataSegment);
-            try {
-                container.getStreamSegmentInfo(metadataSegment, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-                container.getStreamSegmentInfo(metadataAttributeSegment, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            } catch (Exception ex) {
-                metadataSegmentsMap.put(containerEntry.getKey(), new HashSet<>());
-                continue;
-            }
             val tableExtension = containerEntry.getValue().getExtension(ContainerTableExtension.class);
             val keyIterator = tableExtension.keyIterator(getMetadataSegmentName(
                     containerEntry.getKey()), args).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
