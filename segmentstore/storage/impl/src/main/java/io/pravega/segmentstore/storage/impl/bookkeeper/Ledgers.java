@@ -91,7 +91,7 @@ final class Ledgers {
                 .withPassword(config.getBKPassword())
                 .withCustomMetadata(createLedgerCustomMetadata(logId))
                 .execute();
-            return Futures.getAndHandleExceptions(future, BK_EXCEPTION_HANDLER, 20, TimeUnit.SECONDS);
+            return Futures.getAndHandleExceptions(future, BK_EXCEPTION_HANDLER, config.getBkWriteTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (BKNotEnoughBookiesException bkEx) {
             throw new DataLogNotAvailableException("Unable to create new BookKeeper Ledger.", bkEx);
         } catch (BKException bkEx) {
