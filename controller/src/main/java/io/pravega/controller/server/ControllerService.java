@@ -531,7 +531,7 @@ public class ControllerService {
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         log.error("Transaction abort failed for txn {} on Stream {}", txId.toString(),
-                                NameUtils.getScopedStreamName(scope,stream), ex);
+                                NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof RetryableException) {
                             // if its a retryable exception (it could be either write conflict or store exception)
