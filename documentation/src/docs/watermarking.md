@@ -85,6 +85,7 @@ A Writer reports time corresponding to a position. A position identifies the loc
 last wrote something.
 
 There are three ways for Pravega Writers to report time.
+
 * Explicitly note the time  
 * Note time on transaction commit
 * Automatically note wall clock time
@@ -167,6 +168,7 @@ public class TimeWindow {
 ```
 
 where:
+
 * `lowerTimeBound` of the  window is the watermark. The Controller asserts that all readers are done reading all events
 earlier than the watermark.
 *  `upperTimeBound` is an arbitrary assignment that can help applications keep track of a moving window of time.
