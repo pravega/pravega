@@ -633,20 +633,25 @@ public class SegmentHelper implements AutoCloseable {
     @VisibleForTesting
     <T extends Request & WireCommand> void processAndRethrowException(long requestId, T request, Throwable e) {
         Throwable unwrap = Exceptions.unwrap(e);
+        WireCommandFailedException ex = null;
         if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
-            log.warn(requestId, "Connection dropped.");
-            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+            ex = new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+            log.warn(requestId, "Connection dropped: {}", ex.getMessage());
+            throw ex;
         } else if (unwrap instanceof AuthenticationException) {
-            log.warn(requestId, "Authentication Exception.");
-            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+            ex = new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+            log.warn(requestId, "Authentication Exception: {}", ex.getMessage());
+            throw ex;
         } else if (unwrap instanceof TokenExpiredException) {
-            log.warn(requestId, "Token expired.");
-            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+            ex = new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+            log.warn(requestId, "Token expired: {}", ex.getMessage());
+            throw ex;
         } else if (unwrap instanceof TimeoutException) {
-            log.warn(requestId, "Request timed out.");
-            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+            ex = new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+            log.warn(requestId, "Request timed out: {}", ex.getMessage());
+            throw ex;
         } else {
-            log.error(requestId, "Request failed.", e);
+            log.error(requestId, "Request failed: {}", e);
             throw new CompletionException(e);
         }
     }
