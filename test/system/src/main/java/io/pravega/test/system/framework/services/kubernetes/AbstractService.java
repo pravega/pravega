@@ -53,26 +53,26 @@ public abstract class AbstractService implements Service {
 
     static final int SEGMENTSTORE_PORT = 12345;
     static final int BOOKKEEPER_PORT = 3181;
-    static final String NAMESPACE = "default";
+    static final String NAMESPACE = System.getProperty("namespace", "default");
     static final String CUSTOM_RESOURCE_GROUP_PRAVEGA = "pravega.pravega.io";
     static final String CUSTOM_RESOURCE_VERSION_PRAVEGA = "v1beta1";
     static final String CUSTOM_RESOURCE_API_VERSION = CUSTOM_RESOURCE_GROUP_PRAVEGA + "/" + CUSTOM_RESOURCE_VERSION_PRAVEGA;
     static final String CUSTOM_RESOURCE_PLURAL_PRAVEGA = "pravegaclusters";
     static final String CUSTOM_RESOURCE_KIND_PRAVEGA = "PravegaCluster";
-    static final String PRAVEGA_CONTROLLER_LABEL = "pravega-controller";
-    static final String PRAVEGA_SEGMENTSTORE_LABEL = "pravega-segmentstore";
-    static final String SECRET_NAME_USED_FOR_TLS = "selfsigned-cert-tls";
+    static final String PRAVEGA_CONTROLLER_LABEL = System.getProperty("controllerLabel", "pravega-controller");
+    static final String PRAVEGA_SEGMENTSTORE_LABEL = System.getProperty("segmentstoreLabel", "pravega-segmentstore");
+    static final String SECRET_NAME_USED_FOR_TLS = System.getProperty("tlsSecretName", "selfsigned-cert-tls");
     static final String SECRET_NAME_USED_FOR_AUTH = "password-auth";
-    static final String BOOKKEEPER_LABEL = "bookie";
-    static final String PRAVEGA_ID = "pravega";
+    static final String BOOKKEEPER_LABEL = System.getProperty("bookkeeperLabel", "bookie");
+    static final String PRAVEGA_ID = System.getProperty("pravegaID", "pravega");
     static final String IMAGE_PULL_POLICY = System.getProperty("imagePullPolicy", "Always");
-    static final String BOOKKEEPER_ID = "pravega-bk";
+    static final String BOOKKEEPER_ID = System.getProperty("bookkeeperID", "pravega-bk");
     static final String CUSTOM_RESOURCE_GROUP_BOOKKEEPER = "bookkeeper.pravega.io";
     static final String CUSTOM_RESOURCE_VERSION_BOOKKEEPER = "v1alpha1";
     static final String CUSTOM_RESOURCE_API_VERSION_BOOKKEEPER = CUSTOM_RESOURCE_GROUP_BOOKKEEPER + "/" + CUSTOM_RESOURCE_VERSION_BOOKKEEPER;
     static final String CUSTOM_RESOURCE_PLURAL_BOOKKEEPER = "bookkeeperclusters";
     static final String CUSTOM_RESOURCE_KIND_BOOKKEEPER = "BookkeeperCluster";
-    static final String CONFIG_MAP_BOOKKEEPER = "bk-config-map";
+    static final String CONFIG_MAP_BOOKKEEPER = System.getProperty("bookkeeperConfigMap", "bk-config-map");
 
     private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
     private static final String PRAVEGA_IMAGE_NAME = System.getProperty("pravegaImageName", "pravega");
