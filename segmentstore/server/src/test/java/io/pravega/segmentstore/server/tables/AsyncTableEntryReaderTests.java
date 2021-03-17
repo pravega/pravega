@@ -303,7 +303,6 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
 
         // Verify that we are not holding on to more buffer than we need.
         val allocatedKeySize = soughtKey.getKey().getAllocatedLength();
-        System.out.println(allocatedKeySize);
         if (expectCompaction) {
             Assert.assertEquals("", soughtKey.getKey().getLength(), soughtKey.getKey().getAllocatedLength());
         } else {
@@ -312,7 +311,6 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
 
         if (soughtValue != null) {
             val allocatedValueSize = soughtValue.getAllocatedLength();
-            System.out.println(allocatedValueSize);
             if (expectCompaction) {
                 Assert.assertEquals("", soughtValue.getLength(), soughtValue.getAllocatedLength());
             } else {
