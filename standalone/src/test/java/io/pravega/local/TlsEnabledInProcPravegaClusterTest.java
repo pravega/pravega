@@ -14,7 +14,6 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
 import javax.net.ssl.SSLHandshakeException;
@@ -37,14 +36,6 @@ public class TlsEnabledInProcPravegaClusterTest {
     final String scope = "TlsTestScope";
     final String stream = "TlsTestStream";
     final String msg = "Test message on the encrypted channel";
-
-    ClientConfig prepareValidClientConfig() {
-        return ClientConfig.builder()
-                .controllerURI(URI.create(EMULATOR.pravega.getInProcPravegaCluster().getControllerURI()))
-                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
-                .validateHostName(false)
-                .build();
-    }
 
     /**
      * This test verifies that create stream fails when the client config is invalid.
@@ -77,7 +68,7 @@ public class TlsEnabledInProcPravegaClusterTest {
 
     @Test(timeout = 30000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
-        testWriteAndReadAnEvent(scope, stream, msg, prepareValidClientConfig());
+        testWriteAndReadAnEvent(scope, stream, msg, EMULATOR.getClientConfig());
     }
 
     private boolean hasTlsException(Throwable e) {
