@@ -4,3 +4,6 @@
 [submodule "documentation/src/docs/flink-connectors"]
 	path = documentation/src/flink-connectors
        url = https://github.com/pravega/flink-connectors.git
+[submodule "documentation/src/schema-registry"]
+	path = documentation/src/schema-registry
+	url = https://github.com/pravega/schema-registry.git
