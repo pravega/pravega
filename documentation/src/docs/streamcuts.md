@@ -61,11 +61,11 @@ shows the different ways to use `StreamCut`s as part of the Reader Group configu
  *   - Stream "s4" from the current head of the stream upto the tail of the stream.
  */
 ReaderGroupConfig.builder()
-                .stream("scope/s1", startStreamCut1, endStreamCut1)
-                .stream("scope/s2", startStreamCut2)
-                .stream("scope/s3", StreamCut.UNBOUNDED, endStreamCut2)
-                .stream("scope/s4")
-                .build();
+        .stream("scope/s1", startStreamCut1, endStreamCut1)
+        .stream("scope/s2", startStreamCut2)
+        .stream("scope/s3", StreamCut.UNBOUNDED, endStreamCut2)
+        .stream("scope/s4")
+        .build();
 ```
 
 The below API can be used to reset an existing Reader Group with a new Reader Group configuration instead creating a Reader Group.
@@ -82,15 +82,14 @@ io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
 
 ```java
 /**
-
-     * Get information about a given Stream, {@link StreamInfo}.
-     * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream.
-     *
-     * @param scopeName The scope of the stream.
-     * @param streamName The stream name.
-     * @return stream information.
-     */
-    StreamInfo getStreamInfo(String scopeName, String streamName);
+ * Get information about a given Stream, {@link StreamInfo}.
+ * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream.
+ *
+ * @param scopeName The scope of the stream.
+ * @param streamName The stream name.
+ * @return stream information.
+ */
+StreamInfo getStreamInfo(String scopeName, String streamName);
 
 ```
 ## StreamCut with BatchClient

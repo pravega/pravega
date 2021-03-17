@@ -43,9 +43,9 @@ Given this information:
 The external APIs to manage Reader Groups could be added to the `ReaderGroupManager` object. It consist of:
 
 ```java
-    ReaderGroup createReaderGroup(String name, Stream stream, ReaderGroupConfig config);
-    ReaderGroup getReaderGroup(String name, Stream stream);
-    void deleteReaderGroup(ReaderGroup group);
+ReaderGroup createReaderGroup(String name, Stream stream, ReaderGroupConfig config);
+ReaderGroup getReaderGroup(String name, Stream stream);
+void deleteReaderGroup(ReaderGroup group);
 ```
 When a Reader Group is created, it creates a [State Synchronizer](state-synchronizer-design.md) shared by the Readers. To join a Reader Group, Readers would just specify it in their configuration:
 
