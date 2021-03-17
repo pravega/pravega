@@ -126,7 +126,7 @@ public class PravegaEmulatorResource extends ExternalResource {
         ClientConfig clientConfig = getClientConfig();
         ControllerImplConfig controllerConfig = ControllerImplConfig.builder()
                 .clientConfig(clientConfig)
-                .retryAttempts(10)
+                .retryAttempts(20)
                 .initialBackoffMillis(1000)
                 .backoffMultiple(2)
                 .maxBackoffMillis(10000)
