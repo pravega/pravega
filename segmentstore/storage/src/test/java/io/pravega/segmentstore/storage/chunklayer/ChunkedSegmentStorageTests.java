@@ -2707,6 +2707,10 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
         SegmentMetadata expectedSegmentMetadata = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
         ChunkMetadata expectedChunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore, expectedSegmentMetadata.getLastChunk());
+
+        testMetadataStore.evictAllEligibleEntriesFromBuffer();
+        testMetadataStore.evictFromCache();
+
         while (currentOffset < data.length) {
             try {
                 int toWrite = Math.min(length, data.length - currentOffset);

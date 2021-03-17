@@ -956,13 +956,9 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                 txn.commit().get();
             }
 
-            // Force eviction of all cache by inserting lots of junk data.
-            for (int i = 0; i < 10000; i++) {
-                try (MetadataTransaction txn = metadataStore.beginTransaction(false, "Txn" + i)) {
-                    txn.create(new MockStorageMetadata("Txn" + i, "Value" + i));
-                    txn.commit().get();
-                }
-            }
+            // Force eviction of all cache
+            testMetadataStore.evictAllEligibleEntriesFromBuffer();
+            testMetadataStore.evictFromCache();
 
             // Set hook to cause failure on next commit.
             testMetadataStore.setWriteCallback(dummy -> CompletableFuture.failedFuture(new IntentionalException("Intentional")));

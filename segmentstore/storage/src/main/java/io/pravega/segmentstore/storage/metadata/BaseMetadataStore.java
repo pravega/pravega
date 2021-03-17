@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -474,35 +475,69 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     private void evictIfNeeded() {
         if (isEvictionRunning.compareAndSet(false, true)) {
-            val limit = 1 + maxEntriesInTxnBuffer / CACHE_EVICTION_RATIO;
-            if (bufferCount.get() > maxEntriesInTxnBuffer) {
-                val toEvict = bufferedTxnData.entrySet().parallelStream()
-                        .filter(entry -> entry.getValue().isPersisted() && !entry.getValue().isPinned()
-                                && !activeKeys.contains(entry.getKey()))
-                        .map(Map.Entry::getKey)
-                        .limit(limit)
-                        .collect(Collectors.toList());
-                int count = 0;
-                for (val key : toEvict) {
-                    // synchronize so that we don't accidentally delete a key that becomes active after check here.
-                    synchronized (evictionLock) {
-                        if (0 == activeKeys.count(key)) {
-                            // Synchronization prevents error when key becomes active between the check and remove.
-                            // Move the key to cache
-                            cache.put(key, bufferedTxnData.get(key));
-                            // Remove from buffer.
-                            bufferedTxnData.remove(key);
-                            count++;
-                        }
-                    }
+            try {
+                val limit = 1 + maxEntriesInTxnBuffer / CACHE_EVICTION_RATIO;
+                if (bufferCount.get() > maxEntriesInTxnBuffer) {
+                    val toEvict = bufferedTxnData.entrySet().parallelStream()
+                            .filter(entry -> entry.getValue().isPersisted() && !entry.getValue().isPinned()
+                                    && !activeKeys.contains(entry.getKey()))
+                            .map(Map.Entry::getKey)
+                            .limit(limit)
+                            .collect(Collectors.toList());
+                    evictFromBuffer(toEvict);
                 }
-                bufferCount.addAndGet(-1 * count);
-                METADATA_BUFFER_EVICTED_COUNT.add(count);
-                log.debug("{} entries evicted from transaction buffer.", count);
+            } finally {
+                isEvictionRunning.set(false);
             }
-            isEvictionRunning.set(false);
-
         }
+    }
+
+    /**
+     * Evict all entries from cache.
+     */
+    public void evictFromCache() {
+        cache.invalidateAll();
+    }
+
+    /**
+     * Evict all the keys that are eligible.
+     */
+    public void evictAllEligibleEntriesFromBuffer() {
+        try {
+            isEvictionRunning.set(true);
+            val toEvict = bufferedTxnData.entrySet().parallelStream()
+                    .filter(entry -> entry.getValue().isPersisted() && !entry.getValue().isPinned()
+                            && !activeKeys.contains(entry.getKey()))
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+            evictFromBuffer(toEvict);
+        } finally {
+            isEvictionRunning.set(false);
+        }
+    }
+
+    /**
+     * Evict given list of keys.
+     * @param keysToEvict
+     */
+    private void evictFromBuffer(List<String> keysToEvict) {
+        int count = 0;
+        for (val key : keysToEvict) {
+            // synchronize so that we don't accidentally delete a key that becomes active after check here.
+            synchronized (evictionLock) {
+                if (0 == activeKeys.count(key)) {
+                    // Synchronization prevents error when key becomes active between the check and remove.
+                    // Move the key to cache
+                    cache.put(key, bufferedTxnData.get(key));
+                    // Remove from buffer.
+                    bufferedTxnData.remove(key);
+                    count++;
+                }
+            }
+        }
+        bufferCount.addAndGet(-1 * count);
+        METADATA_BUFFER_EVICTED_COUNT.add(count);
+        log.debug("{} entries evicted from transaction buffer.", count);
     }
 
     /**
