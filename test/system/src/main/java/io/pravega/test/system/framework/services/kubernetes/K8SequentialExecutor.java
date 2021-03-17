@@ -126,10 +126,19 @@ public class K8SequentialExecutor implements TestExecutor {
                 .withImage(TEST_POD_IMAGE)
                 .withImagePullPolicy("IfNotPresent")
                 .withCommand("/bin/sh")
-                .withArgs("-c", "java -DexecType=KUBERNETES -DsecurityEnabled=" + Utils.AUTH_ENABLED + " -Dlog.level=" + LOG_LEVEL
-                                  + " -DtlsEnabled=" + Utils.TLS_AND_AUTH_ENABLED
-                                  + " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "
-                                  + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
+                .withArgs("-c", "java -DexecType=KUBERNETES" +
+                            " -DsecurityEnabled=" + Utils.AUTH_ENABLED  +
+                            " -Dlog.level=" + LOG_LEVEL  +
+                            " -DtlsEnabled=" + Utils.TLS_AND_AUTH_ENABLED +
+                            " -DtestServiceAccount=" + SERVICE_ACCOUNT +
+                            " -DtestClusterRoleBinding=" + CLUSTER_ROLE_BINDING +
+                            " -DbookkeeperLabel=" + Utils.getConfig("bookkeeperLabel", "") +
+                            " -DbookkeeperID=" + Utils.getConfig("bookkeeperID", "") +
+                            " -DpravegaID=" + Utils.getConfig("pravegaID", "") +
+                            " -DcontrollerLabel=" + Utils.getConfig("controllerLabel", "") +
+                            " -DsegmentstoreLabel=" + Utils.getConfig("segmentstoreLabel", "") +
+                            " -DbookkeeperConfigMap=" + Utils.getConfig("bookkeeperConfigMap", "") +
+                            " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
                 .withVolumeMounts(new V1VolumeMountBuilder().withMountPath("/data").withName("task-pv-storage").build())
                 .endContainer()
                 .withRestartPolicy("Never")
