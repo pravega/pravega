@@ -25,7 +25,7 @@ import lombok.Getter;
 abstract class MetricProxy<MetricT extends Metric, SelfT extends MetricProxy<MetricT, SelfT>> implements AutoCloseable {
     private final AtomicReference<MetricT> instance = new AtomicReference<>();
     private final AtomicBoolean closed = new AtomicBoolean();
-    
+
     @Getter
     private final String proxyName;
     private final Consumer<SelfT> closeCallback;

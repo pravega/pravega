@@ -24,7 +24,7 @@ import static io.pravega.shared.MetricsNames.failMetricName;
 @EqualsAndHashCode
 class OpStatsLoggerImpl implements OpStatsLogger {
     //region Members
-    
+
     private final Timer success;
     private final Timer fail;
     private final MeterRegistry meterRegistry;

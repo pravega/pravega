@@ -13,6 +13,12 @@ import org.junit.runner.notification.RunNotifier;
 import org.junit.runners.BlockJUnit4ClassRunner;
 import org.junit.runners.model.InitializationError;
 
+/**
+ * This class provides an implementation for the RunWith annotation.
+ * It works like the normal BlockJUnit4ClassRunner except that it prohibits 
+ * parallelism. So that no two classes with this annotation may run together.
+ * This is most useful for tests that rely on metrics.
+ */
 public class SerializedClassRunner extends BlockJUnit4ClassRunner {
 
     private static final Object LOCK = new Object(); 

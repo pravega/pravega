@@ -77,7 +77,7 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.run_id}}
-      - name: Compile & Static Analysis
+      - name: Compile & Checkstyle
         run: ./gradlew jar compileTest checkstyleMain checkstyleTest --parallel ${{env.GRADLE_OPTS}}
 
   unit_client:
