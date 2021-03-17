@@ -33,17 +33,17 @@ The method for subscribing to segment notifications is shown below
 ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
         connectionFactory);
 groupManager.createReaderGroup(GROUP_NAME, ReaderGroupConfig.builder().
-                                                            .stream(Stream.of(SCOPE, STREAM))
-                                                            .build());
+        .stream(Stream.of(SCOPE, STREAM))
+        .build());
 
 groupManager.getReaderGroup(GROUP_NAME).getSegmentNotifier(executor).registerListener(segmentNotification -> {
-       int numOfReaders = segmentNotification.getNumOfReaders();
-       int segments = segmentNotification.getNumOfSegments();
-       if (numOfReaders < segments) {
-          //Scale up number of readers based on application capacity
-       } else {
-         //More readers available time to shut down some
-       }
+    int numOfReaders = segmentNotification.getNumOfReaders();
+    int segments = segmentNotification.getNumOfSegments();
+    if (numOfReaders < segments) {
+        //Scale up number of readers based on application capacity
+    } else {
+        //More readers available time to shut down some
+    }
 });
 
 ```
@@ -69,11 +69,11 @@ The method for subscribing to end of data notifications is shown below
 ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
         connectionFactory);
 groupManager.createReaderGroup(GROUP_NAME, ReaderGroupConfig.builder()
-                                                            .stream(Stream.of(SCOPE, SEALED_STREAM))
-                                                            .build());
+        .stream(Stream.of(SCOPE, SEALED_STREAM))
+        .build());
 
 groupManager.getReaderGroup(GROUP_NAME).getEndOfDataNotifier(executor).registerListener(notification -> {
-      //custom action e.g: close all readers
+    //custom action e.g: close all readers
 });
 
 ```

@@ -120,15 +120,16 @@ writer.noteTime(currentTime);
 
 For transactional writes, the commit call can supply the timestamp. The following Writer method passes the time to the
 Controller as part of the commit.
+```java
+void commit(long timestamp) throws TxnFailedException;
+```
 
 For example:
 
 ```java
-void commit(long timestamp) throws TxnFailedException;
-
 Transaction<EventType> txn = writer.beginTxn();
 
-        //... write events to transaction.
+      //... write events to transaction.
 
 txn.commit(txnTimestamp);
 ```
@@ -164,12 +165,12 @@ The following Reader API method requests the current watermark window.
 
 The `TimeWindow` is returned as:
 
-  ```
-    public class TimeWindow {
-        private final long lowerTimeBound;
-        private final long upperTimeBound;
-    }
-  ```
+```java
+public class TimeWindow {
+    private final long lowerTimeBound;
+    private final long upperTimeBound;
+}
+```
 
 where:
 * `lowerTimeBound` of the  window is the watermark. The Controller asserts that all readers are done reading all events
