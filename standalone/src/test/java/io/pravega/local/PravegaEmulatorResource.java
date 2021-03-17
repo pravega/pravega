@@ -11,6 +11,8 @@ package io.pravega.local;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
@@ -118,12 +120,19 @@ public class PravegaEmulatorResource extends ExternalResource {
     }
 
     /*
-      Verify if Pravega standalone is up and running.
+     * Wait until Pravega standalone is up and running.
      */
     private void waitUntilHealthy() {
         ClientConfig clientConfig = getClientConfig();
+        ControllerImplConfig controllerConfig = ControllerImplConfig.builder()
+                .clientConfig(clientConfig)
+                .retryAttempts(10)
+                .initialBackoffMillis(1000)
+                .backoffMultiple(2)
+                .maxBackoffMillis(10000)
+                .build();
         @Cleanup
-        StreamManager streamManager = StreamManager.create(clientConfig);
+        StreamManager streamManager = new StreamManagerImpl(clientConfig, controllerConfig);
         assertNotNull(streamManager);
         // try creating a scope. This will retry based on the provided retry configuration.
         // if all the retries fail a RetriesExhaustedException will be thrown failing the tests.
