@@ -571,16 +571,14 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     }
 
     private StorageMetadata copyToTransaction(MetadataTransaction txn, String key, TransactionData transactionData) {
-        if (null != transactionData) {
-            val txnLocalCopy = transactionData.toBuilder()
-                    .build();
-            txn.getData().put(key, txnLocalCopy);
-            if (null != transactionData.getValue()) {
-                // Make sure a deep copy is returned.
-                val retValue = transactionData.getValue().deepCopy();
-                txnLocalCopy.setValue(retValue);
-                return retValue;
-            }
+        val txnLocalCopy = transactionData.toBuilder()
+                .build();
+        txn.getData().put(key, txnLocalCopy);
+        if (null != transactionData.getValue()) {
+            // Make sure a deep copy is returned.
+            val retValue = transactionData.getValue().deepCopy();
+            txnLocalCopy.setValue(retValue);
+            return retValue;
         }
         return null;
     }
@@ -672,8 +670,6 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * Inserts a copy of metadata into the buffer.
      */
     private TransactionData insertInBuffer(String key, TransactionData copyForBuffer) {
-        Preconditions.checkState(null != copyForBuffer, "Copy for buffer must not be null.");
-        Preconditions.checkState(null != copyForBuffer.getDbObject(), "Missing tracking object");
         // If some other transaction beat us then use that value.
         val oldValue = bufferedTxnData.putIfAbsent(key, copyForBuffer);
         final TransactionData retValue;
