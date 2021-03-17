@@ -134,8 +134,8 @@ public class PravegaEmulatorResource extends ExternalResource {
         @Cleanup
         StreamManager streamManager = new StreamManagerImpl(clientConfig, controllerConfig);
         assertNotNull(streamManager);
-        // try creating a scope. This will retry based on the provided retry configuration.
-        // if all the retries fail a RetriesExhaustedException will be thrown failing the tests.
+        // Try creating a scope. This will retry based on the provided retry configuration.
+        // If all the retries fail a RetriesExhaustedException will be thrown failing the tests.
         boolean isScopeCreated = streamManager.createScope("healthCheck-scope");
         log.debug("Health check scope creation is successful {}", isScopeCreated);
     }
