@@ -45,7 +45,8 @@ import static org.apache.commons.lang.RandomStringUtils.randomAlphanumeric;
 public class K8SequentialExecutor implements TestExecutor {
 
     private static final String NAMESPACE = "default"; // KUBERNETES namespace where the tests run.
-    private static final String SERVICE_ACCOUNT = "test-framework"; //Service Account used by the test pod.
+    private static final String SERVICE_ACCOUNT = System.getProperty("testServiceAccount", "test-framework"); //Service Account used by the test pod.
+    private static final String CLUSTER_ROLE_BINDING = System.getProperty("testClusterRoleBinding", "cluster-admin-testFramework");
     private static final String TEST_POD_IMAGE = System.getProperty("testPodImage", "openjdk:8u181-jre-alpine");
     private static final String LOG_LEVEL = System.getProperty("logLevel", "DEBUG");
 
@@ -167,7 +168,7 @@ public class K8SequentialExecutor implements TestExecutor {
         return new V1beta1ClusterRoleBindingBuilder().withKind("ClusterRoleBinding")
                 .withApiVersion("rbac.authorization.k8s.io/v1beta1")
                 .withMetadata(new V1ObjectMetaBuilder()
-                        .withName("cluster-admin-testFramework")
+                        .withName(CLUSTER_ROLE_BINDING)
                         .withNamespace(NAMESPACE)
                         .build())
                 .withSubjects(new V1beta1SubjectBuilder().withKind("ServiceAccount")

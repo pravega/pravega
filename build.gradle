@@ -1085,6 +1085,8 @@ project('test:system') {
         systemProperty "targetZookeeperVersion",System.getProperty("targetZookeeperVersion", "latest")
         //testPodImage , default is openjdk:8u181-jre-alpine
         systemProperty "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
+        systemProperty "testServiceAccount", System.getProperty("testServiceAccount", "test-framework");
+        systemProperty "testClusterRoleBinding", System.getProperty("testClusterRoleBinding", "cluster-admin-testFramework");
 
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
