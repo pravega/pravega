@@ -88,6 +88,9 @@ public abstract class AbstractService implements Service {
     private final String id;
 
     AbstractService(final String id) {
+        log.info("ID: {}", id);
+        log.info("BOOKKEEPER_ID: {}", BOOKKEEPER_ID);
+        log.info("PRAVEGA_ID: {}", PRAVEGA_ID);
         this.k8sClient = ClientFactory.INSTANCE.getK8sClient();
         this.id = id;
     }
