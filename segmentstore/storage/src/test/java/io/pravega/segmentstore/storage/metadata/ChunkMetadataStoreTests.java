@@ -9,10 +9,13 @@
  */
 package io.pravega.segmentstore.storage.metadata;
 
+import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.MockStorageMetadata;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -938,6 +941,50 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                 }
             }
             Assert.assertTrue(metadataStore.getBufferCount() < 10);
+        }
+    }
+
+    @Test
+    public void testReadWriteFailureAfterEvictionFromBuffer() throws Exception {
+        if (metadataStore instanceof InMemoryMetadataStore) {
+
+            val testMetadataStore = (InMemoryMetadataStore) metadataStore;
+
+            // Add some data
+            try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+                txn.create(new MockStorageMetadata(KEY1, VALUE0));
+                txn.commit().get();
+            }
+
+            // Force eviction of all cache by inserting lots of junk data.
+            for (int i = 0; i < 10000; i++) {
+                try (MetadataTransaction txn = metadataStore.beginTransaction(false, "Txn" + i)) {
+                    txn.create(new MockStorageMetadata("Txn" + i, "Value" + i));
+                    txn.commit().get();
+                }
+            }
+
+            // Set hook to cause failure on next commit.
+            testMetadataStore.setWriteCallback(dummy -> CompletableFuture.failedFuture(new IntentionalException("Intentional")));
+
+            // Now start new transaction. Mutate the local copy.
+            // This txn will fail to commit.
+            try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+                val metadata = (MockStorageMetadata) txn.get(KEY1).get();
+                metadata.setValue(VALUE1);
+                txn.update(metadata);
+                txn.commit().get();
+                Assert.fail();
+            } catch (Exception e) {
+                Assert.assertTrue(Exceptions.unwrap(e) instanceof IntentionalException);
+            }
+            // disable hook.
+            testMetadataStore.setWriteCallback(null);
+
+            // Validate that object in buffer remains unchanged.
+            try (MetadataTransaction txn = metadataStore.beginTransaction(true, KEY1)) {
+                assertEquals(txn.get(KEY1), KEY1, VALUE0);
+            }
         }
     }
 

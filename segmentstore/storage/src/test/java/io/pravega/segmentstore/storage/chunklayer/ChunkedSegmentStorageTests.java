@@ -65,7 +65,7 @@ import org.junit.rules.Timeout;
  */
 @Slf4j
 public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int CONTAINER_ID = 42;
     private static final int OWNER_EPOCH = 100;
     protected final Random rnd = new Random(0);
