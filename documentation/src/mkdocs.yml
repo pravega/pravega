@@ -73,6 +73,7 @@ nav:
     - 'Configure Pravega': 'pravega-operator/doc/configuration.md'
   - Dev Guide:
     - '1st Code Walk through': 'beginner_dev_guide.md'
+    - 'Flink Connector Walk through': 'flink-connectors/documentation/src/docs/dev-guide.md'
   - Understanding Pravega:
       - 'Pravega Concepts': 'pravega-concepts.md'
       - 'Terminology': 'terminology.md'
@@ -90,7 +91,7 @@ nav:
       - 'Java API Reference': 'javadoc.md'
       - 'REST API - Controller': 'rest/restapis.md'
       - 'Pravega Connectors': 'connectors.md'
-      - 'Flink Connectors':
+      - 'Flink Connector':
         - Overview: 'flink-connectors/documentation/src/docs/index.md'
         - Getting Started: 'flink-connectors/documentation/src/docs/getting-started.md'
         - Quick Start: 'flink-connectors/documentation/src/docs/quickstart.md'
