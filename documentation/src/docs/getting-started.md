@@ -19,7 +19,7 @@ application.
 **Verify the following prerequisite**
 
 ```
-Java 8
+Java 11
 ```
 
 **Download Pravega**
@@ -43,7 +43,7 @@ More options and additional ways to run Pravega can be found in [Running Pravega
 
 ```
 $ cd pravega-<version>
-$ bin/pravega-standalone
+$ ./bin/pravega-standalone
 ```
 
 The command above runs Pravega locally for development and testing purposes. It does not persist in the storage tiers like we do with a real deployment of Pravega and as such you shouldn't expect it to recover from crashes, and further, not rely on it for production use. For production use, we strongly encourage a full deployment of Pravega.
@@ -77,7 +77,7 @@ This runs a simple Java application that writes a "hello world" message
         as an event into a Pravega stream.
 ```
 $ cd pravega-samples/pravega-client-examples/build/install/pravega-client-examples
-$ bin/helloWorldWriter
+$ ./bin/helloWorldWriter
 ```
 _Example HelloWorldWriter output_
 ```
@@ -92,7 +92,7 @@ See the [README](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-
 
 ```
 $ cd pravega-samples/pravega-client-examples/build/install/pravega-client-examples
-$ bin/helloWorldReader
+$ ./bin/helloWorldReader
 ```
 
 _Example HelloWorldReader output_
