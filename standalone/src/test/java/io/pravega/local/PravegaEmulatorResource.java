@@ -9,11 +9,19 @@
  */
 package io.pravega.local;
 
+import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.StreamManager;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
+import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.rules.ExternalResource;
+
+import java.net.URI;
+
+import static org.junit.Assert.assertNotNull;
 
 /**
  * This class contains the rules to start and stop LocalPravega / standalone.
@@ -77,13 +85,50 @@ public class PravegaEmulatorResource extends ExternalResource {
         pravega = emulatorBuilder.build();
     }
 
+    @Override
     protected void before() throws Exception {
         pravega.start();
+        waitUntilHealthy();
+    }
+
+    /**
+     * Return the ClientConfig based on the Pravega standalone configuration.
+     *
+     * @return ClientConfig
+     */
+    public ClientConfig getClientConfig() {
+        ClientConfig.ClientConfigBuilder builder = ClientConfig.builder()
+                .controllerURI(URI.create(pravega.getInProcPravegaCluster().getControllerURI()));
+        if (authEnabled) {
+            builder.credentials(new DefaultCredentials(
+                    SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
+                    SecurityConfigDefaults.AUTH_ADMIN_USERNAME));
+        }
+        if (tlsEnabled) {
+            builder.trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                    .validateHostName(false);
+        }
+        return builder.build();
     }
 
     @SneakyThrows
+    @Override
     protected void after() {
         pravega.close();
+    }
+
+    /*
+      Verify if Pravega standalone is up and running.
+     */
+    private void waitUntilHealthy() {
+        ClientConfig clientConfig = getClientConfig();
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(clientConfig);
+        assertNotNull(streamManager);
+        // try creating a scope. This will retry based on the provided retry configuration.
+        // if all the retries fail a RetriesExhaustedException will be thrown failing the tests.
+        boolean isScopeCreated = streamManager.createScope("healthCheck-scope");
+        log.debug("Health check scope creation is successful {}", isScopeCreated);
     }
 }
 
