@@ -186,7 +186,7 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         Futures.getAndHandleExceptions(bookkeeperService.scaleService(3), ExecutionException::new);
 
         // Wait until writers and readers make further progress.
-        AssertExtensions.assertEventuallyEquals("Writers and/or readers not progressing after failover.",true,
+        AssertExtensions.assertEventuallyEquals("Writers and/or readers not progressing after failover.", true,
                 () -> testState.getEventWrittenCount() > writeCountAfterFailover + 100 && testState.getEventReadCount() > readCountAfterFailover + 100,
                 1000, IO_PROGRESS_CHECK_TIMEOUT);
         stopWriters();
