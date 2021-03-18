@@ -378,7 +378,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     val toAdd = new HashMap<String, TransactionData>();
                     int delta = 0;
                     for (String key : modifiedKeys) {
-                        TransactionData data = txnData.get(key);
+                        TransactionData data = getDeepCopy(txnData.get(key));
                         data.setVersion(committedVersion);
                         toAdd.put(key, data);
                         if (data.isCreated()) {
@@ -606,16 +606,18 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     }
 
     private StorageMetadata copyToTransaction(MetadataTransaction txn, String key, TransactionData transactionData) {
-        val txnLocalCopy = transactionData.toBuilder()
-                .build();
+        final TransactionData txnLocalCopy = getDeepCopy(transactionData);
         txn.getData().put(key, txnLocalCopy);
+        return txnLocalCopy.getValue();
+    }
+
+    private TransactionData getDeepCopy(TransactionData transactionData) {
+        val copy = transactionData.toBuilder().build();
         if (null != transactionData.getValue()) {
             // Make sure a deep copy is returned.
-            val retValue = transactionData.getValue().deepCopy();
-            txnLocalCopy.setValue(retValue);
-            return retValue;
+            copy.setValue(transactionData.getValue().deepCopy());
         }
-        return null;
+        return copy;
     }
 
     private void removeFromActiveKeySet(String key) {
@@ -681,12 +683,12 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         log.trace("Loading key from the store key = {}", key);
         return readFromStore(key)
                 .thenApplyAsync(copyFromStore -> {
-                    Preconditions.checkState(null != copyFromStore, "Data from table store must not be null.");
-                    Preconditions.checkState(null != copyFromStore.dbObject, "Missing tracking object");
+                    Preconditions.checkState(null != copyFromStore, "Data from table store must not be null. key=%s", key);
+                    Preconditions.checkState(null != copyFromStore.dbObject, "Missing tracking object. key=%s", key);
                     log.trace("Done Loading key from the store key = {}", copyFromStore.getKey());
 
                     if (null != copyFromStore.getValue()) {
-                        Preconditions.checkState(0 != copyFromStore.getVersion(), "Version is not initialized");
+                        Preconditions.checkState(0 != copyFromStore.getVersion(), "Version is not initialized. key=%s", key);
                     }
                     return insertInBuffer(key, copyFromStore);
                 }, executor);
