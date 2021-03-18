@@ -54,6 +54,7 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
     private static final int NUM_READERS = 5;
     private static final int BOOKIE_FAILOVER_WAIT_MILLIS = 15 * 1000;
     private static final int IO_PROGRESS_CHECK_TIMEOUT = 120 * 1000;
+    private static final int EVENTS_TO_WAIT_FOR = 100;
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(8 * 60);
@@ -151,7 +152,8 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
 
         // Give some time to create readers before forcing a bookie failover.
         AssertExtensions.assertEventuallyEquals("Writers and/or readers not progressing.", true,
-            () -> testState.getEventWrittenCount() > 100 && testState.getEventReadCount() > 100, 1000, IO_PROGRESS_CHECK_TIMEOUT);
+            () -> testState.getEventWrittenCount() > EVENTS_TO_WAIT_FOR && testState.getEventReadCount() > EVENTS_TO_WAIT_FOR,
+                1000, IO_PROGRESS_CHECK_TIMEOUT);
 
         // Scale down bookie.
         Futures.getAndHandleExceptions(bookkeeperService.scaleService(2), ExecutionException::new);
@@ -187,8 +189,8 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
 
         // Wait until writers and readers make further progress.
         AssertExtensions.assertEventuallyEquals("Writers and/or readers not progressing after failover.", true,
-                () -> testState.getEventWrittenCount() > writeCountAfterFailover + 100 && testState.getEventReadCount() > readCountAfterFailover + 100,
-                1000, IO_PROGRESS_CHECK_TIMEOUT);
+                () -> testState.getEventWrittenCount() > writeCountAfterFailover + EVENTS_TO_WAIT_FOR &&
+                        testState.getEventReadCount() > readCountAfterFailover + EVENTS_TO_WAIT_FOR, 1000, IO_PROGRESS_CHECK_TIMEOUT);
         stopWriters();
 
         // Also, verify writes happened after bookie is brought back.
