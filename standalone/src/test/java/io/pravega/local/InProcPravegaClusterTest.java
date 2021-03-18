@@ -9,9 +9,7 @@
  */
 package io.pravega.local;
 
-import io.pravega.client.ClientConfig;
 import io.pravega.test.common.SerializedClassRunner;
-import java.net.URI;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -31,12 +29,6 @@ public class InProcPravegaClusterTest {
     public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource(false, false, false);
     final String msg = "Test message on the plaintext channel";
 
-    ClientConfig prepareValidClientConfig() {
-        return ClientConfig.builder()
-                .controllerURI(URI.create(EMULATOR.pravega.getInProcPravegaCluster().getControllerURI()))
-                .build();
-    }
-
     /**
      * Compares reads and writes to verify that an in-process Pravega cluster responds properly with
      * with valid client configuration.
@@ -48,6 +40,6 @@ public class InProcPravegaClusterTest {
      */
     @Test(timeout = 30000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
-        testWriteAndReadAnEvent("TestScope", "TestStream", msg, prepareValidClientConfig());
+        testWriteAndReadAnEvent("TestScope", "TestStream", msg, EMULATOR.getClientConfig());
     }
 }

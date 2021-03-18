@@ -20,7 +20,6 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.SerializedClassRunner;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -40,15 +39,6 @@ public class AuthEnabledInProcPravegaClusterTest {
     final String scope = "AuthTestScope";
     final String stream = "AuthTestStream";
     final String msg = "Test message on the plaintext channel with auth credentials";
-
-    ClientConfig prepareValidClientConfig() {
-        return ClientConfig.builder()
-                .controllerURI(URI.create(EMULATOR.pravega.getInProcPravegaCluster().getControllerURI()))
-                .credentials(new DefaultCredentials(
-                        SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
-                        SecurityConfigDefaults.AUTH_ADMIN_USERNAME))
-                .build();
-    }
 
     /**
      * This test verifies that create stream fails when the client config is invalid.
@@ -73,7 +63,7 @@ public class AuthEnabledInProcPravegaClusterTest {
 
     @Test(timeout = 30000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
-        testWriteAndReadAnEvent(scope, stream, msg, prepareValidClientConfig());
+        testWriteAndReadAnEvent(scope, stream, msg, EMULATOR.getClientConfig());
     }
 
     private boolean hasAuthExceptionAsRootCause(Throwable e) {

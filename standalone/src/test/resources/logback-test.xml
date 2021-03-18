@@ -8,12 +8,15 @@
       http://www.apache.org/licenses/LICENSE-2.0
 -->
 <configuration>
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
-            <pattern>%d %-4relative [%thread] %-5level %logger{35} - %msg%n</pattern>
+    <!-- This config is valid for all unit tests in this module. We are turning off all logging for unit tests -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <charset>UTF-8</charset>
+            <Pattern>%d %-4relative [%thread] %-5level %logger{35} - %msg%n</Pattern>
         </encoder>
     </appender>
+
     <root level="DEBUG">
-        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="STDOUT"/>
     </root>
 </configuration>
