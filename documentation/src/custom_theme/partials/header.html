@@ -1,17 +1,20 @@
 <header class="header has-sticky header-style-one header_default" id="main-header"  data-md-component="header">
-    <link rel="stylesheet" id="bootstrap-css" href="https://pravega.wpmudev.host/wp-content/themes/qloud/assets/css/bootstrap.min.css?ver=4.1.3" media="all" />
-    <link rel="stylesheet" id="font-awesome-css" href="https://pravega.wpmudev.host/wp-content/plugins/elementor/assets/lib/font-awesome/css/font-awesome.min.css?ver=4.7.0" media="all" />
-    <link rel="stylesheet" id="qloud-style-css" href="https://pravega.wpmudev.host/wp-content/themes/qloud/assets/css/qloud-style.css?ver=1.0" media="all" />
-    <link rel="stylesheet" id="child-style-css" href="https://pravega.wpmudev.host/wp-content/themes/qloud-child/style.css?ver=5.6.1" media="all" />
-    <link rel="stylesheet" id="child-style-css" href="https://pravega.wpmudev.host/wp-content/themes/qloud-child/mkdocs-style.css" media="all" />
+    <link rel="stylesheet" id="mkdocs-css" href="https://pravega.wpmudev.host/wp-content/themes/qloud-child/mkdocs-style.css" media="all" />
+    <script id='jquery-core-js' src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script id='mkdocs-js' src="https://pravega.wpmudev.host/wp-content/themes/qloud-child/js/mkdocs.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"></script>
+   
     <div class="container main-header">
         <div class="row no-gutters">
             <div class="col-sm-12">
                 <nav class="navbar navbar-expand-lg navbar-light">
+                    <div class="md-flex__cell md-flex__cell--shrink sideToggle">
+                        <label class="md-icon md-icon--menu md-header-nav__button" for="__drawer"></label>
+                    </div>
                     <div class="logo_block">
                         <a class="navbar-brand" href="https://pravega.wpmudev.host/">
                             <img class="img-fluid logo" src="https://pravega.wpmudev.host/wp-content/uploads/2021/01/Pravega_logo_white.png" alt="qloud" />
-                            <img class="img-fluid logo-sticky" src="https://pravega.wpmudev.host/wp-content/uploads/2021/01/Pravega_logo_white.png" alt="qloud" />
+                            <!-- <img class="img-fluid logo-sticky" src="https://pravega.wpmudev.host/wp-content/uploads/2021/01/Pravega_logo_white.png" alt="qloud" /> -->
                         </a>
                     </div>
                     <button class="navbar-toggler" type="button" data-toggle="collapse"
@@ -19,86 +22,12 @@
                         aria-expanded="false" aria-label="Toggle navigation">
                         <span class="navbar-toggler-icon"><i class="ion-navicon"></i></span>
                     </button>
-                    <script>
-                        var siteURL = '';
-                        if(window.location.hostname == 'pravega.io'){
-                            siteURL = 'https://pravega.io';
-                        }else{
-                            siteURL = 'https://pravega.wpmudev.host';
-                        }
-                    </script>
+                    
                     <div class="collapse navbar-collapse" id="navbarSupportedContent">
                         <div id="iq-menu-container" class="menu-main-menu-container">
                             <ul id="top-menu" class="navbar-nav">
                                 <script type="text/javascript" language="javascript">
-                                    var req = new XMLHttpRequest();
-                                    req.onload = showMenus;
-                                    req.onerror = errorMenus;
-                                    req.open("GET", "https://pravega.wpmudev.host/wp-json/menu/topmenu", true);
-                                    req.send();
-                                    function showMenus() {
-                                        var json = JSON.parse([this.responseText]);
-                                        //console.log(json);
-                                        if (this.status == 200) {
-                                            let main_id = json[0]["ID"];
-                                            let menu_len = json.length;
-
-                                            dict_ids = {};
-                                            for (let id = 0; id < menu_len; id++) {
-                                                let parent_id = json[id]["menu_item_parent"];
-                                                if (parent_id == "0") {
-                                                    dict_ids[json[id]["ID"]] = 0;
-                                                }
-                                                if (parent_id != "0") {
-                                                    dict_ids[parent_id] = dict_ids[parent_id] + 1;
-                                                }
-                                            }                                            
-                                            //console.log(dict_ids);
-                                            let i = 0;
-                                            while (json[i]["menu_item_parent"] == "0") {
-                                                let list = document.createElement("li");
-                                                list.id = "menu-item-" + json[i]["ID"];
-                                                list.className = "menu-item menu-item-type-custom menu-item-object-custom menu-item-has-children menu-item-" + list.id;
-                                                list.innerHTML = '<a href="#">' + json[i]["title"] + "</a>";
-                                                var ul = document.getElementsByClassName("navbar-nav");
-                                                ul[0].appendChild(list);
-                                                var menu_item_parent_id = json[i]["ID"];
-                                                if (dict_ids[menu_item_parent_id] == 0) {
-                                                    break;
-                                                }
-                                                let ul2 = document.createElement("ul");
-                                                ul2.className = "sub-menu";
-                                                ul2.id = list.id;
-                                                list.appendChild(ul2);
-                                                //console.log(list);
-                                                i = i + 1;
-                                                if (i >= menu_len) {
-                                                    break;
-                                                }
-                                                while (json[i]["menu_item_parent"] != "0") {
-                                                    let li2 = document.createElement("li");
-                                                    li2.id = "menu-item-" + json[i]["ID"];
-                                                    li2.className = "menu-item menu-item-type-custom menu-item-object-custom menu-item-" + li2.id;
-                                                    if(json[i]["url"].includes("/#")){
-                                                        json[i]["url"] = siteURL + json[i]["url"];
-                                                    }                                                    
-                                                    li2.innerHTML = '<a href="' +  json[i]["url"] + '">' + json[i]["title"] + "</a>";
-                                                    ul2.appendChild(li2);
-                                                    i = i + 1;
-                                                    if (i >= menu_len) {
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            // handle more HTTP response codes here;
-                                        }
-                                    }
-                                    function errorMenus(e) {
-                                        console.log(this);
-                                        console.error(e);
-                                        // do something with this.status, this.statusText
-                                    }
+                                    mkdocsTopmenu();
                                 </script>
                             </ul>
                         </div>
