@@ -28,7 +28,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.AsyncIterator;
@@ -56,17 +55,17 @@ public class StreamManagerImpl implements StreamManager {
 
     @VisibleForTesting
     public StreamManagerImpl(ClientConfig clientConfig, ControllerImplConfig controllerConfig) {
-        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
-        this.controller = new ControllerImpl(controllerConfig, executor);
         this.connectionPool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        this.executor = connectionPool.getInternalExecutor();
+        this.controller = new ControllerImpl(controllerConfig, executor);
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
     }
 
     @VisibleForTesting
     public StreamManagerImpl(Controller controller, ConnectionPool connectionPool) {
-        this.executor = null;
         this.controller = controller;
         this.connectionPool = connectionPool;
+        this.executor = connectionPool.getInternalExecutor();
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
     }
 
@@ -214,9 +213,6 @@ public class StreamManagerImpl implements StreamManager {
     public void close() {
         if (this.controller != null) {
             Callbacks.invokeSafely(this.controller::close, ex -> log.error("Unable to close Controller client.", ex));
-        }
-        if (this.executor != null) {
-            ExecutorServiceHelpers.shutdown(this.executor);
         }
         if (this.connectionPool != null) {
             this.connectionPool.close();
