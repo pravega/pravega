@@ -18,7 +18,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Factory for HDFS {@link Storage} implemented using {@link ChunkedSegmentStorage} and {@link HDFSChunkStorage}.
@@ -34,7 +34,7 @@ public class HDFSSimpleStorageFactory implements SimpleStorageFactory {
 
     @NonNull
     @Getter
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
 
     @Override
     public Storage createStorageAdapter(int containerId, ChunkMetadataStore metadataStore) {

@@ -24,6 +24,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -40,7 +42,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     private final SegmentHandle handle;
     private final long offset;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
-    private final ArrayList<String> chunksToDelete = new ArrayList<>();
+    private final List<String> chunksToDelete = Collections.synchronizedList(new ArrayList<>());
     private final long traceId;
     private final Timer timer;
     private volatile String currentChunkName;
@@ -75,7 +77,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                 // Nothing to do
                                 return CompletableFuture.completedFuture(null);
                             }
-
+                            val oldStartOffset = segmentMetadata.getStartOffset();
                             return updateFirstChunk(txn)
                                     .thenComposeAsync(v -> deleteChunks(txn)
                                             .thenComposeAsync( vvv -> {
@@ -83,8 +85,12 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                                 txn.update(segmentMetadata);
 
                                                 // Check invariants.
-                                                Preconditions.checkState(segmentMetadata.getLength() == oldLength, "truncate should not change segment length");
+                                                Preconditions.checkState(segmentMetadata.getLength() == oldLength,
+                                                        "truncate should not change segment length. oldLength=%s Segment=%s", oldLength, segmentMetadata);
                                                 segmentMetadata.checkInvariants();
+
+                                                // Remove read index block entries.
+                                                chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, streamSegmentName, oldStartOffset, segmentMetadata.getStartOffset());
 
                                                 // Finally commit.
                                                 return commit(txn)
@@ -160,7 +166,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                 () -> txn.get(currentChunkName)
                         .thenAcceptAsync(storageMetadata -> {
                             currentMetadata = (ChunkMetadata) storageMetadata;
-                            Preconditions.checkState(null != currentMetadata, "currentMetadata is null.");
+                            Preconditions.checkState(null != currentMetadata, "currentMetadata is null. Segment=%s currentChunkName=%s", segmentMetadata, currentChunkName);
 
                             // If for given chunk start <= offset < end  then we have found the chunk that will be the first chunk.
                             if ((startOffset.get() <= offset) && (startOffset.get() + currentMetadata.getLength() > offset)) {
@@ -170,7 +176,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
 
                             startOffset.addAndGet(currentMetadata.getLength());
                             chunksToDelete.add(currentMetadata.getName());
-                            segmentMetadata.decrementChunkCount();
+                            segmentMetadata.setChunkCount(segmentMetadata.getChunkCount() - 1);
 
                             // move to next chunk
                             currentChunkName = currentMetadata.getNextChunk();
@@ -213,8 +219,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private void checkPreconditions() {
-        Preconditions.checkArgument(null != handle, "handle");
-        Preconditions.checkArgument(!handle.isReadOnly(), "handle");
-        Preconditions.checkArgument(offset >= 0, "offset");
+        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read only. Segment = %s", handle.getSegmentName());
+        Preconditions.checkArgument(offset >= 0, "offset must be non-negative. Segment = %s offset = %s", handle.getSegmentName(), offset);
     }
 }
