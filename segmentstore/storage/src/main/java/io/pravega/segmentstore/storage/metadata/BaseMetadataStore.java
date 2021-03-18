@@ -35,12 +35,12 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -149,7 +149,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      * This allows lazy storing and avoiding unnecessary load for recently/frequently updated key value pairs.
      * Note that entries in this buffer should not be evicted while transaction using them are in flight.
      */
-    private final ConcurrentHashMap<String, TransactionData> bufferedTxnData;
+    private final Map<String, TransactionData> bufferedTxnData;
 
     /**
      * Set of active records from commits that are in-flight. These records should not be evicted until the active commits finish.
@@ -210,7 +210,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     public BaseMetadataStore(Executor executor) {
         version = new AtomicLong(System.currentTimeMillis()); // Start with unique number.
         fenced = new AtomicBoolean(false);
-        bufferedTxnData = new ConcurrentHashMap<>(); // Don't think we need anything fancy here. But we'll measure and see.
+        bufferedTxnData = Collections.synchronizedMap(new HashMap<>()); // Don't think we need anything fancy here. But we'll measure and see.
         activeKeys = ConcurrentHashMultiset.create();
         cache = CacheBuilder.newBuilder()
                 .maximumSize(maxEntriesInCache)
@@ -487,11 +487,14 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
                     // synchronize so that we don't accidentally delete a key that becomes active after check here.
                     synchronized (evictionLock) {
                         if (0 == activeKeys.count(key)) {
-                            // Synchronization prevents error when key becomes active between the check and remove.
-                            // Move the key to cache
-                            cache.put(key, bufferedTxnData.get(key));
-                            // Remove from buffer.
-                            bufferedTxnData.remove(key);
+                            // Synchronization prevents error when key is modified between the check and remove.
+                            val data = bufferedTxnData.get(key);
+                            if (null != data) {
+                                // Move the key to cache
+                                cache.put(key, data);
+                                // Remove from buffer.
+                                bufferedTxnData.remove(key);
+                            }
                             count++;
                         }
                     }
@@ -673,6 +676,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         if (!retValue.isPinned()) {
             Preconditions.checkState(null != retValue.dbObject, "Missing tracking object");
         }
+
         return retValue;
     }
 
@@ -879,42 +883,42 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
          * Version. This version number is independent of version in the store.
          * This is required to keep track of all modifications to data when it is changed while still in buffer without writing it to database.
          */
-        private long version;
+        private volatile long version;
 
         /**
          * Implementation specific object to keep track of underlying db version.
          */
-        private Object dbObject;
+        private volatile Object dbObject;
 
         /**
          * Whether this record is persisted or not.
          */
-        private boolean persisted;
+        private volatile boolean persisted;
 
         /**
          * Whether this record is pinned to the memory.
          */
-        private boolean pinned;
+        private volatile boolean pinned;
 
         /**
          * Whether this record is persisted or not.
          */
-        private boolean created;
+        private volatile boolean created;
 
         /**
          * Whether this record is pinned to the memory.
          */
-        private boolean deleted;
+        private volatile boolean deleted;
 
         /**
          * Key of the record.
          */
-        private String key;
+        private volatile String key;
 
         /**
          * Value of the record.
          */
-        private StorageMetadata value;
+        private volatile StorageMetadata value;
 
         /**
          * Builder that implements {@link ObjectBuilder}.
