@@ -47,7 +47,7 @@ public class RetentionPolicy implements Serializable {
      */
     public static RetentionPolicy byTime(Duration duration) {
         return RetentionPolicy.builder().retentionType(RetentionType.TIME)
-                .retentionParam(duration.toMillis()).retentionMax(duration.toMillis()).build();
+                .retentionParam(duration.toMillis()).retentionMax(Long.MAX_VALUE).build();
     }
 
     /**
@@ -72,7 +72,7 @@ public class RetentionPolicy implements Serializable {
      */
     public static RetentionPolicy bySizeBytes(long size) {
         return RetentionPolicy.builder().retentionType(RetentionType.SIZE)
-                .retentionParam(size).retentionMax(size).build();
+                .retentionParam(size).retentionMax(Long.MAX_VALUE).build();
     }
 
     /**

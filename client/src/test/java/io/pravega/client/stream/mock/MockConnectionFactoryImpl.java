@@ -79,4 +79,9 @@ public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionP
     public CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri uri, ReplyProcessor rp) {
         return establishConnection(uri, rp);
     }
+
+    @Override
+    public void getClientConnection(Flow flow, PravegaNodeUri uri, ReplyProcessor rp, CompletableFuture<ClientConnection> connection) {
+        establishConnection(uri, rp).thenApply(connection::complete);
+    }
 }
