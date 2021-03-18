@@ -104,7 +104,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
         @Cleanup
         SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, connectionPool).createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
-        assertEquals(payload.length * 2, metadataClient.fetchCurrentSegmentLength());
+        assertEquals(payload.length * 2, metadataClient.fetchCurrentSegmentLength().join().longValue());
     }
     
     @Test(timeout = 30000)
@@ -142,6 +142,6 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
         SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, connectionPool).createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals((payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE) * 2,
-                     metadataClient.fetchCurrentSegmentLength());
+                     metadataClient.fetchCurrentSegmentLength().join().longValue());
     }
 }

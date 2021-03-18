@@ -172,12 +172,12 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
                 DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals(0, metadataClient.getSegmentInfo().join().getStartingOffset());
         long writeOffset = metadataClient.getSegmentInfo().join().getWriteOffset();
-        assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength());
+        assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength().join().longValue());
         assertTrue(metadataClient.getSegmentInfo().join().getWriteOffset() > testString.length());
         metadataClient.truncateSegment(writeOffset);
         assertEquals(writeOffset, metadataClient.getSegmentInfo().join().getStartingOffset());
         assertEquals(writeOffset, metadataClient.getSegmentInfo().join().getWriteOffset());
-        assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength());
+        assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength().join().longValue());
 
         ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);

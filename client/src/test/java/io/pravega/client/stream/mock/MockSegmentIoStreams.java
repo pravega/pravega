@@ -206,7 +206,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     public CompletableFuture<Long> fetchProperty(SegmentAttribute attribute) {
         Long result = attributes.get(attribute);
-        return CompletableFuture.completedFuture(result == null ? SegmentAttribute.NULL_VALUE : result);
+        return CompletableFuture.completedFuture(result == null ? Long.valueOf(SegmentAttribute.NULL_VALUE) : result);
     }
 
     @Override
