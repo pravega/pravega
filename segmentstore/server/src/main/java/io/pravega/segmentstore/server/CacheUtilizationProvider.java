@@ -9,13 +9,10 @@
  */
 package io.pravega.segmentstore.server;
 
-import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.ThrottleSourceListener;
-import java.util.ArrayList;
-import java.util.HashSet;
+import io.pravega.segmentstore.storage.ThrottlerSourceListenerCollection;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
-import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -30,8 +27,7 @@ public class CacheUtilizationProvider {
 
     private final CachePolicy policy;
     private final Supplier<Long> getCacheStoredBytes;
-    @GuardedBy("cleanupListeners")
-    private final HashSet<ThrottleSourceListener> cleanupListeners;
+    private final ThrottlerSourceListenerCollection cleanupListeners;
     private final AtomicLong pendingBytes;
     private final double utilizationSpread;
     private final double maxInsertCapacityThreshold;
@@ -49,7 +45,7 @@ public class CacheUtilizationProvider {
     CacheUtilizationProvider(@NonNull CachePolicy policy, @NonNull Supplier<Long> getCacheStoredBytes) {
         this.policy = policy;
         this.getCacheStoredBytes = getCacheStoredBytes;
-        this.cleanupListeners = new HashSet<>();
+        this.cleanupListeners = new ThrottlerSourceListenerCollection();
         this.pendingBytes = new AtomicLong();
         this.utilizationSpread = 2 * (policy.getMaxUtilization() - policy.getTargetUtilization());
         this.maxInsertCapacityThreshold = policy.getMaxUtilization() - this.utilizationSpread;
@@ -160,14 +156,7 @@ public class CacheUtilizationProvider {
      *                 run that detects {@link ThrottleSourceListener#isClosed()} to be true.
      */
     public void registerCleanupListener(@NonNull ThrottleSourceListener listener) {
-        if (listener.isClosed()) {
-            log.warn("Attempted to register a closed ThrottleSourceListener ({}).", listener);
-            return;
-        }
-
-        synchronized (this.cleanupListeners) {
-            this.cleanupListeners.add(listener); // This is a Set, so we won't be adding the same listener twice.
-        }
+        this.cleanupListeners.register(listener);
     }
 
     /**
@@ -175,31 +164,7 @@ public class CacheUtilizationProvider {
      * event has just completed.
      */
     void notifyCleanupListeners() {
-        ArrayList<ThrottleSourceListener> toNotify = new ArrayList<>();
-        ArrayList<ThrottleSourceListener> toRemove = new ArrayList<>();
-        synchronized (this.cleanupListeners) {
-            for (ThrottleSourceListener l : this.cleanupListeners) {
-                if (l.isClosed()) {
-                    toRemove.add(l);
-                } else {
-                    toNotify.add(l);
-                }
-            }
-
-            this.cleanupListeners.removeAll(toRemove);
-        }
-
-        for (ThrottleSourceListener l : toNotify) {
-            try {
-                l.notifyThrottleSourceChanged();
-            } catch (Throwable ex) {
-                if (Exceptions.mustRethrow(ex)) {
-                    throw ex;
-                }
-
-                log.error("Error while notifying cleanup listener {}.", l, ex);
-            }
-        }
+        this.cleanupListeners.notifySourceChanged();
     }
 
     //endregion

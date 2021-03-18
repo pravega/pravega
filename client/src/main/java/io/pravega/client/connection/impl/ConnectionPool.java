@@ -40,6 +40,17 @@ public interface ConnectionPool extends AutoCloseable {
      */
     CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri uri, ReplyProcessor rp);
 
+    /**
+     * This is used to create a {@link ClientConnection} on an existing Connection pool. The Connection pool implementation
+     * decides if a new connection needs to be established to the PravegaNode or an existing connection can be reused to establish
+     * the connection.
+     * @param flow Flow
+     * @param uri The Pravega Node Uri.
+     * @param rp ReplyProcessor instance.
+     * @param connection instance of client connection.
+     */
+    void getClientConnection(Flow flow, PravegaNodeUri uri, ReplyProcessor rp, CompletableFuture<ClientConnection> connection);
+
     @Override
     void close();
 
