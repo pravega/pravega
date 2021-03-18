@@ -56,17 +56,10 @@ markdown_extensions:
 
 nav:
   - Overview: 'index.md'
-  - Quick Start Guide: 'getting-started/quick-start.md'
-  - Getting Started Guide: 'getting-started.md'
-  - Admin Guide:
-    - 'Cluster Overview': 'pravega-operator/doc/cluster-overview.md'
-    - 'Deploy Pravega': 'pravega-operator/charts/pravega/README.md'
-    - 'Upgrade Pravega': 'pravega-operator/doc/upgrade-cluster.md'
-    - 'Configure Pravega': 'pravega-operator/doc/configuration.md'
-  - Dev Guide:
-    - '1st Code Walkthrough': 'beginner_dev_guide.md'
-    - 'Clients & Streams Walkthrough': 'dev-guide/clients-and-streams.md'
-    - 'Flink Connector Walkthrough': 'flink-connectors/documentation/src/docs/dev-guide.md'
+  - Quick Start: 'getting-started/quick-start.md'
+  - Getting Started:
+    - 'Running a Sample Application': 'getting-started.md'
+    - 'Pravega on Kubernetes 101': 'pravega-operator/charts/pravega/README.md'
   - Understanding Pravega:
       - 'Pravega Concepts': 'pravega-concepts.md'
       - 'Terminology': 'terminology.md'
@@ -79,24 +72,23 @@ nav:
       - 'StateSynchronizer': 'state-synchronizer-design.md'
       - 'Reader Groups': 'reader-group-design.md'
       - 'Watermarking': 'watermarking.md'
-
   - Developing Pravega Applications:
-      - 'Java API Reference': 'javadoc.md'
-      - 'REST API - Controller': 'rest/restapis.md'
-      - 'Schema Registry':
-        - Overview: 'schema-registry/documentation/src/docs/overview.md'
-        - Schema Registry Concepts: 'schema-registry/documentation/src/docs/schema-registry-concepts.md'
-        - Using Schema Registry SDK:
-          - 'Java API Reference': 'schema-registry/documentation/src/docs/javadoc.md'
-          - 'REST API': 'schema-registry/documentation/src/docs/rest-documentation.md'
-          - 'Using Schema Registry in Pravega Applications': 'schema-registry/documentation/src/docs/pravega-applications.md'
-        - Deployment Overview: 'schema-registry/documentation/src/docs/installation-guide.md'
-        - Security, TLS & Authz/Authn: 'schema-registry/documentation/src/docs/security.md'
-      - 'Pravega Connectors': 'connectors.md'
-      - 'Flink Connector':
+    - '1st Code Walkthrough': 'beginner_dev_guide.md'
+    - 'Clients & Streams Walkthrough': 'dev-guide/clients-and-streams.md'
+    - 'Java API Reference': 'javadoc.md'
+    - 'REST API - Controller': 'rest/restapis.md'
+    - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
+    - 'Working with Reader Group notifications': 'reader-group-notifications.md'
+    - 'Working with State Synchronizer': 'state-synchronizer.md'
+    - 'Working with Transactions': 'transactions.md'
+    - 'Working with StreamCuts': 'streamcuts.md'
+  - Pravega Connectors:
+    - 'Ecosystem': 'connectors.md'
+    - 'Flink Connector':
         - Overview: 'flink-connectors/documentation/src/docs/index.md'
         - Getting Started: 'flink-connectors/documentation/src/docs/getting-started.md'
         - Quick Start: 'flink-connectors/documentation/src/docs/quickstart.md'
+        - 'Flink Connector Walkthrough': 'flink-connectors/documentation/src/docs/dev-guide.md'
         - Features:
             - 'Streaming': 'flink-connectors/documentation/src/docs/streaming.md'
             - 'Batch': 'flink-connectors/documentation/src/docs/batch.md'
@@ -104,12 +96,20 @@ nav:
         - Metrics: 'flink-connectors/documentation/src/docs/metrics.md'
         - Configurations: 'flink-connectors/documentation/src/docs/configurations.md'
         - Serialization: 'flink-connectors/documentation/src/docs/serialization.md'
-      - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
-      - 'Working with Reader Group notifications': 'reader-group-notifications.md'
-      - 'Working with State Synchronizer': 'state-synchronizer.md'
-      - 'Working with Transactions': 'transactions.md'
-      - 'Working with StreamCuts': 'streamcuts.md'
-  - Running Pravega:
+    - 'Hadoop Connector': 'https://github.com/pravega/hadoop-connectors/blob/master/README.md'
+    - 'Spark Connector': 'https://github.com/pravega/spark-connectors/blob/master/README.md'
+    - 'Presto Connector': 'https://github.com/pravega/presto-connector/blob/main/README.md'
+    - 'Boomi Connector': 'https://github.com/pravega/boomi-connector/blob/master/README.md'
+  - 'Schema Registry':
+      - Overview: 'schema-registry/documentation/src/docs/overview.md'
+      - Schema Registry Concepts: 'schema-registry/documentation/src/docs/schema-registry-concepts.md'
+      - Using Schema Registry SDK:
+          - 'Java API Reference': 'schema-registry/documentation/src/docs/javadoc.md'
+          - 'REST API': 'schema-registry/documentation/src/docs/rest-documentation.md'
+          - 'Using Schema Registry in Pravega Applications': 'schema-registry/documentation/src/docs/pravega-applications.md'
+      - Deployment Overview: 'schema-registry/documentation/src/docs/installation-guide.md'
+      - Security, TLS & Authz/Authn: 'schema-registry/documentation/src/docs/security.md'
+  - 'Deployment':
       - 'Deployment Overview': 'deployment/deployment.md'
       - 'Running Locally': 'deployment/run-local.md'
       - 'Manual Install': 'deployment/manual-install.md'
@@ -118,6 +118,10 @@ nav:
       - 'Deployment on DC/OS': 'deployment/dcos-install.md'
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
       - 'Pravega Metrics': 'metrics.md'
+  - Admin Guide:
+      - 'Kubernetes Operations':
+        - 'Configure Pravega': 'pravega-operator/doc/configuration.md'
+        - 'Upgrade Pravega': 'pravega-operator/doc/upgrade-cluster.md'
   - Pravega Security:
       - 'Pravega Authentication/Authorization Plugin': 'auth/auth-plugin.md'
       - 'Client Auth Interface': 'auth/client-auth.md'
