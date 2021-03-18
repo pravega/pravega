@@ -72,8 +72,9 @@ nav:
     - 'Upgrade Pravega': 'pravega-operator/doc/upgrade-cluster.md'
     - 'Configure Pravega': 'pravega-operator/doc/configuration.md'
   - Dev Guide:
-    - '1st Code Walk through': 'beginner_dev_guide.md'
-    - 'Flink Connector Walk through': 'flink-connectors/documentation/src/docs/dev-guide.md'
+    - '1st Code Walkthrough': 'beginner_dev_guide.md'
+    - 'Clients & Streams Walkthrough': 'dev-guide/clients-and-streams.md'
+    - 'Flink Connector Walkthrough': 'flink-connectors/documentation/src/docs/dev-guide.md'
   - Understanding Pravega:
       - 'Pravega Concepts': 'pravega-concepts.md'
       - 'Terminology': 'terminology.md'
