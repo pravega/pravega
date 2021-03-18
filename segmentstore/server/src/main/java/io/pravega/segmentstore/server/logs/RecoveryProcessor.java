@@ -17,6 +17,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
@@ -187,6 +188,11 @@ class RecoveryProcessor {
 
         // Update in-memory structures.
         this.stateUpdater.process(operation);
+
+        // Perform necessary read index cleanups if possible.
+        if (operation instanceof CheckpointOperationBase) {
+            this.stateUpdater.cleanupReadIndex();
+        }
     }
 
     private void recordTruncationMarker(DataFrameRecord<Operation> dataFrameRecord) {
