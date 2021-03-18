@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage;
 
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 
 import java.util.concurrent.Executor;
@@ -29,4 +30,10 @@ public interface SimpleStorageFactory extends StorageFactory {
      * @return Executor used by the factory.
      */
     Executor getExecutor();
+
+    /**
+     * Gets the ChunkedSegmentStorageConfig used by the factory.
+     * @return ChunkedSegmentStorageConfig used by the factory.
+     */
+    ChunkedSegmentStorageConfig getChunkedSegmentStorageConfig();
 }

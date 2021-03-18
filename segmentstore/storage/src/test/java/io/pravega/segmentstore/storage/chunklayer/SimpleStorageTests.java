@@ -87,7 +87,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      * @throws Exception Exceptions in case of any errors.
      */
     protected ChunkMetadataStore getMetadataStore() throws Exception {
-        return new InMemoryMetadataStore(executorService());
+        return new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
     }
 
     /**

@@ -23,6 +23,7 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -64,13 +65,13 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
 
     /**
      * Constructor.
-     *
      * @param tableName  Name of the table segment.
      * @param tableStore Instance of the {@link TableStore}.
+     * @param config Configuration options for this instance.
      * @param executor Executor to use for async operations.
      */
-    public TableBasedMetadataStore(String tableName, TableStore tableStore, Executor executor) {
-        super(executor);
+    public TableBasedMetadataStore(String tableName, TableStore tableStore, ChunkedSegmentStorageConfig config, Executor executor) {
+        super(config, executor);
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.tableName = Preconditions.checkNotNull(tableName, "tableName");
     }
