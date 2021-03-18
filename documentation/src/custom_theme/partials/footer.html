@@ -1,44 +1,18 @@
 <footer class="iq-over-dark-90" id="contact">
-
-    <!-- <div class="md-footer-meta md-typeset">
-        <div class="md-footer-meta__inner md-grid">
-        
-        </div>
-    </div> -->
-
     <div class="footer-topbar">
         <div class="container">
             <div class="row">
                 <div class="col-lg-12 col-md-12 col-sm-12 ">
                     <div class="widget">
                         <div class="textwidget topfooterPar">
-
                             <script type="text/javascript" language="javascript">
-                                var reqfooter = new XMLHttpRequest();
-                                reqfooter.onload = showTopfooter;
-                                reqfooter.onerror = errorTopFooter;
-                                reqfooter.open("GET", "https://pravega.wpmudev.host/wp-json/wp/v2/widgets/?widget=footer_top_area", true);
-                                reqfooter.send();
-                                function showTopfooter() {
-                                    var json = JSON.parse([this.responseText]);
-                                    if (this.status == 200) {
-                                        let widcontent = json[0]['instance'].text;
-                                        var widcontentPar = document.getElementsByClassName("topfooterPar");
-                                        widcontentPar[0].insertAdjacentHTML( 'beforeend', widcontent );
-                                    }
-                                }
-                                function errorTopFooter(e){
-                                    console.log(this);
-                                    console.error(e);
-                                }
-                            </script>
-                            
+                                mkdocsBottomTop();
+                            </script>                            
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
     </div>
     <div class="footer-top">
         <div class="container">
@@ -47,23 +21,7 @@
                     <div class="widget">
                         <div class="textwidget footerLeft">
                             <script type="text/javascript" language="javascript">
-                                var reqfooter = new XMLHttpRequest();
-                                reqfooter.onload = showLeftfooter;
-                                reqfooter.onerror = errorLeftFooter;
-                                reqfooter.open("GET", "https://pravega.wpmudev.host/wp-json/wp/v2/widgets/?widget=footer_1_sidebar", true);
-                                reqfooter.send();
-                                function showLeftfooter() {
-                                    var json = JSON.parse([this.responseText]);
-                                    if (this.status == 200) {                                        
-                                        let widcontent = json[0]['instance'].text;
-                                        var widcontentPar = document.getElementsByClassName("footerLeft");
-                                        widcontentPar[0].insertAdjacentHTML( 'beforeend', widcontent );
-                                    }
-                                }
-                                function errorLeftFooter(e){
-                                    console.log(this);
-                                    console.error(e);
-                                }
+                                mkdocsBottomLeft();
                             </script>
                         </div>
                     </div>
@@ -74,54 +32,8 @@
                         <div class="menu-footer-quick-links-container">
                             <ul id="menu-footer-quick-links" class="menu footermenu">
                                 <script type="text/javascript" language="javascript">
-                                    var reqfooterOne = new XMLHttpRequest();
-                                    reqfooterOne.onload = showfooterMenusOne;
-                                    reqfooterOne.onerror = errorFooterMenusOne;
-                                    reqfooterOne.open("GET", "https://pravega.wpmudev.host/wp-json/menu/footermenu", true);
-                                    reqfooterOne.send();
-                                    function showfooterMenusOne() {
-                                        var json = JSON.parse([this.responseText]);
-                                        //console.log(json);
-                                        if (this.status == 200) {
-                                            let main_id = json[0]["ID"];
-                                            let menu_len = json.length;
-
-                                            dict_ids = {};
-                                            for (let id = 0; id < menu_len; id++) {
-                                                let parent_id = json[id]["menu_item_parent"];
-                                                if (parent_id == "0") {
-                                                    dict_ids[json[id]["ID"]] = 0;
-                                                }
-                                                if (parent_id != "0") {
-                                                    dict_ids[parent_id] = dict_ids[parent_id] + 1;
-                                                }
-                                            }                                            
-                                            //console.log(dict_ids);
-                                            let i = 0;
-                                            while (json[i]["menu_item_parent"] == "0") {
-                                                let list = document.createElement("li");
-                                                list.id = "menu-item-" + json[i]["ID"];
-                                                list.className = "menu-item menu-item-type-custom menu-item-object-custom menu-item-has-children menu-item-" + list.id;
-                                                list.innerHTML = '<a href="' +  json[i]["url"] + '">' + json[i]["title"] + "</a>";
-                                                var ul = document.getElementsByClassName("footermenu");
-                                                ul[0].appendChild(list);
-                                                i = i + 1;
-                                                if(json.length == i){
-                                                    break;
-                                                }
-                                            }
-                                        } else {
-                                            // handle more HTTP response codes here;
-                                        }
-                                    }
-                                    function errorFooterMenusOne(e) {
-                                        console.log(this);
-                                        console.error(e);
-                                        // do something with this.status, this.statusText
-                                    }
-                                </script>
-
-                                
+                                    mkdocsBottomMiddle();
+                                </script>                                
                             </ul>
                         </div>
                     </div>
@@ -130,59 +42,24 @@
                     <div class="widget">
                         <h4 class="footer-title ">Quick Links</h4>
                         <div class="menu-footer-menu-container">
-                            <ul id="menu-footer-menu" class="menu quicklinkmenu">
-                                
-                                        <script type="text/javascript" language="javascript">
-                                            var reqfooter = new XMLHttpRequest();
-                                            reqfooter.onload = showfooterMenusTwo;
-                                            reqfooter.onerror = errorFooterMenusTwo;
-                                            reqfooter.open("GET", "https://pravega.wpmudev.host/wp-json/menu/quicklink", true);
-                                            reqfooter.send();
-                                            function showfooterMenusTwo() {
-                                                var json = JSON.parse([this.responseText]);
-                                                //console.log(json);
-                                                if (this.status == 200) {
-                                                    let main_id = json[0]["ID"];
-                                                    let menu_len = json.length;
-        
-                                                    dict_ids = {};
-                                                    for (let id = 0; id < menu_len; id++) {
-                                                        let parent_id = json[id]["menu_item_parent"];
-                                                        if (parent_id == "0") {
-                                                            dict_ids[json[id]["ID"]] = 0;
-                                                        }
-                                                        if (parent_id != "0") {
-                                                            dict_ids[parent_id] = dict_ids[parent_id] + 1;
-                                                        }
-                                                    }
-                                                    let i = 0;
-                                                    
-                                                    while (json[i]["menu_item_parent"] === "0") {                                 
-                                                        let list = document.createElement("li");
-                                                        list.id = "menu-item-" + json[i]["ID"];
-                                                        list.className = "menu-item menu-item-type-custom menu-item-object-custom menu-item-has-children menu-item-" + list.id;
-                                                        list.innerHTML = '<a href="' +  json[i]["url"] + '">' + json[i]["title"] + "</a>";
-                                                        var ul = document.getElementsByClassName("quicklinkmenu");
-                                                        ul[0].appendChild(list);
-                                                        i = i + 1;
-                                                        if(json.length == i){
-                                                            break;
-                                                        }
-                                                    }
-                                                } else {
-                                                    
-                                                }
-                                            }
-                                            function errorFooterMenusTwo(e) {
-                                                console.log(this);
-                                                console.error(e);
-                                            }
-                                        </script>
+                            <ul id="menu-footer-menu" class="menu quicklinkmenu">                                
+                                <script type="text/javascript" language="javascript">
+                                    mkdocsBottomRight();
+                                </script>
                             </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-12 col-md-12 col-sm-12 mt-4 copyright ">
+                    <div class="widget">
+                        <div class="textwidget copyrightwidget">
+                            <script type="text/javascript" language="javascript">
+                                mkdocsBottomCopyright();
+                            </script>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    </div>       
 </footer>
