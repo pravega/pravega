@@ -703,7 +703,7 @@ public class EventStreamReaderTest {
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
         writeInt(stream, 3);
-        long length = metadataClient.fetchCurrentSegmentLength();
+        long length = metadataClient.fetchCurrentSegmentLength().join();
         assertEquals(0, length % 3);
         EventRead<byte[]> event1 = reader.readNextEvent(0);
         assertEquals(buffer1, ByteBuffer.wrap(event1.getEvent()));

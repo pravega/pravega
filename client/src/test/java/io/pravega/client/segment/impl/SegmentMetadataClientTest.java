@@ -71,7 +71,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
-        long length = client.fetchCurrentSegmentLength();
+        long length = client.fetchCurrentSegmentLength().join();
         assertEquals(123, length);
     }
     
@@ -214,7 +214,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.GetSegmentAttribute.class));
-        long value = client.fetchProperty(SegmentAttribute.RevisionStreamClientMark);
+        long value = client.fetchProperty(SegmentAttribute.RevisionStreamClientMark).join();
         assertEquals(123, value);
     }
 
@@ -240,7 +240,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.UpdateSegmentAttribute.class));
-        assertTrue(client.compareAndSetAttribute(SegmentAttribute.RevisionStreamClientMark, -1234, 1234));
+        assertTrue(client.compareAndSetAttribute(SegmentAttribute.RevisionStreamClientMark, -1234, 1234).join());
     }
 
     @Test(timeout = 10000)
@@ -275,7 +275,7 @@ public class SegmentMetadataClientTest {
             }
         }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
 
-        long length = client.fetchCurrentSegmentLength();
+        long length = client.fetchCurrentSegmentLength().join();
         InOrder order = Mockito.inOrder(connection, cf);
         order.verify(cf).establishConnection(eq(endpoint), any(ReplyProcessor.class));
         order.verify(connection).send(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(0), segment.getScopedName(), "")));
@@ -338,7 +338,7 @@ public class SegmentMetadataClientTest {
         @Cleanup
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
         InOrder order = Mockito.inOrder(connection1, connection2, cf);
-        long length = client.fetchCurrentSegmentLength();
+        long length = client.fetchCurrentSegmentLength().join();
         order.verify(cf, Mockito.times(2)).getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any());
         order.verify(connection1).send(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(0), segment.getScopedName(), "")));
         order.verify(connection1).close();

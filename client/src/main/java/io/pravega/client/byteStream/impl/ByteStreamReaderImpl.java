@@ -14,6 +14,7 @@ import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
@@ -70,7 +71,7 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
 
     @Override
     public long fetchTailOffset() {
-        return meta.fetchCurrentSegmentLength();
+        return Futures.getThrowingException(meta.fetchCurrentSegmentLength());
     }
 
     @Override

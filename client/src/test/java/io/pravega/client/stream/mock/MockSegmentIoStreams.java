@@ -80,8 +80,8 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public long fetchCurrentSegmentLength() {
-        return writeOffset;
+    public CompletableFuture<Long> fetchCurrentSegmentLength() {
+        return CompletableFuture.completedFuture(writeOffset);
     }
 
     
@@ -204,15 +204,15 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public long fetchProperty(SegmentAttribute attribute) {
+    public CompletableFuture<Long> fetchProperty(SegmentAttribute attribute) {
         Long result = attributes.get(attribute);
-        return result == null ? SegmentAttribute.NULL_VALUE : result;
+        return CompletableFuture.completedFuture(result == null ? SegmentAttribute.NULL_VALUE : result);
     }
 
     @Override
-    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
+    public CompletableFuture<Boolean> compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
         attributes.putIfAbsent(attribute, SegmentAttribute.NULL_VALUE);
-        return attributes.replace(attribute, expectedValue, newValue);
+        return CompletableFuture.completedFuture(attributes.replace(attribute, expectedValue, newValue));
     }
 
     public boolean isClosed() {
@@ -221,17 +221,18 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public SegmentInfo getSegmentInfo() {
-        return new SegmentInfo(segment, startingOffset, writeOffset, false, System.currentTimeMillis());
+    public CompletableFuture<SegmentInfo> getSegmentInfo() {
+        return CompletableFuture.completedFuture(new SegmentInfo(segment, startingOffset, writeOffset, false, System.currentTimeMillis()));
     }
 
     @Override
     @Synchronized
-    public void truncateSegment(long offset) {
+    public CompletableFuture<Void> truncateSegment(long offset) {
         Preconditions.checkArgument(offset <= writeOffset);
         if (offset >= startingOffset) {
             startingOffset = offset;
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
@@ -246,12 +247,13 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public void sealSegment() {
+    public CompletableFuture<Void> sealSegment() {
         //Nothing to do
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public long getLastObservedWriteOffset() {
-        return fetchCurrentSegmentLength();
+        return fetchCurrentSegmentLength().join();
     }
 }

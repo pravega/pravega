@@ -170,13 +170,13 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         Segment segment = new Segment(scope, streamName, 0);
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
-        assertEquals(0, metadataClient.getSegmentInfo().getStartingOffset());
-        long writeOffset = metadataClient.getSegmentInfo().getWriteOffset();
+        assertEquals(0, metadataClient.getSegmentInfo().join().getStartingOffset());
+        long writeOffset = metadataClient.getSegmentInfo().join().getWriteOffset();
         assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength());
-        assertTrue(metadataClient.getSegmentInfo().getWriteOffset() > testString.length());
+        assertTrue(metadataClient.getSegmentInfo().join().getWriteOffset() > testString.length());
         metadataClient.truncateSegment(writeOffset);
-        assertEquals(writeOffset, metadataClient.getSegmentInfo().getStartingOffset());
-        assertEquals(writeOffset, metadataClient.getSegmentInfo().getWriteOffset());
+        assertEquals(writeOffset, metadataClient.getSegmentInfo().join().getStartingOffset());
+        assertEquals(writeOffset, metadataClient.getSegmentInfo().join().getWriteOffset());
         assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength());
 
         ack = producer.writeEvent(testString);

@@ -10,6 +10,7 @@
 package io.pravega.client.admin.impl;
 
 import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -19,10 +20,13 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.AccessOperation;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -62,17 +66,21 @@ public class StreamCutHelper {
         final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(controller,
                 stream.getScope(), stream.getStreamName(), AccessOperation.READ);
         return controller.getCurrentSegments(stream.getScope(), stream.getStreamName())
-                         .thenApply(streamsegments -> {
-                             Map<Segment, Long> pos = streamsegments.getSegments().stream()
-                                             .map(segment -> segmentToInfo(segment, tokenProvider))
-                                             .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getWriteOffset));
-                             return new StreamCutImpl(stream, pos);
-                         });
+            .thenCompose(streamsegments -> segmentToInfos(streamsegments.getSegments(), tokenProvider))
+            .thenApply(infos -> {
+                Map<Segment, Long> pos = infos.stream()
+                    .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getWriteOffset));
+                return new StreamCutImpl(stream, pos);
+            });
     }
 
-    private SegmentInfo segmentToInfo(Segment s, DelegationTokenProvider tokenProvider) {
-        @Cleanup
-        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, tokenProvider);
-        return client.getSegmentInfo();
+    private CompletableFuture<List<SegmentInfo>> segmentToInfos(Collection<Segment> segments, DelegationTokenProvider tokenProvider) {
+        List<CompletableFuture<SegmentInfo>> results = new ArrayList<>();
+        for (Segment s : segments) {
+            @Cleanup
+            SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, tokenProvider);
+            results.add(client.getSegmentInfo());
+        }
+        return Futures.allOfWithResults(results);
     }
 }
