@@ -387,9 +387,12 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                             new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
                     // Starts a DebugSegmentContainer with new Durable Log
                     @Cleanup
+                    TestContext context1 = createContext(executorService());
+
+                    @Cleanup
                     MetadataCleanupContainer container2 = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory2,
-                            context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
-                            context.getDefaultExtensions(), executorService());
+                            context1.readIndexFactory, context1.attributeIndexFactory, context1.writerFactory, storageFactory,
+                            context1.getDefaultExtensions(), executorService());
                     container2.startAsync().awaitRunning();
                     Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainersMap = new HashMap<>();
                     debugStreamSegmentContainersMap.put(containerId, container2);
@@ -420,7 +423,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                         val attributes = container2.getAttributes(sc.getKey(), Collections.singleton(attributeReplace), false, TIMEOUT).join();
                         Assert.assertEquals("Unexpected attribute for " + sc.getKey(), expectedAttributeValue, (long) attributes.get(attributeReplace));
                     }
-                });
+                }).join();
     }
 
     private SegmentType getSegmentType(String segmentName) {
