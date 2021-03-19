@@ -1112,7 +1112,6 @@ public abstract class PersistentStreamBase implements Stream {
                         ImmutableList<StreamSegmentRecord> newSegments = newSegmentsBuilder.build();
                         builder.addAll(newSegments);
                         // epoch record
-                        // epoch record
                         SimpleEntry<Long, Long> splitMergeCountLastEpoch = getSplitMergeCountsTillEpoch(currentEpoch).join();
                         ImmutableList<StreamSegmentRecord> epochSegments = builder.build();
                         List<StreamSegmentRecord> segmentsList = convertToList(epochSegments);
