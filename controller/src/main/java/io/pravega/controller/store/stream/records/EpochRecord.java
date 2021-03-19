@@ -37,8 +37,8 @@ public class EpochRecord {
 
     private final int epoch;
     /**
-     * Reference epoch is either the same as epoch or the epoch that originated a chain of duplicates
-     * that includes this epoch. If we look at it as a graph, then it is a tree of depth one, where
+     * Reference epoch is either the same as epoch or the epoch that originated a chain of duplicates 
+     * that includes this epoch. If we look at it as a graph, then it is a tree of depth one, where 
      * the root is the original epoch and the children are duplicates.
      */
     private final int referenceEpoch;
@@ -54,10 +54,9 @@ public class EpochRecord {
      * Cumulative number of merges till this Epoch.
      */
     private final long merges;
-
+    
     @Builder
-    public EpochRecord(int epoch, int referenceEpoch, @NonNull ImmutableList<StreamSegmentRecord> segments,
-                       long creationTime, long splits, long merges) {
+    public EpochRecord(int epoch, int referenceEpoch, @NonNull ImmutableList<StreamSegmentRecord> segments, long creationTime, long splits, long merges) {
         this.epoch = epoch;
         this.referenceEpoch = referenceEpoch;
         this.segments = segments;
@@ -77,7 +76,7 @@ public class EpochRecord {
             return false;
         }
     }
-
+    
     @SneakyThrows(IOException.class)
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
@@ -92,7 +91,7 @@ public class EpochRecord {
         InputStream inputStream = new ByteArrayInputStream(record, 0, record.length);
         return SERIALIZER.deserialize(inputStream);
     }
-
+    
     public Set<Long> getSegmentIds() {
         return segmentMap.keySet();
     }
@@ -100,7 +99,7 @@ public class EpochRecord {
     public StreamSegmentRecord getSegment(long segmentId) {
         return segmentMap.get(segmentId);
     }
-
+    
     public boolean containsSegment(long segmentId) {
         return segmentMap.containsKey(segmentId);
     }
@@ -108,7 +107,7 @@ public class EpochRecord {
     private static class EpochRecordBuilder implements ObjectBuilder<EpochRecord> {
 
     }
-
+    
     private static class EpochRecordSerializer extends VersionedSerializer.WithBuilder<EpochRecord, EpochRecord.EpochRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
@@ -117,8 +116,7 @@ public class EpochRecord {
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00)
-                    .revision(1, this::write01, this::read01);
+            version(0).revision(0, this::write00, this::read00).revision(1, this::write01, this::read01);
         }
 
         private void read00(RevisionDataInput revisionDataInput, EpochRecord.EpochRecordBuilder builder) throws IOException {
