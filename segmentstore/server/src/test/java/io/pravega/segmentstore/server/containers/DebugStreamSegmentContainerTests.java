@@ -317,18 +317,20 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     public void testDataRecoveryContainerLevel() throws Exception {
         int attributesUpdatesPerSegment = 50;
         int segmentsCount = 10;
-        final UUID attributeReplace = UUID.randomUUID();
+        final UUID attributeReplace = new UUID(CORE_ATTRIBUTE_ID_PREFIX, RANDOM.nextInt(10));
         final long expectedAttributeValue = attributesUpdatesPerSegment;
         int containerId = 0;
         int containerCount = 1;
         int maxDataSize = 1024 * 1024; // 1MB
+
+        StorageFactory storageFactory = new InMemoryStorageFactory(executorService());
 
         @Cleanup
         TestContext context = createContext(executorService());
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
         @Cleanup
         MetadataCleanupContainer container = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                 context.getDefaultExtensions(), executorService());
         container.startAsync().awaitRunning();
 
@@ -376,7 +378,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Get the storage instance
         @Cleanup
-        Storage storage = context.storageFactory.createStorageAdapter();
+        Storage storage = storageFactory.createStorageAdapter();
 
         // 4. Move container metadata and its attribute segment to back up segments.
         ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount, executorService(), TIMEOUT)
@@ -386,7 +388,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                     // Starts a DebugSegmentContainer with new Durable Log
                     @Cleanup
                     MetadataCleanupContainer container2 = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory2,
-                            context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                            context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                             context.getDefaultExtensions(), executorService());
                     container2.startAsync().awaitRunning();
                     Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainersMap = new HashMap<>();
