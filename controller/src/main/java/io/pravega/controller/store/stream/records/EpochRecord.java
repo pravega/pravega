@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 import java.util.Set;
-import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -118,16 +117,16 @@ public class EpochRecord {
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00)
-                      .revision(1, this::write01, this::read01);
+                    .revision(1, this::write01, this::read01);
         }
 
         private void read00(RevisionDataInput revisionDataInput, EpochRecord.EpochRecordBuilder builder) throws IOException {
             builder.epoch(revisionDataInput.readInt())
-                   .referenceEpoch(revisionDataInput.readInt());
+                    .referenceEpoch(revisionDataInput.readInt());
             ImmutableList.Builder<StreamSegmentRecord> segmentsBuilder = ImmutableList.builder();
             revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, segmentsBuilder);
             builder.segments(segmentsBuilder.build())
-                   .creationTime(revisionDataInput.readLong());
+                    .creationTime(revisionDataInput.readLong());
         }
 
         private void write00(EpochRecord history, RevisionDataOutput revisionDataOutput) throws IOException {
