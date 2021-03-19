@@ -45,11 +45,12 @@ There are multiple options provided for running Pravega in different environment
 
 - [Local](run-local.md) - Running Pravega locally is suitable for development and testing.
     - [Running from source](run-local.md#from-source)
-    - Local Standalone Mode
-    - Docker Compose (Distributed Mode)
+    - [Local Standalone Mode](run-local.md#from-installation-package)
+    - [Docker Compose (Distributed Mode)](run-local.md#docker-compose-distributed-mode)
 - Production - Multi-node installation suitable for running in production.
     - [Manual Installation](manual-install.md)
-    - [Kubernetes](kubernetes-install.md)
+    - [Kubernetes (Helm)](pravega-operator/charts/pravega/README.md)
+    - [Kubernetes (Custom)](pravega-operator/doc/manual-installation.md)
     - [Docker Swarm](docker-swarm.md)
     - [DC/OS](dcos-install.md)
-    - Cloud - [AWS](aws-install.md)
+    - [Cloud (AWS)](aws-install.md)
