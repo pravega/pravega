@@ -80,10 +80,10 @@ nav:
     - 'Working with State Synchronizer': 'state-synchronizer.md'
     - 'Working with Transactions': 'transactions.md'
     - 'Working with StreamCuts': 'streamcuts.md'
-    - 'Java API Reference': 'javadoc.md'
+    - 'Pravega Client APIs': 'javadoc.md'
     - 'REST API - Controller': 'rest/restapis.md'
   - Pravega Connectors:
-    - 'Ecosystem': 'connectors.md'
+    - 'Connectors Ecosystem': 'connectors.md'
     - 'Flink Connector':
         - Overview: 'flink-connectors/documentation/src/docs/index.md'
         - Getting Started: 'flink-connectors/documentation/src/docs/getting-started.md'
@@ -119,8 +119,12 @@ nav:
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
       - 'Pravega Metrics': 'metrics.md'
   - Admin Guide:
+      - 'Pravega Cluster Dependencies': 'admin-guide/cluster-dependencies.md'
+      - 'Setting the Number of Segment Containers': 'admin-guide/num-containers.md'
+      - 'Segment Store Cache And Memory': 'admin-guide/segmentstore-memory.md'
+      - 'Durable Log Configuration: Apache Bookkeeper': 'admin-guide/durable-log-config.md'
+      - 'Right-Sizing Long-Term Storage': 'admin-guide/lts-right-sizing.md'
       - 'Kubernetes Operations':
-        - 'Configure Pravega': 'pravega-operator/doc/configuration.md'
         - 'Upgrade Pravega': 'pravega-operator/doc/upgrade-cluster.md'
   - Pravega Security:
       - 'Pravega Authentication/Authorization Plugin': 'auth/auth-plugin.md'
