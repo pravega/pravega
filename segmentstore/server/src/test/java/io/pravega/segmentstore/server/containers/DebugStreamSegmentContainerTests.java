@@ -398,6 +398,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                         updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainersMap, executorService(), TIMEOUT);
                     } catch (Exception e) {
                         log.error("Error while executing the test.", e);
+                        Assert.fail("Error while executing the test.");
                     }
 
                     // 6. Verify Segment Data.
