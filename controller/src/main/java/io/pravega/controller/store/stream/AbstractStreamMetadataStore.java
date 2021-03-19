@@ -1036,27 +1036,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, OperationContext context, Executor executor) {
         Stream stream = getStream(scopeName, streamName, context);
         return stream.getActiveEpoch(true).thenCompose(lastEpoch -> stream.getSplitMergeCountsTillEpoch(lastEpoch));
-        /*
-        {
-            if (lastEpoch.hasSplitsMerges()) {
-                // the latest EpochRecord has a cumulative count of splits and merges.
-                return CompletableFuture.completedFuture(new SimpleEntry<>(lastEpoch.getSplits(),
-                        lastEpoch.getMerges()));
-            } else {
-                return getScaleMetadata(scopeName, streamName, 0, Long.MAX_VALUE, context, executor)
-                    .thenApply(scaleMetadataList -> {
-                    AtomicLong totalNumSplits = new AtomicLong(0L);
-                    AtomicLong totalNumMerges = new AtomicLong(0L);
-                    scaleMetadataList.forEach(x -> {
-                        totalNumMerges.addAndGet(x.getMerges());
-                        totalNumSplits.addAndGet(x.getSplits());
-                    });
-                    return new SimpleEntry<>(totalNumSplits.get(), totalNumMerges.get());
-                });
-            }
-        });
-        
-         */
     }
 
     /**
