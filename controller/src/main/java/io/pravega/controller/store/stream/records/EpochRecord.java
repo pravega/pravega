@@ -1,11 +1,11 @@
 /**
  * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.controller.store.stream.records;
 
@@ -48,11 +48,11 @@ public class EpochRecord {
     @Getter(AccessLevel.PRIVATE)
     private final Map<Long, StreamSegmentRecord> segmentMap;
     /**
-     * Number of splits performed as part of scale operation.
+     * Cumulative number of splits till this Epoch.
      */
     private final long splits;
     /**
-     * Number of merges performed as part of scale operation.
+     * Cumulative number of merges till this Epoch.
      */
     private final long merges;
 
@@ -77,22 +77,6 @@ public class EpochRecord {
             }
             return false;
         }
-    }
-
-    /**
-     * Method to calculate number of splits and merges.
-     *
-     * Principle to calculate the number of splits and merges:
-     * 1- An event has occurred if a reference range is present (overlaps) in at least two consecutive target ranges.
-     * 2- If the direction of the check in 1 is forward, then it is a split, otherwise it is a merge.
-     *
-     * @param referenceSegmentsList Reference segment list.
-     * @param targetSegmentsList Target segment list.
-     * @return Number of splits/merges.
-     */
-    public static long findSegmentSplitsMerges(List<StreamSegmentRecord> referenceSegmentsList, List<StreamSegmentRecord> targetSegmentsList) {
-        return referenceSegmentsList.stream().filter(
-                segment -> targetSegmentsList.stream().filter(target -> target.overlaps(segment)).count() > 1 ).count();
     }
 
     @SneakyThrows(IOException.class)
@@ -134,16 +118,16 @@ public class EpochRecord {
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00)
-                    .revision(1, this::write01, this::read01);
+                      .revision(1, this::write01, this::read01);
         }
 
         private void read00(RevisionDataInput revisionDataInput, EpochRecord.EpochRecordBuilder builder) throws IOException {
             builder.epoch(revisionDataInput.readInt())
-                    .referenceEpoch(revisionDataInput.readInt());
+                   .referenceEpoch(revisionDataInput.readInt());
             ImmutableList.Builder<StreamSegmentRecord> segmentsBuilder = ImmutableList.builder();
             revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, segmentsBuilder);
             builder.segments(segmentsBuilder.build())
-                    .creationTime(revisionDataInput.readLong());
+                   .creationTime(revisionDataInput.readLong());
         }
 
         private void write00(EpochRecord history, RevisionDataOutput revisionDataOutput) throws IOException {
