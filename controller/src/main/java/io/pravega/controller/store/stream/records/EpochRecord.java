@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.controller.store.stream.records;
 
@@ -106,6 +106,7 @@ public class EpochRecord {
     }
 
     private static class EpochRecordBuilder implements ObjectBuilder<EpochRecord> {
+
     }
 
     private static class EpochRecordSerializer extends VersionedSerializer.WithBuilder<EpochRecord, EpochRecord.EpochRecordBuilder> {
@@ -122,11 +123,11 @@ public class EpochRecord {
 
         private void read00(RevisionDataInput revisionDataInput, EpochRecord.EpochRecordBuilder builder) throws IOException {
             builder.epoch(revisionDataInput.readInt())
-                    .referenceEpoch(revisionDataInput.readInt());
+                   .referenceEpoch(revisionDataInput.readInt());
             ImmutableList.Builder<StreamSegmentRecord> segmentsBuilder = ImmutableList.builder();
             revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, segmentsBuilder);
             builder.segments(segmentsBuilder.build())
-                    .creationTime(revisionDataInput.readLong());
+                   .creationTime(revisionDataInput.readLong());
         }
 
         private void write00(EpochRecord history, RevisionDataOutput revisionDataOutput) throws IOException {
