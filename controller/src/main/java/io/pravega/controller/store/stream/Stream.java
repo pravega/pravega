@@ -704,4 +704,6 @@ interface Stream {
      * is strictly before the supplied streamcut. 
      */
     CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long, Long> streamCut, RetentionSet retentionSet);
+
+    CompletableFuture<SimpleEntry<Long, Long>> getSplitMergeCountsTillEpoch(EpochRecord epochRecord);
 }

@@ -495,7 +495,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                        final OperationContext context,
                                                        final Executor executor) {
         CompletableFuture<Void> future = Futures.completeOn(getStream(scope, name, context).scaleOldSegmentsSealed(sealedSegmentSizes, record), executor);
-
         future.thenCompose(result -> CompletableFuture.allOf(
                 getActiveSegments(scope, name, context, executor).thenAccept(list ->
                         StreamMetrics.reportActiveSegments(scope, name, list.size())),
@@ -1036,7 +1035,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     //endregion
 
     private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, OperationContext context, Executor executor) {
-        return getStream(scopeName, streamName, context).getActiveEpoch(true).thenCompose(lastEpoch -> {
+        Stream stream = getStream(scopeName, streamName, context);
+        return stream.getActiveEpoch(true).thenCompose(lastEpoch -> stream.getSplitMergeCountsTillEpoch(lastEpoch));
+        /*
+        {
             if (lastEpoch.hasSplitsMerges()) {
                 // the latest EpochRecord has a cumulative count of splits and merges.
                 return CompletableFuture.completedFuture(new SimpleEntry<>(lastEpoch.getSplits(),
@@ -1054,6 +1056,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 });
             }
         });
+        
+         */
     }
 
     /**

@@ -861,7 +861,7 @@ public abstract class ScaleRequestHandlerTest {
         streamStore2.close();
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 50000)
     public void testScaleStateReset() {
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         String stream = "testResetState";

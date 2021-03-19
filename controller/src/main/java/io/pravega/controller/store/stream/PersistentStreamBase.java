@@ -1073,7 +1073,7 @@ public abstract class PersistentStreamBase implements Stream {
                     // only perform idempotent update. If update is already completed, do nothing. 
                     if (currentEpoch.getEpoch() < versionedMetadata.getObject().getNewEpoch()) {
                         EpochTransitionRecord epochTransition = versionedMetadata.getObject();
-                        // time
+                        // timescale for stream
                         long time = Math.max(epochTransition.getTime(), currentEpoch.getCreationTime() + 1);
                         // new segments
                         ImmutableList.Builder<StreamSegmentRecord> newSegmentsBuilder = ImmutableList.builder();
@@ -1084,7 +1084,7 @@ public abstract class PersistentStreamBase implements Stream {
                         // sealed segments
                         ImmutableList.Builder<StreamSegmentRecord> sealedSegmentsBuilder = ImmutableList.builder();
                         epochTransition.getSegmentsToSeal().forEach(x -> sealedSegmentsBuilder.add(currentEpoch.getSegment(x)));
-                        
+
                         // overall segments in epoch
                         ImmutableList.Builder<StreamSegmentRecord> builder = ImmutableList.builder();
                         currentEpoch.getSegments()
@@ -1116,7 +1116,7 @@ public abstract class PersistentStreamBase implements Stream {
                 });
     }
 
-    private CompletableFuture<SimpleEntry<Long, Long>> getSplitMergeCountsTillEpoch(EpochRecord epochRecord) {
+    public CompletableFuture<SimpleEntry<Long, Long>> getSplitMergeCountsTillEpoch(EpochRecord epochRecord) {
         if (epochRecord.hasSplitsMerges()) {
             return CompletableFuture.completedFuture(new SimpleEntry<>(epochRecord.getSplits(), epochRecord.getMerges()));
         } else {
