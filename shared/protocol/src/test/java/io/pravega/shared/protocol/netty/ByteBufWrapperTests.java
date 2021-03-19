@@ -99,6 +99,24 @@ public class ByteBufWrapperTests extends BufferViewTestBase {
         AssertExtensions.assertListEquals("", expectedBuffers, actualBuffers, ByteBuffer::equals);
     }
 
+    @Test
+    public void testAllocatedLength() {
+        val b1 = Unpooled.wrappedBuffer(new byte[100]).slice(10, 20);
+        val b2 = Unpooled.directBuffer(100).slice(10, 20);
+        val b3 = Unpooled.wrappedUnmodifiableBuffer(b1, b2);
+        System.out.println("100 " + b1.capacity() + " " + new ByteBufWrapper(b1).getAllocatedLength());
+        System.out.println("100 " + b2.capacity() + " " + new ByteBufWrapper(b2).getAllocatedLength());
+        System.out.println("200 " + b3.capacity() + " " + new ByteBufWrapper(b3).getAllocatedLength());
+    }
+
+    @Override
+    protected void checkAllocatedSize(BufferView slice, BufferView base) {
+        // We don't have a good way to extract the actual allocated size from a ByteBuf, so we can only verify that the
+        // allocated length is at least what the length of the buffer is.
+        AssertExtensions.assertGreaterThanOrEqual("Expected slice length to be at most the allocated length.",
+                slice.getLength(), slice.getAllocatedLength());
+    }
+
     @Override
     protected BufferView toBufferView(ArrayView data) {
         return new ByteBufWrapper(Unpooled.wrappedBuffer(data.array(), data.arrayOffset(), data.getLength()));
