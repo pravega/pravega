@@ -7,7 +7,7 @@ wget https://github.com/pravega/pravega/releases/download/v0.9.0/pravega-0.9.0.t
 # or
 #curl -OL https://github.com/pravega/pravega/releases/download/v0.9.0/pravega-0.9.0.tgz
 tar zxvf pravega-0.9.0.tgz
-cd pravega
+cd pravega-0.9.0
 ```
 
 ## Start Pravega standalone cluster
@@ -36,7 +36,7 @@ Read those events back in the same CLI session:
 > stream read my-scope/my-stream
 q
 ```
-(press "q" to quit reading)
+(press "q" and "Enter" to quit reading)
 
 ## Write and read some ordered events
 Create a new stream, append some events with a routing key, and read them back:
@@ -46,7 +46,7 @@ Create a new stream, append some events with a routing key, and read them back:
 > stream read my-scope/ordered-stream
 q
 ```
-(press "q" to quit reading)
+(press "q" and "Enter" to quit reading)
 
 ## Shutdown
 In your second terminal, exit your `pravega-cli` session:
