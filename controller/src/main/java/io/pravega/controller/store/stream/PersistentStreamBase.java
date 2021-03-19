@@ -1,10 +1,10 @@
 /**
  * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.controller.store.stream;
@@ -43,7 +43,6 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
-
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -71,7 +70,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -134,8 +132,8 @@ public abstract class PersistentStreamBase implements Stream {
         final ImmutableList.Builder<StreamSegmentRecord> builder = ImmutableList.builder();
 
         IntStream.range(0, numSegments).boxed()
-                .forEach(x -> builder.add(newSegmentRecord(0, startingSegmentNumber + x, creationTime,
-                        x * keyRangeChunk, (x + 1) * keyRangeChunk)));
+                 .forEach(x -> builder.add(newSegmentRecord(0, startingSegmentNumber + x, creationTime,
+                                                                    x * keyRangeChunk, (x + 1) * keyRangeChunk)));
 
         EpochRecord epoch0 = new EpochRecord(0, 0, builder.build(), creationTime, 0L, 0L);
 
@@ -175,19 +173,19 @@ public abstract class PersistentStreamBase implements Stream {
                     int epochHigh = NameUtils.getEpoch(mostRecent);
 
                     return fetchEpochs(epochLow, epochHigh, true)
-                            .thenCompose(epochs -> {
-                                boolean isValid = isStreamCutValidInternal(streamCut, epochLow, epochs);
-                                Exceptions.checkArgument(isValid, "streamCut", "invalid stream cut");
-                                ImmutableMap<StreamSegmentRecord, Integer> span = computeStreamCutSpanInternal(streamCut, epochLow, epochHigh, epochs);
-                                StreamTruncationRecord previous = existing.getObject();
-                                // check greater than
-                                Exceptions.checkArgument(streamCutEqualOrAfter(streamCut, span, previous.getStreamCut(), previous.getSpan()),
-                                        "StreamCut", "Supplied streamcut is behind previous truncation point");
+                        .thenCompose(epochs -> {
+                            boolean isValid = isStreamCutValidInternal(streamCut, epochLow, epochs);
+                            Exceptions.checkArgument(isValid, "streamCut", "invalid stream cut");
+                            ImmutableMap<StreamSegmentRecord, Integer> span = computeStreamCutSpanInternal(streamCut, epochLow, epochHigh, epochs);
+                            StreamTruncationRecord previous = existing.getObject();
+                            // check greater than
+                            Exceptions.checkArgument(streamCutEqualOrAfter(streamCut, span, previous.getStreamCut(), previous.getSpan()),
+                                    "StreamCut", "Supplied streamcut is behind previous truncation point");
 
-                                return computeTruncationRecord(previous, streamCut, span)
-                                        .thenCompose(prop ->
-                                                Futures.toVoid(setTruncationData(new VersionedMetadata<>(prop, existing.getVersion()))));
-                            });
+                            return computeTruncationRecord(previous, streamCut, span)
+                                    .thenCompose(prop ->
+                                            Futures.toVoid(setTruncationData(new VersionedMetadata<>(prop, existing.getVersion()))));
+                        });
                 });
     }
 
