@@ -113,7 +113,8 @@ nav:
       - 'Deployment Overview': 'deployment/deployment.md'
       - 'Running Locally': 'deployment/run-local.md'
       - 'Manual Install': 'deployment/manual-install.md'
-      - 'Deployment on Kubernetes': 'deployment/kubernetes-install.md'
+      - 'Deployment on Kubernetes (Helm)': 'pravega-operator/charts/pravega/README.md'
+      - 'Deployment on Kubernetes (custom)': 'pravega-operator/doc/manual-installation.md'
       - 'Deployment on Docker Swarm': 'deployment/docker-swarm.md'
       - 'Deployment on DC/OS': 'deployment/dcos-install.md'
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
@@ -125,6 +126,7 @@ nav:
       - 'Durable Log Configuration: Apache Bookkeeper': 'admin-guide/durable-log-config.md'
       - 'Right-Sizing Long-Term Storage': 'admin-guide/lts-right-sizing.md'
       - 'Kubernetes Operations':
+        - 'Pravega Configuration': 'pravega-operator/doc/configuration.md'
         - 'Upgrade Pravega': 'pravega-operator/doc/upgrade-cluster.md'
   - Pravega Security:
       - 'Pravega Authentication/Authorization Plugin': 'auth/auth-plugin.md'
