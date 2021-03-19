@@ -76,8 +76,8 @@ more than one instance of Controller service per cluster.
 Each Controller instance is capable of working independently and uses a
 shared persistent store as the source of truth for all state-owned and
 managed by Controller service. We use [Pravega KeyValue Tables](https://github.com/pravega/pravega/wiki/PDP-39-Key-Value-Tables) as the
-store for persisting all metadata consistently. Controller stores metadata about streams in stream specific tables that creates. Each controller instance comprises
-various subsystems which are responsible for performing specific
+store for persisting all metadata consistently. Controller stores metadata about streams in stream specific tables that it creates. Each controller instance comprises
+various subsystems responsible for performing specific
 operations on different categories of metadata. These subsystems include
 different *API endpoints, metadata store handles, policy managers* and
 *background workers*.
@@ -135,7 +135,7 @@ Controller maintains the metadata about the key value tables and is responsible 
 The Controller is responsible for managing the Segment Store cluster. Controller manages the
 lifecycle of Segment Store nodes as they are added to/removed from the
 cluster and performs redistribution of segment containers across
-available Segment Store nodes.
+available Segment Store nodes. 
 
 # System Diagram
 
@@ -353,7 +353,8 @@ The following are the Transaction Related metadata records:
  Writers report their positions and times in the form of writer marks to controller service which are then stored in the metadata table. One of the controller instances then looks at these marks and consolidates them to produce watermarks. 
 
 #### Subscribers
- As part of 0.9, a new feature has been included in Pravega to keep track of subscriber readergroups and the stream automatically purges the data only after it has been consumed by all subscribers. To achieve this, readergroups report their positions to controller and controller stores their subscriber streamcuts in subscriber metadata for the stream. It then consolidates these streamcuts to compute a lower bound and truncate at such a lowerbound. 
+ As part of 0.9, a new experimental feature has been included in Pravega to keep track of subscriber readergroups and the stream automatically purges the data only after it has been consumed by all subscribers. To achieve this, readergroups report their positions to controller and controller stores their subscriber streamcuts in subscriber metadata for the stream. It then consolidates these streamcuts to compute a lower bound and truncate at such a lowerbound. 
+Users explicitly have to opt in for subscription and the default mode of using pravega streams do not enable a subscription. 
 
 ### Stream Store Caching
 
@@ -392,34 +393,7 @@ _KVT Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_.
 
 - **KVT State:**
 _KVT State is an enum that describes various states in the lifecycle of KV table. It ranges from CREATING, ACTIVE, DELETING. 
-
-## Controller Cluster Listener
-
-Each node in Pravega Cluster registers itself under a cluster znode as
-an ephemeral node. This includes both Controller and Segment Store
-nodes. Each Controller instance registers a watch on the cluster znode
-to listen for cluster change notifications. These notify about the added and removed nodes.
-
-One Controller instance assumes leadership amongst all Controller
-instances. This leader Controller instance is responsible for handling
-Segment Store node change notifications. Based on the changes in topology,
-Controller instance periodically rebalances segment containers to
-Segment Store node mapping.
-
-All Controller instances listen for Controller node change
-notifications. Each Controller instance has multiple sub components that
-implement the _failover sweeper_ interface. Presently there are three
-components that implement _failover_ sweeper interface namely:
-
-- `TaskSweeper`
-- `EventProcessors`
-- `TransactionSweeper`
-
-Whenever a Controller instance is identified to have been removed from the cluster,
-the cluster listener invokes all registered _failover sweepers_ to
-optimistically try to sweep all the orphaned work previously owned by
-the failed Controller host.
-
+ 
 ## Host Store
 
 The implementation of the Host store interface is used to store _Segment Container_ to _Segment Store_
@@ -550,6 +524,34 @@ responsible for all long running scheduled background work corresponding
 to all nodes under the bucket. Presently this entails running periodic
 workflows to capture `StreamCut`(s) (called Retention-Set) for each Stream at desired frequencies.
 
+## Controller Cluster Listener
+
+Each node in Pravega Cluster registers itself under a cluster znode as
+an ephemeral node. This includes both Controller and Segment Store
+nodes. All segment stores register under a child znode called hosts while all controllers register under a child znode called controllers. 
+Controller Cluster Listener is the component that monitors the cluster of controllers and is chiefly responsible for ensuring that any partially
+completed work from a failed controller instance is completed by surviving controller instances. To achieve this each Controller instance registers a watch on the controller cluster znode
+to listen for cluster change notifications. These notify about the added and removed nodes.
+
+All Controller instances listen for Controller node change
+notifications. Each Controller instance has multiple sub components that
+implement the _failover sweeper_ interface. The purpose of failover sweeper is to sweep any unfinished ongoing tasks from the failed controller instance. 
+Any controller sub-component that wishes to implement a failover logic should implement the FailoverSweeper interface. 
+Presently there are three components that implement _failover_ sweeper interface namely:
+
+- `TaskSweeper`
+- `EventProcessors`
+- `TransactionSweeper`
+
+Whenever a Controller instance is identified to have been removed from the cluster,
+the cluster listener invokes all registered _failover sweepers_ to
+optimistically try to sweep all the orphaned work previously owned by
+the failed Controller host.
+
+TaskSweeper is for the task framework which allows running background workflows on a resource (typically a stream) by acqiring a zookeeper based distributed lock for mutual exclusion. 
+All ongoing tasks that a controller wishes to acquire, it first adds an entry into its index about it before attempting to acquire the distributed lock. Upon successful acquisition, the workflow is performed, else the indexed entry is removed. The indexed entry is only an indicator that this controller may attempt to do the said work. The truth of acquisition is on the distributed lock. If the controller fails with an indexed entry then any other controller attempting to sweep its tasks would look at all the indexed entries and check the ownership for those tasks by the failed controller. If the failed controller did indeed own those tasks, then the new controller will attempt to first create an index and then acquire the lock. 
+
+Just like task sweeper and request sweepers also rely on creating an index in zookeeper to indicate an intent to atomically update a metadata record and post an event into the respective event processor stream. If the controller fails after updating the metadata but without posting an event into the event processor stream, then the new controller will sweep all such indexed tasks from zookeeper and post the events for them. 
 
 # Roles and Responsibilities
 
@@ -816,9 +818,13 @@ Create KVTable is modeled as a task on the event processor. When a request from 
 ### Delete KVTable
 Delete KVTable is also modeled as a task on the event processor. When a request from user to delete the KV table is received, a new event is posted into kvt-request-stream and picked asynchronously for processing. As part of delete KV table, the task removes all table segments and all metadata that was created for the KV table. 
 
+### Readergroup Management
+With 0.9.0 we also introduced a concept of managing reader group configuration on controller. Now controller service participates in readergroup's lifecycle from creation to resets to deletes. Controller stores and manages the readergroup configuration and assigns versioning of readergroup config by introducing a new property called generation. Everytime readergroup is reset with a new configuration, this is recorded with controller and controller runs an asynchronous job to update the subscription status for streams that were added to or removed from the readergroup. 
+To achieve this controller relies on event processor framework and has CreateReaderGroupTask, UpdateReaderGroupTask and DeleteReaderGroupTask which handle the subscription changes.  
+
 ##  Cluster Management
 
-Controller is responsible for tracking the service instance nodes for both controller and segment store service and in case of a node failure the work is properly failed over to surviving instances. Controller is responsible for distributing workload across different segment store instances by distributing segment containers to availale segment store nodes
+Controller is responsible for tracking the service instance nodes for both controller and segment store service and in case of a node failure the work is properly failed over to surviving instances. Controller is responsible for distributing workload across different segment store instances by distributing segment containers to availale segment store nodes.
 
 ### Segment Container to Host Mapping
 
@@ -828,13 +834,11 @@ befalls a single Controller instance that is chosen via a leader
 election using Zookeeper. This leader Controller monitors lifecycle of
 Segment Store nodes as they are added to/removed from the cluster and
 performs redistribution of Segment Containers across available Segment
-Store nodes. This distribution mapping is stored in a dedicated znode.
-Each Segment Store periodically polls this znode to look for changes and
-if changes are found, it shuts down and relinquishes containers it no
+Store nodes. This distribution mapping is stored in a dedicated znode called SegmentContainerMapping.
+Each Segment Store watches this znode to receive change notifications and
+if changes to its own assignments are found, it shuts down and relinquishes containers it no
 longer owns and attempts to acquire ownership of containers that are
 assigned to it.
-
-The details about implementation, especially with respect to how the metadata is stored and managed is already discussed in the section [Cluster Listener](#controller-cluster-listener).
 
 # Resources
 
