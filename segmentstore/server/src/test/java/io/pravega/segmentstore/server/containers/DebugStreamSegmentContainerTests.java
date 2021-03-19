@@ -378,42 +378,45 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         Storage storage = context.storageFactory.createStorageAdapter();
 
         // 4. Move container metadata and its attribute segment to back up segments.
-        Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
-                executorService(), TIMEOUT);
+        ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount, executorService(), TIMEOUT)
+                .thenAccept(backUpMetadataSegments -> {
+                    OperationLogFactory localDurableLogFactory2 = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG,
+                    new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
+                    // Starts a DebugSegmentContainer with new Durable Log
+                    @Cleanup
+                    MetadataCleanupContainer container2 = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory2,
+                            context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                            context.getDefaultExtensions(), executorService());
+                    container2.startAsync().awaitRunning();
+                    Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainersMap = new HashMap<>();
+                    debugStreamSegmentContainersMap.put(containerId, container2);
 
-        OperationLogFactory localDurableLogFactory2 = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG,
-                new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
-        // Starts a DebugSegmentContainer with new Durable Log
-        @Cleanup
-        MetadataCleanupContainer container2 = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory2,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                context.getDefaultExtensions(), executorService());
-        container2.startAsync().awaitRunning();
-        Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainersMap = new HashMap<>();
-        debugStreamSegmentContainersMap.put(containerId, container2);
+                    try {
+                        // 4. Recover all segments.
+                        recoverAllSegments(storage, debugStreamSegmentContainersMap, executorService(), TIMEOUT);
+                        // 5. Update core attributes using back up segments.
+                        updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainersMap, executorService(), TIMEOUT);
+                    } catch (Exception e) {
+                        log.error("Error while executing the test.", e);
+                    }
 
-        // 4. Recover all segments.
-        recoverAllSegments(storage, debugStreamSegmentContainersMap, executorService(), TIMEOUT);
+                    // 6. Verify Segment Data.
+                    for (val sc : segmentContents.entrySet()) {
+                        // Contents.
+                        byte[] expectedData = sc.getValue().array();
+                        byte[] actualData = new byte[expectedData.length];
+                        container2.read(sc.getKey(), 0, actualData.length, TIMEOUT).join().readRemaining(actualData, TIMEOUT);
+                        Assert.assertArrayEquals("Unexpected contents for " + sc.getKey(), expectedData, actualData);
 
-        // 5. Update core attributes using back up segments.
-        updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainersMap, executorService(), TIMEOUT);
+                        // Length.
+                        val si = container2.getStreamSegmentInfo(sc.getKey(), TIMEOUT).join();
+                        Assert.assertEquals("Unexpected length for " + sc.getKey(), expectedData.length, si.getLength());
 
-        // 6. Verify Segment Data.
-        for (val sc : segmentContents.entrySet()) {
-            // Contents.
-            byte[] expectedData = sc.getValue().array();
-            byte[] actualData = new byte[expectedData.length];
-            container2.read(sc.getKey(), 0, actualData.length, TIMEOUT).join().readRemaining(actualData, TIMEOUT);
-            Assert.assertArrayEquals("Unexpected contents for " + sc.getKey(), expectedData, actualData);
-
-            // Length.
-            val si = container2.getStreamSegmentInfo(sc.getKey(), TIMEOUT).join();
-            Assert.assertEquals("Unexpected length for " + sc.getKey(), expectedData.length, si.getLength());
-
-            // Attributes.
-            val attributes = container2.getAttributes(sc.getKey(), Collections.singleton(attributeReplace), false, TIMEOUT).join();
-            Assert.assertEquals("Unexpected attribute for " + sc.getKey(), expectedAttributeValue, (long) attributes.get(attributeReplace));
-        }
+                        // Attributes.
+                        val attributes = container2.getAttributes(sc.getKey(), Collections.singleton(attributeReplace), false, TIMEOUT).join();
+                        Assert.assertEquals("Unexpected attribute for " + sc.getKey(), expectedAttributeValue, (long) attributes.get(attributeReplace));
+                    }
+                });
     }
 
     private SegmentType getSegmentType(String segmentName) {

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
+import io.netty.buffer.ByteBuf;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -41,7 +42,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 
@@ -412,33 +416,32 @@ public class ContainerRecoveryUtils {
      *                                  attributes segment has to be performed.
      * @param executorService           A thread pool for execution.
      * @param timeout                   Timeout for the operation.
-     * @return                          A Map of Container Ids to new container metadata segment names.
-     * @throws InterruptedException     If the operation was interrupted while waiting.
-     * @throws TimeoutException         If the timeout expired prior to being able to complete the operation.
-     * @throws ExecutionException       When execution of the opreations encountered an error.
+     * @return                          A CompletableFuture that, when completed normally, will have a Map of Container
+     * Ids to new container metadata segment names.
      */
-    public static Map<Integer, String> createBackUpMetadataSegments(Storage storage, int containerCount, ExecutorService executorService,
-                                                                 Duration timeout)
-            throws InterruptedException, ExecutionException, TimeoutException {
+    public static synchronized CompletableFuture<Map<Integer, String>> createBackUpMetadataSegments(Storage storage, int containerCount, ExecutorService executorService,
+                                                                    Duration timeout) {
         String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         Map<Integer, String> backUpMetadataSegments = new HashMap<>();
 
         val futures = new ArrayList<CompletableFuture<Void>>();
 
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + fileSuffix;
-            String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
-            log.debug("Created '{}' as a back of metadata segment of container Id '{}'", backUpMetadataSegment, containerId);
+        return CompletableFuture.supplyAsync(() -> {
+            for (int containerId = 0; containerId < containerCount; containerId++) {
+                String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + fileSuffix;
+                String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
+                log.debug("Created '{}' as a back of metadata segment of container Id '{}'", backUpMetadataSegment, containerId);
 
-            val finalContainerId = containerId;
-            futures.add(Futures.exceptionallyExpecting(
-                    ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
-                            backUpMetadataSegment, backUpAttributeSegment, executorService, timeout)
-                            .thenAccept(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout)
-                                    .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment))
-                            ), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
-        }
-        Futures.allOf(futures).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        return backUpMetadataSegments;
+                val finalContainerId = containerId;
+                futures.add(Futures.exceptionallyExpecting(
+                        ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
+                                backUpMetadataSegment, backUpAttributeSegment, executorService, timeout)
+                                .thenAccept(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout)
+                                        .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment))
+                                ), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
+            }
+            Futures.allOf(futures).join();
+            return backUpMetadataSegments;
+        }, executorService);
     }
 }
