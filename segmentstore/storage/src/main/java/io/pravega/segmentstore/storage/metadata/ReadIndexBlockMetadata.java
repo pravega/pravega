@@ -17,41 +17,35 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
 
-import static com.google.common.base.Strings.emptyToNull;
-import static com.google.common.base.Strings.nullToEmpty;
-
 /**
- * Represents chunk metadata.
- * Following metadata is stored.
+ * Represents read index block .
+ * Following metadata is stored:
  * <ul>
- * <li>Name of the chunk.</li>
- * <li>Length of the chunk.</li>
- * <li>Name of the next chunk in list.</li>
- * <li>Status flags.</li>
+ * <li>Name of entry.</li>     
+ * <li>Name of the chunk containing first byte of this block.</li>
+ * <li>Start offset of the chunk.</li>
  * </ul>
  */
 @Builder(toBuilder = true)
 @Data
 @EqualsAndHashCode(callSuper = true)
-@ThreadSafe
-public class ChunkMetadata extends StorageMetadata {
+public class ReadIndexBlockMetadata extends StorageMetadata {
     /**
-     * Name of this chunk.
+     * Name of this index node.
      */
     private final String name;
 
     /**
-     * Length of the chunk.
+     * Name of chunk.
      */
-    private volatile long length;
+    private final String chunkName;
 
     /**
-     * Name of the next chunk.
+     * Length of the chunk.
      */
-    private volatile String nextChunk;
+    private final long startOffset;
 
     /**
      * Status bit flags.
@@ -81,7 +75,7 @@ public class ChunkMetadata extends StorageMetadata {
     /**
      * Sets the given bit for given mask.
      */
-    private ChunkMetadata setFlag(int mask, boolean value) {
+    private ReadIndexBlockMetadata setFlag(int mask, boolean value) {
         status = value ? (status | mask) : (status & (~mask));
         return this;
     }
@@ -98,7 +92,7 @@ public class ChunkMetadata extends StorageMetadata {
      * @param value Value to set.
      * @return This instance so that these calls can be chained.
      */
-    public ChunkMetadata setActive(boolean value) {
+    public ReadIndexBlockMetadata setActive(boolean value) {
         return setFlag(StatusFlags.ACTIVE, value);
     }
 
@@ -113,16 +107,16 @@ public class ChunkMetadata extends StorageMetadata {
     /**
      * Builder that implements {@link ObjectBuilder}.
      */
-    public static class ChunkMetadataBuilder implements ObjectBuilder<ChunkMetadata> {
+    public static class ReadIndexBlockMetadataBuilder implements ObjectBuilder<ReadIndexBlockMetadata> {
     }
 
     /**
      * Serializer that implements {@link VersionedSerializer}.
      */
-    public static class Serializer extends VersionedSerializer.WithBuilder<ChunkMetadata, ChunkMetadataBuilder> {
+    public static class Serializer extends VersionedSerializer.WithBuilder<ReadIndexBlockMetadata, ReadIndexBlockMetadataBuilder> {
         @Override
-        protected ChunkMetadataBuilder newBuilder() {
-            return ChunkMetadata.builder();
+        protected ReadIndexBlockMetadataBuilder newBuilder() {
+            return ReadIndexBlockMetadata.builder();
         }
 
         @Override
@@ -135,17 +129,17 @@ public class ChunkMetadata extends StorageMetadata {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void write00(ChunkMetadata object, RevisionDataOutput output) throws IOException {
+        private void write00(ReadIndexBlockMetadata object, RevisionDataOutput output) throws IOException {
             output.writeUTF(object.name);
-            output.writeCompactLong(object.length);
-            output.writeUTF(nullToEmpty(object.nextChunk));
+            output.writeUTF(object.chunkName);
+            output.writeCompactLong(object.startOffset);
             output.writeCompactInt(object.status);
         }
 
-        private void read00(RevisionDataInput input, ChunkMetadataBuilder b) throws IOException {
+        private void read00(RevisionDataInput input, ReadIndexBlockMetadataBuilder b) throws IOException {
             b.name(input.readUTF());
-            b.length(input.readCompactLong());
-            b.nextChunk(emptyToNull(input.readUTF()));
+            b.chunkName(input.readUTF());
+            b.startOffset(input.readCompactLong());
             b.status(input.readCompactInt());
         }
     }

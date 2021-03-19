@@ -118,6 +118,31 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testCommitInvalidArgs() throws Exception {
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStore = getMetadataStore();
+        int containerId = 42;
+        int maxLength = 8;
+        long epoch = 1;
+        val policy = new SegmentRollingPolicy(maxLength);
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val journal = new SystemJournal(containerId, chunkStorage, metadataStore, config);
+
+        AssertExtensions.assertThrows("commitRecords() should throw",
+                () -> journal.commitRecord(null),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows("commitRecords() should throw",
+                () -> journal.commitRecords(null),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("commitRecords() should throw",
+                () -> journal.commitRecords(new ArrayList<>()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
     public void testIsSystemSegment() throws Exception {
         @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
@@ -130,12 +155,46 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
         val journal = new SystemJournal(containerId, chunkStorage, metadataStore, config);
         Assert.assertFalse(journal.isStorageSystemSegment("foo"));
+        Assert.assertFalse(journal.isStorageSystemSegment("_system/foo"));
 
         Assert.assertTrue(journal.isStorageSystemSegment(NameUtils.getStorageMetadataSegmentName(containerId)));
         Assert.assertTrue(journal.isStorageSystemSegment(NameUtils.getAttributeSegmentName(NameUtils.getStorageMetadataSegmentName(containerId))));
         Assert.assertTrue(journal.isStorageSystemSegment(NameUtils.getMetadataSegmentName(containerId)));
         Assert.assertTrue(journal.isStorageSystemSegment(NameUtils.getAttributeSegmentName(NameUtils.getMetadataSegmentName(containerId))));
 
+    }
+
+    @Test
+    public void testSystemSegmentNoConcatAllowed() throws Exception {
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStore = getMetadataStore();
+        int containerId = 42;
+        int maxLength = 8;
+        long epoch = 1;
+        val policy = new SegmentRollingPolicy(maxLength);
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val journal = new SystemJournal(containerId, chunkStorage, metadataStore, config);
+        val systemSegmentName = NameUtils.getAttributeSegmentName(NameUtils.getMetadataSegmentName(containerId));
+        Assert.assertTrue(journal.isStorageSystemSegment(systemSegmentName));
+        // Init
+        long offset = 0;
+
+        // Start container with epoch 1
+        @Cleanup
+        ChunkedSegmentStorage segmentStorage = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStore, executorService(), config);
+
+        segmentStorage.initialize(epoch);
+        segmentStorage.bootstrap();
+        segmentStorage.create("test", null).get();
+
+        AssertExtensions.assertFutureThrows("concat() should throw",
+                segmentStorage.concat(SegmentStorageHandle.writeHandle(systemSegmentName), 0, "test", null),
+                ex -> ex instanceof IllegalStateException);
+        AssertExtensions.assertFutureThrows("concat() should throw",
+                segmentStorage.concat(SegmentStorageHandle.writeHandle("test"), 0, systemSegmentName, null),
+                ex -> ex instanceof IllegalStateException);
     }
 
     /**
@@ -447,8 +506,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 val bytes = new byte[size];
                 chunkStorage.read(ChunkHandle.readHandle(snapShotFile), 0, size, bytes, 0).join();
                 chunkStorage.delete(ChunkHandle.writeHandle(snapShotFile)).join();
-                val h = chunkStorage.create(snapShotFile).join();
-                chunkStorage.write(h, 0, size, new ByteArrayInputStream(bytes)).join();
+                chunkStorage.createWithContent(snapShotFile, size, new ByteArrayInputStream(bytes)).join();
             }
         });
     }
@@ -789,10 +847,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long totalBytesWritten = 0;
         for (int i = 0; i < 10; i++) {
             String newChunk = "chunk" + i;
-            val h = chunkStorage.create(newChunk).get();
-            val bytesWritten = chunkStorage.write(h, 0, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
-            Assert.assertEquals(policy.getMaxLength(), bytesWritten.longValue());
-            totalBytesWritten += bytesWritten;
+            val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
+            totalBytesWritten += policy.getMaxLength();
             systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(policy.getMaxLength() * i)
@@ -851,10 +907,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long totalBytesWritten = 0;
         for (int i = 0; i < 10; i++) {
             String newChunk = "chunk" + i;
-            val h = chunkStorage.create(newChunk).get();
-            val bytesWritten = chunkStorage.write(h, 0, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
-            Assert.assertEquals(policy.getMaxLength(), bytesWritten.longValue());
-            totalBytesWritten += bytesWritten;
+            val h = chunkStorage.createWithContent(newChunk, Math.toIntExact(policy.getMaxLength()), new ByteArrayInputStream(new byte[Math.toIntExact(policy.getMaxLength())])).get();
+            totalBytesWritten += policy.getMaxLength();
             systemJournalBefore.commitRecord(SystemJournal.ChunkAddedRecord.builder()
                     .segmentName(systemSegmentName)
                     .offset(policy.getMaxLength() * i)
