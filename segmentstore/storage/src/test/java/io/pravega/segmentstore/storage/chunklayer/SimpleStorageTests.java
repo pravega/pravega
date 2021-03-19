@@ -76,7 +76,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
         ChunkedSegmentStorage forkedChunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, storage.getChunkStorage(),
                 getCloneMetadataStore(storage.getMetadataStore()),
                 executor,
-                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+                storage.getConfig());
         return forkedChunkedSegmentStorage;
     }
 

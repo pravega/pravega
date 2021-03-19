@@ -1429,7 +1429,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                 () -> metadataStore.get(null, KEY0),
                 ex -> ex instanceof IllegalArgumentException);
         AssertExtensions.assertThrows("get should throw an exception",
-                () -> metadataStore.beginTransaction(true, null),
+                () -> metadataStore.beginTransaction(true, (String[]) null),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows("get should throw an exception",
                 () -> metadataStore.beginTransaction(true, new String[0]),

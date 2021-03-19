@@ -52,7 +52,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
             TableBasedMetadataStore tableBasedMetadataStore = (TableBasedMetadataStore) metadataStore;
             TableStore tableStore = InMemoryTableStore.clone((InMemoryTableStore) tableBasedMetadataStore.getTableStore());
             String tableName =  tableBasedMetadataStore.getTableName();
-            val retValue = new TableBasedMetadataStore(tableName, tableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
+            val retValue = new TableBasedMetadataStore(tableName, tableStore, tableBasedMetadataStore.getConfig(), executorService());
             TableBasedMetadataStore.copyVersion(tableBasedMetadataStore, retValue);
             return retValue;
         }

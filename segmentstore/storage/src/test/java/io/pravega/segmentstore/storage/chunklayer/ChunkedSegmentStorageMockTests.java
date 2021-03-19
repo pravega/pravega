@@ -402,11 +402,10 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
 
     @Test
     public void testReport() {
-        SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
 
         @Cleanup
-        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(config, executorService()));
         @Cleanup
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         @Cleanup
