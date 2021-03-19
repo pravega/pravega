@@ -9,11 +9,6 @@
  */
 package io.pravega.local;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.shared.security.auth.DefaultCredentials;
-import java.net.URI;
-
-import io.pravega.test.common.SecurityConfigDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -32,22 +27,8 @@ public class SecurePravegaClusterTest {
     final String stream = "TlsAndAuthTestStream";
     final String msg = "Test message on the encrypted channel with auth credentials";
 
-    ClientConfig prepareValidClientConfig() {
-        return ClientConfig.builder()
-                .controllerURI(URI.create(EMULATOR.pravega.getInProcPravegaCluster().getControllerURI()))
-
-                // TLS-related
-                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
-                .validateHostName(false)
-
-                // Auth-related
-                .credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
-                        SecurityConfigDefaults.AUTH_ADMIN_USERNAME))
-                .build();
-    }
-
     @Test(timeout = 30000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
-        testWriteAndReadAnEvent(scope, stream, msg, prepareValidClientConfig());
+        testWriteAndReadAnEvent(scope, stream, msg, EMULATOR.getClientConfig());
     }
 }

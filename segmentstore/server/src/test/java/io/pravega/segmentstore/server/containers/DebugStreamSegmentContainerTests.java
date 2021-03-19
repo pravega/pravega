@@ -72,6 +72,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static io.pravega.segmentstore.contracts.Attributes.CORE_ATTRIBUTE_ID_PREFIX;
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.recoverAllSegments;
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.updateCoreAttributes;
 
@@ -381,7 +382,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount, executorService(), TIMEOUT)
                 .thenAccept(backUpMetadataSegments -> {
                     OperationLogFactory localDurableLogFactory2 = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG,
-                    new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
+                            new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
                     // Starts a DebugSegmentContainer with new Durable Log
                     @Cleanup
                     MetadataCleanupContainer container2 = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory2,
