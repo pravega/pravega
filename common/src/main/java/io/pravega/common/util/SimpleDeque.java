@@ -105,7 +105,7 @@ public class SimpleDeque<T> {
      *     SimpleDeque source;
      *     Queue target;
      *     int count = maxCount;
-     *     while(count > 0 && !source.isEmpty()) {
+     *     while(count &gt; 0 &amp;&amp; !source.isEmpty()) {
      *         target.add(source.removeFirst());
      *         count--;
      *     }

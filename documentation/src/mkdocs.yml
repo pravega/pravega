@@ -75,13 +75,13 @@ nav:
   - Developing Pravega Applications:
     - '1st Code Walkthrough': 'beginner_dev_guide.md'
     - 'Clients & Streams Walkthrough': 'dev-guide/clients-and-streams.md'
-    - 'Java API Reference': 'javadoc.md'
-    - 'REST API - Controller': 'rest/restapis.md'
     - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
     - 'Working with Reader Group notifications': 'reader-group-notifications.md'
     - 'Working with State Synchronizer': 'state-synchronizer.md'
     - 'Working with Transactions': 'transactions.md'
     - 'Working with StreamCuts': 'streamcuts.md'
+    - 'Java API Reference': 'javadoc.md'
+    - 'REST API - Controller': 'rest/restapis.md'
   - Pravega Connectors:
     - 'Ecosystem': 'connectors.md'
     - 'Flink Connector':
