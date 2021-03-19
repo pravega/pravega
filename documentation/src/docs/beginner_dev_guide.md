@@ -23,12 +23,9 @@ To complete this guide, you need:
 * Less than 15 minutes
 * An IDE
 * JDK 11+ installed with JAVA_HOME configured appropriately
-* Gradle 6.5.1+
-
-<details>
-  <summary>Gradle 6.5.1+</summary>
-  Installation: https://gradle.org/install/
-<p>
+* <details>
+<summary>Gradle 6.5.1+</summary>
+Installation : https://gradle.org/install/
   :warning: Verify Gradle is using the Java you expect. You can verify which JDK Gradle uses by running `gradle --version`.
 </details>
 
