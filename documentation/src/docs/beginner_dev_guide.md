@@ -56,15 +56,15 @@ You can launch a standalone mode server using either of the following options:
 1. From source code:
 
 <details open>
-<summary>Commands to start standalone from source code</summary>
+<summary>Commands to start standalone from source code:</summary>
 <p>
 
-Checkout the source code:
+Checkout the source code.
 ```console
 $ git clone https://github.com/pravega/pravega.git
 $ cd pravega
 ```
-Build the Pravega standalone mode distribution:
+Build the Pravega standalone mode distribution.
 
 ```console
 $ ./gradlew startStandalone
@@ -111,7 +111,7 @@ Invoke `gradle run` to run the project.
 
 
 <details open>
-<summary>Expected output</summary>
+<summary>Expected output:</summary>
 <p>
 
 ```console
