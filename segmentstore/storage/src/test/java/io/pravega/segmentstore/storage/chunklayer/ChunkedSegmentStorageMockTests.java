@@ -399,4 +399,23 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         chunkedSegmentStorage.getGarbageCollector().deleteGarbage(false, 100).get();
         verify(spyChunkStorage, times(5)).doDelete(any());
     }
+
+    @Test
+    public void testReport() {
+        SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+
+        @Cleanup
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
+        chunkedSegmentStorage.initialize(1);
+
+        chunkedSegmentStorage.report();
+
+        // Not possible to mock any other reporter except metadata store.
+        verify(spyMetadataStore).report();
+    }
 }
