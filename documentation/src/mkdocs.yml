@@ -68,6 +68,7 @@ nav:
   - Getting Started:
     - 'Running a Sample Application': 'getting-started/getting-started.md'
     - 'Pravega on Kubernetes 101': 'pravega-operator/charts/pravega/README.md'
+    - 'Using Schema Registry': 'schema-registry/documentation/src/docs/getting-started.md'
   - Understanding Pravega:
       - 'Pravega Concepts': 'pravega-concepts.md'
       - 'Terminology': 'terminology.md'
@@ -90,6 +91,7 @@ nav:
     - 'Working with StreamCuts': 'streamcuts.md'
     - 'Pravega Client APIs': 'javadoc.md'
     - 'REST API - Controller': 'rest/restapis.md'
+    - 'Working with Schema Registry': 'schema-registry/documentation/src/docs/pravega-applications.md'
   - Pravega Connectors:
     - 'Connectors Ecosystem': 'connectors.md'
     - 'Flink Connector':
@@ -114,8 +116,6 @@ nav:
       - Using Schema Registry SDK:
           - 'Java API Reference': 'schema-registry/documentation/src/docs/javadoc.md'
           - 'REST API': 'schema-registry/documentation/src/docs/rest-documentation.md'
-          - 'Using Schema Registry in Pravega Applications': 'schema-registry/documentation/src/docs/pravega-applications.md'
-      - Deployment Overview: 'schema-registry/documentation/src/docs/installation-guide.md'
       - Security, TLS & Authz/Authn: 'schema-registry/documentation/src/docs/security.md'
   - 'Deployment':
       - 'Deployment Overview': 'deployment/deployment.md'
@@ -127,6 +127,7 @@ nav:
       - 'Deployment on DC/OS': 'deployment/dcos-install.md'
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
       - 'Pravega Metrics': 'metrics.md'
+      - 'Deploying Schema Registry': 'schema-registry/documentation/src/docs/installation-guide.md'
   - Admin Guide:
       - 'Pravega Cluster Dependencies': 'admin-guide/cluster-dependencies.md'
       - 'Setting the Number of Segment Containers': 'admin-guide/num-containers.md'
