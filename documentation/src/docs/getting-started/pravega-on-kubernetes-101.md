@@ -132,7 +132,7 @@ of 20GB of storage each, which is enough for a demo Pravega cluster.
 Once the previous command has been executed, you can see both Zookeeper Operator and Zookeeper running in the 
 cluster:
 
-```
+```console
 $ kubectl get pods
 NAME                                  READY   STATUS    RESTARTS   AGE
 zookeeper-0                           1/1     Running   0          3m46s
@@ -164,7 +164,7 @@ helm install bookkeeper pravega/bookkeeper --version=0.7.1
 
 As a result, you can see below both Zookeeper and Bookkeeper up and running:
 
-```
+```console
 $ kubectl get pods
 NAME                                   READY   STATUS    RESTARTS   AGE
 bookkeeper-operator-85568f8949-d652z   1/1     Running   0          4m10s
@@ -196,7 +196,7 @@ Once the NFS Server provisioner is up and running, Pravega will require a PVC fo
 NFS Server provisioner that we have just deployed. To create the PVC, you can just copy the following manifest 
 (namely `tier2_pvc.yaml`):
 
-```
+```yaml
 kind: PersistentVolumeClaim 
 apiVersion: v1 
 metadata: 
@@ -241,7 +241,7 @@ helm install pravega pravega/pravega --version=0.8.0
 
 That's it! Once this command gets executed, you will have your first Pravega cluster up and running:
 
-```
+```console
 $ kubectl get pods
 NAME                                         READY   STATUS    RESTARTS  AGE
 bookkeeper-operator-85568f8949-d652z         1/1     Running   0         11m
@@ -264,7 +264,7 @@ Finally, we would like to help you to exercise the Pravega cluster you just depl
 our Kubernetes cluster to run samples and applications, like the one we propose in the manifest below 
 (`test-pod.yaml`):
 
-```
+```yaml
 kind: Pod 
 apiVersion: v1 
 metadata: 
@@ -313,6 +313,7 @@ There are many other interesting samples for Pravega in the repository, so pleas
 This guide (also available in this [blog post](https://blog.pravega.io/2020/06/20/deploying-pravega-in-kubernetes/))
 provides a high-level overview on how to deploy Pravega on Kubernetes. But there is much more to learn! We 
 suggest you to continue exploring Pravega with the following documents:
+
 - [Deploying Pravega](deployment/deployment.md): A more advanced guide on how to deploy Pravega on Kubernetes
 and other environments.
 - [Developer Guide](beginner_dev_guide.md): Start creating your own applications using Pravega.
