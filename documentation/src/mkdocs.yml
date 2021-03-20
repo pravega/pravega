@@ -67,7 +67,7 @@ nav:
   - Quick Start: 'getting-started/quick-start.md'
   - Getting Started:
     - 'Running a Sample Application': 'getting-started/getting-started.md'
-    - 'Running Pravega on Kubernetes': 'getting-started/pravega-on-kubernetes-101.md'
+    - 'Deploying Pravega on Kubernetes': 'getting-started/pravega-on-kubernetes-101.md'
     - 'Using Schema Registry': 'schema-registry/documentation/src/docs/getting-started.md'
     - 'Using Flink': 'flink-connectors/documentation/src/docs/dev-guide.md'
   - Understanding Pravega:
