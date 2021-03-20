@@ -59,7 +59,7 @@ nav:
   - Quick Start: 'getting-started/quick-start.md'
   - Getting Started:
     - 'Running a Sample Application': 'getting-started/getting-started.md'
-    - 'Pravega on Kubernetes 101': 'pravega-operator/charts/pravega/README.md'
+    - 'Running on Kubernetes': 'pravega-operator/charts/pravega/README.md'
     - 'Using Schema Registry': 'schema-registry/documentation/src/docs/getting-started.md'
     - 'Using Flink': 'flink-connectors/documentation/src/docs/dev-guide.md'
   - Understanding Pravega:
@@ -76,7 +76,7 @@ nav:
       - 'Watermarking': 'watermarking.md'
   - Developing Pravega Applications:
     - '1st Code Walkthrough': 'beginner_dev_guide.md'
-    - 'Clients & Streams Walkthrough': 'dev-guide/clients-and-streams.md'
+    - 'Client & Stream Semantics': 'dev-guide/clients-and-streams.md'
     - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
     - 'Working with Reader Group notifications': 'reader-group-notifications.md'
     - 'Working with State Synchronizer': 'state-synchronizer.md'
