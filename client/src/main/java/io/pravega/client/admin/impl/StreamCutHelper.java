@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -77,9 +76,10 @@ public class StreamCutHelper {
     private CompletableFuture<List<SegmentInfo>> segmentToInfos(Collection<Segment> segments, DelegationTokenProvider tokenProvider) {
         List<CompletableFuture<SegmentInfo>> results = new ArrayList<>();
         for (Segment s : segments) {
-            @Cleanup
             SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, tokenProvider);
-            results.add(client.getSegmentInfo());
+            CompletableFuture<SegmentInfo> info = client.getSegmentInfo();
+            results.add(info);
+            info.whenComplete((v, e) -> client.close());
         }
         return Futures.allOfWithResults(results);
     }

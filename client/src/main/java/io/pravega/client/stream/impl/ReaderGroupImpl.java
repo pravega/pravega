@@ -38,8 +38,8 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
-import io.pravega.client.stream.impl.ReaderGroupState.UpdatingConfig;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
+import io.pravega.client.stream.impl.ReaderGroupState.UpdatingConfig;
 import io.pravega.client.stream.notifications.EndOfDataNotification;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
@@ -47,8 +47,8 @@ import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.AccessOperation;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -65,7 +65,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -416,9 +415,10 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 if (endPositions.containsKey(s)) {
                     return CompletableFuture.completedFuture(endPositions.get(s));
                 } else {
-                    @Cleanup
                     SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, tokenProvider);
-                    return metadataClient.fetchCurrentSegmentLength();
+                    CompletableFuture<Long> result = metadataClient.fetchCurrentSegmentLength();
+                    result.whenComplete((r, e) -> metadataClient.close());
+                    return result;
                 }
             }).collect(Collectors.toList()));
         }).thenApply(sizes -> {

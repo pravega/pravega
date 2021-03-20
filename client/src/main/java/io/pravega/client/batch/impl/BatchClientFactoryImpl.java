@@ -42,7 +42,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
@@ -142,9 +141,10 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
     }
 
     private CompletableFuture<SegmentInfo> segmentToInfo(Segment s, DelegationTokenProvider tokenProvider) {
-        @Cleanup
         SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, tokenProvider);
-        return client.getSegmentInfo();
+        CompletableFuture<SegmentInfo> result = client.getSegmentInfo();
+        result.whenComplete((r, e) -> client.close());
+        return result;
     }
 
     @Override
