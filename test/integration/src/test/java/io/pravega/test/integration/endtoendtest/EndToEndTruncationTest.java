@@ -168,6 +168,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         SegmentMetadataClientFactory metadataClientFactory = new SegmentMetadataClientFactoryImpl(controller,
                                                                                                   streamManager.getConnectionPool());
         Segment segment = new Segment(scope, streamName, 0);
+        @Cleanup
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals(0, metadataClient.getSegmentInfo().join().getStartingOffset());

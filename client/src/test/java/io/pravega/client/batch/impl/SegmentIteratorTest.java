@@ -51,6 +51,7 @@ public class SegmentIteratorTest {
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
+        @Cleanup
         SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment, DelegationTokenProviderFactory.createWithEmptyToken());
         long length = metadataClient.getSegmentInfo().join().getWriteOffset();
         @Cleanup
@@ -76,6 +77,7 @@ public class SegmentIteratorTest {
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
+        @Cleanup
         SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
         long length = metadataClient.getSegmentInfo().join().getWriteOffset();
@@ -105,6 +107,7 @@ public class SegmentIteratorTest {
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
+        @Cleanup
         SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
         long length = metadataClient.getSegmentInfo().join().getWriteOffset();

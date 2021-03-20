@@ -66,6 +66,7 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
     public void close() {
         if (closed.compareAndSet(false, true)) {
             input.close();
+            meta.close();
         }
     }
 

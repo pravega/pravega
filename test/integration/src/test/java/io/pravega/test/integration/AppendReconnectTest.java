@@ -139,6 +139,7 @@ public class AppendReconnectTest extends LeakDetectorTestSuite {
             c.close();
         }
         assertTrue(out.write(ByteBuffer.wrap(payload), payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE));
+        @Cleanup
         SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, connectionPool).createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals((payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE) * 2,
