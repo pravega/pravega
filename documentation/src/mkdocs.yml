@@ -69,6 +69,7 @@ nav:
     - 'Running a Sample Application': 'getting-started/getting-started.md'
     - 'Pravega on Kubernetes 101': 'pravega-operator/charts/pravega/README.md'
     - 'Using Schema Registry': 'schema-registry/documentation/src/docs/getting-started.md'
+    - 'Using Flink': 'flink-connectors/documentation/src/docs/dev-guide.md'
   - Understanding Pravega:
       - 'Pravega Concepts': 'pravega-concepts.md'
       - 'Terminology': 'terminology.md'
@@ -98,7 +99,6 @@ nav:
         - Overview: 'flink-connectors/documentation/src/docs/index.md'
         - Getting Started: 'flink-connectors/documentation/src/docs/getting-started.md'
         - Quick Start: 'flink-connectors/documentation/src/docs/quickstart.md'
-        - 'Flink Connector Walkthrough': 'flink-connectors/documentation/src/docs/dev-guide.md'
         - Features:
             - 'Streaming': 'flink-connectors/documentation/src/docs/streaming.md'
             - 'Batch': 'flink-connectors/documentation/src/docs/batch.md'
