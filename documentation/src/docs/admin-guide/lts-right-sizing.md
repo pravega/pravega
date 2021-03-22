@@ -39,15 +39,19 @@ but it can be combined with the previous policies as well. Also, in this section
 system are configured with some type of auto-retention.
 
 The Long-Term Storage requirements in a production deployment are dictated by:
+
 - _Rate of data ingestion_: This is the main factor that dictates the Long-Term Storage requirements. Clearly, having
 a high data ingestion rate unavoidably leads to higher Long-Term Storage requirements. 
+
 - _Stream retention policy used_: The retention configuration of our Streams is almost as important as the ingestion rate.
 That is, we can have a data high ingestion rate on Streams configured with frequent/small retention period/size, 
 which would still keep the Long-Term Storage requirements low.
+
 - _Efficiency of serializers_: Pravega only understands about bytes, not events. This means that applications writing and
 reading events from Pravega are required to provide serializers in order to convert events into bytes and the other way
 round. Depending on the type of data being stored and the serializer implementation, the write amplification of user
 events into bytes may be significant.
+
 - _System metadata storage of Pravega_: Internally, Pravega stores most of its metadata in Key/Value Tables, which are
 backed by regular segments. Thus, the metadata of Pravega is also going to consume some space in Long-Term Storage.
 While this storage cost is minor, depending on how metadata-heavy the workload is it may represent 1% to 5% of the 

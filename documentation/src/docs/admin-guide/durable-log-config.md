@@ -51,6 +51,7 @@ to saturation, it may be the case that one Bookkeeper server processes requests 
 the mentioned background tasks are running. In this case, setting `bookkeeper.ack.quorum.size < bookkeeper.write.quorum.size` 
 may lead to overload the slowest Bookkeeper server, as the client does not wait for its acknowledgements to continue writing data.
 For this reason, in a production cluster we recommend to configuring:
+
 - `bookkeeper.ack.quorum.size` = `bookkeeper.write.quorum.size` = 3: We define the number of acknowledgements equal
 to the write quorum, which leads the Bookkeeper client to wait for all Bookkeeper servers to confirm every write.
 This decision trades-off some write latency penalty in exchange of stability, which is reasonable in a production
