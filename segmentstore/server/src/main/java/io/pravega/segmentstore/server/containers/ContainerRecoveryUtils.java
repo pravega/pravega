@@ -102,9 +102,6 @@ public class ContainerRecoveryUtils {
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         while (segmentIterator.hasNext()) {
             val currentSegment = segmentIterator.next();
-            if (currentSegment == null) {
-                continue;
-            }
             int containerId = segToConMapper.getContainerId(currentSegment.getName());
             String currentSegmentName = currentSegment.getName();
             // skip recovery if the segment is an attribute segment or metadata segment.
