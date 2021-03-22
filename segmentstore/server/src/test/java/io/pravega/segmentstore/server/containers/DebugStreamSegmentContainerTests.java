@@ -382,7 +382,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 4. Move container metadata and its attribute segment to back up segments.
         ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount, executorService(), TIMEOUT)
-                .thenAccept(backUpMetadataSegments -> {
+                .thenCompose(backUpMetadataSegments -> {
                     OperationLogFactory localDurableLogFactory2 = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG,
                             new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
                     // Starts a DebugSegmentContainer with new Durable Log
@@ -423,6 +423,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                         val attributes = container2.getAttributes(sc.getKey(), Collections.singleton(attributeReplace), false, TIMEOUT).join();
                         Assert.assertEquals("Unexpected attribute for " + sc.getKey(), expectedAttributeValue, (long) attributes.get(attributeReplace));
                     }
+                    return CompletableFuture.completedFuture(null);
                 }).join();
     }
 
