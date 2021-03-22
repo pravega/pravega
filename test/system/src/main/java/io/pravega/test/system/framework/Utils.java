@@ -28,6 +28,7 @@ import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreSer
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
 
@@ -57,6 +58,7 @@ public class Utils {
     public static final ImmutableMap<String, String> PRAVEGA_PROPERTIES = readPravegaProperties();
     public static final String DEFAULT_TRUSTSTORE_PATH = TLS_MOUNT_PATH + "/tls.crt";
     public static final boolean VALIDATE_HOSTNAME = false;
+    public static final String CONFIGS = "configs";
 
     /**
      * Get Configuration from environment or system property.
@@ -146,6 +148,13 @@ public class Utils {
             resourceName = PROPERTIES_FILE_WITH_TLS;
         }
         Properties props = new Properties();
+        if (System.getProperty(CONFIGS) != null) {
+            try {
+                props.load(new StringReader(System.getProperty(CONFIGS)));
+            } catch (IOException e) {
+                log.error("Error reading custom config file.", e);
+            }
+        }
         try {
             props.load(Utils.class.getClassLoader().getResourceAsStream(resourceName));
         } catch (IOException e) {
