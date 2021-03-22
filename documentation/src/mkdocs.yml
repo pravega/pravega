@@ -69,6 +69,7 @@ nav:
     - 'Running a Sample Application': 'getting-started/getting-started.md'
     - 'Deploying Pravega on Kubernetes': 'getting-started/pravega-on-kubernetes-101.md'
     - 'Using Flink': 'flink-connectors/documentation/src/docs/dev-guide.md'
+    - 'Using Spark': 'spark-connectors/documentation/src/docs/getting-started.md'
     - 'Using Schema Registry': 'schema-registry/documentation/src/docs/getting-started.md'
   - Understanding Pravega:
     - 'Concepts': 'pravega-concepts.md'
@@ -107,7 +108,13 @@ nav:
         - Metrics: 'flink-connectors/documentation/src/docs/metrics.md'
         - Configurations: 'flink-connectors/documentation/src/docs/configurations.md'
         - Serialization: 'flink-connectors/documentation/src/docs/serialization.md'
-      - 'Spark Connector': 'https://github.com/pravega/spark-connectors/blob/master/README.md'
+      - 'Spark Connector':
+        - Overview: 'spark-connectors/documentation/src/docs/index.md'
+        - Samples: 'spark-connectors/documentation/src/docs/samples.md'
+        - Configuration: 'spark-connectors/documentation/src/docs/configuration.md'
+        - Building the Connector: 'spark-connectors/documentation/src/docs/build-connector.md'
+        - Limitations: 'spark-connectors/documentation/src/docs/limitations.md'
+        - Source Code: 'https://github.com/pravega/spark-connectors/blob/master/README.md'
       - 'Hadoop Connector': 'https://github.com/pravega/hadoop-connectors/blob/master/README.md'
       - 'Presto Connector': 'https://github.com/pravega/presto-connector/blob/main/README.md'
       - 'Boomi Connector': 'https://github.com/pravega/boomi-connector/blob/master/README.md'
