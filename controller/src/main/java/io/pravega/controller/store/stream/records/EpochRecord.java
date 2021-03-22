@@ -68,14 +68,10 @@ public class EpochRecord {
     }
 
     public boolean hasSplitMergeCounts() {
-        if (this.epoch == 0) {
-            return true;
-        } else {
-            if (this.getSplits() != DEFAULT_COUNT_VALUE && this.getMerges() != DEFAULT_COUNT_VALUE) {
+        if (this.getSplits() != DEFAULT_COUNT_VALUE && this.getMerges() != DEFAULT_COUNT_VALUE) {
                 return true;
             }
-            return false;
-        }
+        return false;
     }
     
     @SneakyThrows(IOException.class)
