@@ -77,13 +77,14 @@ nav:
   - Developing Applications:
     - '1st Code Walkthrough': 'beginner_dev_guide.md'
     - 'Client & Stream Semantics': 'dev-guide/clients-and-streams.md'
-    - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
-    - 'Working with Reader Group notifications': 'reader-group-notifications.md'
-    - 'Working with State Synchronizer': 'state-synchronizer.md'
-    - 'Working with Transactions': 'transactions.md'
-    - 'Working with StreamCuts': 'streamcuts.md'
+    - 'Event Reader and Writer': 'basic-reader-and-writer.md'
+    - 'Reader Group notifications': 'reader-group-notifications.md'
+    - 'State Synchronizer': 'state-synchronizer.md'
+    - 'Transactions': 'transactions.md'
+    - 'StreamCuts': 'streamcuts.md'
     - 'Client APIs': 'javadoc.md'
     - 'Controller REST API': 'rest/restapis.md'
+    - 'Working with Metrics': 'metrics.md'
     - 'Working with Schema Registry': 'schema-registry/documentation/src/docs/pravega-applications.md'
   - Ecosystem:
     - 'Connectors':
@@ -105,7 +106,7 @@ nav:
       - 'NiFi Connector': 'https://github.com/pravega/nifi-pravega/blob/master/README.md'
     - Client Bingings: 'bindings.md'
     - Tools:
-      - 'User CLI': 'cli/user/README.md'
+      - 'User CLI': 'https://github.com/pravega/pravega/blob/master/cli/user/README.md'
       - 'Gateways': 'gateways.md'
       - 'Kafka Adapter': 'https://github.com/pravega/kafka-adapter/blob/master/README.md'
       - 'Keycloak Security Plugin': 'https://github.com/pravega/pravega-keycloak/blob/master/README.md'
@@ -132,8 +133,7 @@ nav:
     - 'Segment Store Cache and Memory': 'admin-guide/segmentstore-memory.md'
     - 'Durable Log Configuration': 'admin-guide/durable-log-config.md'
     - 'Right-Sizing Long-Term Storage': 'admin-guide/lts-right-sizing.md'
-    - 'Admin CLI': 'cli/admin/README.md'
-    - 'Pravega Metrics': 'metrics.md'
+    - 'Admin CLI': 'https://github.com/pravega/pravega/blob/master/cli/admin/README.md'
     - 'Security':
       - 'Overview': 'security/pravega-security-authorization-authentication.md'
       - 'Authentication/Authorization Plugin': 'auth/auth-plugin.md'

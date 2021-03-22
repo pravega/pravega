@@ -46,9 +46,9 @@ and has been designed from the ground up to understand streaming natively and pr
 stream-oriented programming, with built-in support for back-pressure. This Alpakka Pravega connector lets you connect 
 Pravega to Akka Streams.
 
-- [Memstate Connector](https://github.com/DevrexLabs/memstate/tree/master/src/Memstate.Pravega): [Memstate] is an
-in-memory event-sourced ACID-transactional replicated object graph engine. The Pravega connector
-allows Memstate to use it as storage provider for persistence and global message ordering.
+- [Memstate Connector](https://github.com/DevrexLabs/memstate/tree/master/src/Memstate.Pravega): 
+[Memstate](https://memstate.io/) is an in-memory event-sourced ACID-transactional replicated object graph engine. 
+The Pravega connector allows Memstate to use it as storage provider for persistence and global message ordering.
 
  
 
