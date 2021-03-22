@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 @Data
 public class EpochRecord {
     public static final EpochRecordSerializer SERIALIZER = new EpochRecordSerializer();
+    public static final long DEFAULT_COUNT_VALUE = -1L;
 
     private final int epoch;
     /**
@@ -66,11 +67,11 @@ public class EpochRecord {
         this.merges = merges;
     }
 
-    public boolean hasSplitsMerges() {
+    public boolean hasSplitMergeCounts() {
         if (this.epoch == 0) {
             return true;
         } else {
-            if (this.getSplits() != 0 && this.getMerges() != 0) {
+            if (this.getSplits() != DEFAULT_COUNT_VALUE && this.getMerges() != DEFAULT_COUNT_VALUE) {
                 return true;
             }
             return false;
@@ -105,7 +106,22 @@ public class EpochRecord {
     }
 
     private static class EpochRecordBuilder implements ObjectBuilder<EpochRecord> {
+        private long splits = DEFAULT_COUNT_VALUE;
+        private long merges = DEFAULT_COUNT_VALUE;
 
+        private EpochRecordBuilder splits(final long splitCount) {
+            this.splits = splitCount;
+            return this;
+        }
+
+        private EpochRecordBuilder merges(final long mergeCount) {
+            this.merges = mergeCount;
+            return this;
+        }
+
+        public EpochRecord build() {
+            return new EpochRecord(epoch, referenceEpoch, segments, creationTime, splits, merges);
+        }
     }
     
     private static class EpochRecordSerializer extends VersionedSerializer.WithBuilder<EpochRecord, EpochRecord.EpochRecordBuilder> {
