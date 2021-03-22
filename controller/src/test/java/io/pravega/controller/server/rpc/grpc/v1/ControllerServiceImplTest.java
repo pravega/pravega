@@ -568,19 +568,17 @@ public abstract class ControllerServiceImplTest {
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
         ResultObserver<CreateReaderGroupResponse> result = new ResultObserver<>();
         String rgName = "rg_1";
-        this.controllerService.createReaderGroup(ModelHelper.decode(SCOPE1, rgName, config, config.getReaderGroupId()), result);
+        this.controllerService.createReaderGroup(ModelHelper.decode(SCOPE1, rgName, config), result);
         CreateReaderGroupResponse createRGStatus = result.get();
         assertEquals("Create Reader Group Invalid RG Name", CreateReaderGroupResponse.Status.INVALID_RG_NAME, createRGStatus.getStatus());
 
         ResultObserver<CreateReaderGroupResponse> result1 = new ResultObserver<>();
         rgName = "rg1";
-        this.controllerService.createReaderGroup(ModelHelper.decode("somescope", rgName, config, config.getReaderGroupId()), result1);
+        this.controllerService.createReaderGroup(ModelHelper.decode("somescope", rgName, config), result1);
         createRGStatus = result1.get();
         assertEquals("Create Reader Group Scope not found", CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND, createRGStatus.getStatus());
     }
@@ -605,10 +603,9 @@ public abstract class ControllerServiceImplTest {
                 .groupRefreshTimeMillis(40000L)
                 .maxOutstandingCheckpointRequest(5)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(rgId)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        newConfig = ReaderGroupConfig.cloneConfig(newConfig, rgId, 0L);
         ResultObserver<UpdateReaderGroupResponse> result = new ResultObserver<>();
         this.controllerService.updateReaderGroup(ModelHelper.decode(SCOPE1, rgName, newConfig), result);
         UpdateReaderGroupResponse rgStatus = result.get();
@@ -1188,10 +1185,9 @@ public abstract class ControllerServiceImplTest {
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(rgId)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        config = ReaderGroupConfig.cloneConfig(config, rgId, 0L);
         ResultObserver<CreateReaderGroupResponse> result = new ResultObserver<>();
 
         this.controllerService.createReaderGroup(ModelHelper.decode(scope, rgName, config), result);

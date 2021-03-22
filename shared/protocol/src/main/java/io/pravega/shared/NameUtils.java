@@ -90,6 +90,11 @@ public final class NameUtils {
     private static final String CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET = "%s.E-%d-O-%d.%s";
 
     /**
+     * Format for name of read index block index entry.
+     */
+    private static final String BLOCK_INDEX_NAME_FORMAT_WITH_OFFSET = "%s.B-%d";
+
+    /**
      * Format for Container Metadata Segment name.
      */
     private static final String METADATA_SEGMENT_NAME_FORMAT = "_system/containers/metadata_%d";
@@ -281,6 +286,18 @@ public final class NameUtils {
      */
     public static String getSegmentChunkName(String segmentName, long epoch, long offset) {
         return String.format(CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET, segmentName, epoch, offset, UUID.randomUUID());
+    }
+
+
+    /**
+     * Gets the name of the read index block entry for the given segment and offset.
+     *
+     * @param segmentName The name of the Segment.
+     * @param offset      The starting offset of the block.
+     * @return formatted read index block entry name.
+     */
+    public static String getSegmentReadIndexBlockName(String segmentName, long offset) {
+        return String.format(BLOCK_INDEX_NAME_FORMAT_WITH_OFFSET, segmentName, offset);
     }
 
     /**

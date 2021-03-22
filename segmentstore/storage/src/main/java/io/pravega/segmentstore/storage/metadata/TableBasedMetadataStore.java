@@ -36,6 +36,8 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_FOUND_IN_STORE;
+import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.METADATA_NOT_FOUND;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.TABLE_GET_LATENCY;
 import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.TABLE_WRITE_LATENCY;
 
@@ -44,6 +46,8 @@ import static io.pravega.segmentstore.storage.metadata.StorageMetadataMetrics.TA
  */
 @Slf4j
 public class TableBasedMetadataStore extends BaseMetadataStore {
+    private final static BaseMetadataStore.TransactionData.TransactionDataSerializer SERIALIZER = new BaseMetadataStore.TransactionData.TransactionDataSerializer();
+
     /**
      * Instance of the {@link TableStore}.
      */
@@ -57,7 +61,6 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
     private final String tableName;
     private final Duration timeout = Duration.ofSeconds(30);
     private final AtomicBoolean isTableInitialized = new AtomicBoolean(false);
-    private final BaseMetadataStore.TransactionData.TransactionDataSerializer serializer = new BaseMetadataStore.TransactionData.TransactionDataSerializer();
 
     /**
      * Constructor.
@@ -91,16 +94,18 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                                 val entry = entries.get(0);
                                 if (null != entry) {
                                     val arr = entry.getValue();
-                                    TransactionData txnData = serializer.deserialize(arr);
+                                    TransactionData txnData = SERIALIZER.deserialize(arr);
                                     txnData.setDbObject(entry.getKey().getVersion());
                                     txnData.setPersisted(true);
                                     TABLE_GET_LATENCY.reportSuccessEvent(t.getElapsed());
+                                    METADATA_FOUND_IN_STORE.inc();
                                     return txnData;
                                 }
                             } catch (Exception e) {
                                 throw new CompletionException(new StorageMetadataException("Error while reading", e));
                             }
                             TABLE_GET_LATENCY.reportSuccessEvent(t.getElapsed());
+                            METADATA_NOT_FOUND.inc();
                             return TransactionData.builder()
                                     .key(key)
                                     .persisted(true)
@@ -138,7 +143,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                         }
 
                         try {
-                            val arraySegment = serializer.serialize(txnData);
+                            val arraySegment = SERIALIZER.serialize(txnData);
                             TableEntry tableEntry = TableEntry.versioned(
                                     new ByteArraySegment(txnData.getKey().getBytes(Charsets.UTF_8)),
                                     arraySegment,

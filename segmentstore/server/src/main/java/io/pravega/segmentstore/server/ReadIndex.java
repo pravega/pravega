@@ -126,6 +126,12 @@ public interface ReadIndex extends AutoCloseable {
     void cleanup(Collection<Long> segmentIds);
 
     /**
+     * Evicts all cache entries that are eligible for eviction. Only applicable in recovery mode.
+     * @throws IllegalStateException If the ReadIndex is not in recovery mode.
+     */
+    long trimCache();
+
+    /**
      * Puts the ReadIndex in Recovery Mode. Some operations may not be available in Recovery Mode.
      *
      * @param recoveryMetadataSource The Metadata Source to use. This Metadata must be in sync with the ReadIndex base

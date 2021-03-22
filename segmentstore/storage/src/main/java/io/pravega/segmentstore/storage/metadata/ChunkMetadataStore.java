@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.metadata;
 
 import com.google.common.annotations.Beta;
+import io.pravega.segmentstore.storage.chunklayer.StatsReporter;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -77,7 +78,7 @@ import java.util.concurrent.CompletionException;
  * </ul>
  */
 @Beta
-public interface ChunkMetadataStore extends AutoCloseable {
+public interface ChunkMetadataStore extends AutoCloseable, StatsReporter {
     /**
      * Begins a new transaction.
      *
