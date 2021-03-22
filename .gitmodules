@@ -7,3 +7,6 @@
 [submodule "documentation/src/schema-registry"]
 	path = documentation/src/schema-registry
 	url = https://github.com/pravega/schema-registry.git
+[submodule "documentation/src/spark-connectors"]
+	path = documentation/src/spark-connectors
+	url = https://github.com/pravega/spark-connectors.git
