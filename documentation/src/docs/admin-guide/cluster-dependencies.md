@@ -57,6 +57,7 @@ Zookeeper cluster is up and running at `zookeeper-service:2181` (no dependencies
 Bookkeeper. The most important parameter to configure in Bookkeeper is `metadataServiceUri`, as it dictates the metadata 
 location of Bookkeeper ledgers, which is required by Pravega. Thus, in our cluster we need to configure 
 `metadataServiceUri` as: 
+
 - `metadataServiceUri=zk+hierarchical://zookeeper-service:2181/<bookkeeper.ledger.path>`
 
 The value assigned to the `metadataServiceUri` ensures that Bookkeeper will store the metadata of ledgers in the location
@@ -66,19 +67,23 @@ metadata of ledgers.
 
 With Bookkeeper up and running, we need to configure the rest of parameters in Pravega. First, both the Controller and
 the Segment Store services should point to the Zookeeper service:  
+
 - `[pravegaservice.zk.connect.uri|controller.zk.connect.uri]=zookeeper-service:2181`
 
 Note that both properties should be configured given that Pravega currently separates the configuration for Controller
 and Segment Store. In addition to that, and assuming that our Controller service has a service endpoint or DNS name
 (e.g., `controller-service:9090`), we need to point the Segment Store to that endpoint in order to properly configure
 the [Stream auto-scaling feedback loop](http://pravega.io/docs/latest/pravega-concepts/#elastic-streams-auto-scaling):
+
 - `autoScale.controller.connect.uri=pravega://controller-service:9090`
 
 Finally, we just need to configure the storage side of the Segment Store. On the one hand, the parameter 
 `pravegaservice.dataLog.impl.name` can be left with its default value (`BOOKKEEPER`), given that we use Bookkeeper as
 a durable log for Pravega. On the other hand, we need to configure `pravegaservice.storage.impl.name` to use a NFS
 service and pointing to the right mount point (e.g., `NFS-IP/pravega-data`):
+
 - `pravegaservice.storage.impl.name=FILESYSTEM`
+
 - `filesystem.root=NFS-IP/pravega-data`
 
 With this, we would be able to run our Pravega Cluster with Bookkeeper/Zookeeper and store data in the long term to a

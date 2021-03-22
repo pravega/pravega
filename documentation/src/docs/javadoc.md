@@ -17,15 +17,15 @@ limitations under the License.
 
 Pravega provides applications with a reliable, fast and consistent storage service for data Streams.
 Along the years, Pravega has also incorporated powerful APIs on top of the Stream primitive that allows
-applications to have an "all-in-one" storage service (streams, batch jobs, store K/V pairs, etc.). 
+applications to have an _all-in-one storage service_ (streams, batch jobs, store K/V pairs, etc.). 
 We believe that providing developers rich APIs over the same storage system this is key, as it removes
 the need to deploy one storage service per use-case. At the moment, the Pravega Client API provides the 
 following abstractions:
 
-- _[Stream Client](https://github.com/pravega/pravega/tree/master/client/src/main/java/io/pravega/client/stream)_: 
+- _[Event Stream Client](https://github.com/pravega/pravega/tree/master/client/src/main/java/io/pravega/client/stream)_: 
 We provide a Java library that implements a convenient API for Writer and Reader streaming applications to use. The 
 client library encapsulates the [Wire Protocol](wire-protocol.md) that is used to convey requests and responses 
-between Pravega clients and the Pravega service. Note that the Stream client can manage events directly on Streams
+between Pravega clients and the Pravega service. Note that the Event Stream Client can manage events directly on Streams
 or via [Transactions](pravega-concepts.md/#transactions) to achieve exactly-once semantics.
 
 - _[Batch Client](https://github.com/pravega/pravega/pull/1998)_: Instead of processing a stream as data comes in, 
@@ -51,7 +51,7 @@ in Pravega alongside Streams, we aim to simplify the operational burden of analy
 maintain disparate storage systems - both KVTs and Streams share the same underlying infrastructure powered by 
 Pravega Segments.
                
-- _[State Synchronizer Client](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/state/StateSynchronizer.java):
+- _[State Synchronizer Client](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/state/StateSynchronizer.java)_:
 In many situations, a distributed application may need to share information across multiple processes that may
 update it (e.g., configuration file). In this scenario, keep the data consistent under concurrent updates is key.
 The State Synchronizer Client just solves this problem: it provides a means to have state that is synchronized between 

@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-# Pravega Connectors Ecosystem
+# Pravega Connectors
 
 Connectors allow integrating Pravega with different data sources and sinks.
 Currently, Pravega offers the following connectors:  
@@ -38,5 +38,23 @@ This connector allows Presto to query storage from Pravega streams.
 - [Boomi Connector](https://github.com/pravega/boomi-connector): A Pravega connector for the 
 [Boomi Atomsphere](https://boomi.com/platform/integration/applications/).
 
+- [Nifi Connector](https://github.com/pravega/nifi-pravega): Connector to read and write Pravega streams 
+with [Apache NiFi](https://nifi.apache.org/).
 
+
+**Third-party contributions**: In addition to the connectors provided by the Pravega organization, open-source contributors have also
+created connectors for external projects:
+
+- [Alpakka connector](https://doc.akka.io/docs/alpakka/current/pravega.html): 
+The [Alpakka](https://github.com/akka/alpakka) project is an open source initiative to 
+implement stream-aware, reactive, integration pipelines for Java and Scala. It is built on top of Akka Streams, 
+and has been designed from the ground up to understand streaming natively and provide a DSL for reactive and 
+stream-oriented programming, with built-in support for back-pressure. This Alpakka Pravega connector lets you connect 
+Pravega to Akka Streams.
+
+- [Memstate Connector](https://github.com/DevrexLabs/memstate/tree/master/src/Memstate.Pravega): [Memstate] is an
+in-memory event-sourced ACID-transactional replicated object graph engine. The Pravega connector
+allows Memstate to use it as storage provider for persistence and global message ordering.
+
+ 
 

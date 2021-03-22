@@ -314,8 +314,8 @@ This guide (also available in this [blog post](https://blog.pravega.io/2020/06/2
 provides a high-level overview on how to deploy Pravega on Kubernetes. But there is much more to learn! We 
 suggest you to continue exploring Pravega with the following documents:
 
-- [Deploying Pravega](deployment/deployment.md): A more advanced guide on how to deploy Pravega on Kubernetes
+- [Deploying Pravega](../deployment/deployment.md): A more advanced guide on how to deploy Pravega on Kubernetes
 and other environments.
-- [Developer Guide](beginner_dev_guide.md): Start creating your own applications using Pravega.
-- [Understanding Pravega](pravega-concepts.md): Be curious to understand the concepts and design choices behind
+- [Developer Guide](../beginner_dev_guide.md): Start creating your own applications using Pravega.
+- [Understanding Pravega](../pravega-concepts.md): Be curious to understand the concepts and design choices behind
 Pravega.
