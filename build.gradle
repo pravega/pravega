@@ -1030,9 +1030,9 @@ project('test:system') {
         def excludedTests = System.getProperty('excludeSystemTests')
         def includedTests = System.getProperty('includeSystemTests')
         // Let included tests take precedence if both are specified.
-        if (includedTests != null) {
+        if (includedTests != null && !includedTests.isEmpty()) {
             includes = includedTests.split(',').collect { getSystemTestClass(it) }
-        } else if (excludedTests != null ) {
+        } else if (excludedTests != null && !excludedTests.isEmpty()) {
             excludes = excludedTests.split(',').collect { getSystemTestClass(it) }
         }
 
