@@ -11,8 +11,12 @@ package io.pravega.segmentstore.server.writer;
 
 import io.pravega.segmentstore.server.ManualTimer;
 import io.pravega.segmentstore.server.WriterFlushResult;
+import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
+import java.util.LinkedList;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -47,6 +51,28 @@ public class WriterStateTests {
 
         s.setLastReadSequenceNumber(123);
         Assert.assertEquals(123, s.getLastReadSequenceNumber());
+    }
+
+    /**
+     * Tests {@link WriterState#getLastRead()} and {@link WriterState#setLastRead}.
+     */
+    @Test
+    public void testLastRead() {
+        val s = new WriterState();
+        Assert.assertNull(s.getLastRead());
+
+        val q = new LinkedList<Operation>();
+        q.add(new MetadataCheckpointOperation());
+        q.add(new StorageMetadataCheckpointOperation());
+
+        s.setLastRead(q);
+        Assert.assertSame(q, s.getLastRead());
+
+        q.removeFirst();
+        Assert.assertEquals(1, s.getLastRead().size());
+
+        q.removeFirst();
+        Assert.assertNull(s.getLastRead());
     }
 
     /**

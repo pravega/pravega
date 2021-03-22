@@ -186,8 +186,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
     }
 
     private boolean isInterruptible(ThrottlerCalculator.ThrottlerName name) {
-        return name == ThrottlerCalculator.ThrottlerName.Cache
-                || name == ThrottlerCalculator.ThrottlerName.DurableDataLog;
+        return name != null && name.isInterruptible();
     }
 
     @VisibleForTesting
