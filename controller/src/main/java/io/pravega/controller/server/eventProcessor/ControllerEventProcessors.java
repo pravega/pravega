@@ -219,7 +219,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         if (this.requestEventProcessors != null) {
             futures.add(handleOrphanedReaders(this.requestEventProcessors, processes));
         }
-        if (this.kvtRequestEventProcessors != null){
+        if (this.kvtRequestEventProcessors != null) {
             futures.add(handleOrphanedReaders(this.kvtRequestEventProcessors, processes));
         }
         return Futures.allOf(futures);
@@ -257,7 +257,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 }
             }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
         }
-        if (kvtRequestEventProcessors != null){
+        if (kvtRequestEventProcessors != null) {
             futures.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
                     kvtRequestEventProcessors.notifyProcessFailure(process);
