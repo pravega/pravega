@@ -27,12 +27,13 @@ buildscript {
         classpath group: 'org.hidetake', name: 'gradle-ssh-plugin', version: gradleSshPluginVersion
         classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
         classpath "gradle.plugin.com.github.spotbugs.snom:spotbugs-gradle-plugin:${spotbugsPluginVersion}"
-        classpath "org.ajoberstar:grgit:${gradleGitPluginVersion}"
+        classpath "org.ajoberstar.grgit:grgit-gradle:${gradleGitPluginVersion}"
         classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
     }
 }
 
-if (project.hasProperty("enableMkdocs")) {
+
+if (project.hasProperty("enableMkdocs") && project.property("enableMkdocs").equalsIgnoreCase("true")) {
     apply from: "$rootDir/gradle/mkdocs.gradle"
 }
 
