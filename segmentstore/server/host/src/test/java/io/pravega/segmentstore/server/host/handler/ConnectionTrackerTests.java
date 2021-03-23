@@ -89,6 +89,46 @@ public class ConnectionTrackerTests {
         Assert.assertFalse("Not expected a connection pause when total is reduced below limit.", c.isPaused());
     }
 
+    /**
+     * Verifies {@link TrackedConnection}.
+     */
+    @Test
+    public void testTrackedConnection() {
+        val allLimit = ConnectionTracker.LOW_WATERMARK * 4;
+        val singleLimit = ConnectionTracker.LOW_WATERMARK * 2;
+        val baseTracker = new ConnectionTracker(allLimit, singleLimit);
+        val c1 = new MockConnection();
+        val t1 = new TrackedConnection(c1, baseTracker);
+        val c2 = new MockConnection();
+        val t2 = new TrackedConnection(c2, baseTracker);
+
+        // A connection increased, but it's under both the per-connection limit and total limit.
+        t1.adjustOutstandingBytes(singleLimit - 2);
+        Assert.assertFalse("Not expecting a connection pause when under the limit.", c1.isPaused());
+
+        // Single connection cannot exceed its limit.
+        t1.adjustOutstandingBytes(3);
+        Assert.assertTrue("Expected a connection pause when connection over limit.", c1.isPaused());
+
+        // Increase second connection by the max it can be increased. This should pause the connection.
+        t2.adjustOutstandingBytes(singleLimit / 2 - 1);
+        Assert.assertFalse("Not expected a connection pause when total is below limit.", c2.isPaused());
+        t2.adjustOutstandingBytes(1);
+        Assert.assertTrue("Expected a connection pause when total is above limit.", c2.isPaused());
+        Assert.assertEquals(singleLimit + 1 + singleLimit / 2, baseTracker.getTotalOutstanding());
+
+        // Decrease the last increase for connection 1. Since the are multiple connections, the overall per-connection
+        // max threshold decreased, so we cannot yet resume it.
+        t1.adjustOutstandingBytes(-3);
+        Assert.assertTrue("Expected a connection pause when connection was over limit (near total capacity).", c1.isPaused());
+
+        t1.adjustOutstandingBytes(-singleLimit / 2);
+        Assert.assertFalse("Expected a connection resume when connection dropped below limit .", c1.isPaused());
+
+        t2.adjustOutstandingBytes(-1);
+        Assert.assertFalse("Expected a connection resume when connection dropped below limit .", c2.isPaused());
+    }
+
     private static class MockConnection implements ServerConnection {
         @Getter
         private boolean paused = false;
