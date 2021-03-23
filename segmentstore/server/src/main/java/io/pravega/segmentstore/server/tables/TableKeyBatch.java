@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,17 +45,42 @@ class TableKeyBatch {
     private int length;
 
     /**
-     * Creates a new instance of the TableKeyBatch class which will insert or update keys.
+     * Indicates whether this {@link TableKeyBatch} refers to externally-supplied updates or internal ones.
      */
+    private final boolean external;
+
+    /**
+     * Creates a new instance of the TableKeyBatch class with {@link #isExternal()} set to true which will insert or update keys.
+     */
+    @VisibleForTesting
     static TableKeyBatch update() {
-        return new TableKeyBatch(false);
+        return update(true);
+    }
+
+    /**
+     * Creates a new instance of the TableKeyBatch class which will insert or update keys.
+     *
+     * @param external True if this TableKeyBatch is for an external update, false otherwise.
+     */
+    static TableKeyBatch update(boolean external) {
+        return new TableKeyBatch(false, external);
+    }
+
+    /**
+     * Creates a new instance of the TableKeyBatch class with {@link #isExternal()} set to true that will remove keys.
+     */
+    @VisibleForTesting
+    static TableKeyBatch removal() {
+        return removal(true);
     }
 
     /**
      * Creates a new instance of the TableKeyBatch class that will remove keys.
+     *
+     * @param external True if this TableKeyBatch is for an external update, false otherwise.
      */
-    static TableKeyBatch removal() {
-        return new TableKeyBatch(true);
+    static TableKeyBatch removal(boolean external) {
+        return new TableKeyBatch(true, external);
     }
 
     /**

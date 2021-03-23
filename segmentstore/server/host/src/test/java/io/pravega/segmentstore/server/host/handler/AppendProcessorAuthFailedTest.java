@@ -32,7 +32,7 @@ public class AppendProcessorAuthFailedTest {
 
         processor = AppendProcessor.defaultBuilder()
                                    .store(store)
-                                   .connection(connection)
+                                   .connection(new TrackedConnection(connection))
                                    .tokenVerifier((resource, token, expectedLevel) -> {
                                        throw new InvalidTokenException("Token verification failed.");
                                    }).build();

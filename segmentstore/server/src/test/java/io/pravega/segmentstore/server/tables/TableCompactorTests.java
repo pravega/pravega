@@ -545,7 +545,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public void notifyIndexOffsetChanged(long lastIndexedOffset) {
+        public void notifyIndexOffsetChanged(long lastIndexedOffset, int processedSizeBytes) {
             throw new UnsupportedOperationException("not needed");
         }
 
