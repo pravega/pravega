@@ -222,19 +222,22 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
 
         TableUpdate generateRemoval() {
             KeyWithVersion toUpdate = pickKey();
-            return TableUpdate.removal(toUpdate.keyId, toUpdate.version);
+            return TableUpdate.removal(toUpdate.keyId, config.getTableKeyLength(), toUpdate.version);
         }
 
         TableUpdate generateUpdate() {
             KeyWithVersion toUpdate = pickKey();
-            return TableUpdate.update(toUpdate.keyId, config.getMaxAppendSize(), toUpdate.version);
+            return TableUpdate.update(toUpdate.keyId, config.getTableKeyLength(), config.getMaxAppendSize(), toUpdate.version);
         }
 
         synchronized private KeyWithVersion pickKey() {
             // Choose whether to pick existing key or not (using configuration).
-            return decide(config.getTableNewKeyPercentage()) || this.recentKeys.isEmpty()
-                    ? new KeyWithVersion(UUID.randomUUID(), config.isTableConditionalUpdates() ? TableKey.NOT_EXISTS : null)
-                    : this.recentKeys.removeFirst();
+            if (decide(config.getTableNewKeyPercentage()) || this.recentKeys.isEmpty()) {
+                return new KeyWithVersion(UUID.randomUUID(), config.isTableConditionalUpdates() ? TableKey.NOT_EXISTS : null);
+            } else {
+                val first = this.recentKeys.removeFirst();
+                return new KeyWithVersion(first.keyId, config.isTableConditionalUpdates() ? first.version : null);
+            }
         }
     }
 

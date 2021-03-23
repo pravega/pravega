@@ -49,10 +49,11 @@ import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStr
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
-
+    @Getter
     private final String scope;
     @Getter
     private final ConnectionPool connectionPool;
+    @Getter
     private final MockController controller;
     @Getter
     private final MockClientFactory clientFactory;
