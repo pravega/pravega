@@ -34,7 +34,8 @@ public class KeyUpdateCollectionTests {
         long maxOffset = 0;
         long maxHighestOffset = -1;
         val allUpdates = new ArrayList<BucketUpdate.KeyUpdate>();
-        val c = new KeyUpdateCollection();
+        val c = new KeyUpdateCollection(10);
+        Assert.assertEquals("Length differs.", 10, c.getLength());
         for (int i = 0; i < keyCount; i++) {
             byte[] key = new byte[i + 1];
             rnd.nextBytes(key);

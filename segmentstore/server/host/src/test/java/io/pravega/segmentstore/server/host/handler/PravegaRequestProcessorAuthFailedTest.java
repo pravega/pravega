@@ -32,8 +32,8 @@ public class PravegaRequestProcessorAuthFailedTest {
     public void setUp() throws Exception {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         connection = mock(ServerConnection.class);
-        processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, SegmentStatsRecorder.noOp(),
-                TableSegmentStatsRecorder.noOp(),
+        processor = new PravegaRequestProcessor(store, mock(TableStore.class), new TrackedConnection(connection),
+                SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
                 (resource, token, expectedLevel) -> {
                     throw new InvalidTokenException("Token verification failed.");
                 }, false);

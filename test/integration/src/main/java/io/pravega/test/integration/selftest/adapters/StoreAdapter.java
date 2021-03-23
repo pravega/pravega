@@ -237,9 +237,11 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
                 result = new AppendProcessorAdapter(testConfig, builderConfig, executor);
                 break;
             case InProcessMock:
+            case InProcessMockTable:
                 result = new InProcessMockClientAdapter(testConfig, executor);
                 break;
             case InProcessStore:
+            case InProcessStoreTable:
                 result = new InProcessListenerWithRealStoreAdapter(testConfig, builderConfig, executor);
                 break;
             case OutOfProcess:

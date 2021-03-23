@@ -116,7 +116,9 @@ public class TableConsumer extends Actor {
         val result = new ArrayList<CompletableFuture<Void>>();
         for (val targetSet : byTarget.entrySet()) {
             // Serialize the keys.
-            val keys = targetSet.getValue().stream().map(TableUpdate::generateKey).collect(Collectors.toList());
+            val keys = targetSet.getValue().stream()
+                    .map(keyId -> TableUpdate.generateKey(keyId, this.config.getTableKeyLength()))
+                    .collect(Collectors.toList());
 
             // Create a number of consumers that will divide the key space evenly between them and request them (in batch)
             // in parallel.
