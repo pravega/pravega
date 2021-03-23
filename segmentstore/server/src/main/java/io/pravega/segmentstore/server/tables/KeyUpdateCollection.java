@@ -18,17 +18,22 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
  * Collection of Keys to their associated {@link BucketUpdate.KeyUpdate}s.
  */
 @ThreadSafe
+@RequiredArgsConstructor
 class KeyUpdateCollection {
     private final Map<BufferView, BucketUpdate.KeyUpdate> updates = Collections.synchronizedMap(new HashMap<>());
     private final AtomicInteger totalUpdateCount = new AtomicInteger(0);
     private final AtomicLong lastIndexedOffset = new AtomicLong(-1L);
     private final AtomicLong highestCopiedOffset = new AtomicLong(TableKey.NO_VERSION);
+    @Getter
+    private final int length;
 
     /**
      * Gets a value representing the total number of updates processed, including duplicated keys.

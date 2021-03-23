@@ -14,7 +14,7 @@ import com.google.common.base.Preconditions;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Tracks outstanding data for all connections and provides hints as to when to pause or resume reading from them.
+ * Tracks outstanding data for all connections and pauses or resumes reading from them as appropriate.
  */
 public class ConnectionTracker {
     /**

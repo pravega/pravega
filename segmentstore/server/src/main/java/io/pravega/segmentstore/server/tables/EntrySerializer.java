@@ -39,7 +39,16 @@ import lombok.val;
 class EntrySerializer {
     static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
     static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
+    /**
+     * Maximum size allowed for any single Table Segment Update (update or removal).
+     * NOTE: If changing this, consider other dependent values that are calculated based on it. Use your IDE to find them.
+     */
     static final int MAX_SERIALIZATION_LENGTH = TableStore.MAXIMUM_KEY_LENGTH + TableStore.MAXIMUM_VALUE_LENGTH;
+    /**
+     * Maximum size allowed for any Table Segment update (single or multiple entry). No update (or removal) serialization
+     * may exceed this.
+     * NOTE: If changing this, consider other dependent values that are calculated based on it. Use your IDE to find them.
+     */
     static final int MAX_BATCH_SIZE = 32 * MAX_SERIALIZATION_LENGTH;
     private static final int VERSION_POSITION = 0;
     private static final int KEY_POSITION = VERSION_POSITION + 1;
