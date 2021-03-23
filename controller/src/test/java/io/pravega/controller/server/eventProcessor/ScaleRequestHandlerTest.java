@@ -57,15 +57,10 @@ import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -104,10 +99,10 @@ public abstract class ScaleRequestHandlerTest {
 
     private final String scope = "scope";
     private final String stream = "stream";
-    private StreamMetadataStore streamStore;
+    protected StreamMetadataStore streamStore;
     private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
-    private StreamMetadataTasks streamMetadataTasks;
+    protected StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
     private TestingServer zkServer;
