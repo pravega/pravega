@@ -622,8 +622,8 @@ public class SynchronizerTest {
     @Test(timeout = 5000)
     public void testSynchronizerClientFactory() {
         ClientConfig config = ClientConfig.builder().controllerURI(URI.create("tls://localhost:9090")).build();
-        SynchronizerClientFactory factory1 = SynchronizerClientFactory.withScope("scope", config);
-        ClientFactoryImpl factory = (ClientFactoryImpl) factory1;
+        @Cleanup
+        ClientFactoryImpl factory = (ClientFactoryImpl) SynchronizerClientFactory.withScope("scope", config);
         ConnectionPoolImpl cp = (ConnectionPoolImpl) factory.getConnectionPool();
         assertEquals(1, cp.getClientConfig().getMaxConnectionsPerSegmentStore());
         assertEquals(config.isEnableTls(), cp.getClientConfig().isEnableTls());

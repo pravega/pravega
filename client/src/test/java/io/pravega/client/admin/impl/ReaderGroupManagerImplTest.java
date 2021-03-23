@@ -28,6 +28,7 @@ import io.pravega.client.stream.impl.ReaderGroupNotFoundException;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.shared.NameUtils;
+import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -191,6 +192,7 @@ public class ReaderGroupManagerImplTest {
     @Test
     public void testCreateReaderGroupManager() {
         ClientConfig config = ClientConfig.builder().controllerURI(URI.create("tls://localhost:9090")).build();
+        @Cleanup
         ReaderGroupManagerImpl readerGroupMgr = (ReaderGroupManagerImpl) ReaderGroupManager.withScope(SCOPE, config);
         ClientFactoryImpl factory = (ClientFactoryImpl) readerGroupMgr.getClientFactory();
         ConnectionPoolImpl cp = (ConnectionPoolImpl) factory.getConnectionPool();
