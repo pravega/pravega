@@ -162,6 +162,10 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     @Override
     public CompletableFuture<WriterFlushResult> flush(boolean force, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
+        if (!force && !mustFlush()) {
+            return CompletableFuture.completedFuture(new WriterFlushResult());
+        }
+
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.connector
                 .getSegment(timer.getRemaining())

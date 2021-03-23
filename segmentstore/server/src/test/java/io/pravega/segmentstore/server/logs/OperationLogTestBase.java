@@ -224,7 +224,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         return result;
     }
 
-    private ByteArraySegment generateAppendData(int appendId) {
+    protected ByteArraySegment generateAppendData(int appendId) {
         return new ByteArraySegment(String.format("Append_%d", appendId).getBytes());
     }
 

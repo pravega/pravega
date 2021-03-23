@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.server.CacheManager;
 import java.util.HashMap;
@@ -111,5 +112,10 @@ class ReadIndexSummary {
      */
     synchronized CacheManager.CacheStatus toCacheStatus() {
         return CacheManager.CacheStatus.fromGenerations(this.generations.keySet().iterator());
+    }
+
+    @VisibleForTesting
+    synchronized int size() {
+        return this.generations.values().stream().mapToInt(i -> i).sum();
     }
 }

@@ -71,6 +71,16 @@ class ThrottlerCalculator {
      */
     @VisibleForTesting
     static final double DURABLE_DATALOG_THROTTLE_THRESHOLD_FRACTION = 0.1;
+    /**
+     * Maximum size (in number of operations) of the OperationLog, above which maximum throttling will be applied.
+     */
+    @VisibleForTesting
+    static final int OPERATION_LOG_MAX_SIZE = 1_000_000;
+    /**
+     * Desired size (in number of operations) of the OperationLog, above which a gradual throttling will begin.
+     */
+    @VisibleForTesting
+    static final int OPERATION_LOG_TARGET_SIZE = (int) (OPERATION_LOG_MAX_SIZE * 0.95);
     @Singular
     private final List<Throttler> throttlers;
 
@@ -293,6 +303,40 @@ class ThrottlerCalculator {
         }
     }
 
+    /**
+     * Calculates the amount of time to wait before processing more operations from the queue in order to relieve pressure
+     * from the OperationLog. This is based solely on the number of operations accumulated in the OperationLog.
+     */
+    @RequiredArgsConstructor
+    private static class OperationLogThrottler extends Throttler {
+        private static final double SIZE_SPAN = OPERATION_LOG_MAX_SIZE - OPERATION_LOG_TARGET_SIZE;
+        @NonNull
+        private final Supplier<Integer> getOperationLogSize;
+
+        @Override
+        boolean isThrottlingRequired() {
+            return this.getOperationLogSize.get() > OPERATION_LOG_TARGET_SIZE;
+        }
+
+        @Override
+        int getDelayMillis() {
+            // We only throttle if we exceed the target log size. We increase the throttling amount in a linear fashion.
+            int size = this.getOperationLogSize.get();
+            if (size <= OPERATION_LOG_TARGET_SIZE) {
+                return 0;
+            } else if (size >= OPERATION_LOG_MAX_SIZE) {
+                return MAX_DELAY_MILLIS;
+            } else {
+                return (int) (MAX_DELAY_MILLIS * (this.getOperationLogSize.get() - OPERATION_LOG_TARGET_SIZE) / SIZE_SPAN);
+            }
+        }
+
+        @Override
+        ThrottlerName getName() {
+            return ThrottlerName.OperationLog;
+        }
+    }
+
     //endregion
 
     //region Builder
@@ -327,6 +371,10 @@ class ThrottlerCalculator {
 
         ThrottlerCalculatorBuilder durableDataLogThrottler(WriteSettings writeSettings, Supplier<QueueStats> getQueueStats) {
             return throttler(new DurableDataLogThrottler(writeSettings, getQueueStats));
+        }
+
+        ThrottlerCalculatorBuilder operationLogThrottler(Supplier<Integer> getDurableLogSize) {
+            return throttler(new OperationLogThrottler(getDurableLogSize));
         }
     }
 
@@ -377,19 +425,28 @@ class ThrottlerCalculator {
     /**
      * Defines Throttler Names.
      */
+    @Getter
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     enum ThrottlerName {
         /**
          * Throttling is required in order to aggregate multiple operations together in a single write.
          */
-        Batching,
+        Batching(false),
         /**
          * Throttling is required due to excessive Cache utilization.
          */
-        Cache,
+        Cache(true),
         /**
          * Throttling is required due to excessive size of DurableDataLog's in-flight queue.
          */
-        DurableDataLog,
+        DurableDataLog(true),
+        /**
+         * Throttling is required due to excessive accumulated Operations in OperationLog (not yet truncated).
+         */
+        OperationLog(true);
+
+        @Getter
+        private final boolean interruptible;
     }
 
     //endregion

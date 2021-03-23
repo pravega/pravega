@@ -20,54 +20,28 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
 import javax.net.ssl.SSLHandshakeException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
+
+import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 
 /**
  * Tests for TLS enabled standalone cluster. It inherits the test methods defined in the parent class.
  */
 @Slf4j
-public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest {
+public class TlsEnabledInProcPravegaClusterTest {
 
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        this.authEnabled = false;
-        this.tlsEnabled = true;
-        super.setUp();
-    }
-
-    @Override
-    String scopeName() {
-        return "TlsTestScope";
-    }
-
-    @Override
-    String streamName() {
-        return "TlsTestStream";
-    }
-
-    @Override
-    String eventMessage() {
-        return "Test message on the encrypted channel";
-    }
-
-    @Override
-    ClientConfig prepareValidClientConfig() {
-        return ClientConfig.builder()
-                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
-                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
-                .validateHostName(false)
-                .build();
-    }
+    @ClassRule
+    public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource(false, true, false);
+    final String scope = "TlsTestScope";
+    final String stream = "TlsTestStream";
+    final String msg = "Test message on the encrypted channel";
 
     /**
      * This test verifies that create stream fails when the client config is invalid.
@@ -79,12 +53,12 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
     public void testCreateStreamFailsWithInvalidClientConfig() {
         // Truststore for the TLS connection is missing.
         ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
+                .controllerURI(URI.create(EMULATOR.pravega.getInProcPravegaCluster().getControllerURI()))
                 .build();
 
         ControllerImplConfig controllerImplConfig = ControllerImplConfig.builder()
                 .clientConfig(clientConfig)
-                .retryAttempts(10)
+                .retryAttempts(1)
                 .initialBackoffMillis(1000)
                 .backoffMultiple(1)
                 .maxBackoffMillis(1000)
@@ -94,17 +68,16 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
         StreamManager streamManager = new StreamManagerImpl(clientConfig, controllerImplConfig);
 
         AssertExtensions.assertThrows("TLS exception did not occur.",
-                () -> streamManager.createScope(scopeName()),
+                () -> streamManager.createScope(scope),
                 e -> hasTlsException(e));
+    }
+
+    @Test(timeout = 30000)
+    public void testWriteAndReadEventWithValidClientConfig() throws Exception {
+        testWriteAndReadAnEvent(scope, stream, msg, EMULATOR.getClientConfig());
     }
 
     private boolean hasTlsException(Throwable e) {
         return ExceptionUtils.indexOfThrowable(e, SSLHandshakeException.class) != -1;
-    }
-
-    @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
     }
 }

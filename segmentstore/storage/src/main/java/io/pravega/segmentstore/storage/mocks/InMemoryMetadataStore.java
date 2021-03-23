@@ -51,8 +51,9 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
     private final AtomicBoolean entryTracker = new AtomicBoolean(false);
 
     /**
-     * Write through cache.
+     * Backing in memory data.
      */
+    @Getter
     private final Map<String, TransactionData> backingStore = new ConcurrentHashMap<>();
 
     /**

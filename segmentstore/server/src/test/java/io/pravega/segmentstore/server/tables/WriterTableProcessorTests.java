@@ -258,14 +258,17 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
             // Flush.
             val initialNotifyCount = context.connector.notifyCount.get();
-            context.processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            val f1 = context.processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             AssertExtensions.assertGreaterThan("No calls to notifyIndexOffsetChanged().",
                     initialNotifyCount, context.connector.notifyCount.get());
+            Assert.assertTrue(f1.isAnythingFlushed());
 
             // Post-flush validation.
             Assert.assertFalse("Unexpected value from mustFlush() after call to flush().", context.processor.mustFlush());
+            val f2 = context.processor.flush(false, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             Assert.assertEquals("Unexpected LUSN after call to flush().",
                     Operation.NO_SEQUENCE_NUMBER, context.processor.getLowestUncommittedSequenceNumber());
+            Assert.assertFalse(f2.isAnythingFlushed());
 
             // Verify correctness.
             batch.expectedEntries.keySet().forEach(k -> allKeys.put(k, context.keyHasher.hash(k)));

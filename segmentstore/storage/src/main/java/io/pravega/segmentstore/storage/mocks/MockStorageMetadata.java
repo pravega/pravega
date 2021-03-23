@@ -36,7 +36,7 @@ public class MockStorageMetadata extends StorageMetadata {
 
     final private String key;
 
-    final private String value;
+    private volatile String value;
 
     /**
      * Constructor.

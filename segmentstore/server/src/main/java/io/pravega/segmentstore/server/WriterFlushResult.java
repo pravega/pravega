@@ -23,9 +23,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * Represents the result of a Storage Flush Operation.
  */
 public class WriterFlushResult {
-    private AtomicLong flushedBytes;
-    private AtomicLong mergedBytes;
-    private AtomicInteger flushedAttributes;
+    private final AtomicLong flushedBytes;
+    private final AtomicLong mergedBytes;
+    private final AtomicInteger flushedAttributes;
 
     /**
      * Creates a new instance of the WriterFlushResult class.
