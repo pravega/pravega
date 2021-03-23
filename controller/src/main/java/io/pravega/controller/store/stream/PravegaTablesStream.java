@@ -416,7 +416,7 @@ class PravegaTablesStream extends PersistentStreamBase {
 
         return getSubscriberRecord(subscriber, context).thenCompose(subs -> {
             if (generation < subs.getObject().getGeneration()) {
-                log.warn("skipped deleting subscriber {} due to generation mismatch", subscriber);
+                log.warn(context.getRequestId(), "skipped deleting subscriber {} due to generation mismatch", subscriber);
                 return CompletableFuture.completedFuture(null);
             }
             return getMetadataTable(context).thenCompose(table -> storeHelper.removeEntry(table, getKeyForSubscriber(subscriber), 
@@ -958,7 +958,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     CompletableFuture<Long> addTxnToCommitOrder(UUID txId, OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
-        return txnCommitOrderer.addEntity(getScope(), getName(), txId.toString());
+        return txnCommitOrderer.addEntity(getScope(), getName(), txId.toString(), context.getRequestId());
     }
 
     @Override
@@ -1072,7 +1072,8 @@ class PravegaTablesStream extends PersistentStreamBase {
                 Integer.toString(batch), new byte[0], x -> x, context.getRequestId()), 
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException, 
                 () -> storeHelper.createTable(COMPLETED_TRANSACTIONS_BATCHES_TABLE, context.getRequestId())
-                                 .thenAccept(v -> log.debug("batches root table {} created", COMPLETED_TRANSACTIONS_BATCHES_TABLE))
+                                 .thenAccept(v -> log.debug(context.getRequestId(), 
+                                         "batches root table {} created", COMPLETED_TRANSACTIONS_BATCHES_TABLE))
                                  .thenCompose(v -> storeHelper.addNewEntryIfAbsent(COMPLETED_TRANSACTIONS_BATCHES_TABLE,
                                          Integer.toString(batch), new byte[0], x -> x, context.getRequestId())))
                                  .thenCompose(v -> storeHelper.createTable(batchTable, context.getRequestId()));

@@ -25,6 +25,7 @@ import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -127,7 +128,7 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     @Override
     public CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                          final String kvtName,
-                                                         final byte[] id,
+                                                         final UUID id,
                                                          OperationContext context, 
                                                          final Executor executor) {
         return Futures.completeOn(((InMemoryScope) this.streamStore.getScope(scopeName, context))

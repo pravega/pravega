@@ -9,9 +9,11 @@
  */
 package io.pravega.controller.store.kvtable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
@@ -20,7 +22,7 @@ import io.pravega.controller.store.kvtable.records.KVTConfigurationRecord;
 import io.pravega.controller.store.kvtable.records.KVTStateRecord;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Set;
@@ -28,8 +30,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.IntStream;
 
-@Slf4j
 public abstract class AbstractKVTableBase implements KeyValueTable {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AbstractKVTableBase.class));
     protected final String scopeName;
     protected final String name;
 
@@ -50,22 +52,27 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
 
     @Override
     public CompletableFuture<Void> updateState(final KVTableState state, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getStateData(true, context)
                 .thenCompose(currState -> {
-                    VersionedMetadata<KVTableState> currentState = new VersionedMetadata<KVTableState>(currState.getObject().getState(), currState.getVersion());
+                    VersionedMetadata<KVTableState> currentState = new VersionedMetadata<KVTableState>(
+                            currState.getObject().getState(), currState.getVersion());
                     return Futures.toVoid(updateVersionedState(currentState, state, context));
                 });
     }
 
     @Override
     public CompletableFuture<VersionedMetadata<KVTableState>> getVersionedState(OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getStateData(true, context)
                 .thenApply(x -> new VersionedMetadata<>(x.getObject().getState(), x.getVersion()));
     }
 
     @Override
     public CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final VersionedMetadata<KVTableState> previous, 
-                                                                                   final KVTableState newState, OperationContext context) {
+                                                                                   final KVTableState newState,
+                                                                                   final OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         if (KVTableState.isTransitionAllowed(previous.getObject(), newState)) {
             return setStateData(new VersionedMetadata<>(KVTStateRecord.builder().state(newState).build(), 
                     previous.getVersion()), context)
@@ -80,13 +87,16 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
 
     @Override
     public CompletableFuture<KVTableState> getState(boolean ignoreCached, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getStateData(ignoreCached, context)
                 .thenApply(x -> x.getObject().getState());
     }
 
     @Override
     public CompletableFuture<CreateKVTableResponse> create(final KeyValueTableConfiguration configuration, long createTimestamp, 
-                                                           int startingSegmentNumber, OperationContext context) {
+                                                           final int startingSegmentNumber, 
+                                                           final OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return checkKeyValueTableExists(configuration, createTimestamp, startingSegmentNumber, context)
                 .thenCompose(createKVTResponse -> createKVTableMetadata(context)
                         .thenCompose((Void v) -> storeCreationTimeIfAbsent(createKVTResponse.getTimestamp(), context))
@@ -101,6 +111,7 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
 
     private CompletionStage<Void> createHistoryRecords(int startingSegmentNumber, CreateKVTableResponse createKvtResponse, 
                                                        OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         final int numSegments = createKvtResponse.getConfiguration().getPartitionCount();
         // create epoch 0 record
         final double keyRangeChunk = 1.0 / numSegments;
@@ -128,6 +139,7 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
 
     @Override
     public CompletableFuture<List<KVTSegmentRecord>> getActiveSegments(OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         // read current epoch record
         return verifyLegalState(context)
                 .thenCompose(v -> getActiveEpochRecord(true, context).thenApply(KVTEpochRecord::getSegments));
@@ -135,6 +147,7 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
 
     @Override
     public CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getCurrentEpochRecordData(ignoreCached, context).thenApply(VersionedMetadata::getObject);
     }
 
@@ -150,7 +163,8 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
 
     @Override
     public CompletableFuture<KVTEpochRecord> getEpochRecord(int epoch, OperationContext context) {
-        log.info("getEpochRecord():: epoch number = {}", epoch);
+        Preconditions.checkNotNull(context, "context cannot be null");
+        log.debug(context.getRequestId(), "getEpochRecord():: epoch number = {}", epoch);
         return getEpochRecordData(epoch, context).thenApply(VersionedMetadata::getObject);
     }
 
@@ -161,13 +175,15 @@ public abstract class AbstractKVTableBase implements KeyValueTable {
      */
     @Override
     public CompletableFuture<KeyValueTableConfiguration> getConfiguration(OperationContext context) {
-        return getConfigurationData(false, context).thenApply(x -> x.getObject().getKvtConfiguration());
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getConfigurationData(true, context).thenApply(x -> x.getObject().getKvtConfiguration());
     }
 
     @Override
     public CompletableFuture<Set<Long>> getAllSegmentIds(OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getActiveEpochRecord(true, context)
-                .thenApply(epochRecord -> epochRecord.getSegmentIds());
+                .thenApply(KVTEpochRecord::getSegmentIds);
     }
 
     // region state

@@ -127,8 +127,7 @@ public abstract class ControllerServiceWithKVTableTest {
 
         kvtStore = spy(getKVTStore());
         kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker, helperMock));
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock));
 
         consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, 
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null, requestTracker);

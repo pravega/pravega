@@ -64,7 +64,7 @@ public class EndToEndCBRTest extends AbstractEndToEndTest {
                 .retentionPolicy(RetentionPolicy.bySizeBytes(10, Long.MAX_VALUE))
                 .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(scope).get();
+        controllerWrapper.getControllerService().createScope(scope, 0L).get();
         controller.createStream(scope, streamName, config).get();
         Stream stream = Stream.of(scope, streamName);
         @Cleanup
@@ -139,7 +139,7 @@ public class EndToEndCBRTest extends AbstractEndToEndTest {
                 .retentionPolicy(RetentionPolicy.bySizeBytes(10, Long.MAX_VALUE))
                 .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(scope).get();
+        controllerWrapper.getControllerService().createScope(scope, 0L).get();
         controller.createStream(scope, streamName, config).get();
         Stream stream = Stream.of(scope, streamName);
         @Cleanup

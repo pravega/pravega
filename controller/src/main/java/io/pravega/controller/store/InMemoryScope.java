@@ -12,7 +12,6 @@ package io.pravega.controller.store;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.kvtable.InMemoryKVTable;
 import io.pravega.controller.store.kvtable.KeyValueTable;
 import io.pravega.controller.store.stream.InMemoryReaderGroup;
@@ -137,8 +136,8 @@ public class InMemoryScope implements Scope {
     }
 
     @Synchronized
-    public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
-        kvTablesMap.putIfAbsent(kvt, new InMemoryKVTable(this.scopeName, kvt, BitConverter.readUUID(id, 0)));
+    public CompletableFuture<Void> addKVTableToScope(String kvt, UUID id) {
+        kvTablesMap.putIfAbsent(kvt, new InMemoryKVTable(this.scopeName, kvt, id));
         return CompletableFuture.completedFuture(null);
     }
 

@@ -65,43 +65,49 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
                 .thenCompose(id -> {
                 if (!id.equals(readerGroupId)) {
-                        log.warn("Skipping processing of Reader Group update request {} as UUID did not match.", requestId);
+                        log.warn(requestId, "Skipping processing of Reader Group update request {} as UUID did not match.", requestId);
                         return CompletableFuture.completedFuture(null);
                 }
                 return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
                        .thenCompose(rgConfigRecord -> {
                            if (rgConfigRecord.getObject().getGeneration() != generation) {
-                               log.warn(requestId, "Skipping processing of Reader Group update request as generation did not match.");
+                               log.warn(requestId, 
+                                       "Skipping processing of Reader Group update request as generation did not match.");
                                return CompletableFuture.completedFuture(null);
                            }
                            if (rgConfigRecord.getObject().isUpdating()) {
                                if (isTransition) {
                                    // update Stream metadata tables, only if RG is a Subscriber
-                                   Iterator<String> streamIter = rgConfigRecord.getObject().getStartingStreamCuts().keySet().iterator();
+                                   Iterator<String> streamIter = rgConfigRecord.getObject()
+                                                                               .getStartingStreamCuts().keySet().iterator();
                                    String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
                                    Iterator<String> removeStreamsIter = streamsToBeUnsubscribed.stream().iterator();
-                                   return Futures.loop(() -> removeStreamsIter.hasNext(), () -> {
+                                   return Futures.loop(removeStreamsIter::hasNext, () -> {
                                        Stream stream = Stream.of(removeStreamsIter.next());
                                        return streamMetadataStore.deleteSubscriber(stream.getScope(),
-                                               stream.getStreamName(), scopedRGName, rgConfigRecord.getObject().getGeneration(), null, executor);
+                                               stream.getStreamName(), scopedRGName, rgConfigRecord.getObject().getGeneration(), 
+                                               context, executor);
                                    }, executor)
                                    .thenCompose(v -> {
                                        // updated config suggests this is a subscriber RG so addSubscriber
                                        if (!ReaderGroupConfig.StreamDataRetention.NONE
                                            .equals(ReaderGroupConfig.StreamDataRetention.values()
                                                   [rgConfigRecord.getObject().getRetentionTypeOrdinal()])) {
-                                           return Futures.loop(() -> streamIter.hasNext(), () -> {
+                                           return Futures.loop(streamIter::hasNext, () -> {
                                                   Stream stream = Stream.of(streamIter.next());
                                                   return streamMetadataStore.addSubscriber(stream.getScope(),
-                                                         stream.getStreamName(), scopedRGName, rgConfigRecord.getObject().getGeneration(),
-                                                         null, executor);
+                                                         stream.getStreamName(), scopedRGName, 
+                                                          rgConfigRecord.getObject().getGeneration(),
+                                                         context, executor);
                                            }, executor);
                                        }
                                        return CompletableFuture.completedFuture(null);
                                    })
-                                   .thenCompose(v -> streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor));
+                                   .thenCompose(v -> streamMetadataStore.completeRGConfigUpdate(scope, 
+                                           readerGroup, rgConfigRecord, context, executor));
                                }
-                               return streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, rgConfigRecord, context, executor);
+                               return streamMetadataStore.completeRGConfigUpdate(scope, readerGroup, 
+                                       rgConfigRecord, context, executor);
                            }
                            return CompletableFuture.completedFuture(null);
                        });

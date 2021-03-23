@@ -17,6 +17,8 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import lombok.Builder;
@@ -323,10 +325,15 @@ public class ZKScope implements Scope {
         }
     }
 
-    public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
+    public CompletableFuture<Void> addKVTableToScope(String kvt, UUID id) {
         return Futures.toVoid(getKVTableInScopeZNodePath(this.scopeName, kvt)
                 .thenCompose(path -> store.createZNodeIfNotExist(path)
-                .thenCompose(x -> store.setData(path, id, new Version.IntVersion(0)))));
+                .thenCompose(x -> {
+                    byte[] b = new byte[2 * Long.BYTES];
+                    BitConverter.writeUUID(new ByteArraySegment(b), id);
+
+                    return store.setData(path, b, new Version.IntVersion(0));
+                })));
     }
 
     public CompletableFuture<Void> removeKVTableFromScope(String name) {

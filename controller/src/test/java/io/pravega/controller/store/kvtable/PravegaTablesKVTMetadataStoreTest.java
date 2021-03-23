@@ -9,8 +9,6 @@
  */
 package io.pravega.controller.store.kvtable;
 
-import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -71,9 +69,7 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
         // Test operation when stream is not in active state
         streamStore.createScope(scope, null, executor).get();
         UUID id = store.newScope(scope).newId();
-        byte[] newUUID = new byte[2 * Long.BYTES];
-        BitConverter.writeUUID(new ByteArraySegment(newUUID), id);
-        store.createEntryForKVTable(scope, kvtable1, newUUID, null, executor).get();
+        store.createEntryForKVTable(scope, kvtable1, id, null, executor).get();
         store.createKeyValueTable(scope, kvtable1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, kvtable1, KVTableState.CREATING, null, executor).get();
 

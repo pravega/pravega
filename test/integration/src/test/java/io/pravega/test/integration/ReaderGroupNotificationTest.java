@@ -120,7 +120,7 @@ public class ReaderGroupNotificationTest extends ThreadPooledTestSuite {
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).get();
         controller.createStream(SCOPE, streamName, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
@@ -195,7 +195,7 @@ public class ReaderGroupNotificationTest extends ThreadPooledTestSuite {
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).get();
         controller.createStream(SCOPE, streamName, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()

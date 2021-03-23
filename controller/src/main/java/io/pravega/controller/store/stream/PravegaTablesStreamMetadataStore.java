@@ -294,7 +294,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                               } else if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
                                   return 0;
                               } else {
-                                  log.error("Problem found while getting a safe starting segment number for {}.",
+                                  log.warn(context.getRequestId(), 
+                                          "Problem found while getting a safe starting segment number for {}.",
                                           getScopedStreamName(scopeName, streamName), ex);
                                   throw new CompletionException(ex);
                               }
@@ -326,7 +327,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                             }
                         })
                        .thenCompose(existing -> {
-                           log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
+                           log.debug(context.getRequestId(), 
+                                   "Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
                            if (existing != null) {
                                final int oldLastActiveSegment = existing.getObject();
                                Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,

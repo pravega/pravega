@@ -203,7 +203,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                                         .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
@@ -256,7 +256,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                 .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         
         config = StreamConfiguration.builder()
@@ -329,7 +329,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                                         .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(scope).get();
+        controllerWrapper.getControllerService().createScope(scope, 0L).get();
         controller.createStream(scope, streamName, config).get();
 
         config = StreamConfiguration.builder()
@@ -371,7 +371,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                                         .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         config = StreamConfiguration.builder()
                                     .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
@@ -564,7 +564,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(scope).join();
+        controllerWrapper.getControllerService().createScope(scope, 0L).join();
         controller.createStream(scope, streamName, config).join();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI)

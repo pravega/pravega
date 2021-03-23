@@ -12,6 +12,7 @@ package io.pravega.controller.store.kvtable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.PravegaTablesScope;
@@ -27,9 +28,10 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
 import io.pravega.shared.NameUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
+import org.slf4j.LoggerFactory;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -38,10 +40,11 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Pravega Tables stream metadata store.
  */
-@Slf4j
 public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore {
     static final String SCOPES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "scopes");
     static final String DELETED_KVTABLES_TABLE = getQualifiedTableName(NameUtils.INTERNAL_SCOPE_NAME, "deletedKVTables");
+
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaTablesKVTMetadataStore.class));
 
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
@@ -58,7 +61,7 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
 
     @Override
     PravegaTablesKVTable newKeyValueTable(final String scope, final String name) {
-        log.info("Fetching KV Table from PravegaTables store {}/{}", scope, name);
+        log.debug("Fetching KV Table from PravegaTables store {}/{}", scope, name);
         return new PravegaTablesKVTable(scope, name, storeHelper,
                 (x, y) -> ((PravegaTablesScope) getScope(scope, y)).getKVTablesInScopeTableName(y), executor);
     }
@@ -83,7 +86,8 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
                             DELETED_KVTABLES_TABLE, key, BYTES_TO_INTEGER_FUNCTION, System.currentTimeMillis(), context.getRequestId()),
                             null)
                             .thenCompose(existing -> {
-                                log.debug("Recording last segment {} for KeyValueTable {}/{} on deletion.", lastActiveSegment, scope, kvtable);
+                                log.debug(context.getRequestId(), "Recording last segment {} for KeyValueTable {}/{} on deletion.",
+                                        lastActiveSegment, scope, kvtable);
                                 if (existing != null) {
                                     final int oldLastActiveSegment = existing.getObject();
                                     Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
@@ -122,11 +126,12 @@ public class PravegaTablesKVTMetadataStore extends AbstractKVTableMetadataStore 
     @Override
     public CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                          final String kvtName,
-                                                         final byte[] id,
+                                                         final UUID id,
                                                          final OperationContext ctx, 
                                                          final Executor executor) {
         OperationContext context = getOperationContext(ctx);
-        return Futures.completeOn(((PravegaTablesScope) getScope(scopeName, context)).addKVTableToScope(kvtName, id, context), executor);
+        return Futures.completeOn(((PravegaTablesScope) getScope(scopeName, context))
+                .addKVTableToScope(kvtName, id, context), executor);
     }
 
     @Override

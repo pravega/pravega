@@ -270,16 +270,7 @@ public abstract class AbstractKVTableMetadataStore implements KVTableMetadataSto
      */
     abstract CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String kvtName, 
                                                                         final OperationContext ctx, final Executor executor);
-
-    public abstract CompletableFuture<Boolean> checkScopeExists(final String scope, final OperationContext ctx, 
-                                                                final Executor executor);
-
-    public abstract CompletableFuture<Void> createEntryForKVTable(final String scopeName,
-                                                                  final String kvtName,
-                                                                  final byte[] id,
-                                                                  final OperationContext ctx, 
-                                                                  final Executor executor);
-
+    
     abstract CompletableFuture<Void> deleteFromScope(final String scope,
                                                             final String name,
                                                             final OperationContext ctx,

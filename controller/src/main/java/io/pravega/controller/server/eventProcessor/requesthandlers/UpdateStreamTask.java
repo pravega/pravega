@@ -81,9 +81,12 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
 
         return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.UPDATING, state, context, executor)
                 .thenCompose(updated -> updateStreamForAutoStreamCut(scope, stream, configProperty, updated)
-                        .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(), requestId))
-                        .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context, executor))
-                        .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updated, context, executor))));
+                        .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(), 
+                                requestId))
+                        .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context,
+                                executor))
+                        .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updated,
+                                context, executor))));
     }
 
     private CompletableFuture<Void> updateStreamForAutoStreamCut(String scope, String stream,

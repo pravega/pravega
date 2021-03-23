@@ -125,7 +125,8 @@ public class LocalController implements Controller {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
                 controller.listStreams(scopeName, token, PAGE_LIMIT, 0L)
                           .thenApply(result -> {
-                              List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m)).collect(Collectors.toList());
+                              List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m))
+                                                                .collect(Collectors.toList());
                               return new AbstractMap.SimpleEntry<>(result.getValue(), asStreamList);
                           });
 
@@ -281,14 +282,17 @@ public class LocalController implements Controller {
                 case SUCCESS:
                     return new ArrayList<>(x.getSubscribersList());
                 default:
-                    throw new ControllerFailureException("Unknown return status for listSubscribers on stream " + scope + "/" + streamName + " " + x.getStatus());
+                    throw new ControllerFailureException(
+                            String.format("Unknown return status for listSubscribers on stream %s/%s %s", 
+                                    scope, streamName, x.getStatus()));
             }
         });
     }
 
     @Override
     public CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber,
-                                                                final UUID readerGroupId, final long generation, final StreamCut streamCut) {
+                                                                final UUID readerGroupId, final long generation, 
+                                                                final StreamCut streamCut) {
         return this.controller.updateSubscriberStreamCut(scope, streamName, subscriber, readerGroupId.toString(), generation,
                 ModelHelper.getStreamCutMap(streamCut), 0L).thenApply(x -> {
             switch (x.getStatus()) {
@@ -303,8 +307,9 @@ public class LocalController implements Controller {
                 case SUCCESS:
                     return true;
                 default:
-                    throw new ControllerFailureException("Unknown return status updating truncation streamcut for subscriber "
-                                                 + subscriber + ", on stream " + scope + "/" + streamName + " " + x.getStatus());
+                    throw new ControllerFailureException(String.format(
+                            "Unknown return status updating truncation streamcut for subscriber %s, on stream %s/%s %s", 
+                            subscriber, scope, streamName, x.getStatus()));
             }
         });
     }
@@ -536,9 +541,11 @@ public class LocalController implements Controller {
         return controller.getSegmentsBetweenStreamCuts(ModelHelper.decode(stream.getScope(), stream.getStreamName(),
                 getStreamCutMap(fromStreamCut), getStreamCutMap(toStreamCut)), 0L)
                 .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(stream.getScope(), stream.getStreamName(),
-                        segments.stream().map(x -> ModelHelper.createSegmentId(stream.getScope(), stream.getStreamName(), x.segmentId()))
+                        segments.stream().map(x -> ModelHelper.createSegmentId(stream.getScope(), stream.getStreamName(), 
+                                x.segmentId()))
                                 .collect(Collectors.toList()), retrieveDelegationToken()))
-                .thenApply(response -> new StreamSegmentSuccessors(response.getSegmentsList().stream().map(ModelHelper::encode).collect(Collectors.toSet()),
+                .thenApply(response -> new StreamSegmentSuccessors(response.getSegmentsList().stream()
+                                                                           .map(ModelHelper::encode).collect(Collectors.toSet()),
                 response.getDelegationToken()));
     }
 
@@ -584,7 +591,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, WriterPosition lastWrittenPosition) {
+    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, 
+                                                           WriterPosition lastWrittenPosition) {
         Map<Long, Long> map = ModelHelper.createStreamCut(stream, lastWrittenPosition).getCutMap();
         return Futures.toVoid(controller.noteTimestampFromWriter(stream.getScope(), stream.getStreamName(), writer, timestamp, map, 0L));
     }
@@ -622,7 +630,8 @@ public class LocalController implements Controller {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
                 controller.listKeyValueTables(scopeName, token, PAGE_LIMIT, 0L)
                         .thenApply(result -> {
-                            List<KeyValueTableInfo> kvTablesList = result.getLeft().stream().map(kvt -> new KeyValueTableInfo(scopeName, kvt))
+                            List<KeyValueTableInfo> kvTablesList = result.getLeft().stream()
+                                                                         .map(kvt -> new KeyValueTableInfo(scopeName, kvt))
                                     .collect(Collectors.toList());
 
                             return new AbstractMap.SimpleEntry<>(result.getValue(), kvTablesList);

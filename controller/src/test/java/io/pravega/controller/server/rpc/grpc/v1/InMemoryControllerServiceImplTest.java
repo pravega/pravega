@@ -118,7 +118,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
                 ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
         this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, tableEventHelper);
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), tableEventHelper);
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), this.kvtStore, executorService);

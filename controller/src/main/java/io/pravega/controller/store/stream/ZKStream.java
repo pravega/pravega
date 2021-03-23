@@ -123,20 +123,22 @@ class ZKStream extends PersistentStreamBase {
     private final AtomicReference<String> idRef;
 
     @VisibleForTesting
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Executor executor, ZkOrderedStore txnCommitOrderer) {
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Executor executor, 
+             ZkOrderedStore txnCommitOrderer) {
         this(scopeName, streamName, storeHelper, () -> 0, executor, txnCommitOrderer);
     }
 
     @VisibleForTesting
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, int chunkSize, int shardSize, Executor executor, ZkOrderedStore txnCommitOrderer) {
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, int chunkSize, int shardSize,
+             Executor executor, ZkOrderedStore txnCommitOrderer) {
         this(scopeName, streamName, storeHelper, () -> 0, chunkSize, shardSize, executor, txnCommitOrderer);
     }
 
     @VisibleForTesting
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier,
              Executor executor, ZkOrderedStore txnCommitOrderer) {
-        this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE, SealedSegmentsMapShard.SHARD_SIZE,
-                executor, txnCommitOrderer);
+        this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE,
+                SealedSegmentsMapShard.SHARD_SIZE, executor, txnCommitOrderer);
     }
     
     @VisibleForTesting
@@ -190,8 +192,9 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, final long creationTime,
-                                                                     final int startingSegmentNumber, OperationContext context) {
+    public CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, 
+                                                                     final long creationTime, final int startingSegmentNumber,
+                                                                     final OperationContext context) {
         // If stream exists, but is in a partially complete state, then fetch its creation time and configuration and any
         // metadata that is available from a previous run. If the existing stream has already been created successfully earlier,
         return store.checkExists(creationPath).thenCompose(exists -> {
@@ -206,7 +209,8 @@ class ZKStream extends PersistentStreamBase {
                             return handleConfigExists(storedCreationTime, startingSegmentNumber, 
                                     storedCreationTime == creationTime, context);
                         } else {
-                            return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
+                            return CompletableFuture.completedFuture(new CreateStreamResponse(
+                                    CreateStreamResponse.CreateStatus.NEW,
                                     configuration, storedCreationTime, startingSegmentNumber));
                         }
                     }));
@@ -223,21 +227,24 @@ class ZKStream extends PersistentStreamBase {
         CreateStreamResponse.CreateStatus status = creationTimeMatched ?
                 CreateStreamResponse.CreateStatus.NEW : CreateStreamResponse.CreateStatus.EXISTS_CREATING;
 
-        return getConfiguration(context).thenCompose(config -> store.checkExists(statePath)
-                                                             .thenCompose(stateExists -> {
-                                                                 if (!stateExists) {
-                                                                     return CompletableFuture.completedFuture(new CreateStreamResponse(status, config, creationTime, startingSegmentNumber));
-                                                                 }
+        return getConfiguration(context)
+                .thenCompose(config ->
+                        store.checkExists(statePath)
+                             .thenCompose(stateExists -> {
+                                 if (!stateExists) {
+                                     return CompletableFuture.completedFuture(
+                                             new CreateStreamResponse(status, config, creationTime, startingSegmentNumber));
+                                 }
 
-                                                                 return getState(false, context).thenApply(state -> {
-                                                                     if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
-                                                                         return new CreateStreamResponse(status, config, creationTime, startingSegmentNumber);
-                                                                     } else {
-                                                                         return new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE,
-                                                                                 config, creationTime, startingSegmentNumber);
-                                                                     }
-                                                                 });
-                                                             }));
+                                 return getState(false, context).thenApply(state -> {
+                                     if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                                         return new CreateStreamResponse(status, config, creationTime, startingSegmentNumber);
+                                     } else {
+                                         return new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE,
+                                                 config, creationTime, startingSegmentNumber);
+                                     }
+                                 });
+                             }));
     }
 
     @Override
@@ -252,7 +259,8 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriberRecord(String subscriber, OperationContext context) {
+    public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriberRecord(String subscriber, 
+                                                                                      OperationContext context) {
         throw new UnsupportedOperationException();
     }
 
@@ -584,7 +592,7 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Long> addTxnToCommitOrder(UUID txId, OperationContext context) {
-        return txnCommitOrderer.addEntity(getScope(), getName(), txId.toString());
+        return txnCommitOrderer.addEntity(getScope(), getName(), txId.toString(), context.getRequestId());
     }
 
     @Override

@@ -104,7 +104,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
                         }
                 )
                 .thenCompose(toDeleteList -> {
-                    log.debug("deleting batches {} on new scheme" + toDeleteList);
+                    log.debug("deleting batches {} on new scheme", toDeleteList);
 
                     // delete all those marked for toDelete.
                     return Futures.allOf(toDeleteList.stream()
@@ -236,7 +236,8 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
 
     @Override
     CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, final int lastActiveSegment,
-                                                    OperationContext context, final Executor executor) {
+                                                    OperationContext ctx, final Executor executor) {
+        OperationContext context = getOperationContext(ctx);
         final String deletePath = String.format(DELETED_STREAMS_PATH, getScopedStreamName(scope, stream));
         byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
         BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
@@ -249,7 +250,9 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
                               }
                           })
                           .thenCompose(data -> {
-                              log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
+                              log.debug(context.getRequestId(), 
+                                      "Recording last segment {} for stream {}/{} on deletion.", 
+                                      lastActiveSegment, scope, stream);
                               if (data == null) {
                                   return Futures.toVoid(storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes));
                               } else {

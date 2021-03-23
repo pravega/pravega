@@ -9,14 +9,16 @@
  */
 package io.pravega.controller.store;
 
+import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Base64;
@@ -45,8 +47,8 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
  * Then there are per scopes table called _system/_tables/`scope`/streamsInScope-`id`.
  * Each such scope table is protected against recreation of scope by attaching a unique id to the scope when it is created.
  */
-@Slf4j
 public class PravegaTablesScope implements Scope {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaTablesScope.class));
     private static final String KVTABLES_IN_SCOPE_TABLE_FORMAT = "kvTablesInScope" + SEPARATOR + "%s";
     private static final String READER_GROUPS_IN_SCOPE_TABLE_FORMAT = "readerGroupsInScope" + SEPARATOR + "%s";
     private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "streamsInScope" + SEPARATOR + "%s";
@@ -67,6 +69,7 @@ public class PravegaTablesScope implements Scope {
 
     @Override
     public CompletableFuture<Void> createScope(OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         // We will first attempt to create the entry for the scope in scopes table.
         // If scopes table does not exist, we create the scopes table (idempotent)
         // followed by creating a new entry for this scope with a new unique id.
@@ -79,7 +82,8 @@ public class PravegaTablesScope implements Scope {
                 return CompletableFuture.allOf(getStreamsInScopeTableName(context)
                         .thenCompose(streamsTableName -> storeHelper.createTable(streamsTableName, context.getRequestId())
                                                              .thenAccept(v -> {
-                                                                 log.debug("table for streams created {}", streamsTableName);
+                                                                 log.debug(context.getRequestId(),
+                                                                         "table for streams created {}", streamsTableName);
                                                                  if (e != null) {
                                                                      throw new CompletionException(e);
                                                                  }
@@ -87,7 +91,7 @@ public class PravegaTablesScope implements Scope {
                         getKVTablesInScopeTableName(context)
                         .thenCompose(kvtsTableName -> storeHelper.createTable(kvtsTableName, context.getRequestId())
                                 .thenAccept(v -> {
-                                    log.debug("table for kvts created {}", kvtsTableName);
+                                    log.debug(context.getRequestId(), "table for kvts created {}", kvtsTableName);
                                     if (e != null) {
                                         throw new CompletionException(e);
                                     }
@@ -95,7 +99,7 @@ public class PravegaTablesScope implements Scope {
                         getReaderGroupsInScopeTableName(context)
                         .thenCompose(rgTableName -> storeHelper.createTable(rgTableName, context.getRequestId())
                                 .thenAccept(v -> {
-                                    log.debug("table for reader groups created {}", rgTableName);
+                                    log.debug(context.getRequestId(), "table for reader groups created {}", rgTableName);
                                     if (e != null) {
                                           throw new CompletionException(e);
                                     }
@@ -108,10 +112,12 @@ public class PravegaTablesScope implements Scope {
     }
 
     public CompletableFuture<String> getStreamsInScopeTableName(OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getStreamsInScopeTableName(true, context);
     }
     
     public CompletableFuture<String> getStreamsInScopeTableName(boolean ignoreCached, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         if (ignoreCached) {
             storeHelper.invalidateCache(SCOPES_TABLE, scopeName);
         }
@@ -120,10 +126,12 @@ public class PravegaTablesScope implements Scope {
     }
 
     public CompletableFuture<String> getKVTablesInScopeTableName(OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getKVTablesInScopeTableName(true, context);
     }
     
     public CompletableFuture<String> getKVTablesInScopeTableName(boolean ignoreCached, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         if (ignoreCached) {
             storeHelper.invalidateCache(SCOPES_TABLE, scopeName);
         }
@@ -132,10 +140,12 @@ public class PravegaTablesScope implements Scope {
     }
 
     public CompletableFuture<String> getReaderGroupsInScopeTableName(OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getReaderGroupsInScopeTableName(true, context);
     }
     
     public CompletableFuture<String> getReaderGroupsInScopeTableName(boolean ignoreCached, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         if (ignoreCached) {
             storeHelper.invalidateCache(SCOPES_TABLE, scopeName);
         }
@@ -144,6 +154,7 @@ public class PravegaTablesScope implements Scope {
     }
 
     CompletableFuture<UUID> getId(OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         UUID id = idRef.get();
         if (Objects.isNull(id)) {
             return storeHelper.getCachedOrLoad(SCOPES_TABLE, scopeName, BYTES_TO_UUID_FUNCTION, 0L, context.getRequestId())
@@ -159,6 +170,7 @@ public class PravegaTablesScope implements Scope {
 
     @Override
     public CompletableFuture<Void> deleteScope(OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         CompletableFuture<String> streamsInScopeTableNameFuture = getStreamsInScopeTableName(true, context);
         CompletableFuture<String> rgsInScopeTableNameFuture = getReaderGroupsInScopeTableName(context);
         CompletableFuture<String> kvtsInScopeTableNameFuture = getKVTablesInScopeTableName(context);
@@ -170,7 +182,8 @@ public class PravegaTablesScope implements Scope {
                     return CompletableFuture.allOf(storeHelper.deleteTable(streamsInScopeTableName, true, context.getRequestId()),
                             storeHelper.deleteTable(kvtsInScopeTableName, true, context.getRequestId()), 
                             storeHelper.deleteTable(rgsInScopeTableName, true, context.getRequestId()))
-                                     .thenAccept(v -> log.debug("tables deleted {} {} {}", streamsInScopeTableName,
+                                     .thenAccept(v -> log.debug(context.getRequestId(), 
+                                             "tables deleted {} {} {}", streamsInScopeTableName,
                                              kvtsInScopeTableName, rgsInScopeTableName));
                 })
                 .thenCompose(deleted -> storeHelper.removeEntry(SCOPES_TABLE, scopeName, context.getRequestId()));
@@ -179,12 +192,14 @@ public class PravegaTablesScope implements Scope {
     @Override
     public CompletableFuture<Pair<List<String>, String>> listStreams(int limit, String continuationToken, Executor executor, 
                                                                      OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getStreamsInScopeTableName(context)
                 .thenCompose(streamsInScopeTable -> readAll(limit, continuationToken, streamsInScopeTable, context));
     }
 
     @Override
     public CompletableFuture<List<String>> listStreamsInScope(OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         List<String> result = new ArrayList<>();
         return getStreamsInScopeTableName(context)
                 .thenCompose(tableName -> Futures.exceptionallyExpecting(storeHelper.getAllKeys(tableName,
@@ -198,68 +213,85 @@ public class PravegaTablesScope implements Scope {
     }
 
     public CompletableFuture<Void> addStreamToScope(String stream, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getStreamsInScopeTableName(context)
                 .thenCompose(tableName -> Futures.toVoid(
-                        withCreateTableIfAbsent(() -> storeHelper.addNewEntryIfAbsent(tableName, stream, newId(), UUID_TO_BYTES_FUNCTION, context.getRequestId()), 
+                        withCreateTableIfAbsent(() -> storeHelper.addNewEntryIfAbsent(tableName, stream, newId(),
+                                UUID_TO_BYTES_FUNCTION, context.getRequestId()), 
                         tableName, context)));
     }
 
     public CompletableFuture<Void> removeStreamFromScope(String stream, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getStreamsInScopeTableName(context)
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, stream, context.getRequestId())));
     }
 
     public CompletableFuture<Boolean> checkStreamExistsInScope(String stream, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getStreamsInScopeTableName(context)
                 .thenCompose(tableName -> storeHelper.expectingDataNotFound(
-                        storeHelper.getEntry(tableName, stream, x -> x, context.getRequestId()).thenApply(v -> true), false));
+                        storeHelper.getEntry(tableName, stream, x -> x, context.getRequestId()).thenApply(v -> true), 
+                        false));
     }
 
     public CompletableFuture<Boolean> checkKeyValueTableExistsInScope(String kvt, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getKVTablesInScopeTableName(context)
                 .thenCompose(tableName -> storeHelper.expectingDataNotFound(
-                        storeHelper.getEntry(tableName, kvt, x -> x, context.getRequestId()).thenApply(v -> true), false));
+                        storeHelper.getEntry(tableName, kvt, x -> x, context.getRequestId()).thenApply(v -> true), 
+                        false));
     }
 
     public CompletableFuture<Boolean> checkReaderGroupExistsInScope(String readerGroupName, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getReaderGroupsInScopeTableName(context)
                 .thenCompose(tableName -> storeHelper.expectingDataNotFound(
-                        storeHelper.getEntry(tableName, readerGroupName, x -> x, context.getRequestId()).thenApply(v -> true), false));
+                        storeHelper.getEntry(tableName, readerGroupName, x -> x, context.getRequestId()).thenApply(v -> true), 
+                        false));
     }
 
-    public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id, OperationContext context) {
+    public CompletableFuture<Void> addKVTableToScope(String kvt, UUID id, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getKVTablesInScopeTableName(context)
                 .thenCompose(tableName -> Futures.toVoid(
-                        withCreateTableIfAbsent(() -> storeHelper.addNewEntryIfAbsent(tableName, kvt, id, x -> x, context.getRequestId()), 
-                                tableName, context)));
+                        withCreateTableIfAbsent(() -> storeHelper.addNewEntryIfAbsent(tableName, kvt, id, 
+                                UUID_TO_BYTES_FUNCTION, context.getRequestId()), tableName, context)));
     }
 
     public CompletableFuture<Void> removeKVTableFromScope(String kvt, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getKVTablesInScopeTableName(context)
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, kvt, context.getRequestId())));
     }
 
     public CompletableFuture<Void> addReaderGroupToScope(String readerGroupName, UUID readerGroupId, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getReaderGroupsInScopeTableName(context)
                 .thenCompose(tableName -> Futures.toVoid(withCreateTableIfAbsent(
-                        () -> storeHelper.addNewEntryIfAbsent(tableName, readerGroupName, readerGroupId, UUID_TO_BYTES_FUNCTION, context.getRequestId()),
+                        () -> storeHelper.addNewEntryIfAbsent(tableName, readerGroupName, readerGroupId, 
+                                UUID_TO_BYTES_FUNCTION, context.getRequestId()),
                         tableName, context)));
     }
 
     public CompletableFuture<Void> removeReaderGroupFromScope(String readerGroup, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getReaderGroupsInScopeTableName(context)
                 .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, readerGroup, context.getRequestId())));
     }
 
     public CompletableFuture<UUID> getReaderGroupId(String readerGroupName, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getReaderGroupsInScopeTableName(context)
-                .thenCompose(tableName -> storeHelper.getEntry(tableName, readerGroupName, BYTES_TO_UUID_FUNCTION, context.getRequestId())
+                .thenCompose(tableName -> storeHelper.getEntry(tableName, readerGroupName, BYTES_TO_UUID_FUNCTION, 
+                        context.getRequestId())
                         .thenApply(VersionedMetadata::getObject));
     }
 
     @Override
     public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(int limit, String continuationToken, 
                                                                             Executor executor, OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getKVTablesInScopeTableName(context)
                 .thenCompose(kvtablesInScopeTable -> readAll(limit, continuationToken, kvtablesInScopeTable, context));
     }

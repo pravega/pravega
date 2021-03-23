@@ -37,7 +37,6 @@ import org.slf4j.LoggerFactory;
  * Request handler for performing scale operations received from requeststream.
  */
 public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
-
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ScaleOperationTask.class));
 
     private final StreamMetadataTasks streamMetadataTasks;
@@ -60,7 +59,8 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
         long requestId = request.getRequestId();
-        final OperationContext context = streamMetadataStore.createStreamContext(request.getScope(), request.getStream(), requestId);
+        final OperationContext context = streamMetadataStore.createStreamContext(request.getScope(), request.getStream(), 
+                requestId);
         log.info(requestId, "starting scale request for {}/{} segments {} to new ranges {}",
                 request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
 
@@ -74,7 +74,8 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                         }
                         if (cause instanceof EpochTransitionOperationExceptions.PreConditionFailureException) {
                             log.warn(requestId, "processing scale request for {}/{} segments {} failed {}",
-                                    request.getScope(), request.getStream(), request.getSegmentsToSeal(), cause.getClass().getName());
+                                    request.getScope(), request.getStream(), request.getSegmentsToSeal(), 
+                                    cause.getClass().getName());
                             result.complete(null);
                         } else {
                             log.warn(requestId, "processing scale request for {}/{} segments {} failed {}",
@@ -98,7 +99,8 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
     }
 
     @VisibleForTesting
-    public CompletableFuture<Void> runScale(ScaleOpEvent scaleInput, boolean isManualScale, OperationContext context, String delegationToken) { // called upon event read from requeststream
+    public CompletableFuture<Void> runScale(ScaleOpEvent scaleInput, boolean isManualScale, OperationContext context,
+                                            String delegationToken) { // called upon event read from requeststream
         String scope = scaleInput.getScope();
         String stream = scaleInput.getStream();
         long requestId = scaleInput.getRequestId();
@@ -122,7 +124,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                             } 
 
                             if (isManualScale) {
-                                log.info("Found empty epoch transition record, scale processing is already completed.");
+                                log.info(requestId, "Found empty epoch transition record, scale processing is already completed.");
                                 return Futures.toVoid(future);
                             } else {
                                 future = future.thenCompose(r -> streamMetadataStore.submitScale(scope, stream, scaleInput.getSegmentsToSeal(),
@@ -134,10 +136,10 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                             // for auto scale, it means another scale is on going and just throw scale conflict exception 
                             // which will result in this event being postponed. 
                             if (isManualScale) {
-                                log.info("Scale for stream {}/{} for segments {} already completed.", scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal());
+                                log.info(requestId, "Scale for stream {}/{} for segments {} already completed.", scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal());
                                 return CompletableFuture.completedFuture(null);
                             } else {
-                                log.info("Scale for stream {}/{} for segments {} cannot be started as another scale is ongoing.", scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal());
+                                log.info(requestId, "Scale for stream {}/{} for segments {} cannot be started as another scale is ongoing.", scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal());
                                 throw new EpochTransitionOperationExceptions.ConflictException();
                             }
                         }

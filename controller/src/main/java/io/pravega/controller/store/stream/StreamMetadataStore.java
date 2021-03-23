@@ -473,8 +473,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return current ReaderGroup configuration record.
      */
     CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getReaderGroupConfigRecord(final String scope, final String name,
-                                                            final OperationContext context,
-                                                            final Executor executor);
+                                                                                             final OperationContext context,
+                                                                                             final Executor executor);
 
     /**
      * Creates a new subscribers record in metadata for an existing stream.

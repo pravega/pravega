@@ -482,7 +482,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         assertEquals(rgId, scope.getReaderGroupId(rgName, context).join());
         assertTrue(Futures.await(rgTableCheckSupplier.get()));
 
-        scope.addKVTableToScope("kvt", UUID.randomUUID().toString().getBytes(), context).join();
+        scope.addKVTableToScope("kvt", UUID.randomUUID(), context).join();
         assertEquals("kvt", scope.listKeyValueTables(10, "", executor, context).join().getKey().get(0));
         assertTrue(Futures.await(kvttableCheckSupplier.get()));
         
@@ -523,7 +523,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         assertEquals(rgId, scope.getReaderGroupId(rg, context).join());
 
         String kvt = "kvt";
-        scope.addKVTableToScope(kvt, UUID.randomUUID().toString().getBytes(), context).join();
+        scope.addKVTableToScope(kvt, UUID.randomUUID(), context).join();
         assertEquals(kvt, scope.listKeyValueTables(10, "", executor, context).join().getKey().get(0));
 
         AssertExtensions.assertFutureThrows("delete scope should have failed", scope.deleteScope(context),

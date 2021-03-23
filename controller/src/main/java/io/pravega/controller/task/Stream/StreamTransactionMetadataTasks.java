@@ -140,7 +140,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, eventExecutor, hostId, timeoutServiceConfig, null, authHelper);
+        this(streamMetadataStore, segmentHelper, executor, eventExecutor, hostId, timeoutServiceConfig, 
+                null, authHelper);
     }
 
     @VisibleForTesting
@@ -291,7 +292,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final long requestId) {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, "", Long.MIN_VALUE, context),
+        return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, 
+                null, "", Long.MIN_VALUE, context),
                 RETRYABLE_PREDICATE, 3, executor);
     }
 
@@ -310,7 +312,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                   final String writerId, final long timestamp,
                                                   final long requestId) {
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, writerId, timestamp, context),
+        return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, 
+                writerId, timestamp, context),
                 RETRYABLE_PREDICATE, 3, executor);
     }
 

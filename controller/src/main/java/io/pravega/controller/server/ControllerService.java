@@ -126,7 +126,7 @@ public class ControllerService {
         try {
             NameUtils.validateUserKeyValueTableName(kvtName);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Create KeyValueTable failed due to invalid name {}", kvtName);
+            log.warn(requestId, "Create KeyValueTable failed due to invalid name {}", kvtName);
             return CompletableFuture.completedFuture(
                     CreateKeyValueTableStatus.newBuilder().setStatus(CreateKeyValueTableStatus.Status.INVALID_TABLE_NAME).build());
         }
@@ -204,7 +204,7 @@ public class ControllerService {
         try {
             NameUtils.validateReaderGroupName(rgName);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Create ReaderGroup failed due to invalid name {}", rgName);
+            log.warn(requestId, "Create ReaderGroup failed due to invalid name {}", rgName);
             return CompletableFuture.completedFuture(
                     CreateReaderGroupResponse.newBuilder().setStatus(CreateReaderGroupResponse.Status.INVALID_RG_NAME).build());
         }
@@ -302,8 +302,8 @@ public class ControllerService {
         Preconditions.checkNotNull(readerGroupId, "readerGroupId is null");
         Preconditions.checkNotNull(truncationStreamCut, "Truncation StreamCut is null");
         Timer timer = new Timer();
-        return streamMetadataTasks.updateSubscriberStreamCut(scope, stream, subscriber, readerGroupId, generation, truncationStreamCut,
-                requestId)
+        return streamMetadataTasks.updateSubscriberStreamCut(scope, stream, subscriber, readerGroupId, generation, 
+                truncationStreamCut, requestId)
                             .thenApplyAsync(status -> {
                                 reportUpdateTruncationSCMetrics(scope, stream, status, timer.getElapsed());
                                 return UpdateSubscriberStatus.newBuilder().setStatus(status).build();
@@ -327,7 +327,7 @@ public class ControllerService {
         try {
             NameUtils.validateStreamName(stream);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Create stream failed due to invalid stream name {}", stream);
+            log.warn(requestId, "Create stream failed due to invalid stream name {}", stream);
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
@@ -341,8 +341,8 @@ public class ControllerService {
                                       streamConfig,
                                       createTimestamp, 10, 
                                       requestId).thenApplyAsync(status -> {
-                                  reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), status,
-                                          timer.getElapsed());
+                                  reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), 
+                                          status, timer.getElapsed());
                                   return CreateStreamStatus.newBuilder().setStatus(status).build();
                               }, executor);
                           } else {
@@ -474,7 +474,8 @@ public class ControllerService {
                                 Map.Entry::getValue)));
     }
 
-    public CompletableFuture<List<StreamSegmentRecord>> getSegmentsBetweenStreamCuts(Controller.StreamCutRange range, long requestId) {
+    public CompletableFuture<List<StreamSegmentRecord>> getSegmentsBetweenStreamCuts(Controller.StreamCutRange range, 
+                                                                                     long requestId) {
         Preconditions.checkNotNull(range, "segment");
         Preconditions.checkArgument(!(range.getFromMap().isEmpty() && range.getToMap().isEmpty()));
 
@@ -650,7 +651,7 @@ public class ControllerService {
         return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, writerId, timestamp, requestId)
                 .handle((ok, ex) -> {
                     if (ex != null) {
-                        log.warn("Transaction commit failed", ex);
+                        log.warn(requestId, "Transaction commit failed", ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof RetryableException) {
                             // if its a retryable exception (it could be either write conflict or store exception)
@@ -692,7 +693,7 @@ public class ControllerService {
         return streamTransactionMetadataTasks.abortTxn(scope, stream, txId, null, requestId)
                 .handle((ok, ex) -> {
                     if (ex != null) {
-                        log.warn("Transaction abort failed", ex);
+                        log.warn(requestId, "Transaction abort failed", ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof RetryableException) {
                             // if its a retryable exception (it could be either write conflict or store exception)
@@ -784,7 +785,8 @@ public class ControllerService {
         Timer timer = new Timer();
         OperationContext context = streamStore.createScopeContext(scope, requestId);
 
-        return streamStore.deleteScope(scope, context, executor).thenApply(r -> reportDeleteScopeMetrics(scope, r, timer.getElapsed()));
+        return streamStore.deleteScope(scope, context, executor).thenApply(r -> reportDeleteScopeMetrics(scope, r,
+                timer.getElapsed()));
     }
 
     /**
@@ -855,8 +857,9 @@ public class ControllerService {
     }
 
     // Metrics reporting region
-    private void reportCreateKVTableMetrics(String scope, String kvtName, int initialSegments, CreateKeyValueTableStatus.Status status,
-                                           Duration latency) {
+    private void reportCreateKVTableMetrics(String scope, String kvtName, int initialSegments, 
+                                            CreateKeyValueTableStatus.Status status,
+                                            Duration latency) {
         if (status.equals(CreateKeyValueTableStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().createKeyValueTable(scope, kvtName, initialSegments, latency);
         } else if (status.equals(CreateKeyValueTableStatus.Status.FAILURE)) {
@@ -898,7 +901,8 @@ public class ControllerService {
         }
     }
 
-    private void reportCreateReaderGroupMetrics(String scope, String rgName, CreateReaderGroupResponse.Status status, Duration latency) {
+    private void reportCreateReaderGroupMetrics(String scope, String rgName, CreateReaderGroupResponse.Status status, 
+                                                Duration latency) {
         if (status.equals(CreateReaderGroupResponse.Status.SUCCESS)) {
             StreamMetrics.getInstance().createReaderGroup(scope, rgName, latency);
         } else if (status.equals(CreateReaderGroupResponse.Status.FAILURE)) {
@@ -906,7 +910,8 @@ public class ControllerService {
         }
     }
 
-    private void reportUpdateReaderGroupMetrics(String scope, String streamName, UpdateReaderGroupResponse.Status status, Duration latency) {
+    private void reportUpdateReaderGroupMetrics(String scope, String streamName, UpdateReaderGroupResponse.Status status, 
+                                                Duration latency) {
         if (status.equals(UpdateReaderGroupResponse.Status.SUCCESS)) {
             StreamMetrics.getInstance().updateReaderGroup(scope, streamName, latency);
         } else if (status.equals(UpdateReaderGroupResponse.Status.FAILURE)) {
@@ -914,7 +919,8 @@ public class ControllerService {
         }
     }
 
-    private void reportDeleteReaderGroupMetrics(String scope, String streamName, DeleteReaderGroupStatus.Status status, Duration latency) {
+    private void reportDeleteReaderGroupMetrics(String scope, String streamName, DeleteReaderGroupStatus.Status status, 
+                                                Duration latency) {
         if (status.equals(DeleteReaderGroupStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().deleteReaderGroup(scope, streamName, latency);
         } else if (status.equals(DeleteReaderGroupStatus.Status.FAILURE)) {
@@ -922,7 +928,8 @@ public class ControllerService {
         }
     }
 
-    private void reportUpdateTruncationSCMetrics(String scope, String streamName, UpdateSubscriberStatus.Status status, Duration latency) {
+    private void reportUpdateTruncationSCMetrics(String scope, String streamName, UpdateSubscriberStatus.Status status,
+                                                 Duration latency) {
         if (status.equals(UpdateSubscriberStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().updateTruncationSC(scope, streamName, latency);
         } else if (status.equals(UpdateSubscriberStatus.Status.FAILURE)) {
@@ -930,7 +937,8 @@ public class ControllerService {
         }
     }
 
-    private void reportTruncateStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
+    private void reportTruncateStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, 
+                                             Duration latency) {
         if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
             StreamMetrics.getInstance().truncateStream(scope, streamName, latency);
         } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
@@ -969,7 +977,8 @@ public class ControllerService {
         OperationContext context = streamStore.createStreamContext(scope, stream, requestId);
 
         return bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope, stream, executor)
-                          .thenCompose(v -> streamStore.noteWriterMark(scope, stream, writerId, timestamp, streamCut, context, executor))
+                          .thenCompose(v -> streamStore.noteWriterMark(scope, stream, writerId, timestamp, streamCut, 
+                                  context, executor))
                 .thenApply(r -> {
                         Controller.TimestampResponse.Builder response = Controller.TimestampResponse.newBuilder();
                         switch (r) {

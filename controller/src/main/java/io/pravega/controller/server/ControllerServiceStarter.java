@@ -285,10 +285,13 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
-            kvtMetadataStore = kvtMetaStoreRef.orElseGet(() -> KVTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor, streamStore));
-            kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
-            controllerService = new ControllerService(kvtMetadataStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, requestTracker);
+            kvtMetadataStore = kvtMetaStoreRef.orElseGet(() -> KVTableStoreFactory.createStore(storeClient, segmentHelper, 
+                    authHelper, controllerExecutor, streamStore));
+            kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, 
+                    eventExecutor, host.getHostId(), authHelper);
+            controllerService = new ControllerService(kvtMetadataStore, kvtMetadataTasks, streamStore, bucketStore, 
+                    streamMetadataTasks, streamTransactionMetadataTasks, segmentHelper, controllerExecutor, 
+                    cluster, requestTracker);
 
             // Setup event processors.
             setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
@@ -299,12 +302,13 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        bucketStore, connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, kvtMetadataStore, kvtMetadataTasks,
-                        eventExecutor);
+                        bucketStore, connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, kvtMetadataStore, 
+                        kvtMetadataTasks, eventExecutor);
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
-                eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtMetadataTasks)
+                eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, 
+                        streamMetadataTasks, kvtMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventExecutor);
             }
 

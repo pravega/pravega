@@ -18,6 +18,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -70,7 +71,7 @@ public interface KVTableMetadataStore extends AutoCloseable {
      */
     CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                   final String kvtName,
-                                                  final byte[] id,
+                                                  final UUID id,
                                                   final OperationContext context,
                                                   final Executor executor);
 

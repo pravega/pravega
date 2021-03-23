@@ -128,7 +128,7 @@ public class ControllerServiceTest {
                 segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
 
         kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper,  executor,  executor,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                "host", GrpcAuthHelper.getDisabledAuthHelper());
         consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
                 new SegmentHelper(connectionPool, hostStore, executor), executor, null, requestTracker);
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);

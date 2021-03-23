@@ -24,6 +24,8 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
+
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -66,7 +68,7 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
     }
 
     @Override
-    public CompletableFuture<Void> createEntryForKVTable(String scopeName, String kvtName, byte[] id, OperationContext context, 
+    public CompletableFuture<Void> createEntryForKVTable(String scopeName, String kvtName, UUID id, OperationContext context,
                                                          Executor executor) {
         return Futures.completeOn(
                 CompletableFuture.completedFuture((ZKScope) getScope(scopeName, context))

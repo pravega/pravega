@@ -105,7 +105,7 @@ public class UnreadBytesTest extends ThreadPooledTestSuite {
                 .build();
 
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("unreadbytes").get();
+        controllerWrapper.getControllerService().createScope("unreadbytes", 0L).get();
         controller.createStream("unreadbytes", "unreadbytes", config).get();
 
         @Cleanup
@@ -162,7 +162,7 @@ public class UnreadBytesTest extends ThreadPooledTestSuite {
                                                         .build();
 
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("unreadbytes").get();
+        controllerWrapper.getControllerService().createScope("unreadbytes", 0L).get();
         controller.createStream("unreadbytes", "unreadbytes", config).get();
 
         @Cleanup
@@ -220,7 +220,7 @@ public class UnreadBytesTest extends ThreadPooledTestSuite {
                 .build();
 
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("unreadbytes").get();
+        controllerWrapper.getControllerService().createScope("unreadbytes", 0L).get();
         controller.createStream("unreadbytes", "unreadbytes", config).get();
 
         @Cleanup

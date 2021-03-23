@@ -60,6 +60,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         String stream = request.getStream();
         long requestId = request.getRequestId();
         final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
+        log.debug(requestId, "Deleting {}/{} stream", scope, stream);
 
         return streamMetadataStore.getCreationTime(scope, stream, context, executor)
             .thenAccept(creationTime -> Preconditions.checkArgument(request.getCreationTime() == 0 ||

@@ -88,8 +88,7 @@ public abstract class TableMetadataTasksTest {
         EventHelper helper = new EventHelper(executor, "host", ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
         helper.setRequestEventWriter(requestEventWriter);
         kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
-                 "host", GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker, helper));
+                 "host", GrpcAuthHelper.getDisabledAuthHelper(), helper));
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
                                                             new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
                                                             this.kvtStore, executor);
@@ -130,8 +129,7 @@ public abstract class TableMetadataTasksTest {
         // check retry failures...
         EventHelper mockHelper = EventHelperMock.getFailingEventHelperMock();
         TableMetadataTasks kvtFailingMetaTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker, mockHelper));
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), mockHelper));
 
         AssertExtensions.assertFutureThrows("addIndexAndSubmitTask throws exception",
                 kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime, 0L),
@@ -189,8 +187,7 @@ public abstract class TableMetadataTasksTest {
         EventStreamWriter<ControllerEvent> eventWriter = new WriterMock();
         helper.setRequestEventWriter(eventWriter);
         TableMetadataTasks kvtTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker, helper));
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), helper));
 
         AssertExtensions.assertFutureThrows("create timedout",
                 kvtTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime, 0L),

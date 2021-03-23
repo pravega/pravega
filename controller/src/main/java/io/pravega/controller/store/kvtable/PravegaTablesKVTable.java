@@ -10,6 +10,7 @@
 package io.pravega.controller.store.kvtable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
@@ -67,6 +68,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
     }
 
     public CompletableFuture<String> getId(OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         String id = idRef.get();
 
         if (!Strings.isNullOrEmpty(id)) {
@@ -97,6 +99,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     public CompletableFuture<Long> getCreationTime(OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> storeHelper.getCachedOrLoad(metadataTable, CREATION_TIME_KEY,
                         BYTES_TO_LONG_FUNCTION, context.getOperationStartTime(), context.getRequestId()))
@@ -113,6 +116,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     public CompletableFuture<Void> createStateIfAbsent(final KVTStateRecord state, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, STATE_KEY, 
                         state, KVTStateRecord::toBytes, context.getRequestId())));
@@ -120,6 +124,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<Version> setStateData(final VersionedMetadata<KVTStateRecord> state, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, STATE_KEY,
                         state.getObject(), KVTStateRecord::toBytes, state.getVersion(), context.getRequestId()));
@@ -127,6 +132,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<VersionedMetadata<KVTStateRecord>> getStateData(boolean ignoreCached, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
@@ -139,6 +145,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<VersionedMetadata<KVTConfigurationRecord>> getConfigurationData(boolean ignoreCached, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
@@ -154,6 +161,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
                                                                              final long creationTime,
                                                                              final int startingSegmentNumber, 
                                                                              OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         // If kvtable exists, but is in a partially complete state, then fetch its creation time and configuration and any
         // metadata that is available from a previous run.
         // If the existing kvtable has already been created successfully earlier,
@@ -198,17 +206,20 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<Void> createKVTableMetadata(OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getId(context).thenCompose(id -> storeHelper.createTable(getMetadataTableName(id), context.getRequestId()));
     }
 
     @Override
     public CompletableFuture<Void> delete(OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getId(context).thenCompose(id -> storeHelper.deleteTable(getMetadataTableName(id), 
                 false, context.getRequestId()));
     }
 
     @Override
     CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, 
                         CREATION_TIME_KEY, creationTime, LONG_TO_BYTES_FUNCTION, context.getRequestId())));
@@ -216,6 +227,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     public CompletableFuture<Void> createConfigurationIfAbsent(final KVTConfigurationRecord configuration, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, 
                         CONFIGURATION_KEY, configuration, KVTConfigurationRecord::toBytes, context.getRequestId())));
@@ -223,6 +235,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, key,
@@ -231,6 +244,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(
                         metadataTable, CURRENT_EPOCH_KEY, data.getEpoch(), INTEGER_TO_BYTES_FUNCTION, context.getRequestId())));
@@ -238,6 +252,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<VersionedMetadata<KVTEpochRecord>> getCurrentEpochRecordData(boolean ignoreCached, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> {
                     CompletableFuture<VersionedMetadata<Integer>> future;
@@ -254,6 +269,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
 
     @Override
     CompletableFuture<VersionedMetadata<KVTEpochRecord>> getEpochRecordData(int epoch, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> {
                     String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);

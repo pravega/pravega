@@ -116,7 +116,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -168,7 +168,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).get();
         controller.createStream(SCOPE, STREAM, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -197,7 +197,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                 .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -234,7 +234,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
 
         final Controller controller = controllerWrapper.getController();
 
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());

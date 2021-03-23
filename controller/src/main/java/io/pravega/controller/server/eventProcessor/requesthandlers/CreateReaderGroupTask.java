@@ -60,6 +60,7 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         ReaderGroupConfig config = getConfigFromEvent(request);
         long requestId = request.getRequestId();
         OperationContext context = streamMetadataStore.createRGContext(scope, readerGroup, requestId);
+
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
                           .thenCompose(rgId -> {
                     if (!rgId.equals(readerGroupId)) {

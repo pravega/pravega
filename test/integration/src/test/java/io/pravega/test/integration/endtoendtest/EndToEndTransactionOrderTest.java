@@ -120,7 +120,7 @@ public class EndToEndTransactionOrderTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
+        controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME, 0L).get();
 
         autoScaleMonitor = new AutoScaleMonitor(store,
                 internalCF,
@@ -133,7 +133,7 @@ public class EndToEndTransactionOrderTest {
         server.startListening();
 
         controllerWrapper.awaitRunning();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
 
         controller.createStream("test", "test", config).get();
 

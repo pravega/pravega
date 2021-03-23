@@ -9,9 +9,6 @@
  */
 package io.pravega.controller.store.kvtable;
 
-
-import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -24,7 +21,6 @@ import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
 import java.util.UUID;
-
 
 /**
  * Zookeeper based stream metadata store tests.
@@ -65,10 +61,8 @@ public class ZookeeperKVTMetadataStoreTest extends KVTableMetadataStoreTest {
         // Test operation when stream is not in active state
         streamStore.createScope(scope, null, executor).get();
         UUID id = store.newScope(scope).newId();
-        byte[] newUUID = new byte[2 * Long.BYTES];
-        BitConverter.writeUUID(new ByteArraySegment(newUUID), id);
 
-        store.createEntryForKVTable(scope, kvtable1, newUUID, null, executor);
+        store.createEntryForKVTable(scope, kvtable1, id, null, executor);
         store.createKeyValueTable(scope, kvtable1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, kvtable1, KVTableState.CREATING, null, executor).get();
 

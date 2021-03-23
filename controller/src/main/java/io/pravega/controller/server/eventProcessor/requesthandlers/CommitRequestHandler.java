@@ -98,7 +98,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         long requestId = streamMetadataTasks.getRequestId(null);
 
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        log.debug("Attempting to commit available transactions on stream {}/{}", event.getScope(), event.getStream());
+        log.debug(requestId, "Attempting to commit available transactions on stream {}/{}", event.getScope(), event.getStream());
 
         CompletableFuture<Void> future = new CompletableFuture<>();
 

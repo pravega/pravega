@@ -69,7 +69,7 @@ public class StreamMetadataTest {
         final String scope2 = "scope2";
         final String streamName2 = "stream2";
 
-        controllerWrapper.getControllerService().createScope(scope1).get();
+        controllerWrapper.getControllerService().createScope(scope1, 0L).get();
         final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
         final StreamConfiguration config1 = StreamConfiguration.builder()
                                                                .scalingPolicy(scalingPolicy)
@@ -81,7 +81,7 @@ public class StreamMetadataTest {
         assertTrue(controller.createStream(scope1, streamName1, config1).get());
 
         // Seal a stream given a streamName and scope.
-        controllerWrapper.getControllerService().createScope(scopeSeal).get();
+        controllerWrapper.getControllerService().createScope(scopeSeal, 0L).get();
 
         final StreamConfiguration configSeal = StreamConfiguration.builder()
                                                                   .scalingPolicy(scalingPolicy)
@@ -108,7 +108,7 @@ public class StreamMetadataTest {
         assertFalse(controller.createStream(scope1, streamName1, config1).get());
 
         // CS3:create a stream with same stream name in different scopes
-        controllerWrapper.getControllerService().createScope(scope2).get();
+        controllerWrapper.getControllerService().createScope(scope2, 0L).get();
 
         final StreamConfiguration config2 = StreamConfiguration.builder()
                                                                .scalingPolicy(scalingPolicy)

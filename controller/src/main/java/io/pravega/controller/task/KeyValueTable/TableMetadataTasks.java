@@ -15,10 +15,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
-import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -47,7 +44,6 @@ import org.slf4j.LoggerFactory;
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 import static io.pravega.shared.NameUtils.getQualifiedTableSegmentName;
 
-
 /**
  * Collection of metadata update tasks on KeyValueTable.
  * <p>
@@ -63,34 +59,31 @@ public class TableMetadataTasks implements AutoCloseable {
     private final ScheduledExecutorService eventExecutor;
     private final String hostId;
     private final GrpcAuthHelper authHelper;
-    private final RequestTracker requestTracker;
     private EventHelper eventHelper;
 
     public TableMetadataTasks(final KVTableMetadataStore kvtMetadataStore,
                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
                               final ScheduledExecutorService eventExecutor, final String hostId,
-                              GrpcAuthHelper authHelper, RequestTracker requestTracker) {
+                              GrpcAuthHelper authHelper) {
         this.kvtMetadataStore = kvtMetadataStore;
         this.segmentHelper = segmentHelper;
         this.executor = executor;
         this.eventExecutor = eventExecutor;
         this.hostId = hostId;
         this.authHelper = authHelper;
-        this.requestTracker = requestTracker;
     }
 
     @VisibleForTesting
     public TableMetadataTasks(final KVTableMetadataStore kvtMetadataStore,
                               final SegmentHelper segmentHelper, final ScheduledExecutorService executor,
                               final ScheduledExecutorService eventExecutor, final String hostId,
-                              GrpcAuthHelper authHelper, RequestTracker requestTracker, EventHelper helper) {
+                              GrpcAuthHelper authHelper, EventHelper helper) {
         this.kvtMetadataStore = kvtMetadataStore;
         this.segmentHelper = segmentHelper;
         this.executor = executor;
         this.eventExecutor = eventExecutor;
         this.hostId = hostId;
         this.authHelper = authHelper;
-        this.requestTracker = requestTracker;
         this.eventHelper = helper;
     }
 
@@ -130,23 +123,24 @@ public class TableMetadataTasks implements AutoCloseable {
                             return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND);
                         }
                         //2. check state of the KVTable, if found
-                        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
+                        return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true,
+                                context, executor),
                                  e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                                     .thenCompose(state -> {
                                        if (state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
                                            //3. get a new UUID for the KVTable we will be creating.
                                            UUID id = kvtMetadataStore.newScope(scope).newId();
-                                           byte[] newUUID = new byte[2 * Long.BYTES];
-                                           BitConverter.writeUUID(new ByteArraySegment(newUUID), id);
 
                                            CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(),
                                                         createTimestamp, requestId, id);
                                            //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
                                            return eventHelper.addIndexAndSubmitTask(event,
-                                                   () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, newUUID, context, executor))
-                                                   .thenCompose(x -> isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor));
+                                                   () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, id, 
+                                                           context, executor))
+                                                   .thenCompose(x -> isCreateProcessed(scope, kvtName, kvtConfig, 
+                                                           createTimestamp, executor, context));
                                        }
-                                       return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor);
+                                       return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor, context);
                                  });
                             });
                }, e -> Exceptions.unwrap(e) instanceof RetryableException, NUM_RETRIES, executor);
@@ -186,7 +180,7 @@ public class TableMetadataTasks implements AutoCloseable {
 
     public CompletableFuture<Void> deleteSegments(String scope, String kvt, Set<Long> segmentsToDelete,
                                                         String delegationToken, long requestId) {
-        log.debug("{}/{} deleting {} segments", scope, kvt, segmentsToDelete.size());
+        log.debug(requestId, "{}/{} deleting {} segments", scope, kvt, segmentsToDelete.size());
         return Futures.allOf(segmentsToDelete
                 .stream()
                 .parallel()
@@ -218,9 +212,9 @@ public class TableMetadataTasks implements AutoCloseable {
     private CompletableFuture<CreateKeyValueTableStatus.Status> isCreateProcessed(String scope, String kvtName,
                                                                                   KeyValueTableConfiguration kvtConfig,
                                                                                   final long createTimestamp,
-                                                                                  Executor executor) {
-        return eventHelper.checkDone(() -> isCreated(scope, kvtName, executor))
-                .thenCompose(y -> isSameCreateRequest(scope, kvtName, kvtConfig, createTimestamp, executor))
+                                                                                  Executor executor, OperationContext context) {
+        return eventHelper.checkDone(() -> isCreated(scope, kvtName, executor, context))
+                .thenCompose(y -> isSameCreateRequest(scope, kvtName, kvtConfig, createTimestamp, executor, context))
                 .thenCompose(same -> {
                     if (same) {
                         return CompletableFuture.completedFuture(CreateKeyValueTableStatus.Status.SUCCESS);
@@ -230,11 +224,11 @@ public class TableMetadataTasks implements AutoCloseable {
                 });
     }
 
-    private CompletableFuture<Boolean> isCreated(String scope, String kvtName, Executor executor) {
-       return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, null, executor),
+    private CompletableFuture<Boolean> isCreated(String scope, String kvtName, Executor executor, OperationContext context) {
+       return Futures.exceptionallyExpecting(kvtMetadataStore.getState(scope, kvtName, true, context, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, KVTableState.UNKNOWN)
                .thenApply(state -> {
-                    log.debug("KVTable State is {}", state.toString());
+                    log.debug(context.getRequestId(), "KVTable State is {}", state.toString());
                     return state.equals(KVTableState.ACTIVE);
                 });
     }
@@ -242,11 +236,11 @@ public class TableMetadataTasks implements AutoCloseable {
     private CompletableFuture<Boolean> isSameCreateRequest(final String requestScopeName, final String requestKVTName,
                                                            final KeyValueTableConfiguration requestKVTConfig,
                                                            final long requestCreateTimestamp,
-                                                           Executor executor) {
-    return kvtMetadataStore.getCreationTime(requestScopeName, requestKVTName, null, executor)
+                                                           Executor executor, final OperationContext context) {
+    return kvtMetadataStore.getCreationTime(requestScopeName, requestKVTName, context, executor)
     .thenCompose(creationTime -> {
         if (creationTime == requestCreateTimestamp) {
-            return kvtMetadataStore.getConfiguration(requestScopeName, requestKVTName, null, executor)
+            return kvtMetadataStore.getConfiguration(requestScopeName, requestKVTName, context, executor)
                     .thenCompose(cfg -> {
                         if (cfg.getPartitionCount() == requestKVTConfig.getPartitionCount()) {
                             return CompletableFuture.completedFuture(Boolean.TRUE);
