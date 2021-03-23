@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration.selftest;
 
-import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import java.util.Random;
@@ -22,19 +21,6 @@ import lombok.val;
  */
 @Getter
 class TableUpdate implements ProducerUpdate {
-    private static final byte[] NEGATIVE = "minus".getBytes();
-    private static final byte[][] NUMBERS = new byte[][]{
-            "zero".getBytes(),
-            "one".getBytes(),
-            "two".getBytes(),
-            "three".getBytes(),
-            "four".getBytes(),
-            "five".getBytes(),
-            "six".getBytes(),
-            "seven".getBytes(),
-            "eight".getBytes(),
-            "nine".getBytes()
-    };
     private static final Random RANDOM = new Random();
 
     private final UUID keyId;
@@ -61,12 +47,12 @@ class TableUpdate implements ProducerUpdate {
         this.removal = isRemoval;
     }
 
-    static TableUpdate update(UUID keyId, int valueLength, Long version) {
-        return new TableUpdate(keyId, version, generateKey(keyId), generateValue(valueLength), false);
+    static TableUpdate update(UUID keyId, int keyLength, int valueLength, Long version) {
+        return new TableUpdate(keyId, version, generateKey(keyId, keyLength), generateValue(valueLength), false);
     }
 
-    static TableUpdate removal(UUID keyId, Long version) {
-        return new TableUpdate(keyId, version, generateKey(keyId), null, true);
+    static TableUpdate removal(UUID keyId, int keyLength, Long version) {
+        return new TableUpdate(keyId, version, generateKey(keyId, keyLength), null, true);
     }
 
     //endregion
@@ -86,29 +72,29 @@ class TableUpdate implements ProducerUpdate {
 
     //endregion
 
-    static BufferView generateKey(UUID keyId) {
+    static BufferView generateKey(UUID keyId, int keyLength) {
+        assert keyLength >= 8 : "keyLength must be at least 8 bytes";
+
         // We "serialize" the KeyId using English words for each digit.
-        val r = new ByteBufferOutputStream();
-        add(keyId.getMostSignificantBits(), r);
-        add(keyId.getLeastSignificantBits(), r);
-        return r.getData();
+        val result = new ByteArraySegment(new byte[keyLength]);
+        int count = keyLength >> 4;
+        int offset = 0;
+        for (int i = 0; i < count; i++) {
+            result.setLong(offset, keyId.getMostSignificantBits());
+            result.setLong(offset, keyId.getLeastSignificantBits());
+            offset += 16;
+        }
+
+        if (keyLength - offset >= 8) {
+            result.setLong(offset, keyId.getMostSignificantBits());
+        }
+
+        return result;
     }
 
     private static BufferView generateValue(int length) {
         val r = new byte[length];
         RANDOM.nextBytes(r);
         return new ByteArraySegment(r);
-    }
-
-    private static void add(long number, ByteBufferOutputStream s) {
-        if (number < 0) {
-            number = -number;
-            s.write(NEGATIVE);
-        }
-
-        do {
-            s.write(NUMBERS[(int) (number % 10)]);
-            number /= 10;
-        } while (number != 0);
     }
 }

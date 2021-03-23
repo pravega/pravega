@@ -172,7 +172,7 @@ class Reporter extends AbstractScheduledService {
     }
 
     private void outputRow(Object opType, Object count, Object sum, Object lAvg, Object l50, Object l75, Object l90, Object l99, Object l999) {
-        TestLogger.log(LOG_ID, "%18s | %7s | %5s | %5s | %5s | %5s | %5s | %5s | %5s", opType, count, sum, lAvg, l50, l75, l90, l99, l999);
+        TestLogger.log(LOG_ID, "%18s | %7s | %9s | %5s | %5s | %5s | %5s | %5s | %5s", opType, count, sum, lAvg, l50, l75, l90, l99, l999);
     }
 
     private double toMB(double bytes) {

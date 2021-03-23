@@ -224,7 +224,11 @@ class SegmentSortedKeyIndexImpl implements SegmentSortedKeyIndex {
         if (toUpdate.isEmpty()) {
             updateResult = CompletableFuture.completedFuture(null);
         } else {
-            // TODO: break down into batches?
+            // This may end up being a very large batch. However the ContainerTableExtensionImpl should configure our
+            // data source to use a non-atomic update which can auto-split the update batch as needed. This is OK, as the
+            // underlying BTreeSet is equipped to handle this - all the updates in toUpdate are in such an order so that,
+            // if the persist call is interrupted at any index within it, as long as all updates prior to that index have
+            // been persisted, the BTreeSet should still be in functioning order.
             val updateEntries = toUpdate.stream()
                     .map(e -> TableEntry.unversioned(pageIdToKey(e.getKey()), e.getValue()))
                     .collect(Collectors.toList());
