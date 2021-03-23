@@ -122,16 +122,6 @@ import static io.pravega.shared.MetricsNames.STORAGE_METADATA_CACHE_SIZE;
 @Beta
 abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
-     * Maximum number of metadata entries to keep in recent transaction buffer.
-     */
-    private static final int MAX_ENTRIES_IN_TXN_BUFFER = 1000;
-
-    /**
-     * Maximum number of metadata entries to keep in cache.
-     */
-    private static final int MAX_ENTRIES_IN_CACHE = 5000;
-
-    /**
      * Percentage of cache evicted at any time. (1 / CACHE_EVICTION_RATIO) entries are evicted at once.
      */
     private static final int CACHE_EVICTION_RATIO = 10;

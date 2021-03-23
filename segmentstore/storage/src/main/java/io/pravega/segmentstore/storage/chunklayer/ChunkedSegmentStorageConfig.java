@@ -45,7 +45,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.millis", 10);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPTS = Property.named("garbage.collection.attempts.max", 3);
     public static final Property<Integer> MAX_METADATA_ENTRIES_IN_BUFFER = Property.named("metadata.buffer.size.max", 1024);
-    public static final Property<Integer> MAX_METADATA_ENTRIES_IN_CACHE = Property.named("metadata.cache.size.max", 16 * 1024);
+    public static final Property<Integer> MAX_METADATA_ENTRIES_IN_CACHE = Property.named("metadata.cache.size.max", 5000);
 
 
     /**
@@ -69,7 +69,7 @@ public class ChunkedSegmentStorageConfig {
             .garbageCollectionSleep(Duration.ofMillis(10))
             .garbageCollectionMaxAttempts(3)
             .indexBlockSize(1024 * 1024)
-            .maxEntriesInCache(16 * 1024)
+            .maxEntriesInCache(5000)
             .maxEntriesInTxnBuffer(1024)
             .build();
 
