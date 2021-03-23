@@ -14,6 +14,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.BufferViewBuilder;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
@@ -41,6 +42,7 @@ import lombok.val;
  */
 abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler {
     //region Members
+    static final int INITIAL_READ_LENGTH = EntrySerializer.HEADER_LENGTH + EntrySerializer.MAX_KEY_LENGTH;
 
     private final TimeoutTimer timer;
     private final BufferViewBuilder readData;
@@ -149,6 +151,17 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         return getKeyVersion(this.header, this.keyVersion);
     }
 
+    protected BufferView compactIfNeeded(BufferView source) {
+        val l = source.getLength();
+        if (l != 0 && l < source.getAllocatedLength() >> 1) {
+            // We compact if we use less than half of the underlying buffer.
+            source = new ByteArraySegment(source.getCopy());
+        }
+
+        return source;
+    }
+
+
     //endregion
 
     //region AsyncReadResultHandler implementation
@@ -205,6 +218,14 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         return this.timer.getRemaining();
     }
 
+    @Override
+    public int getMaxReadAtOnce() {
+        if (this.result.isDone()) {
+            return 0;
+        }
+        return this.header == null ? INITIAL_READ_LENGTH : this.header.getTotalLength() - this.readData.getLength();
+    }
+
     //endregion
 
     //region KeyReader
@@ -224,7 +245,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
             if (readData.getLength() >= EntrySerializer.HEADER_LENGTH + header.getKeyLength()) {
                 // We read enough information.
-                BufferView keyData = readData.slice(header.getKeyOffset(), header.getKeyLength());
+                BufferView keyData = compactIfNeeded(readData.slice(header.getKeyOffset(), header.getKeyLength()));
                 if (header.isDeletion()) {
                     complete(TableKey.notExists(keyData));
                 } else {
@@ -301,7 +322,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             if (header.getValueLength() == 0) {
                 valueData = BufferView.empty();
             } else {
-                valueData = readData.slice(header.getValueOffset(), header.getValueLength());
+                valueData = compactIfNeeded(readData.slice(header.getValueOffset(), header.getValueLength()));
             }
 
             complete(TableEntry.versioned(readKey(readData, header), valueData, getKeyVersion()));
@@ -309,11 +330,11 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         }
 
         private BufferView readKey(BufferView readData, EntrySerializer.Header header) {
-            return readData.slice(header.getKeyOffset(), header.getKeyLength());
+            return compactIfNeeded(readData.slice(header.getKeyOffset(), header.getKeyLength()));
         }
 
         private BufferView getOrReadKey(BufferView readData, EntrySerializer.Header header) {
-            return this.soughtKey != null ? this.soughtKey : readData.slice(header.getKeyOffset(), header.getKeyLength());
+            return this.soughtKey != null ? this.soughtKey : readKey(readData, header);
         }
     }
 
