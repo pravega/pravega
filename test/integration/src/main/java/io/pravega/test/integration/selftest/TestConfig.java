@@ -14,6 +14,7 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import java.net.InetAddress;
 import java.time.Duration;
 import java.util.HashSet;
@@ -49,6 +50,8 @@ public class TestConfig {
     static final Property<Integer> TABLE_REMOVE_PERCENTAGE = Property.named("tableRemovePercentage", 10); // 0..100
     static final Property<Integer> TABLE_NEW_KEY_PERCENTAGE = Property.named("tableNewKeyPercentage", 30); // 0..100
     static final Property<Integer> TABLE_CONSUMERS_PER_TABLE = Property.named("consumersPerTable", 10);
+    static final Property<Integer> TABLE_KEY_LENGTH = Property.named("tableKeyLength", MIN_APPEND_SIZE.getDefaultValue());
+    static final Property<String> TABLE_TYPE = Property.named("tableType", TableType.Hash.toString());
     static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 80);
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 3000);
     static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStore.toString());
@@ -107,6 +110,10 @@ public class TestConfig {
     private final int tableRemovePercentage;
     @Getter
     private final int tableNewKeyPercentage;
+    @Getter
+    private final int tableKeyLength;
+    @Getter
+    private final TableType tableType;
     @Getter
     private final int consumersPerTable;
     @Getter
@@ -184,6 +191,12 @@ public class TestConfig {
             throw new ConfigurationException(String.format("Property '%s' must be a value between 0 and 100. Given %s.",
                     TABLE_NEW_KEY_PERCENTAGE, this.tableNewKeyPercentage));
         }
+        this.tableKeyLength = properties.getInt(TABLE_KEY_LENGTH);
+        if (this.tableKeyLength <= 0 || this.tableKeyLength > TableStore.MAXIMUM_KEY_LENGTH) {
+            throw new ConfigurationException(String.format("Property '%s' must be a value between 0 and %s. Given %s.",
+                    TABLE_KEY_LENGTH, TableStore.MAXIMUM_KEY_LENGTH, this.tableNewKeyPercentage));
+        }
+        this.tableType = TableType.valueOf(properties.get(TABLE_TYPE));
         this.consumersPerTable = properties.getInt(TABLE_CONSUMERS_PER_TABLE);
         this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.timeout = Duration.ofMillis(properties.getInt(TIMEOUT_MILLIS));
@@ -350,12 +363,19 @@ public class TestConfig {
         SegmentStore(false),
         SegmentStoreTable(true),
         InProcessMock(false),
+        InProcessMockTable(true),
         InProcessStore(false),
+        InProcessStoreTable(true),
         AppendProcessor(false),
         OutOfProcess(false),
         External(false),
         BookKeeper(false);
         @Getter
         private final boolean tablesTest;
+    }
+
+    public enum TableType {
+        Hash,
+        Sorted,
     }
 }
