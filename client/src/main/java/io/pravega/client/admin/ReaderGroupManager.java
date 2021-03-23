@@ -16,6 +16,7 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.net.URI;
@@ -45,7 +46,11 @@ public interface ReaderGroupManager extends AutoCloseable {
      */
     public static ReaderGroupManager withScope(String scope, ClientConfig clientConfig) {
         // Change the max number of number of allowed connections to the segment store to 1.
-        val updatedClientConfig = clientConfig.toBuilder().maxConnectionsPerSegmentStore(1).build();
+        val updatedClientConfig = clientConfig.toBuilder()
+                .maxConnectionsPerSegmentStore(1)
+                .enableTlsToSegmentStore(clientConfig.isEnableTlsToSegmentStore())
+                .enableTlsToController(clientConfig.isEnableTlsToController())
+                .build();
         return new ReaderGroupManagerImpl(scope, updatedClientConfig, new SocketConnectionFactoryImpl(updatedClientConfig, 1));
     }
 
