@@ -66,7 +66,7 @@ public class PravegaTablesScaleRequestHandlerTest extends ScaleRequestHandlerTes
         final String epoch0Key = "epochRecord-0";
         long creationTime = System.currentTimeMillis();
         StreamSegmentRecord segRecord = new StreamSegmentRecord(0, 0, creationTime, 0.0, 1.0);
-        EpochRecord firstEpochInOldFormat = new EpochRecord(0,0, ImmutableList.of(segRecord), creationTime,
+        EpochRecord firstEpochInOldFormat = new EpochRecord(0, 0, ImmutableList.of(segRecord), creationTime,
                 EpochRecord.DEFAULT_COUNT_VALUE, EpochRecord.DEFAULT_COUNT_VALUE);
         VersionedMetadata<EpochRecord> expectedEpochRecord = new VersionedMetadata<>(firstEpochInOldFormat, new Version.IntVersion(0));
 

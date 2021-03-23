@@ -60,7 +60,13 @@ import io.pravega.test.common.TestingServerStarter;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -96,13 +102,15 @@ import static org.mockito.Mockito.verify;
 public abstract class ScaleRequestHandlerTest {
     protected ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework zkClient;
+    protected StreamMetadataStore streamStore;
+    protected StreamMetadataTasks streamMetadataTasks;
 
     private final String scope = "scope";
     private final String stream = "stream";
-    protected StreamMetadataStore streamStore;
+
     private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
-    protected StreamMetadataTasks streamMetadataTasks;
+
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
     private TestingServer zkServer;
