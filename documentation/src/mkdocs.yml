@@ -27,18 +27,21 @@ theme: 'material'
 # Extensions
 markdown_extensions:
   - admonition
-  - codehilite(guess_lang=false)
+  - codehilite:
+      guess_lang: false
   - footnotes
   - meta
-  - toc(permalink=true)
-  - pymdownx.betterem(smart_enable=all)
+  - toc:
+      permalink: true
+  - pymdownx.betterem:
+      smart_enable: all
   - pymdownx.caret
   - pymdownx.inlinehilite
   - pymdownx.magiclink
   - pymdownx.smartsymbols
   - pymdownx.superfences
 
-pages:
+nav:
   - Overview: 'index.md'
   - Getting Started: 'getting-started.md'
   - Understanding Pravega:
@@ -78,6 +81,7 @@ pages:
       - 'Pravega Security Authorization/Authentication': 'security/pravega-security-authorization-authentication.md'
       - 'Pravega Security Configurations': 'security/pravega-security-configurations.md'
       - 'Pravega Security Encryption': 'security/pravega-security-encryption.md'
+      - 'Securing Pravega in Standalone Mode': 'security/securing-standalone-mode-cluster.md'
       - 'Securing Pravega in Distributed Mode': 'security/securing-distributed-mode-cluster.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'

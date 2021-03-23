@@ -32,12 +32,13 @@ buildscript {
         classpath group: 'org.hidetake', name: 'gradle-ssh-plugin', version: gradleSshPluginVersion
         classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
         classpath "gradle.plugin.com.github.spotbugs.snom:spotbugs-gradle-plugin:${spotbugsPluginVersion}"
-        classpath "org.ajoberstar:grgit:${gradleGitPluginVersion}"
+        classpath "org.ajoberstar.grgit:grgit-gradle:${gradleGitPluginVersion}"
         classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
     }
 }
 
-if (project.hasProperty("enableMkdocs")) {
+
+if (project.hasProperty("enableMkdocs") && project.property("enableMkdocs").equalsIgnoreCase("true")) {
     apply from: "$rootDir/gradle/mkdocs.gradle"
 }
 
@@ -918,7 +919,11 @@ project('test:system') {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion, withoutLogger
-        compile project(":client")
+        if (System.getProperty("customClient") != null) {
+            implementation fileTree(System.getProperty("customClient")) { include '*.jar' }
+        } else {
+            compile project(":client")
+        }
         compile project(":test:testcommon")
         compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion

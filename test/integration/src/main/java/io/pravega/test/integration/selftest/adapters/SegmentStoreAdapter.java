@@ -268,7 +268,14 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> createTable(String tableName, Duration timeout) {
         ensureRunning();
-        return this.tableStore.createSegment(tableName, SegmentType.TABLE_SEGMENT_HASH, timeout);
+        val type = SegmentType.builder();
+        if (this.config.getTableType() == TestConfig.TableType.Sorted) {
+            type.sortedTableSegment();
+        } else {
+            type.tableSegment();
+        }
+
+        return this.tableStore.createSegment(tableName, type.build(), timeout);
     }
 
     @Override
@@ -378,6 +385,10 @@ class SegmentStoreAdapter extends StoreAdapter {
 
     StreamSegmentStore getStreamSegmentStore() {
         return this.streamSegmentStore;
+    }
+
+    TableStore getTableStore() {
+        return this.tableStore;
     }
 
     //endregion
