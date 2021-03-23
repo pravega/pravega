@@ -12,8 +12,11 @@ You may obtain a copy of the License at
 Learn how to create a Hello World Pravega app. This guide covers:
 
 * Starting Pravega standalone.
+  
 * Creating a Pravega Stream.
+  
 * Creating an Event Writer and write events into a Pravega Stream.
+  
 * Create an Event Reader and read events from the Pravega Stream.
 
 
@@ -21,8 +24,11 @@ Learn how to create a Hello World Pravega app. This guide covers:
 To complete this guide, you need:
 
 * Less than 15 minutes
+  
 * An IDE
+  
 * JDK 11+ installed with JAVA_HOME configured appropriately
+  
 * <details>
   <summary>Gradle 6.5.1+</summary>
   Installation : https://gradle.org/install/
@@ -129,7 +135,7 @@ BUILD SUCCESSFUL in 890ms
 
 ## 4.1 Create a Pravega Stream
 
-Let’s first get to know Pravega’s client APIs by creating a stream with a fixed scaling policy of 1 segment. We’ll need a StreamConfiguration to define this.
+Let's first get to know Pravega's client APIs by creating a stream with a fixed scaling policy of 1 segment. We'll need a StreamConfiguration to define this.
 ```java
 StreamConfiguration streamConfig = StreamConfiguration.builder()
         .scalingPolicy(ScalingPolicy.fixed(1))
@@ -162,11 +168,11 @@ try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope
 ```
 The above snippet creates an Event Writer and writes an event into the Pravega stream. Note that `writeEvent()` returns a `CompletableFuture`, which can be captured for use or will be resolved when calling `flush()` or `close()`, and, if destined for the same segment, the futures write in the order `writeEvent()` is called.
 
-When instantiating the EventStreamWriter above, we passed in a [UTF8StringSerializer](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/UTF8StringSerializer.java) instance. Pravega uses a [Serializer](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/Serializer.html) interface in its writers and readers to simplify the act of writing and reading an object’s bytes to and from Streams. The [JavaSerializer](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/JavaSerializer.java) can handle any `Serializable` object.
+When instantiating the EventStreamWriter above, we passed in a [UTF8StringSerializer](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/UTF8StringSerializer.java) instance. Pravega uses a [Serializer](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/stream/Serializer.html) interface in its writers and readers to simplify the act of writing and reading an object's bytes to and from Streams. The [JavaSerializer](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/impl/JavaSerializer.java) can handle any `Serializable` object.
 
 ## 4.3 Create a Pravega Event Reader and read the event back from the stream
 
-Readers are associated with Reader Groups, which track the Readers’ progress and allow more than one Reader to coordinate over which segments they’ll read.
+Readers are associated with Reader Groups, which track the Readers' progress and allow more than one Reader to coordinate over which segments they'll read.
 A [ReaderGroupManager](https://pravega.io/docs/latest/javadoc/clients/io/pravega/client/admin/ReaderGroupManager.html) is used to create a new reader group on the Pravega Stream.
 
 
@@ -194,6 +200,6 @@ try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope
 }
 ```
 
-# 5. What’s next?
+# 5. What's next?
 This guide covered the creation of a application that writes and reads from Pravega. However, there is much more. We recommend continuing the journey by going through [Pravega-client-101](https://blog.pravega.io/2020/09/22/pravega-client-api-101/) and other samples present in the [Pravega Samples repo](https://github.com/pravega/pravega-samples).
 
