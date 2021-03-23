@@ -10,8 +10,6 @@
 
 set -euo pipefail
 
-# Kubernetes State
-DEPLOYMENT_NAME="pravega-logs"
 CONFIG_MAP_NAME="pravega-logrotate"
 PVC_NAME=pravega-log-sink
 VOLUME_NAME=logs
@@ -22,26 +20,26 @@ MOUNT_PATH=/data
 CONFIG_MAP_DATA=/etc/config
 KEEP_PVC=false
 NAME=${NAME:-"pravega-fluent-bit"}
+TAR_NAME="pravega-logs-export.tar"
 
 # Configurable flag parameters.
+FLUENT_BIT_DEPLOYMENT=${FLUENT_BIT_DEPLOYMENT:-"pravega-logs"}
 FLUENT_IMAGE_REPO=${FLUENT_IMAGE_REPO:-"fluent/fluent-bit"}
 FLUENT_BIT_IMAGE_TAG=${FLUENT_BIT_IMAGE_TAG:-"latest"}
 FLUENT_BIT_STORAGE_CLASS=${FLUENT_BIT_STORAGE_CLASS:-"standard"}
 FLUENT_BIT_PVC_CAPACITY=${FLUENT_BIT_PVC_CAPACITY:-50}
-FLUENT_BIT_RECLAIM_PERCENT=${FLUENT_BIT_RECLAIM_PERCENT:-25}
+FLUENT_BIT_RECLAIM_TARGET_PERCENT=${FLUENT_BIT_RECLAIM_TARGET_PERCENT:-75}
 FLUENT_BIT_RECLAIM_TRIGGER_PERCENT=${FLUENT_BIT_RECLAIM_TRIGGER_PERCENT:-95}
 FLUENT_BIT_ROTATE_INTERVAL_SECONDS=${LOG_ROTATE_INTERVAL:-10}
-# The location on the underlying node where the container logs are stored.
 FLUENT_BIT_HOST_LOGS_PATH=${FLUENT_BIT_HOST_LOGS_PATH:-""}
 FLUENT_BIT_ROTATE_THRESHOLD_BYTES=${FLUENT_BIT_ROTATE_THRESHOLD_BYTES:-10000000}
-FLUENT_BIT_EXPORT_PATH=${FLUENT_BIT_EXPORT_PATH:-"/tmp/pravega-logs"}
-LOG_ROTATE_OLD_DIR=${LOG_ROTATE_OLD_DIR:-"."}
-LOG_ROTATE_CONF_PATH=$CONFIG_MAP_DATA/"logrotate.conf"
+FLUENT_BIT_EXPORT_PATH=${FLUENT_BIT_EXPORT_PATH:-"/tmp/pravega.logs"}
+LOG_ROTATE_CONF_PATH=${LOG_ROTATE_CONF_PATH:-$CONFIG_MAP_DATA/"logrotate.conf"}
 LOG_EXT="gz"
 
-####################################
-#### Flags/Args Parsing
-####################################
+###################################
+### Flags/Args Parsing
+###################################
 
 # Flags must be parsed before any of the heredocs are expanded into variables.
 set +u
@@ -52,11 +50,11 @@ shift
 for i in "$@"; do
     case $i in
         # Options.
-        -c=* | --pvc-capacity=*)
+    -c=* | --pvc-capacity=*)
         FLUENT_BIT_PVC_CAPACITY="${i#*=}"
         ;;
     -r=* | --pvc-reclaim-percent=*)
-        FLUENT_BIT_RECLAIM_PERCENT="${i#*=}"
+        FLUENT_BIT_RECLAIM_TARGET_PERCENT="${i#*=}"
         ;;
     -t=* | --pvc-reclaim-trigger=*)
         FLUENT_BIT_RECLAIM_TRIGGER_PERCENT="${i#*=}"
@@ -76,48 +74,78 @@ for i in "$@"; do
     -p=* | --export-path=*)
         FLUENT_BIT_EXPORT_PATH="${i#*=}"
         ;;
-    *)
-        echo -e "\n${i%=*} is an invalid option, or is not provided a required value.\n"
-        usage
-        exit
+    -m | --mount)
+        FLUENT_BIT_EXPORT_MOUNT="true"
         ;;
 esac
 done
 
-# 'fetch_logs' requires the log files are named according to the '<pod-name>_<namespace>_<container-name>-<container-id>.log'
-# convention, which is done by default via the tag expansion in the [INPUT] stanza.
-fetch_logs() {
-    if [ ! -d "$FLUENT_BIT_EXPORT_PATH" ]; then
-        mkdir -p "$FLUENT_BIT_EXPORT_PATH"
+logs_fetched=1
+cp_log() {
+    local log_pod=$1
+    local file=$2
+    file=${file#./}
+    # The leading ./ must be parsed out in the src file as well as the ':' from the dest.
+    local output_file="$(echo $file | sed 's/:/-/g')"
+    # If we needed to create a directory for this collection, make sure to clean it up.
+    kubectl cp "$pravega_log_pod:$MOUNT_PATH/$file" "$output_file" -n=$NAMESPACE > /dev/null
+    echo "$file ($logs_fetched/$total)"
+    tar -rf "$TAR_NAME" "$output_file" 2> /dev/null
+    rm "$output_file"
+}
+######################################
+# Fetches the gathered logs from the $FLUENT_BIT_DEPLOYMENT pod.
+# Globals:
+#   MOUNT_PATH
+#   NAMESPACE
+# Arguments:
+#   The list of pod names to gather the logs from.
+# Outputs:
+#   Set of log files downloaded to $FLUENT_BIT_EXPORT_PATH.
+# Note:
+# 'fetch_logs' requires the log files are named according to the
+# '<namespace>.<pod-name>.<container-name>-<container-id>.log' convention, which is done by default
+# via the tag expansion in the [INPUT] stanza.
+######################################
+fetch_fluent_logs() {
+    local output=$1; shift
+    local total=0
+    if [ ! -d "$output" ]; then
+        echo "$output directory does not exist!"
+        exit 1
     fi
+    pravega_log_pod=$(kubectl get pods -l "app=$FLUENT_BIT_DEPLOYMENT" -o custom-columns=:.metadata.name --no-headers)
+    # Prematurely rotate the logs to receive the most up to date log set.
+    kubectl exec $pravega_log_pod -n=$NAMESPACE -- /etc/config/watch.sh force
+
     pods=$@
-    pravega_log_pod=$(kubectl get pods -l "app=$DEPLOYMENT_NAME" -o custom-columns=:.metadata.name --no-headers)
-    logs=$(kubectl exec $pravega_log_pod -- ls "$MOUNT_PATH")
-    # For now, assume that each log will have a prefix of 'kube.var.log.containers'.
-    for pod in "${pods[@]}"; do
-        matches=$(echo "$logs" | grep "${pod}_$NAMESPACE")
-        for match in ${matches[@]}; do
-            kubectl cp "$pravega_log_pod:$MOUNT_PATH/$match" "$FLUENT_BIT_EXPORT_PATH/$match" -n=$NAMESPACE
-        done;
+    log_files=()
+    logs=$(kubectl exec $pravega_log_pod -- find . -mindepth 2 -name '*.gz')
+    # For all logs that exist on the PVC, find the logs belonging to the inputted pods.
+    for pod in $pods; do
+        tag=${pod##*-}
+        if echo "$logs" | grep "$NAMESPACE/${pod%-$tag}/$tag" > /dev/null; then
+            matches=$(echo "$logs" | grep "$NAMESPACE/${pod%-$tag}/$tag")
+            for match in $matches; do
+                log_files+=("$match")
+                ((total+=1))
+            done;
+        fi
     done
-}
 
-# Fetches logs from the pods of the BookKeeperCluster, PravegaCluster and ZooKeeperCluster.
-fetch_pravega_logs() {
-    pods=$(kubectl get pods -l "app in (zookeeper,bookkeeper-cluster,pravega-cluster)" -n=$NAMESPACE -o custom-columns=:.metadata.name --no-headers)
-    fetch_logs "$pods"
-}
+    pushd "$output" > /dev/null
+    # Query logs from pravega-log-pod and archive them.
+    rm -rf "$TAR_NAME"{.gz,}
+    tar -cf "$TAR_NAME" --files-from=/dev/null
+    for file in "${log_files[@]}"; do
+        cp_log "$pravega_log_pod" "$file" &
+        ((logs_fetched+=1))
+    done
+    wait
 
-# Fetches logs of *all* pods in the given namespace.
-fetch_all_logs() {
-    pods=$(kubectl get pods -n="$NAMESPACE" -o custom-columns=:.metadata.name --no-headers)
-    fetch_logs "$pods"
-}
-
-# Fetches logs of all system test pods in the given namespace.
-fetch_system_test_logs() {
-  pods=$(kubectl get pods -n="$NAMESPACE" -l app='pravega-system-tests' -o custom-columns=:.metadata.name --no-headers)
-  fetch_logs "$pods"
+    rm -rf "$NAMESPACE"
+    gzip "$TAR_NAME"
+    popd > /dev/null
 }
 
 #################################
@@ -129,17 +157,13 @@ FLUENT_BIT_INPUTS=$(cat << EOF
 [INPUT]
     Name tail
     Path /var/log/containers/*.log
-    Parser docker_no_time
+    Parser docker
     Tag kube.*
+    Mem_Buf_Limit 5MB
     Skip_Long_Lines Off
-    Mem_Buf_Limit 100MB
-
 EOF
 )
 
-# Two levels of escaping are required: one for the assignment to this variable,
-# and another during expansion in the --set flag.
-#
 # Regex field of 'trim_newline' must be grouped (?<group>).
 FLUENT_BIT_PARSERS=$(cat << EOF
 [PARSER]
@@ -153,17 +177,32 @@ FLUENT_BIT_PARSERS=$(cat << EOF
     Name trim_newline
     Format regex
     Regex (?<log>[^\\\n]*)
-
 EOF
 )
 
 FLUENT_BIT_FILTERS=$(cat << EOF
 [FILTER]
+    Name             kubernetes
+    Match            kube.*
+    Kube_URL         https://kubernetes.default.svc:443
+    Merge_Log        On
+
+[FILTER]
+    Name          rewrite_tag
+    Match         kube.*
+    Rule          \$log .* \$kubernetes['namespace_name'].\$kubernetes['pod_name'].\$kubernetes['container_name'].\$kubernetes['docker_id'].log false
+    Emitter_Name  re_emitted
+
+[FILTER]
+    Name record_modifier
+    Match *
+    Whitelist_key log
+
+[FILTER]
     Name parser
     Match *
     Key_Name log
     Parser trim_newline
-
 EOF
 )
 
@@ -174,7 +213,6 @@ FLUENT_BIT_OUTPUTS=$(cat << EOF
     Path $MOUNT_PATH
     Format template
     Template {log}
-
 EOF
 )
 
@@ -188,7 +226,6 @@ FLUENT_BIT_SERVICE=$(cat << EOF
     HTTP_Server On
     HTTP_Listen 0.0.0.0
     HTTP_Port {{ .Values.service.port }}
-
 EOF
 )
 
@@ -196,8 +233,9 @@ EOF
 # Log Rotation Configuration
 #################################
 
+# See logrotate manpage for more information.
 LOG_ROTATE_CONF=$(cat << EOF
-"$MOUNT_PATH/*.log" {
+$MOUNT_PATH/*.log {
     compress
     copytruncate
     size $FLUENT_BIT_ROTATE_THRESHOLD_BYTES
@@ -208,86 +246,112 @@ LOG_ROTATE_CONF=$(cat << EOF
 EOF
 )
 
-# Escape all the non-configurable variables to avoid unintended command substitutions or variables expansions.
+######################################
+# Generates the script used to watch, cleanup and normalize the rotated logs produced by log-rotate.
+# Globals:
+#   FLUENT_BIT_PVC_CAPACITY
+#   FLUENT_BIT_RECLAIM_TRIGGER_PERCENT
+#   FLUENT_BIT_RECLAIM_TARGET_PERCENT
+#   MOUNT_PATH
+#   LOG_EXT
+#   FLUENT_BIT_ROTATE_INTERVAL_SECONDS
+# Arguments
+#   None
+# Outputs
+#   Compresses all files exceeding FLUENT_BIT_ROTATE_THRESHOLD_BYTES.
+#   Removes oldest compressed logs once PVC capacity reachized FLUENT_BIT_RECLAIM_TRIGGER_PERCENT utilization.
+#   * Removes files until FLUENT_BIT_RECLAIM_TARGET_PERCENT% of the PVC has been reclaimed.
+# Note:
+#   Escape all the non-configurable variables to avoid unintended command substitutions or variables expansions.
+######################################
 LOG_ROTATE_WATCH=$(cat << EOF
-#!/bin/ash
+#!/usr/bin/env bash
 
-mebibyte=$((1024**2))
+set -e
+
+kilobyte=1024
+megabyte=$((1024**2))
+gigabyte=$((1024**3))
 
 used_kib() {
-    echo \$(du -s $LOG_ROTATE_OLD_DIR | cut -f 1)
+    du -s $MOUNT_PATH | cut -f 1
 }
 
+# Brings down the current PVC utilization to FLUENT_BIT_RECLAIM_TARGET_PERCENT by deleting the oldest compressed log files.
 # Makes the assumption that rate of deletion will be never be lower than rate of accumulation.
-# * Currently only compressed files are deleted. Should we also delete uncompressed (in the case of
-#   many small files that are smaller than threshold)?
 reclaim() {
-    start_kib=\$(used_kib)
-    total_kib=\$(($FLUENT_BIT_PVC_CAPACITY * \$mebibyte))
-    threshold_kib=\$(((\$total_kib * $FLUENT_BIT_RECLAIM_TRIGGER_PERCENT)/100))
-    if [ \$start_kib -lt \$threshold_kib ]; then
+    # This must be a list of file paths in sorted order.
+    total_kib=\$(($FLUENT_BIT_PVC_CAPACITY * megabyte))
+    threshold_kib=\$(((total_kib * $FLUENT_BIT_RECLAIM_TRIGGER_PERCENT)/100))
+    if [ "\$(used_kib)" -lt "\$threshold_kib" ]; then
         return 0
     fi
-    target_kib=\$((\$start_kib - (\$total_kib * $FLUENT_BIT_RECLAIM_PERCENT)/100))
-    files=\$(ls -tr $LOG_ROTATE_OLD_DIR | grep .$LOG_EXT)
-    for file in \$files; do
-        if [ \$(used_kib) -gt \$target_kib ]; then
-            echo "Removing $LOG_ROTATE_OLD_DIR/\$file"
-            rm $LOG_ROTATE_OLD_DIR/\$file
+    target_kib=\$(((total_kib * $FLUENT_BIT_RECLAIM_TARGET_PERCENT)/100))
+    # Search all log folders recursively and return results from oldest to youngest.
+    local compressed=\$(find . -mindepth 2 -regextype posix-extended -regex '.*/*.$LOG_EXT\$' -printf "%T@ %P\n")
+    compressed="\$(echo "\$compressed" | sort -n | grep -oE '[^ ]*$')"
+
+    local reclaimed=0
+    for file in \$compressed; do
+        if [ "\$(used_kib)" -gt "\$target_kib" ]; then
+            echo "Removing - \$file"
+            bytes=\$(stat "\$file" -c=%s | sed 's/=//g')
+            ((reclaimed+=bytes))
+            rm "\$file"
         else
             break
         fi
     done
     end_kib=\$(used_kib)
-    if [ \$start_kib -gt \$end_kib ]; then
-        kib=\$((start_kib - end_kib))
-        utilization=\$(((\$end_kib * 100)/\$total_kib))
-        echo "Reclaimed a total of \$((\$kib/\$mebibyte))GiB (\${kib}KiB). Total: \$total_kib Used: \$end_kib (\${utilization}%)"
+    if [ "\$reclaimed" -gt 0 ]; then
+        utilization=\$(((end_kib * 100)/total_kib))
+        echo "Reclaimed a total of \$((reclaimed/gigabyte))GiB (\$((reclaimed/megabyte))MiB). Total(MiB): \$((total_kib/kilobyte)) , Used: \$((end_kib/kilobyte)) (\${utilization}%)"
     fi
+    set +x
 }
 
-# This function assumes the '-%s' dateformat will be applied. It transforms any files in the '$LOG_ROTATE_OLD_DIR'
+# This function assumes the '-%s' dateformat will be applied. It transforms any files in the '$MOUNT_PATH'
 # directory in the '<logname>.log-<epoch>.gz' format to '<logname>-<utc>.log.gz'.
-rename() {
+epoch_to_utc() {
   suffix=".log"
   name=\$1
-  match=\$(echo \$name | grep -oE "\-[0-9]+\.$LOG_EXT\$")
+  match=\$(echo "\$name" | grep -oE "\-[0-9]+\.$LOG_EXT\$")
   if [ \$? -eq 0 ]; then
     epoch="\$(echo \$match | grep -oE '[0-9]+')"
     utc=\$(date --utc +%FT%TZ -d "@\$epoch")
     original=\${name%\$match}
-    echo "Renaming \$name -> \${original%\$suffix}-\$utc\$suffix.$LOG_EXT"
-    mv \$name "\${original%\$suffix}-\$utc\$suffix.$LOG_EXT"
+    dest="\${original%\$suffix}-\$utc\$suffix.$LOG_EXT"
+    mv "\$name" "\$dest"
   fi
 }
 
-# 'orphans' handles the case where a log file was produced by an earlier container for a given pod that was unable to be
-# compressed. This can occur if a container in a pod (or the pod itself) has been restarted and there are logs 'leftover'
-# that will never receive anymore appends and should be compressed.
+# Catch any 'orphans' -- those .log files that are from an old/restarted container and no longer
+# will receive any new appends.
 orphans() {
     count=0
-    files=\$(stat $MOUNT_PATH/$LOG_ROTATE_OLD_DIR/*.log -t -c=%n  | sed 's/=//g')
-    for file in \$files; do
+    for file in \$@; do
         # File may have been moved.
         if [ ! -f "\$file" ]; then
             continue
         fi
-        prefix=\${file%-*.log}
-        # Files with a shared prefix.
-        shared=\$(stat "\$prefix"*.log -t -c="%Y,%n" | sed 's/=//g' | sort)
-        previous=''
+        local prefix=\${file%.*.log}
+        # Files with a shared prefix. Redirect errors in case no files exist.
+        set +e
+        local shared=\$(stat "\$prefix"*.log -t -c="%Y,%n" | sed 's/=//g' | sort -n)
+        set -e
+        local previous=''
         # shared will contain a list of files with the same prefix sorted (by time) in ascending order.
         # The most recent file with said prefix is not compressed, in case it is actively being written to.
         for current in \$shared; do
             if [ -n "\$previous" ]; then
                 : \$((count+=1))
-                epoch=\${previous%%,*}
-                name=\${previous#*,}
+                local epoch=\${previous%%,*}
+                local name=\${previous#*,}
                 # Compress and redirect to file as if it was compressed by logrotate.
                 echo "Compressing \$name -> \$name-\$epoch.gz"
                 gzip -c \$name > "\$name-\$epoch.gz"
                 rm \$name
-                fi
+            fi
             previous="\$current"
         done
     done
@@ -296,28 +360,68 @@ orphans() {
     fi
 }
 
+# Will move files in the format produced by logrotate (and 'orphans') (<logname>.log-<epoch>.gz) and arranges a log file
+# (where <logname> can be expanded into <namespace>.<pod_name-tag>.<container_name>.<container_id>)
+# in this structure:
+#
+#   namespace/
+#   └── pod_name/
+#       └── <tag-container_name>-<substr(container_id, 0, 7)>.log-<epoch>.gz
+#
+# Todo: Return list of files moved to use for 'epoch_to_utc'.
+redirect() {
+    for src in \$@; do
+        local path=\${src%.log*}
+        local ext=\${src#\$path.}
+        local split=\$(echo \$path | sed 's/\./ /g')
+        read namespace pod container id <<< "\$split"
+        local tag=\${pod##*-}
+        local pod=\${pod%-\$tag}
+        local dest="\$namespace/\$pod/\$tag-\$container-\$(printf "%.8s" "\$id").\$ext"
+        mkdir -p "\$(dirname "\$dest")"
+        mv "\$src" "\$dest"
+    done
+}
+
+rotate() {
+    (
+        flock 200 || exit 1
+        if [  "$PWD" != "$MOUNT_PATH" ]; then
+            cd "$MOUNT_PATH"
+        fi
+        opts=\$1
+        start_time=\$(date +%s%3N)
+        if [ "\$opts" = "--force" ]; then
+            echo "Received --force logrotate option."
+        fi
+        logrotate $LOG_ROTATE_CONF_PATH \$opts
+        local files=\$(find . -maxdepth 1 -regextype posix-extended -regex '.*/*.log\$' -printf "%T@ %P\n" | sort -n | grep -oE '[^ ]*$')
+        orphans "\${files[@]}"
+        # Orphans can create newly compressed files, so we must update state.
+        files=\$(find . -maxdepth 1 -regextype posix-extended -regex '.*/*.$LOG_EXT\$' -printf "%T@ %P\n")
+        files=\$(echo "\$files" | sort -n | grep -oE '[^ ]*$')
+        redirect "\${files[@]}"
+        ## Rotated but not renamed (i.e. the files that were *just* rotated).
+        rotated=\$(find . -mindepth 2 -regextype posix-extended -regex '.*/*[0-9]{10}.$LOG_EXT\$' -printf "%p\n")
+        for name in \$rotated; do
+            epoch_to_utc "\$name"
+        done;
+        # Attempt to reclaim any old log files that have been 'redirected' (those not just rotated).
+        reclaim
+        end_time=\$(date +%s%3N)
+        if [ -n "\$rotated" ]; then
+            echo "Rotation cycle completed in \$((end_time-start_time)) milliseconds."
+        fi
+    ) 200> /var/lock/rotate.lock
+}
 
 watch() {
     # Permissions of containing directory changed to please logrotate.
     chmod o-wx .
-    mkdir -p $MOUNT_PATH/$LOG_ROTATE_OLD_DIR
+    mkdir -p $MOUNT_PATH
 
     while true; do
-        start=\$(date +%s%3N)
-        logrotate $LOG_ROTATE_CONF_PATH
-        # Catch any 'orphans' -- those .log files that are from an old/restarted containers and no longer
-        # will receive any new appends.
-        orphans
-        # Rotated but not renamed (i.e. the files that were *just* rotated).
-        rotated=\$(stat $MOUNT_PATH/$LOG_ROTATE_OLD_DIR/*.$LOG_EXT -t -c=%n 2>/dev/null | sed  's/=//' | grep -E "\\-[0-9]+.$LOG_EXT\$")
-        for name in \$rotated; do
-            rename "\$name"
-        done;
-        reclaim
-        end=\$(date +%s%3N)
-        if [ -n "\$rotated" ]; then
-            echo "Rotation cycle completed in \$((\$end-\$start)) milliseconds."
-        fi
+        rotate
         sleep $FLUENT_BIT_ROTATE_INTERVAL_SECONDS
     done
 }
@@ -327,6 +431,9 @@ case \$cmd in
     nop)
         :
         ;;
+    force)
+        rotate '--force'
+        ;;
     *)
         watch
         ;;
@@ -335,21 +442,23 @@ esac
 EOF
 )
 
-# Write the above script to a file to ensure its validity after expansion.
+# Writes the variable to a file and executes a NOP, ensuring that its syntax is valid before
+# deploying it to a Kubernetes cluster.
 validate_watcher() {
     tmp="/tmp/watcher.sh"
     echo "$LOG_ROTATE_WATCH" > $tmp
     chmod +x $tmp
+    cat $tmp
     if ! $tmp nop; then
         echo "Error validating the fluent-bit-watcher."
-        exit 1
+    else
+        rm $tmp
     fi
-    rm $tmp
 }
 
 apply_logrotate_configmap() {
     tab='    '
-    # Apply required indentation by prepending eight spaces.
+    # Apply required indentation by prepending two tabs.
     log_rotate_watch=$(echo "$LOG_ROTATE_WATCH" | sed "s/^/$tab$tab/")
     log_rotate_conf=$(echo "$LOG_ROTATE_CONF" | sed "s/^/$tab$tab/")
     cat << EOF | kubectl apply -n=$NAMESPACE --wait -f -
@@ -373,18 +482,18 @@ apply_logrotate_deployment() {
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: $DEPLOYMENT_NAME
+  name: $FLUENT_BIT_DEPLOYMENT
   labels:
-    app: $DEPLOYMENT_NAME
+    app: $FLUENT_BIT_DEPLOYMENT
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: $DEPLOYMENT_NAME
+      app: $FLUENT_BIT_DEPLOYMENT
   template:
     metadata:
       labels:
-        app: $DEPLOYMENT_NAME
+        app: $FLUENT_BIT_DEPLOYMENT
     spec:
       containers:
       - name: alpine
@@ -393,6 +502,9 @@ spec:
         command: [ '/bin/ash', '-c' ]
         args:
           - apk add logrotate;
+            apk add bash;
+            apk add findutils;
+            apk add grep;
             $CONFIG_MAP_DATA/watch.sh install
         volumeMounts:
         - name: pravega-logs
@@ -431,6 +543,7 @@ EOF
 # 3. Finally the file output plugin uses the '{log}' template to only write back the contents of the log key,
 #    effectively avoiding all the extra metadata that was added through this pipeline.
 #       "..."
+
 install() {
     # The claim used to persist the logs. Required for all installations.
     cat << EOF | kubectl apply --wait -n=$NAMESPACE -f -
@@ -447,17 +560,17 @@ spec:
        storage: ${FLUENT_BIT_PVC_CAPACITY}Gi
 EOF
 
-    args=(
-        --set config.service="$FLUENT_BIT_SERVICE"
-        --set config.outputs="$FLUENT_BIT_OUTPUTS"
-        --set config.filters="$FLUENT_BIT_FILTERS"
-        --set config.inputs="$FLUENT_BIT_INPUTS"
-        --set config.customParsers="$FLUENT_BIT_PARSERS"
-        --set extraVolumeMounts[0].name=$VOLUME_NAME
-        --set extraVolumeMounts[0].mountPath=$MOUNT_PATH
-        --set extraVolumes[0].name=$VOLUME_NAME
-        --set extraVolumes[0].persistentVolumeClaim.claimName=$PVC_NAME
-    )
+args=(
+    --set config.service="$FLUENT_BIT_SERVICE"
+    --set config.outputs="$FLUENT_BIT_OUTPUTS"
+    --set config.filters="$FLUENT_BIT_FILTERS"
+    --set config.inputs="$FLUENT_BIT_INPUTS"
+    --set config.customParsers="$FLUENT_BIT_PARSERS"
+    --set extraVolumeMounts[0].name=$VOLUME_NAME
+    --set extraVolumeMounts[0].mountPath=$MOUNT_PATH
+    --set extraVolumes[0].name=$VOLUME_NAME
+    --set extraVolumes[0].persistentVolumeClaim.claimName=$PVC_NAME
+)
 
     # In the case where container logs are not stored/forwarded to the default
     # directory (/var/lib/docker/containers), mounting the location where they are is required.
@@ -469,7 +582,6 @@ EOF
         args+=(--set extraVolumes[1].hostPath.path=$FLUENT_BIT_HOST_LOGS_PATH)
     fi
 
-    helm repo add fluent https://fluent.github.io/helm-charts
     helm install $NAME fluent/fluent-bit "${args[@]}" \
         --set image.tag=$FLUENT_BIT_IMAGE_TAG \
         -n=$NAMESPACE
@@ -486,7 +598,7 @@ EOF
             echo $response
             exit 1
         fi
-        kubectl delete deployment $DEPLOYMENT_NAME -n=$NAMESPACE --ignore-not-found
+        kubectl delete deployment $FLUENT_BIT_DEPLOYMENT -n=$NAMESPACE --ignore-not-found
         kubectl delete configmap $CONFIG_MAP_NAME -n=$NAMESPACE --ignore-not-found
         if [ "$KEEP_PVC" = false ]; then
             kubectl delete pvc $PVC_NAME -n=$NAMESPACE --ignore-not-found=true
@@ -494,7 +606,7 @@ EOF
         set +e
     }
 
-usage() {
+info() {
     echo -e "Usage: $0 [CMD] [OPTION...]>"
     echo -e ""
     echo -e "install: Deploys a configured fluent-bit deployment for some PravegaCluster."
@@ -524,23 +636,25 @@ case $CMD in
     uninstall)
         uninstall
         ;;
-    fetch-logs|fetch-pravega-logs)
-        fetch_pravega_logs
+    fetch-logs)
+        dest="$FLUENT_BIT_EXPORT_PATH"
+        pods=$(kubectl get pods -n=$NAMESPACE -o custom-columns=:.metadata.name --no-headers)
+        fetch_fluent_logs "$dest" "$pods"
         ;;
-    fetch-system-test-logs)
-        fetch_system_test_logs
+    validate)
+        validate_watcher
         ;;
-    fetch-all-logs)
-        fetch_all_logs
+    info)
+        info
         ;;
     help|--help)
-        usage
+        help
         ;;
     *)
         set +u
-        echo -e "'$CMD' is an invalid command.\n"
-        usage
+        echo -e "'$(error $CMD)' is an invalid command.\n"
+        help
         set -u
-        exit 1
+        exit
         ;;
 esac
