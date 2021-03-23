@@ -11,6 +11,7 @@ package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.util.concurrent.ScheduledExecutorService;
@@ -60,6 +61,10 @@ class InProcessListenerWithRealStoreAdapter extends InProcessMockClientAdapter {
     @Override
     protected StreamSegmentStore getStreamSegmentStore() {
         return this.segmentStoreAdapter.getStreamSegmentStore();
+    }
+
+    protected TableStore getTableStore() {
+        return this.segmentStoreAdapter.getTableStore();
     }
 
     //endregion

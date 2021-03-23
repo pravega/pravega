@@ -11,12 +11,14 @@ package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.KeyValueTableFactory;
+import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.Exceptions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.common.util.Retry;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
@@ -131,6 +133,16 @@ class ExternalAdapter extends ClientAdapterBase {
     @Override
     protected EventStreamClientFactory getClientFactory() {
         return this.clientFactory.get();
+    }
+
+    @Override
+    protected KeyValueTableManager getKVTManager() {
+        throw new UnsupportedOperationException("getKVTManager is not supported for ExternalAdapter.");
+    }
+
+    @Override
+    protected KeyValueTableFactory getKVTFactory() {
+        throw new UnsupportedOperationException("getKVTFactory is not supported for ExternalAdapter.");
     }
 
     @Override
