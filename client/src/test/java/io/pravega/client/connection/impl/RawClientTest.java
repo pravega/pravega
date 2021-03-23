@@ -79,9 +79,28 @@ public class RawClientTest {
         assertTrue(future.isDone());
         assertEquals(reply, future.get());
     }
+    
+    @Test
+    public void testReplyWithoutRequest() {
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
+        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, connection);
+        @Cleanup
+        RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
+
+        UUID id = UUID.randomUUID();
+        ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
+        DataAppended reply = new DataAppended(requestId, id, 1, 0, -1);
+        processor.process(reply);
+        assertFalse(rawClient.isClosed());
+    }
 
     @Test
-    public void testRecvErrorMessage() throws InterruptedException, ExecutionException, ConnectionFailedException {
+    public void testRecvErrorMessage() {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -167,11 +186,12 @@ public class RawClientTest {
         Mockito.when(controller.getEndpointForSegment(Mockito.any(String.class))).thenReturn(endpointFuture);
 
         ConnectionPool connectionPool = Mockito.mock(ConnectionPool.class);
-        CompletableFuture<ClientConnection> connectionFuture = new CompletableFuture<>();
         // simulate error when obtaining a client connection.
-        connectionFuture.completeExceptionally(new RuntimeException("Mock error"));
-        Mockito.when(connectionPool.getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(ReplyProcessor.class)))
-                .thenReturn(connectionFuture);
+        Mockito.doAnswer(invocation -> {
+            final CompletableFuture<ClientConnection> future = invocation.getArgument(3);
+            future.completeExceptionally(new ConnectionFailedException(new RuntimeException("Mock error")));
+            return null;
+        }).when(connectionPool).getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(ReplyProcessor.class), Mockito.<CompletableFuture<ClientConnection>>any());
 
         // Test exception paths.
         RawClient rawClient = new RawClient(endpoint, connectionPool);

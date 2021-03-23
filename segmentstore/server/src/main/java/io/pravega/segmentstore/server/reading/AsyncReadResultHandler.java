@@ -9,9 +9,9 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
-
 import java.time.Duration;
 
 /**
@@ -61,4 +61,14 @@ public interface AsyncReadResultHandler {
      * @return The timeout.
      */
     Duration getRequestContentTimeout();
+
+    /**
+     * Gets a value indicating the maximum number of bytes to process at any time. See {@link ReadResult#getMaxReadAtOnce()}.
+     *
+     * @return The maximum number of bytes to process at any time. Default value is {@link Integer#MAX_VALUE}, which
+     * means the underlying read result has absolute freedom in choosing the read size.
+     */
+    default int getMaxReadAtOnce() {
+        return Integer.MAX_VALUE;
+    }
 }
