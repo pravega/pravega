@@ -25,7 +25,6 @@ import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
@@ -1382,7 +1381,8 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(activeSegments -> Futures.allOfWithResults(activeSegments
                         .stream()
                         .parallel()
-                        .collect(Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x.segmentId(), delegationToken)))))
+                        .collect(Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x.segmentId(), 
+                                delegationToken, context.getRequestId())))))
                 .thenCompose(map -> {
                     final long generationTime = retentionClock.get().get();
                     ImmutableMap.Builder<Long, Long> builder = ImmutableMap.builder();
@@ -1824,12 +1824,7 @@ public class StreamMetadataTasks extends TaskBase {
         }
         return retVal;
     }
-
-    public CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Long> segmentIds, OperationContext context,
-                                                     String controllerToken) {
-        return notifyNewSegments(scope, stream, segmentIds, context, controllerToken, RequestTag.NON_EXISTENT_ID);
-    }
-
+    
     public CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Long> segmentIds, OperationContext context,
                                                      String controllerToken, long requestId) {
         return withRetries(() -> streamMetadataStore.getConfiguration(scope, stream, context, executor), executor)
@@ -1846,13 +1841,7 @@ public class StreamMetadataTasks extends TaskBase {
                         requestId))
                 .collect(Collectors.toList())));
     }
-
-    public CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ScalingPolicy policy,
-                                                    String controllerToken) {
-        return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope, stream, segmentId, policy,
-                controllerToken, RequestTag.NON_EXISTENT_ID), executor));
-    }
-
+    
     public CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ScalingPolicy policy,
                                                     String controllerToken, long requestId) {
         return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope,
@@ -1879,21 +1868,15 @@ public class StreamMetadataTasks extends TaskBase {
         return Futures.toVoid(withRetries(() -> segmentHelper.truncateSegment(scope, stream, segmentCut.getKey(),
                 segmentCut.getValue(), delegationToken, requestId), executor));
     }
-
+    
     public CompletableFuture<Map<Long, Long>> getSealedSegmentsSize(String scope, String stream, List<Long> segments,
-                                                                    String delegationToken) {
+                                                                    String delegationToken, long requestId) {
         return Futures.allOfWithResults(
-                segments
-                        .stream()
+                segments.stream()
                         .parallel()
-                        .collect(Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x, delegationToken))));
+                        .collect(Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x, delegationToken, requestId))));
     }
-
-    public CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Long> sealedSegments,
-                                                        String delegationToken) {
-        return notifySealedSegments(scope, stream, sealedSegments, delegationToken, RequestTag.NON_EXISTENT_ID);
-    }
-
+    
     public CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Long> sealedSegments,
                                                          String delegationToken, long requestId) {
         return Futures.allOf(
@@ -1922,13 +1905,13 @@ public class StreamMetadataTasks extends TaskBase {
                 .collect(Collectors.toList())));
     }
 
-    private CompletableFuture<Long> getSegmentOffset(String scope, String stream, long segmentId, String delegationToken) {
-
+    private CompletableFuture<Long> getSegmentOffset(String scope, String stream, long segmentId, String delegationToken,
+                                                     long requestId) {
         return withRetries(() -> segmentHelper.getSegmentInfo(
                 scope,
                 stream,
                 segmentId,
-                delegationToken), executor)
+                delegationToken, requestId), executor)
                 .thenApply(WireCommands.StreamSegmentInfo::getWriteOffset);
     }
 
@@ -1972,45 +1955,47 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     public CompletableFuture<Map<Long, Long>> notifyTxnCommit(final String scope, final String stream,
-                                                   final List<Long> segments, final UUID txnId) {
+                                                   final List<Long> segments, final UUID txnId, long requestId) {
         Timer timer = new Timer();
         return Futures.allOfWithResults(segments.stream()
-                .collect(Collectors.toMap(x -> x, x -> notifyTxnCommit(scope, stream, x, txnId))))
+                .collect(Collectors.toMap(x -> x, x -> notifyTxnCommit(scope, stream, x, txnId, requestId))))
                 .whenComplete((r, e) -> TransactionMetrics.getInstance().commitTransactionSegments(timer.getElapsed()));
     }
 
     private CompletableFuture<Long> notifyTxnCommit(final String scope, final String stream,
-                                                                    final long segmentNumber, final UUID txnId) {
+                                                    final long segmentNumber, final UUID txnId, long requestId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.commitTransaction(scope,
                 stream,
                 segmentNumber,
                 segmentNumber,
                 txnId,
-                this.retrieveDelegationToken()), executor);
+                this.retrieveDelegationToken(), requestId), executor);
     }
 
     public CompletableFuture<Void> notifyTxnAbort(final String scope, final String stream,
-                                                  final List<Long> segments, final UUID txnId) {
+                                                  final List<Long> segments, final UUID txnId, long requestId) {
         Timer timer = new Timer();
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnAbort(scope, stream, segment, txnId))
+                .map(segment -> notifyTxnAbort(scope, stream, segment, txnId, requestId))
                 .collect(Collectors.toList()))
                 .thenRun(() -> TransactionMetrics.getInstance().abortTransactionSegments(timer.getElapsed()));
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyTxnAbort(final String scope, final String stream,
-                                                                   final long segmentNumber, final UUID txnId) {
+                                                                   final long segmentNumber, final UUID txnId, 
+                                                                   long requestId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.abortTransaction(scope,
                 stream,
                 segmentNumber,
                 txnId,
-                this.retrieveDelegationToken()), executor);
+                this.retrieveDelegationToken(), requestId), executor);
     }
 
-    public CompletableFuture<Map<Long, Long>> getCurrentSegmentSizes(String scope, String stream, List<Long> segments) {
+    public CompletableFuture<Map<Long, Long>> getCurrentSegmentSizes(String scope, String stream, List<Long> segments, 
+                                                                     long requestId) {
         return Futures.allOfWithResults(segments.stream().collect(
-                Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x, this.retrieveDelegationToken()))));
+                Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x, this.retrieveDelegationToken(), requestId))));
     }
 
     @Override

@@ -114,7 +114,8 @@ public class SegmentHelper implements AutoCloseable {
     private final ScheduledExecutorService executorService;
     private final AtomicReference<Duration> timeout;
 
-    public SegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore, ScheduledExecutorService executorService) {
+    public SegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore, 
+                         ScheduledExecutorService executorService) {
         this.connectionPool = connectionPool;
         this.hostStore = hostStore;
         this.executorService = executorService;
@@ -139,11 +140,11 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     public CompletableFuture<Void> createSegment(final String scope,
-                                                    final String stream,
-                                                    final long segmentId,
-                                                    final ScalingPolicy policy,
-                                                    String controllerToken,
-                                                    final long clientRequestId) {
+                                                 final String stream,
+                                                 final long segmentId,
+                                                 final ScalingPolicy policy,
+                                                 final String controllerToken,
+                                                 final long clientRequestId) {
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
@@ -154,15 +155,16 @@ public class SegmentHelper implements AutoCloseable {
 
         return sendRequest(connection, requestId, new WireCommands.CreateSegment(requestId, qualifiedStreamSegmentName,
             extracted.getLeft(), extracted.getRight(), controllerToken))
-            .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedStreamSegmentName, WireCommands.CreateSegment.class, type));
+            .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedStreamSegmentName, 
+                    WireCommands.CreateSegment.class, type));
     }
 
     public CompletableFuture<Void> truncateSegment(final String scope,
-                                                      final String stream,
-                                                      final long segmentId,
-                                                      final long offset,
-                                                      String delegationToken,
-                                                      final long clientRequestId) {
+                                                   final String stream,
+                                                   final long segmentId,
+                                                   final long offset,
+                                                   final String delegationToken,
+                                                   final long clientRequestId) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.TRUNCATE_SEGMENT;
@@ -170,23 +172,27 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        return sendRequest(connection, requestId, new WireCommands.TruncateSegment(requestId, qualifiedStreamSegmentName, offset, delegationToken))
-                .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedStreamSegmentName, WireCommands.TruncateSegment.class, type));
+        return sendRequest(connection, requestId, new WireCommands.TruncateSegment(requestId,
+                qualifiedStreamSegmentName, offset, delegationToken))
+                .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedStreamSegmentName, 
+                        WireCommands.TruncateSegment.class, type));
     }
 
     public CompletableFuture<Void> deleteSegment(final String scope,
-                                                    final String stream,
-                                                    final long segmentId,
-                                                    String delegationToken,
-                                                    final long clientRequestId) {
+                                                 final String stream,
+                                                 final long segmentId,
+                                                 final String delegationToken,
+                                                 final long clientRequestId) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        return sendRequest(connection, requestId, new WireCommands.DeleteSegment(requestId, qualifiedStreamSegmentName, delegationToken))
-                .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedStreamSegmentName, WireCommands.DeleteSegment.class, type));
+        return sendRequest(connection, requestId, new WireCommands.DeleteSegment(requestId, 
+                qualifiedStreamSegmentName, delegationToken))
+                .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedStreamSegmentName,
+                        WireCommands.DeleteSegment.class, type));
     }
 
     /**
@@ -200,10 +206,10 @@ public class SegmentHelper implements AutoCloseable {
      * @return void
      */
     public CompletableFuture<Void> sealSegment(final String scope,
-                                                  final String stream,
-                                                  final long segmentId,
-                                                  String delegationToken,
-                                                  final long clientRequestId) {
+                                               final String stream,
+                                               final long segmentId,
+                                               final String delegationToken,
+                                               final long clientRequestId) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
@@ -218,7 +224,8 @@ public class SegmentHelper implements AutoCloseable {
                                                      final String stream,
                                                      final long segmentId,
                                                      final UUID txId,
-                                                     String delegationToken) {
+                                                     final String delegationToken,
+                                                     final long clientRequestId) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String transactionName = getTransactionName(scope, stream, segmentId, txId);
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
@@ -230,7 +237,8 @@ public class SegmentHelper implements AutoCloseable {
                 WireCommands.CreateSegment.NO_SCALE, 0, delegationToken);
 
         return sendRequest(connection, requestId, request)
-                .thenAccept(r -> handleReply(requestId, r, connection, transactionName, WireCommands.CreateSegment.class, type));
+                .thenAccept(r -> handleReply(clientRequestId, r, connection, transactionName, WireCommands.CreateSegment.class, 
+                        type));
     }
 
     private String getTransactionName(String scope, String stream, long segmentId, UUID txId) {
@@ -243,11 +251,12 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     public CompletableFuture<Long> commitTransaction(final String scope,
-                                                          final String stream,
-                                                          final long targetSegmentId,
-                                                          final long sourceSegmentId,
-                                                          final UUID txId,
-                                                          String delegationToken) {
+                                                     final String stream,
+                                                     final long targetSegmentId,
+                                                     final long sourceSegmentId,
+                                                     final UUID txId,
+                                                     final String delegationToken,
+                                                     final long clientRequestId) {
         Preconditions.checkArgument(getSegmentNumber(targetSegmentId) == getSegmentNumber(sourceSegmentId));
         final Controller.NodeUri uri = getSegmentUri(scope, stream, sourceSegmentId);
         final String qualifiedNameTarget = getQualifiedStreamSegmentName(scope, stream, targetSegmentId);
@@ -262,15 +271,16 @@ public class SegmentHelper implements AutoCloseable {
 
         return sendRequest(connection, requestId, request)
                 .thenCompose(r -> {
-                    handleReply(requestId, r, connection, transactionName, WireCommands.MergeSegments.class, type);
+                    handleReply(clientRequestId, r, connection, transactionName, WireCommands.MergeSegments.class, type);
                     if (r instanceof WireCommands.NoSuchSegment) {
                         WireCommands.NoSuchSegment reply = (WireCommands.NoSuchSegment) r;
                         if (reply.getSegment().equals(transactionName)) {
                             // idempotent case when segment is already merged, we get the write offset for the parent segment.
-                            return getSegmentInfo(scope, stream, targetSegmentId, delegationToken)
+                            return getSegmentInfo(scope, stream, targetSegmentId, delegationToken, clientRequestId)
                                     .thenApply(WireCommands.StreamSegmentInfo::getWriteOffset);
                         } else {
-                            log.error(requestId, "Commit Transaction: Source segment {} not found.", reply.getSegment());
+                            log.warn(clientRequestId, "Commit Transaction: Source segment {} not found.", 
+                                    reply.getSegment());
                             return CompletableFuture.completedFuture(-1L);
                         }
                     } else {
@@ -283,7 +293,8 @@ public class SegmentHelper implements AutoCloseable {
                                                          final String stream,
                                                          final long segmentId,
                                                          final UUID txId,
-                                                         String delegationToken) {
+                                                         final String delegationToken,
+                                                         final long clientRequestId) {
         final String transactionName = getTransactionName(scope, stream, segmentId, txId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
@@ -293,7 +304,8 @@ public class SegmentHelper implements AutoCloseable {
         WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(requestId, transactionName, delegationToken);
 
         return sendRequest(connection, requestId, request)
-                .thenAccept(r -> handleReply(requestId, r, connection, transactionName, WireCommands.DeleteSegment.class, type))
+                .thenAccept(r -> handleReply(clientRequestId, r, connection, transactionName,
+                        WireCommands.DeleteSegment.class, type))
                 .thenApply(v -> TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
     }
 
@@ -312,11 +324,12 @@ public class SegmentHelper implements AutoCloseable {
                 qualifiedName, extracted.getLeft(), extracted.getRight(), delegationToken);
 
         return sendRequest(connection, requestId, request)
-                .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedName, WireCommands.UpdateSegmentPolicy.class, type));
+                .thenAccept(r -> handleReply(clientRequestId, r, connection, qualifiedName, 
+                        WireCommands.UpdateSegmentPolicy.class, type));
     }
 
     public CompletableFuture<WireCommands.StreamSegmentInfo> getSegmentInfo(String scope, String stream, long segmentId,
-                                                                            String delegationToken) {
+                                                                            String delegationToken, long clientRequestId) {
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
 
@@ -329,7 +342,8 @@ public class SegmentHelper implements AutoCloseable {
         
         return sendRequest(connection, requestId, request)
                 .thenApply(r -> {
-                    handleReply(requestId, r, connection, qualifiedName, WireCommands.GetStreamSegmentInfo.class, type);
+                    handleReply(clientRequestId, r, connection, qualifiedName, WireCommands.GetStreamSegmentInfo.class, 
+                            type);
                     assert r instanceof WireCommands.StreamSegmentInfo;
                     return (WireCommands.StreamSegmentInfo) r;
                 });
@@ -347,8 +361,9 @@ public class SegmentHelper implements AutoCloseable {
      * can be retried then the future will be failed with {@link WireCommandFailedException}.
      */
     public CompletableFuture<Void> createTableSegment(final String tableName,
-                                                         String delegationToken,
-                                                         final long clientRequestId, final boolean sortedTableSegment) {
+                                                      String delegationToken,
+                                                      final long clientRequestId,
+                                                      final boolean sortedTableSegment) {
 
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
@@ -357,8 +372,10 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().asLong();
 
         // All Controller Metadata Segments are non-sorted.
-        return sendRequest(connection, requestId, new WireCommands.CreateTableSegment(requestId, tableName, sortedTableSegment, delegationToken))
-                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.CreateTableSegment.class, type));
+        return sendRequest(connection, requestId, new WireCommands.CreateTableSegment(requestId, tableName, 
+                sortedTableSegment, delegationToken))
+                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, 
+                        WireCommands.CreateTableSegment.class, type));
     }
 
     /**
@@ -382,8 +399,10 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        return sendRequest(connection, requestId, new WireCommands.DeleteTableSegment(requestId, tableName, mustBeEmpty, delegationToken))
-                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.DeleteTableSegment.class, type));
+        return sendRequest(connection, requestId, new WireCommands.DeleteTableSegment(requestId,
+                tableName, mustBeEmpty, delegationToken))
+                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, 
+                        WireCommands.DeleteTableSegment.class, type));
     }
 
     /**
@@ -455,7 +474,8 @@ public class SegmentHelper implements AutoCloseable {
                 requestId, tableName, delegationToken, keyList, WireCommands.NULL_TABLE_SEGMENT_OFFSET);
 
         return sendRequest(connection, requestId, request)
-                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, WireCommands.RemoveTableKeys.class, type));
+                .thenAccept(rpl -> handleReply(clientRequestId, rpl, connection, tableName, 
+                        WireCommands.RemoveTableKeys.class, type));
     }
 
     /**
@@ -518,8 +538,8 @@ public class SegmentHelper implements AutoCloseable {
 
         final IteratorStateImpl token = (state == null) ? IteratorStateImpl.EMPTY : state;
 
-        WireCommands.ReadTableKeys request = new WireCommands.ReadTableKeys(requestId, tableName, delegationToken, suggestedKeyCount,
-                token.getToken(), Unpooled.EMPTY_BUFFER);
+        WireCommands.ReadTableKeys request = new WireCommands.ReadTableKeys(requestId, tableName, delegationToken,
+                suggestedKeyCount, token.getToken(), Unpooled.EMPTY_BUFFER);
         return sendRequest(connection, requestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableKeys.class, type);
@@ -612,19 +632,21 @@ public class SegmentHelper implements AutoCloseable {
         return new ImmutablePair<>(rateType, desiredRate);
     }
 
-    private void closeConnection(Reply reply, RawClient client) {
-        log.debug("Closing connection as a result of receiving: {}", reply);
+    private void closeConnection(Reply reply, RawClient client, long callerRequestId) {
+        log.debug(callerRequestId, "Closing connection as a result of receiving: {}", reply);
         if (client != null) {
             try {
                 client.close();
             } catch (Exception e) {
-                log.warn("Exception tearing down connection: ", e);
+                log.warn(callerRequestId, "Exception tearing down connection: ", e);
             }
         }
     }
 
-    private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long requestId, T request) {
-        CompletableFuture<Reply> future = Futures.futureWithTimeout(() -> connection.sendRequest(requestId, request), timeout.get(), "request", executorService);
+    private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long requestId, 
+                                                                                   T request) {
+        CompletableFuture<Reply> future = Futures.futureWithTimeout(() -> connection.sendRequest(requestId, request),
+                timeout.get(), "request", executorService);
         return future.exceptionally(e -> {
             processAndRethrowException(requestId, request, e);
             return null;
@@ -668,7 +690,7 @@ public class SegmentHelper implements AutoCloseable {
                              String qualifiedStreamSegmentName,
                              Class<? extends Request> requestType,
                              WireCommandType type) {
-        closeConnection(reply, client);
+        closeConnection(reply, client, callerRequestId);
         Set<Class<? extends Reply>> expectedReplies = EXPECTED_SUCCESS_REPLIES.get(requestType);
         Set<Class<? extends Reply>> expectedFailingReplies = EXPECTED_FAILING_REPLIES.get(requestType);
         if (expectedReplies != null && expectedReplies.contains(reply.getClass())) {
@@ -697,8 +719,8 @@ public class SegmentHelper implements AutoCloseable {
                     reply.getClass().getSimpleName(), reply.getRequestId());
             throw new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost);
         } else {
-            log.error(callerRequestId, "Unexpected reply {} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
-                    reply.getClass().getSimpleName(), reply.getRequestId());
+            log.error(callerRequestId, "Unexpected reply {} {} {} {}.", requestType.getSimpleName(), 
+                    qualifiedStreamSegmentName, reply.getClass().getSimpleName(), reply.getRequestId());
 
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting one of "
                 + expectedReplies.stream().map(Object::toString).collect(Collectors.joining(", ")));

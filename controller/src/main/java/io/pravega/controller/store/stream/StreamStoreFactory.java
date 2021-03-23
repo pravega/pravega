@@ -34,7 +34,8 @@ public class StreamStoreFactory {
             case Zookeeper:
                 return new ZKStreamMetadataStore((CuratorFramework) storeClient.getClient(), executor);
             case PravegaTable:
-                return new PravegaTablesStreamMetadataStore(segmentHelper, (CuratorFramework) storeClient.getClient(), executor, authHelper);
+                return new PravegaTablesStreamMetadataStore(segmentHelper, (CuratorFramework) storeClient.getClient(),
+                        executor, authHelper);
             default:
                 throw new NotImplementedException(storeClient.getType().toString());
         }

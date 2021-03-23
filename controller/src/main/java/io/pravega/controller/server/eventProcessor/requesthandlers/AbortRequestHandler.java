@@ -74,12 +74,14 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
         Timer timer = new Timer();
         long requestId = streamMetadataTasks.getRequestId(null);
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        log.debug(requestId, "Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
+        log.debug(requestId, "Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(),
+                event.getStream());
 
-        return Futures.toVoid(streamMetadataStore.getSegmentsInEpoch(event.getScope(), event.getStream(), epoch, context, executor)
+        return Futures.toVoid(streamMetadataStore.getSegmentsInEpoch(event.getScope(), event.getStream(), epoch, context, 
+                executor)
                                                  .thenApply(segments -> segments.stream().map(StreamSegmentRecord::segmentId)
                                                                         .collect(Collectors.toList()))
-                .thenCompose(segments -> streamMetadataTasks.notifyTxnAbort(scope, stream, segments, txId))
+                .thenCompose(segments -> streamMetadataTasks.notifyTxnAbort(scope, stream, segments, txId, requestId))
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor))
                 .whenComplete((result, error) -> {
                     if (error != null) {

@@ -73,7 +73,8 @@ public class AutoScaleTask {
             return CompletableFuture.completedFuture(null);
         }
 
-        final OperationContext context = streamMetadataStore.createStreamContext(request.getScope(), request.getStream(), request.getRequestId());
+        final OperationContext context = streamMetadataStore.createStreamContext(request.getScope(), request.getStream(), 
+                request.getRequestId());
 
         return withRetries(() -> {
             final CompletableFuture<ScalingPolicy> policyFuture = streamMetadataStore
@@ -88,13 +89,16 @@ public class AutoScaleTask {
         }, executor);
     }
 
-    private CompletableFuture<Void> processScaleUp(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
-        String qualifiedName = NameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
+    private CompletableFuture<Void> processScaleUp(final AutoScaleEvent request, final ScalingPolicy policy, 
+                                                   final OperationContext context) {
+        String qualifiedName = NameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), 
+                request.getSegmentId());
         log.info(request.getRequestId(), "Scale up request received for stream segment {}", qualifiedName);
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
-        return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentId(), context, executor)
+        return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentId(), context, 
+                executor)
                 .thenComposeAsync(segment -> {
                     // do not go above scale factor. Minimum scale factor is 2 though.
                     int numOfSplits = Math.min(Math.max(2, request.getNumOfSplits()), Math.max(2, policy.getScaleFactor()));
@@ -110,12 +114,15 @@ public class AutoScaleTask {
                     simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * (numOfSplits -1),
                             segment.getKeyEnd()));
 
-                    return postScaleRequest(request, Lists.newArrayList(request.getSegmentId()), simpleEntries, request.getRequestId());
+                    return postScaleRequest(request, Lists.newArrayList(request.getSegmentId()), simpleEntries, 
+                            request.getRequestId());
                 }, executor);
     }
 
-    private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
-        String qualifiedName = NameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
+    private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, 
+                                                     final OperationContext context) {
+        String qualifiedName = NameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), 
+                request.getSegmentId());
         log.info(request.getRequestId(), "Scale down request received for stream segment {}", qualifiedName);
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
@@ -126,7 +133,8 @@ public class AutoScaleTask {
                 request.getSegmentId(),
                 request.isSilent() ? Long.MAX_VALUE : request.getTimestamp() + REQUEST_VALIDITY_PERIOD,
                 context, executor)
-                .thenCompose(x -> streamMetadataStore.getActiveSegments(request.getScope(), request.getStream(), context, executor))
+                .thenCompose(x -> streamMetadataStore.getActiveSegments(request.getScope(), request.getStream(),
+                        context, executor))
                 .thenApply(activeSegments -> {
                     assert activeSegments != null;
                     final Optional<StreamSegmentRecord> currentOpt = activeSegments.stream()
@@ -136,9 +144,11 @@ public class AutoScaleTask {
                         // we should simply return and do nothing.
                         return null;
                     } else {
-                        final List<StreamSegmentRecord> candidates = activeSegments.stream().filter(z -> z.getKeyEnd() == currentOpt.get().getKeyStart() ||
+                        final List<StreamSegmentRecord> candidates = activeSegments.stream().filter(
+                                z -> z.getKeyEnd() == currentOpt.get().getKeyStart() ||
                                 z.getKeyStart() == currentOpt.get().getKeyEnd() || z.segmentId() == request.getSegmentId())
-                                                                                   .sorted(Comparator.comparingDouble(StreamSegmentRecord::getKeyStart))
+                                                                                   .sorted(Comparator.comparingDouble(
+                                                                                           StreamSegmentRecord::getKeyStart))
                                                                                    .collect(Collectors.toList());
                         return new ImmutablePair<>(candidates, activeSegments.size() - policy.getMinNumSegments());
                     }
@@ -169,7 +179,8 @@ public class AutoScaleTask {
                 .thenCompose(toMerge -> {
                     if (toMerge != null && toMerge.size() > 1) {
                         toMerge.forEach(x -> {
-                            String segmentName = NameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), x.segmentId());
+                            String segmentName = NameUtils.getQualifiedStreamSegmentName(request.getScope(), 
+                                    request.getStream(), x.segmentId());
                             log.debug(request.getRequestId(), "Merging stream segment {} ", segmentName);
                         });
 

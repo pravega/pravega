@@ -97,7 +97,8 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         log.info(requestId, "{}/{} deleting segments", scope, stream);
         return Futures.exceptionallyExpecting(streamMetadataStore.getAllSegmentIds(scope, stream, context, executor)
                 .thenComposeAsync(allSegments -> 
-                    streamMetadataTasks.notifyDeleteSegments(scope, stream, allSegments, streamMetadataTasks.retrieveDelegationToken(), requestId)),
+                    streamMetadataTasks.notifyDeleteSegments(scope, stream, allSegments, 
+                            streamMetadataTasks.retrieveDelegationToken(), requestId)),
                             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
                             .thenComposeAsync(x -> CompletableFuture.allOf(
                                     bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, 

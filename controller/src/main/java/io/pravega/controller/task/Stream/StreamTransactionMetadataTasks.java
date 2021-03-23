@@ -377,7 +377,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                             streamMetadataStore.getSegmentsInEpoch(scope, stream, txnData.getEpoch(), ctx, executor), executor);
 
                     CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
-                            notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
+                            notifyTxnCreation(scope, stream, activeSegments, txnId, ctx.getRequestId()), executor)
+                                                                   .whenComplete((v, e) ->
                             // Method notifyTxnCreation ensures that notification completes
                             // even in the presence of n/w or segment store failures.
                             log.trace(ctx.getRequestId(), "Txn={}, notified segments stores", txnId));
@@ -729,22 +730,23 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
-                                                      final List<StreamSegmentRecord> segments, final UUID txnId) {
+                                                      final List<StreamSegmentRecord> segments, final UUID txnId, 
+                                                      long requestId) {
         Timer timer = new Timer();
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnCreation(scope, stream, segment.segmentId(), txnId))
+                .map(segment -> notifyTxnCreation(scope, stream, segment.segmentId(), txnId, requestId))
                 .collect(Collectors.toList()))
                 .thenRun(() -> TransactionMetrics.getInstance().createTransactionSegments(timer.getElapsed()));
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
-                                                      final long segmentId, final UUID txnId) {
+                                                      final long segmentId, final UUID txnId, long requestId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.createTransaction(scope,
                 stream,
                 segmentId,
                 txnId,
-                this.retrieveDelegationToken()), executor);
+                this.retrieveDelegationToken(), requestId), executor);
     }
 
     public String retrieveDelegationToken() {

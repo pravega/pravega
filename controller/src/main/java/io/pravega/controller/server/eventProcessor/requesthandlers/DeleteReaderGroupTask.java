@@ -59,7 +59,8 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
       return streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
               .thenCompose(id -> {
                   if (!id.equals(readerGroupId)) {
-                      log.warn(requestId, "Skipping processing of Reader Group delete request {} as UUIDs did not match.", requestId);
+                      log.warn(requestId, "Skipping processing of Reader Group delete request {} as UUIDs did not match.", 
+                              requestId);
                       return CompletableFuture.completedFuture(null);
                   }
                   return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
@@ -67,7 +68,8 @@ public class DeleteReaderGroupTask implements ReaderGroupTask<DeleteReaderGroupE
                                                 if (!ReaderGroupConfig.StreamDataRetention.values()[configRecord
                                                         .getObject().getRetentionTypeOrdinal()]
                                                         .equals(ReaderGroupConfig.StreamDataRetention.NONE)) {
-                                                    String scopedRGName = NameUtils.getScopedReaderGroupName(scope, readerGroup);
+                                                    String scopedRGName = NameUtils.getScopedReaderGroupName(scope, 
+                                                            readerGroup);
                                                     // update Stream metadata tables, if RG is a Subscriber
                                                     Iterator<String> streamIter = configRecord
                                                             .getObject().getStartingStreamCuts().keySet().iterator();

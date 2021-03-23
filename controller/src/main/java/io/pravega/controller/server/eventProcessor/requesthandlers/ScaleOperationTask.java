@@ -113,7 +113,8 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
             .thenCompose(state -> streamMetadataStore.getEpochTransition(scope, stream, context, executor)
                     .thenCompose(record -> {
                         AtomicReference<VersionedMetadata<State>> reference = new AtomicReference<>(state);
-                        CompletableFuture<VersionedMetadata<EpochTransitionRecord>> future = CompletableFuture.completedFuture(record);
+                        CompletableFuture<VersionedMetadata<EpochTransitionRecord>> future = 
+                                CompletableFuture.completedFuture(record);
                         if (record.getObject().equals(EpochTransitionRecord.EMPTY)) {
                             if (state.getObject().equals(State.SCALING)) {
                                 future = streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
@@ -124,22 +125,29 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                             } 
 
                             if (isManualScale) {
-                                log.info(requestId, "Found empty epoch transition record, scale processing is already completed.");
+                                log.info(requestId, 
+                                        "Found empty epoch transition record, scale processing is already completed.");
                                 return Futures.toVoid(future);
                             } else {
-                                future = future.thenCompose(r -> streamMetadataStore.submitScale(scope, stream, scaleInput.getSegmentsToSeal(),
-                                        new ArrayList<>(scaleInput.getNewRanges()), scaleInput.getScaleTime(), record, context, executor));
+                                future = future.thenCompose(r -> streamMetadataStore.submitScale(scope, stream, 
+                                        scaleInput.getSegmentsToSeal(),
+                                        new ArrayList<>(scaleInput.getNewRanges()), scaleInput.getScaleTime(), 
+                                        record, context, executor));
                             }
-                        } else if (!RecordHelper.verifyRecordMatchesInput(scaleInput.getSegmentsToSeal(), scaleInput.getNewRanges(), isManualScale, record.getObject())) {
+                        } else if (!RecordHelper.verifyRecordMatchesInput(scaleInput.getSegmentsToSeal(), scaleInput.getNewRanges(),
+                                isManualScale, record.getObject())) {
                             // ensure that we process the event only if the input matches the epoch transition record.
                             // if its manual scale and the event doesnt match, it means the scale has already completed. 
                             // for auto scale, it means another scale is on going and just throw scale conflict exception 
                             // which will result in this event being postponed. 
                             if (isManualScale) {
-                                log.info(requestId, "Scale for stream {}/{} for segments {} already completed.", scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal());
+                                log.info(requestId, "Scale for stream {}/{} for segments {} already completed.",
+                                        scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal());
                                 return CompletableFuture.completedFuture(null);
                             } else {
-                                log.info(requestId, "Scale for stream {}/{} for segments {} cannot be started as another scale is ongoing.", scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal());
+                                log.info(requestId, 
+                                        "Scale for stream {}/{} for segments {} cannot be started as another scale is ongoing.",
+                                        scaleInput.getScope(), scaleInput.getStream(), scaleInput.getSegmentsToSeal());
                                 throw new EpochTransitionOperationExceptions.ConflictException();
                             }
                         }
@@ -155,22 +163,30 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                                                  VersionedMetadata<State> state, OperationContext context,
                                                  String delegationToken, long requestId) {
         return streamMetadataStore.updateVersionedState(scope, stream, State.SCALING, state, context, executor)
-                .thenCompose(updatedState -> streamMetadataStore.startScale(scope, stream, isManualScale, metadata, updatedState, context, executor)
+                .thenCompose(updatedState -> streamMetadataStore.startScale(scope, stream, isManualScale, metadata, 
+                        updatedState, context, executor)
                         .thenCompose(record -> {
                             List<Long> segmentIds = new ArrayList<>(record.getObject().getNewSegmentsWithRange().keySet());
                             List<Long> segmentsToSeal = new ArrayList<>(record.getObject().getSegmentsToSeal());
-                            return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, delegationToken, requestId)
-                                    .thenCompose(x -> streamMetadataStore.scaleCreateNewEpochs(scope, stream, record, context, executor))
-                                    .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToSeal, delegationToken, requestId))
-                                    .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, segmentsToSeal, delegationToken))
-                                    .thenCompose(map -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map, record, context, executor))
-                                    .thenCompose(x -> streamMetadataStore.completeScale(scope, stream, record, context, executor))
-                                    .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updatedState, context, executor))
+                            return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, 
+                                    delegationToken, requestId)
+                                    .thenCompose(x -> streamMetadataStore.scaleCreateNewEpochs(scope, stream, 
+                                            record, context, executor))
+                                    .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, 
+                                            segmentsToSeal, delegationToken, requestId))
+                                    .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, 
+                                            segmentsToSeal, delegationToken, requestId))
+                                    .thenCompose(map -> streamMetadataStore.scaleSegmentsSealed(scope, stream, 
+                                            map, record, context, executor))
+                                    .thenCompose(x -> streamMetadataStore.completeScale(scope, stream, record, 
+                                            context, executor))
+                                    .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, 
+                                            State.ACTIVE, updatedState, context, executor))
                                     .thenAccept(y -> {
-                                        log.info(requestId, "scale processing for {}/{} epoch {} completed.", scope, stream, record.getObject().getActiveEpoch());
+                                        log.info(requestId, "scale processing for {}/{} epoch {} completed.", 
+                                                scope, stream, record.getObject().getActiveEpoch());
                                     });
                         }));
-
     }
 
     @Override
