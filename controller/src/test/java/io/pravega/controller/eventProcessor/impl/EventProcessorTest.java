@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Cleanup;
@@ -56,7 +57,9 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -79,7 +82,6 @@ import static org.mockito.Mockito.verify;
  */
 @Slf4j
 public class EventProcessorTest {
-
     private static final String SCOPE = "scope";
     private static final String STREAM_NAME = "stream";
     private static final String READER_GROUP = "readerGroup";
@@ -225,6 +227,8 @@ public class EventProcessorTest {
         }
     }
 
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     private ScheduledExecutorService executor;
     
     @Before

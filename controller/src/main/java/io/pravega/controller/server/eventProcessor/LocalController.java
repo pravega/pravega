@@ -47,6 +47,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -81,14 +82,14 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> checkScopeExists(String scopeName) {
-        return Futures.exceptionallyExpecting(this.controller.getScope(scopeName).thenApply(v -> true),
+        return Futures.exceptionallyExpecting(this.controller.getScope(scopeName, 0L).thenApply(v -> true),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);
     }
 
     @Override
     public AsyncIterator<String> listScopes() {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<String>>>> function = token ->
-                controller.listScopes(token, PAGE_LIMIT)
+                controller.listScopes(token, PAGE_LIMIT, 0L)
                           .thenApply(result -> new AbstractMap.SimpleEntry<>(result.getValue(), result.getKey()));
 
         return new ContinuationTokenAsyncIterator<>(function, "");
@@ -96,13 +97,13 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> checkStreamExists(String scopeName, String streamName) {
-        return Futures.exceptionallyExpecting(this.controller.getStream(scopeName, streamName).thenApply(v -> true),
+        return Futures.exceptionallyExpecting(this.controller.getStream(scopeName, streamName, 0L).thenApply(v -> true),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);
     }
 
     @Override
     public CompletableFuture<Boolean> createScope(final String scopeName) {
-        return this.controller.createScope(scopeName).thenApply(x -> {
+        return this.controller.createScope(scopeName, 0L).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to create scope: " + scopeName);
@@ -122,7 +123,7 @@ public class LocalController implements Controller {
     @Override
     public AsyncIterator<Stream> listStreams(String scopeName) {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
-                controller.listStreams(scopeName, token, PAGE_LIMIT)
+                controller.listStreams(scopeName, token, PAGE_LIMIT, 0L)
                           .thenApply(result -> {
                               List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m)).collect(Collectors.toList());
                               return new AbstractMap.SimpleEntry<>(result.getValue(), asStreamList);
@@ -133,7 +134,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteScope(String scopeName) {
-        return this.controller.deleteScope(scopeName).thenApply(x -> {
+        return this.controller.deleteScope(scopeName, 0L).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to delete scope: " + scopeName);
@@ -152,7 +153,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
-        return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis()).thenApply(x -> {
+        return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis(), 0L).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
@@ -173,7 +174,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> updateStream(String scope, String streamName, final StreamConfiguration streamConfig) {
-        return this.controller.updateStream(scope, streamName, streamConfig).thenApply(x -> {
+        return this.controller.updateStream(scope, streamName, streamConfig, 0L).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to update stream: " + streamConfig);
@@ -193,7 +194,7 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<ReaderGroupConfig> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
         StreamMetadataTasks streamMetadataTasks = controller.getStreamMetadataTasks();
-        return streamMetadataTasks.createReaderGroupInternal(scopeName, rgName, config, System.currentTimeMillis())
+        return streamMetadataTasks.createReaderGroupInternal(scopeName, rgName, config, System.currentTimeMillis(), 0L)
                 .thenApply(x -> {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
@@ -214,7 +215,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Long> updateReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
-        return this.controller.updateReaderGroup(scopeName, rgName, config).thenApply(x -> {
+        return this.controller.updateReaderGroup(scopeName, rgName, config, 0L).thenApply(x -> {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
@@ -234,7 +235,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(String scopeName, String rgName) {
-        return this.controller.getReaderGroupConfig(scopeName, rgName).thenApply(x -> {
+        return this.controller.getReaderGroupConfig(scopeName, rgName, 0L).thenApply(x -> {
            final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
            switch (x.getStatus()) {
                 case FAILURE:
@@ -253,7 +254,7 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> deleteReaderGroup(final String scopeName, final String rgName,
                                                         final UUID readerGroupId) {
-        return this.controller.deleteReaderGroup(scopeName, rgName, readerGroupId.toString()).thenApply(x -> {
+        return this.controller.deleteReaderGroup(scopeName, rgName, readerGroupId.toString(), 0L).thenApply(x -> {
             final String scopedRGName = NameUtils.getScopedReaderGroupName(scopeName, rgName);
             switch (x.getStatus()) {
                 case FAILURE:
@@ -271,14 +272,14 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<List<String>> listSubscribers(final String scope, final String streamName) {
-        return this.controller.listSubscribers(scope, streamName).thenApply(x -> {
+        return this.controller.listSubscribers(scope, streamName, 0L).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to listSubscribers for stream: " + scope + "/" + streamName);
                 case STREAM_NOT_FOUND:
                     throw new IllegalArgumentException("Stream does not exist: " + streamName);
                 case SUCCESS:
-                    return x.getSubscribersList().stream().collect(Collectors.toList());
+                    return new ArrayList<>(x.getSubscribersList());
                 default:
                     throw new ControllerFailureException("Unknown return status for listSubscribers on stream " + scope + "/" + streamName + " " + x.getStatus());
             }
@@ -289,7 +290,7 @@ public class LocalController implements Controller {
     public CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber,
                                                                 final UUID readerGroupId, final long generation, final StreamCut streamCut) {
         return this.controller.updateSubscriberStreamCut(scope, streamName, subscriber, readerGroupId.toString(), generation,
-                ModelHelper.getStreamCutMap(streamCut)).thenApply(x -> {
+                ModelHelper.getStreamCutMap(streamCut), 0L).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to update streamcut: " + scope + "/" + streamName);
@@ -317,7 +318,7 @@ public class LocalController implements Controller {
     }
 
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Long, Long> streamCut) {
-        return this.controller.truncateStream(scope, stream, streamCut).thenApply(x -> {
+        return this.controller.truncateStream(scope, stream, streamCut, 0L).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to truncate stream: " + stream);
@@ -336,7 +337,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> sealStream(String scope, String streamName) {
-        return this.controller.sealStream(scope, streamName).thenApply(x -> {
+        return this.controller.sealStream(scope, streamName, 0L).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to seal stream: " + streamName);
@@ -355,7 +356,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteStream(final String scope, final String streamName) {
-        return this.controller.deleteStream(scope, streamName).thenApply(x -> {
+        return this.controller.deleteStream(scope, streamName, 0L).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to delete stream: " + streamName);
@@ -420,7 +421,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> checkScaleStatus(final Stream stream, final int epoch) {
-        return this.controller.checkScale(stream.getScope(), stream.getStreamName(), epoch)
+        return this.controller.checkScale(stream.getScope(), stream.getStreamName(), epoch, 0L)
                 .thenApply(response -> {
                     switch (response.getStatus()) {
                         case IN_PROGRESS:
@@ -446,18 +447,18 @@ public class LocalController implements Controller {
                 stream.getStreamName(),
                 sealedSegments,
                 newKeyRanges,
-                System.currentTimeMillis());
+                System.currentTimeMillis(), 0L);
     }
 
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName) {
-        return controller.getCurrentSegments(scope, streamName)
+        return controller.getCurrentSegments(scope, streamName, 0L)
                 .thenApply(this::getStreamSegments);
     }
 
     @Override
     public CompletableFuture<StreamSegments> getEpochSegments(String scope, String streamName, int epoch) {
-        return controller.getEpochSegments(scope, streamName, epoch)
+        return controller.getEpochSegments(scope, streamName, epoch, 0L)
                          .thenApply(this::getStreamSegments);
     }
 
@@ -468,13 +469,13 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<TxnSegments> createTransaction(Stream stream, long lease) {
         return controller
-                .createTransaction(stream.getScope(), stream.getStreamName(), lease)
+                .createTransaction(stream.getScope(), stream.getStreamName(), lease, 0L)
                 .thenApply(pair -> new TxnSegments(getStreamSegments(pair.getRight()), pair.getKey()));
     }
 
     @Override
     public CompletableFuture<Transaction.PingStatus> pingTransaction(Stream stream, UUID txId, long lease) {
-        return controller.pingTransaction(stream.getScope(), stream.getStreamName(), txId, lease)
+        return controller.pingTransaction(stream.getScope(), stream.getStreamName(), txId, lease, 0L)
                          .thenApply(status -> {
                              try {
                                  return ModelHelper.encode(status.getStatus(), stream + " " + txId);
@@ -488,36 +489,35 @@ public class LocalController implements Controller {
     public CompletableFuture<Void> commitTransaction(Stream stream, final String writerId, final Long timestamp, UUID txnId) {
         long time = Optional.ofNullable(timestamp).orElse(Long.MIN_VALUE);
         return controller
-                .commitTransaction(stream.getScope(), stream.getStreamName(), txnId, writerId, time)
+                .commitTransaction(stream.getScope(), stream.getStreamName(), txnId, writerId, time, 0L)
                 .thenApply(x -> null);
     }
 
     @Override
     public CompletableFuture<Void> abortTransaction(Stream stream, UUID txnId) {
         return controller
-                .abortTransaction(stream.getScope(), stream.getStreamName(), txnId)
+                .abortTransaction(stream.getScope(), stream.getStreamName(), txnId, 0L)
                 .thenApply(x -> null);
     }
 
     @Override
     public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txnId) {
-        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), txnId)
+        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), txnId, 0L)
                 .thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txnId));
     }
 
     @Override
     public CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(Stream stream, long timestamp) {
-        return controller.getSegmentsAtHead(stream.getScope(), stream.getStreamName()).thenApply(segments -> {
-            return segments.entrySet()
-                           .stream()
-                           .collect(Collectors.toMap(entry -> ModelHelper.encode(entry.getKey()),
-                                                     entry -> entry.getValue()));
-        });
+        return controller.getSegmentsAtHead(stream.getScope(), stream.getStreamName(), 0L)
+                         .thenApply(segments -> segments.entrySet()
+                                                        .stream()
+                                                        .collect(Collectors.toMap(entry -> ModelHelper.encode(entry.getKey()),
+                                                                Map.Entry::getValue)));
     }
 
     @Override
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
-        return controller.getSegmentsImmediatelyFollowing(ModelHelper.decode(segment))
+        return controller.getSegmentsImmediatelyFollowing(ModelHelper.decode(segment), 0L)
                 .thenApply(x -> {
                     Map<SegmentWithRange, List<Long>> map = new HashMap<>();
                     x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list));
@@ -534,7 +534,7 @@ public class LocalController implements Controller {
     public CompletableFuture<StreamSegmentSuccessors> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
         Stream stream = fromStreamCut.asImpl().getStream();
         return controller.getSegmentsBetweenStreamCuts(ModelHelper.decode(stream.getScope(), stream.getStreamName(),
-                getStreamCutMap(fromStreamCut), getStreamCutMap(toStreamCut)))
+                getStreamCutMap(fromStreamCut), getStreamCutMap(toStreamCut)), 0L)
                 .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(stream.getScope(), stream.getStreamName(),
                         segments.stream().map(x -> ModelHelper.createSegmentId(stream.getScope(), stream.getStreamName(), x.segmentId()))
                                 .collect(Collectors.toList()), retrieveDelegationToken()))
@@ -551,7 +551,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
-        return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentId());
+        return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentId(), 0L);
     }
 
     @Override
@@ -586,19 +586,19 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, WriterPosition lastWrittenPosition) {
         Map<Long, Long> map = ModelHelper.createStreamCut(stream, lastWrittenPosition).getCutMap();
-        return Futures.toVoid(controller.noteTimestampFromWriter(stream.getScope(), stream.getStreamName(), writer, timestamp, map));
+        return Futures.toVoid(controller.noteTimestampFromWriter(stream.getScope(), stream.getStreamName(), writer, timestamp, map, 0L));
     }
 
     @Override
     public CompletableFuture<Void> removeWriter(String writerId, Stream stream) {
-        return Futures.toVoid(controller.removeWriter(stream.getScope(), stream.getStreamName(), writerId));
+        return Futures.toVoid(controller.removeWriter(stream.getScope(), stream.getStreamName(), writerId, 0L));
     }
 
     //region KeyValueTables
 
     @Override
     public CompletableFuture<Boolean> createKeyValueTable(String scope, String kvtName, KeyValueTableConfiguration kvtConfig) {
-        return this.controller.createKeyValueTable(scope, kvtName, kvtConfig, System.currentTimeMillis()).thenApply(x -> {
+        return this.controller.createKeyValueTable(scope, kvtName, kvtConfig, System.currentTimeMillis(), 0L).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to create KeyValueTable: " + kvtName);
@@ -620,7 +620,7 @@ public class LocalController implements Controller {
     @Override
     public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<KeyValueTableInfo>>>> function = token ->
-                controller.listKeyValueTables(scopeName, token, PAGE_LIMIT)
+                controller.listKeyValueTables(scopeName, token, PAGE_LIMIT, 0L)
                         .thenApply(result -> {
                             List<KeyValueTableInfo> kvTablesList = result.getLeft().stream().map(kvt -> new KeyValueTableInfo(scopeName, kvt))
                                     .collect(Collectors.toList());
@@ -633,7 +633,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
-        return this.controller.deleteKeyValueTable(scope, kvtName).thenApply(x -> {
+        return this.controller.deleteKeyValueTable(scope, kvtName, 0L).thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
                     throw new ControllerFailureException("Failed to delete KeyValueTable: " + kvtName);
@@ -650,7 +650,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
-        return controller.getCurrentSegmentsKeyValueTable(scope, kvtName)
+        return controller.getCurrentSegmentsKeyValueTable(scope, kvtName, 0L)
                 .thenApply(this::getKeyValueTableSegments);
     }
 

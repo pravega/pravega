@@ -105,10 +105,7 @@ import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -161,7 +158,7 @@ public class ControllerGrpcAuthFocusedTest {
     @Before
     public void setup() throws IOException {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(EXECUTOR);
-        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(EXECUTOR);
+        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore();
         this.kvtStore = spy(KVTableStoreFactory.createInMemoryStore(streamStore, EXECUTOR));
 
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
@@ -173,7 +170,7 @@ public class ControllerGrpcAuthFocusedTest {
         GrpcAuthHelper authHelper = new GrpcAuthHelper(true, "secret", 300);
         EventHelper helper = EventHelperMock.getEventHelperMock(EXECUTOR, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                EXECUTOR, "host", authHelper, requestTracker, helper);
+                EXECUTOR, "host", authHelper, helper);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 EXECUTOR, "host", authHelper);
@@ -205,7 +202,7 @@ public class ControllerGrpcAuthFocusedTest {
                                       streamTransactionMetadataTasks,
                                       segmentHelper,
                                       EXECUTOR,
-                                      mockCluster),
+                                      mockCluster, requestTracker),
                 authHelper, requestTracker, true, true, 2);
 
         ControllerServiceGrpc.ControllerServiceImplBase controllerServiceImplBaseStrict = new ControllerServiceImpl(
@@ -214,7 +211,7 @@ public class ControllerGrpcAuthFocusedTest {
                         streamTransactionMetadataTasks,
                         segmentHelper,
                         EXECUTOR,
-                        mockCluster),
+                        mockCluster, requestTracker),
                 authHelper, requestTracker, true, false, 2);
 
         PasswordAuthHandler authHandler = new PasswordAuthHandler();
@@ -869,16 +866,16 @@ public class ControllerGrpcAuthFocusedTest {
         ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
         createScope(stub, scope);
 
-        doAnswer(x -> CompletableFuture.completedFuture(true)).when(this.kvtStore).checkScopeExists(any());
+        doAnswer(x -> CompletableFuture.completedFuture(true)).when(this.kvtStore).checkScopeExists(any(), any(), any());
         doAnswer(x -> CompletableFuture.completedFuture(new ImmutablePair<>(Lists.newArrayList("table1", "table2"), "2")))
                 .when(this.kvtStore).listKeyValueTables(anyString(), 
-                eq(""), anyInt(), any());
+                eq(""), anyInt(), any(), any());
         doAnswer(x -> CompletableFuture.completedFuture(new ImmutablePair<>(Lists.newArrayList("table3", "table4"), "4")))
                 .when(this.kvtStore).listKeyValueTables(anyString(), 
-                eq("2"), anyInt(), any());
+                eq("2"), anyInt(), any(), any());
         doAnswer(x -> CompletableFuture.completedFuture(new ImmutablePair<>(Collections.emptyList(), "4")))
                 .when(this.kvtStore).listKeyValueTables(anyString(), 
-                eq("4"), anyInt(), any());
+                eq("4"), anyInt(), any(), any());
         
         stub = prepareBlockingCallStub(UserNames.SCOPE1_TABLE1_LIST_READ, DEFAULT_PASSWORD);
         Controller.KVTablesInScopeRequest request = Controller.KVTablesInScopeRequest

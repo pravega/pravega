@@ -17,6 +17,7 @@ import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.records.KVTConfigurationRecord;
 import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
 import io.pravega.controller.store.kvtable.records.KVTStateRecord;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import lombok.extern.slf4j.Slf4j;
 
@@ -53,12 +54,12 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    public CompletableFuture<String> getId() {
+    public CompletableFuture<String> getId(OperationContext context) {
         return CompletableFuture.completedFuture(id.toString());
     }
 
     @Override
-    public CompletableFuture<Void> delete() {
+    public CompletableFuture<Void> delete(OperationContext context) {
         return CompletableFuture.completedFuture(null);
     }
 
@@ -67,7 +68,8 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<CreateKVTableResponse> checkKeyValueTableExists(KeyValueTableConfiguration configuration, long timestamp, final int startingSegmentNumber) {
+    CompletableFuture<CreateKVTableResponse> checkKeyValueTableExists(KeyValueTableConfiguration configuration, 
+            long timestamp, final int startingSegmentNumber, OperationContext context) {
         CompletableFuture<CreateKVTableResponse> result = new CompletableFuture<>();
 
         final long time;
@@ -93,7 +95,7 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<Void> createKVTableMetadata() {
+    CompletableFuture<Void> createKVTableMetadata(OperationContext context) {
         return CompletableFuture.completedFuture(null);
     }
 
@@ -118,18 +120,18 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<Void> storeCreationTimeIfAbsent(long timestamp) {
+    CompletableFuture<Void> storeCreationTimeIfAbsent(long timestamp, OperationContext context) {
         creationTime.compareAndSet(Long.MIN_VALUE, timestamp);
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<Long> getCreationTime() {
+    public CompletableFuture<Long> getCreationTime(OperationContext context) {
         return CompletableFuture.completedFuture(creationTime.get());
     }
 
     @Override
-    CompletableFuture<Void> createConfigurationIfAbsent(KVTConfigurationRecord config) {
+    CompletableFuture<Void> createConfigurationIfAbsent(KVTConfigurationRecord config, OperationContext context) {
         Preconditions.checkNotNull(config);
 
         synchronized (lock) {
@@ -141,7 +143,7 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTConfigurationRecord>> getConfigurationData(boolean ignoreCached) {
+    CompletableFuture<VersionedMetadata<KVTConfigurationRecord>> getConfigurationData(boolean ignoreCached, OperationContext context) {
         synchronized (lock) {
             if (this.configuration == null) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
@@ -151,7 +153,7 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<Void> createStateIfAbsent(KVTStateRecord state) {
+    CompletableFuture<Void> createStateIfAbsent(KVTStateRecord state, OperationContext context) {
         Preconditions.checkNotNull(state);
 
         synchronized (lock) {
@@ -163,7 +165,7 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<Version> setStateData(VersionedMetadata<KVTStateRecord> newState) {
+    CompletableFuture<Version> setStateData(VersionedMetadata<KVTStateRecord> newState, OperationContext context) {
         Preconditions.checkNotNull(newState);
         CompletableFuture<Version> result = new CompletableFuture<>();
         synchronized (lock) {
@@ -179,7 +181,7 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTStateRecord>> getStateData(boolean ignoreCached) {
+    CompletableFuture<VersionedMetadata<KVTStateRecord>> getStateData(boolean ignoreCached, OperationContext context) {
         synchronized (lock) {
             if (this.state == null) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
@@ -190,7 +192,7 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data) {
+    CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data, OperationContext context) {
         Preconditions.checkNotNull(data);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -205,7 +207,7 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getCurrentEpochRecordData(boolean ignoreCached) {
+    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getCurrentEpochRecordData(boolean ignoreCached, OperationContext context) {
         synchronized (lock) {
             if (this.currentEpochRecord == null) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
@@ -216,7 +218,7 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data) {
+    CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data, OperationContext context) {
         Preconditions.checkNotNull(data);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -229,7 +231,7 @@ public class InMemoryKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getEpochRecordData(int epoch) {
+    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getEpochRecordData(int epoch, OperationContext context) {
         synchronized (lock) {
             if (!this.epochRecords.containsKey(epoch)) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));

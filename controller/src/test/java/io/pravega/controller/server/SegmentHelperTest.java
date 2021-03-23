@@ -255,7 +255,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     public void commitTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
-        CompletableFuture<Controller.TxnStatus> retVal = helper.commitTransaction("", "", 0L, 0L, new UUID(0, 0L),
+        CompletableFuture<Long> retVal = helper.commitTransaction("", "", 0L, 0L, new UUID(0, 0L),
                 "");
         long requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
@@ -265,7 +265,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
                         && ex.getCause() instanceof AuthenticationException
         );
 
-        CompletableFuture<Controller.TxnStatus> result = helper.commitTransaction("", "", 0L, 0L, new UUID(0L, 0L), "");
+        CompletableFuture<Long> result = helper.commitTransaction("", "", 0L, 0L, new UUID(0L, 0L), "");
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentsMerged(requestId, getQualifiedStreamSegmentName("", "", 0L), getQualifiedStreamSegmentName("", "", 0L), 0L));
         result.join();

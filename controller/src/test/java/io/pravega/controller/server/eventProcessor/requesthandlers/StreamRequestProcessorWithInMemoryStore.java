@@ -19,7 +19,7 @@ public class StreamRequestProcessorWithInMemoryStore extends StreamRequestProces
 
     @Before
     public void setUp() {
-        store = StreamStoreFactory.createInMemoryStore(executorService());
+        store = StreamStoreFactory.createInMemoryStore();
     }
 
     @After

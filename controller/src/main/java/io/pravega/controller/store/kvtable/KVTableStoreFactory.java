@@ -27,7 +27,7 @@ public class KVTableStoreFactory {
             case PravegaTable:
                 return new PravegaTablesKVTMetadataStore(segmentHelper, (CuratorFramework) storeClient.getClient(), executor, authHelper);
             case InMemory:
-                return new InMemoryKVTMetadataStore(streamStore, executor);
+                return new InMemoryKVTMetadataStore(streamStore);
             case Zookeeper:
                 return new ZookeeperKVTMetadataStore((CuratorFramework) storeClient.getClient(), executor);
             default:
@@ -48,6 +48,6 @@ public class KVTableStoreFactory {
     
     @VisibleForTesting
     public static KVTableMetadataStore createInMemoryStore(final StreamMetadataStore streamStore, final ScheduledExecutorService executor) {
-        return new InMemoryKVTMetadataStore(streamStore, executor);
+        return new InMemoryKVTMetadataStore(streamStore);
     }
 }

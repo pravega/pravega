@@ -15,14 +15,15 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.retryable.RetryableException;
-import io.pravega.controller.store.stream.RGOperationContext;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 import java.util.UUID;
@@ -32,8 +33,8 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Request handler for executing a create operation for a ReaderGroup.
  */
-@Slf4j
 public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupEvent> {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(UpdateReaderGroupTask.class));
 
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
@@ -59,9 +60,9 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
         UUID readerGroupId = request.getReaderGroupId();
         boolean isTransition = request.isTransitionToFromSubscriber();
         ImmutableSet<String> streamsToBeUnsubscribed = request.getRemoveStreams();
-        final RGOperationContext context = streamMetadataStore.createRGContext(scope, readerGroup);
+        final OperationContext context = streamMetadataStore.createRGContext(scope, readerGroup, requestId);
 
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup)
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
                 .thenCompose(id -> {
                 if (!id.equals(readerGroupId)) {
                         log.warn("Skipping processing of Reader Group update request {} as UUID did not match.", requestId);
@@ -70,7 +71,7 @@ public class UpdateReaderGroupTask implements ReaderGroupTask<UpdateReaderGroupE
                 return streamMetadataStore.getReaderGroupConfigRecord(scope, readerGroup, context, executor)
                        .thenCompose(rgConfigRecord -> {
                            if (rgConfigRecord.getObject().getGeneration() != generation) {
-                               log.warn("Skipping processing of Reader Group update request {} as generation did not match.", requestId);
+                               log.warn(requestId, "Skipping processing of Reader Group update request as generation did not match.");
                                return CompletableFuture.completedFuture(null);
                            }
                            if (rgConfigRecord.getObject().isUpdating()) {

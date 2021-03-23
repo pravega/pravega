@@ -15,7 +15,6 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -48,7 +47,9 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -66,6 +67,8 @@ import static org.mockito.Mockito.verify;
  */
 @Slf4j
 public class ControllerClusterListenerTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
 
     private TestingServer zkServer;
     private CuratorFramework curatorClient;
@@ -74,7 +77,6 @@ public class ControllerClusterListenerTest {
 
     private LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue<>();
     private LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue<>();
-
 
     @Before
     public void setup() throws Exception {
@@ -127,7 +129,7 @@ public class ControllerClusterListenerTest {
 
         // Create txn sweeper.
         @Cleanup
-        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
+        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore();
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper());
@@ -199,7 +201,7 @@ public class ControllerClusterListenerTest {
         }).when(taskSweeper).handleFailedProcess(anyString());
 
         // Create txn sweeper.
-        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
+        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore();
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         // create streamtransactionmetadatatasks but dont initialize it with writers. this will not be
         // ready until writers are supplied.
@@ -233,7 +235,7 @@ public class ControllerClusterListenerTest {
 
         // Create request sweeper.
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, mock(BucketStore.class), taskStore, segmentHelper, executor,
-                host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper(), new RequestTracker(true), mock(EventHelper.class));
+                host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper(), mock(EventHelper.class));
 
         RequestSweeper requestSweeper = spy(new RequestSweeper(streamStore, executor, streamMetadataTasks));
         // any attempt to sweep requests should have been ignored

@@ -141,7 +141,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
         Preconditions.checkNotNull(writeBackPredicate);
         CompletableFuture<Void> resultFuture = new CompletableFuture<>();
 
-        OperationContext context = streamMetadataStore.createContext(scope, stream);
+        OperationContext context = streamMetadataStore.createStreamContext(scope, stream, 0L);
         CompletableFuture<String> waitingProcFuture = suppressException(streamMetadataStore.getWaitingRequestProcessor(scope, stream, context, executor), null,
                 "Exception while trying to fetch waiting request. Logged and ignored.");
         CompletableFuture<Boolean> hasTaskStarted = task.hasTaskStarted(event);

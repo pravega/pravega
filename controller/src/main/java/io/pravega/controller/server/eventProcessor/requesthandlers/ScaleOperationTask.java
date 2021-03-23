@@ -58,9 +58,10 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
     @Override
     public CompletableFuture<Void> execute(final ScaleOpEvent request) {
         CompletableFuture<Void> result = new CompletableFuture<>();
-        final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
-        log.info(request.getRequestId(), "starting scale request for {}/{} segments {} to new ranges {}",
+        long requestId = request.getRequestId();
+        final OperationContext context = streamMetadataStore.createStreamContext(request.getScope(), request.getStream(), requestId);
+        log.info(requestId, "starting scale request for {}/{} segments {} to new ranges {}",
                 request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
 
         runScale(request, request.isRunOnlyIfStarted(), context,
@@ -72,16 +73,16 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                             cause = cause.getCause();
                         }
                         if (cause instanceof EpochTransitionOperationExceptions.PreConditionFailureException) {
-                            log.warn(request.getRequestId(), "processing scale request for {}/{} segments {} failed {}",
+                            log.warn(requestId, "processing scale request for {}/{} segments {} failed {}",
                                     request.getScope(), request.getStream(), request.getSegmentsToSeal(), cause.getClass().getName());
                             result.complete(null);
                         } else {
-                            log.warn(request.getRequestId(), "processing scale request for {}/{} segments {} failed {}",
+                            log.warn(requestId, "processing scale request for {}/{} segments {} failed {}",
                                     request.getScope(), request.getStream(), request.getSegmentsToSeal(), cause);
                             result.completeExceptionally(cause);
                         }
                     } else {
-                        log.info(request.getRequestId(), "scale request for {}/{} segments {} to new ranges {} completed successfully.",
+                        log.info(requestId, "scale request for {}/{} segments {} to new ranges {} completed successfully.",
                                 request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
 
                         result.complete(null);

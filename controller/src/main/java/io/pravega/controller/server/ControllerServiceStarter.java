@@ -242,7 +242,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             streamStore = streamMetadataStoreRef.orElseGet(() -> StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker, 
+                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper,  
                     serviceConfig.getRetentionFrequency().toMillis());
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
@@ -259,7 +259,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
             watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
-                    clientConfig, watermarkingExecutor);
+                    clientConfig, watermarkingExecutor, requestTracker);
             watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
                     watermarkingWork::watermark, watermarkingExecutor);
 
@@ -288,7 +288,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             kvtMetadataStore = kvtMetaStoreRef.orElseGet(() -> KVTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor, streamStore));
             kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
             controllerService = new ControllerService(kvtMetadataStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster);
+                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, requestTracker);
 
             // Setup event processors.
             setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
@@ -339,7 +339,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                         controllerService,
                         grpcServer.getAuthHandlerManager(),
                         serviceConfig.getRestServerConfig().get(),
-                        connectionFactory);
+                        connectionFactory, requestTracker);
                 restServer.startAsync();
                 log.info("Awaiting start of REST server");
                 restServer.awaitRunning();

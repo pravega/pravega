@@ -51,7 +51,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -61,6 +63,9 @@ import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.doReturn;
 
 public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+
     @Override
     public int getThreadPoolSize() {
         return 10;

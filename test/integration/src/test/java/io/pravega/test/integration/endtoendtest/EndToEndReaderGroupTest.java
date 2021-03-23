@@ -70,7 +70,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     public void testReaderOffline() throws Exception {
         StreamConfiguration config = getStreamConfig();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
@@ -116,7 +116,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     public void testDeleteReaderGroup() throws Exception {
         StreamConfiguration config = getStreamConfig();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
@@ -161,7 +161,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     public void testCreateSubscriberReaderGroup() throws InterruptedException, ExecutionException {
         StreamConfiguration config = getStreamConfig();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
@@ -186,7 +186,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     public void testResetSubscriberToNonSubscriberReaderGroup() throws InterruptedException, ExecutionException {
         StreamConfiguration config = getStreamConfig();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
@@ -216,7 +216,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     public void testResetNonSubscriberToSubscriberReaderGroup() throws InterruptedException, ExecutionException {
         StreamConfiguration config = getStreamConfig();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
@@ -247,7 +247,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     public void testLaggingResetReaderGroup() throws Exception {
         StreamConfiguration config = getStreamConfig();
         LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
         controller.createStream("test", "test", config).get();
         controller.createStream("test", "test2", config).get();
         @Cleanup
@@ -290,9 +290,9 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         String streamName = "test";
 
         // Create Scopes
-        controllerWrapper.getControllerService().createScope(defaultScope).get();
-        controllerWrapper.getControllerService().createScope(scopeA).get();
-        controllerWrapper.getControllerService().createScope(scopeB).get();
+        controllerWrapper.getControllerService().createScope(defaultScope, 0L).get();
+        controllerWrapper.getControllerService().createScope(scopeA, 0L).get();
+        controllerWrapper.getControllerService().createScope(scopeB, 0L).get();
 
         // Create Streams.
         controller.createStream(scopeA, streamName, getStreamConfig()).get();

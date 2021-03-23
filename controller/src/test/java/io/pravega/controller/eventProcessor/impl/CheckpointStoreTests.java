@@ -17,7 +17,9 @@ import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,12 +27,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Checkpoint store test.
  */
 public abstract class CheckpointStoreTests {
 
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     protected CheckpointStore checkpointStore;
 
     @Before

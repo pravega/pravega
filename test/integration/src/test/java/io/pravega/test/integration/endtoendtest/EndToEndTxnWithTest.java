@@ -109,7 +109,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         serviceBuilder.close();
         zkTestServer.close();
     }
-
+    
     @Test(timeout = 10000)
     public void testTxnWithScale() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()

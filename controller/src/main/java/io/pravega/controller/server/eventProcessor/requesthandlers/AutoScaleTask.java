@@ -41,7 +41,6 @@ import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.wit
  * Request handler for scale requests in scale-request-stream.
  */
 public class AutoScaleTask {
-
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AutoScaleTask.class));
 
     private static final long REQUEST_VALIDITY_PERIOD = Duration.ofMinutes(10).toMillis();
@@ -74,7 +73,7 @@ public class AutoScaleTask {
             return CompletableFuture.completedFuture(null);
         }
 
-        final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
+        final OperationContext context = streamMetadataStore.createStreamContext(request.getScope(), request.getStream(), request.getRequestId());
 
         return withRetries(() -> {
             final CompletableFuture<ScalingPolicy> policyFuture = streamMetadataStore

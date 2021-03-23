@@ -12,6 +12,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -23,13 +24,13 @@ import io.pravega.shared.controller.event.UpdateStreamEvent;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 /**
  * Request handler for performing scale operations received from requeststream.
  */
-@Slf4j
 public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(UpdateStreamTask.class));
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
@@ -52,11 +53,11 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final UpdateStreamEvent request) {
-        final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
         String scope = request.getScope();
         String stream = request.getStream();
         long requestId = request.getRequestId();
+        final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(versionedState -> streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)

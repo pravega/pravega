@@ -34,7 +34,6 @@ import java.util.function.Predicate;
  * Tests for Zookeeper based checkpoint store.
  */
 public class ZKCheckpointStoreTests extends CheckpointStoreTests {
-
     private TestingServer zkServer;
     private CuratorFramework cli;
 

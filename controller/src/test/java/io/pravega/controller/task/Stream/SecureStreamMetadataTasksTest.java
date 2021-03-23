@@ -23,6 +23,6 @@ public class SecureStreamMetadataTasksTest extends StreamMetadataTasksTest {
 
     @Override
     StreamMetadataStore getStore() {
-        return StreamStoreFactory.createInMemoryStore(executor);
+        return StreamStoreFactory.createInMemoryStore();
     }
 }

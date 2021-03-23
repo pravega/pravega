@@ -42,13 +42,14 @@ public class PeriodicRetention {
     }
     
     public CompletableFuture<Void> retention(Stream stream) {
-        OperationContext context = streamMetadataStore.createContext(stream.getScope(), stream.getStreamName());
 
         // Track the new request for this automatic truncation.
         long requestId = requestIdGenerator.get();
         String requestDescriptor = RequestTracker.buildRequestDescriptor("truncateStream", stream.getScope(),
                 stream.getStreamName());
         requestTracker.trackRequest(requestDescriptor, requestId);
+        OperationContext context = streamMetadataStore.createStreamContext(stream.getScope(), stream.getStreamName(), requestId);
+
         log.debug(requestId, "Periodic background processing for retention called for stream {}/{}",
                 stream.getScope(), stream.getStreamName());
 

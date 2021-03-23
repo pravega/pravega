@@ -7,13 +7,18 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store;
 
-/**
- * Interface for defining an operation context. 
- */
-public interface OperationContext {
-    long getOperationStartTime();
-    
-    long getRequestId();
+import io.pravega.controller.store.stream.OperationContext;
+
+public class TestOperationContext implements OperationContext {
+    @Override
+    public long getOperationStartTime() {
+        return 0;
+    }
+
+    @Override
+    public long getRequestId() {
+        return 0;
+    }
 }

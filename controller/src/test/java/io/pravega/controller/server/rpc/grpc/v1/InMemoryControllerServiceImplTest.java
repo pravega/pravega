@@ -89,7 +89,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
     
         taskMetadataStore = TaskStoreFactoryForTests.createInMemoryStore(executorService);
-        streamStore = StreamStoreFactory.createInMemoryStore(executorService);
+        streamStore = StreamStoreFactory.createInMemoryStore();
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
@@ -97,7 +97,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, helperMock);
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
@@ -127,7 +127,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         Cluster mockCluster = mock(Cluster.class);
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
         return new ControllerService(kvtStore, kvtMetadataTasks, streamStore, StreamStoreFactory.createInMemoryBucketStore(), streamMetadataTasks, streamTransactionMetadataTasks,
-                SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster);
+                SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster, requestTracker);
     }
 
     @After
