@@ -545,6 +545,12 @@ EOF
 #       "..."
 
 install() {
+
+    if helm list | grep $NAME; then
+      echo "Detected existing installation. Exiting."
+      exit 0
+    fi
+
     # The claim used to persist the logs. Required for all installations.
     cat << EOF | kubectl apply --wait -n=$NAMESPACE -f -
 kind: PersistentVolumeClaim
@@ -560,17 +566,17 @@ spec:
        storage: ${FLUENT_BIT_PVC_CAPACITY}Gi
 EOF
 
-args=(
-    --set config.service="$FLUENT_BIT_SERVICE"
-    --set config.outputs="$FLUENT_BIT_OUTPUTS"
-    --set config.filters="$FLUENT_BIT_FILTERS"
-    --set config.inputs="$FLUENT_BIT_INPUTS"
-    --set config.customParsers="$FLUENT_BIT_PARSERS"
-    --set extraVolumeMounts[0].name=$VOLUME_NAME
-    --set extraVolumeMounts[0].mountPath=$MOUNT_PATH
-    --set extraVolumes[0].name=$VOLUME_NAME
-    --set extraVolumes[0].persistentVolumeClaim.claimName=$PVC_NAME
-)
+    args=(
+      --set config.service="$FLUENT_BIT_SERVICE"
+      --set config.outputs="$FLUENT_BIT_OUTPUTS"
+      --set config.filters="$FLUENT_BIT_FILTERS"
+      --set config.inputs="$FLUENT_BIT_INPUTS"
+      --set config.customParsers="$FLUENT_BIT_PARSERS"
+      --set extraVolumeMounts[0].name=$VOLUME_NAME
+      --set extraVolumeMounts[0].mountPath=$MOUNT_PATH
+      --set extraVolumes[0].name=$VOLUME_NAME
+      --set extraVolumes[0].persistentVolumeClaim.claimName=$PVC_NAME
+    )
 
     # In the case where container logs are not stored/forwarded to the default
     # directory (/var/lib/docker/containers), mounting the location where they are is required.
@@ -585,26 +591,26 @@ args=(
     helm install $NAME fluent/fluent-bit "${args[@]}" \
         --set image.tag=$FLUENT_BIT_IMAGE_TAG \
         -n=$NAMESPACE
-            apply_logrotate_configmap
-            apply_logrotate_deployment
-        }
+    apply_logrotate_configmap
+    apply_logrotate_deployment
+}
 
-    uninstall() {
-        set -e
-        local response=$(helm delete $NAME -n=$NAMESPACE)
-        local return_status=$?
-        # If 'helm delete' fails, do not force an error response if it contains 'not found'.
-        if [ $return_status -eq 1 ] && [[ ! $response =~ "not found" ]]; then
-            echo $response
-            exit 1
-        fi
-        kubectl delete deployment $FLUENT_BIT_DEPLOYMENT -n=$NAMESPACE --ignore-not-found
-        kubectl delete configmap $CONFIG_MAP_NAME -n=$NAMESPACE --ignore-not-found
-        if [ "$KEEP_PVC" = false ]; then
-            kubectl delete pvc $PVC_NAME -n=$NAMESPACE --ignore-not-found=true
-        fi
-        set +e
-    }
+uninstall() {
+    set -e
+    local response=$(helm delete $NAME -n=$NAMESPACE)
+    local return_status=$?
+    # If 'helm delete' fails, do not force an error response if it contains 'not found'.
+    if [ $return_status -eq 1 ] && [[ ! $response =~ "not found" ]]; then
+        echo $response
+        exit 1
+    fi
+    kubectl delete deployment $FLUENT_BIT_DEPLOYMENT -n=$NAMESPACE --ignore-not-found
+    kubectl delete configmap $CONFIG_MAP_NAME -n=$NAMESPACE --ignore-not-found
+    if [ "$KEEP_PVC" = false ]; then
+        kubectl delete pvc $PVC_NAME -n=$NAMESPACE --ignore-not-found=true
+    fi
+    set +e
+}
 
 info() {
     echo -e "Usage: $0 [CMD] [OPTION...]>"
