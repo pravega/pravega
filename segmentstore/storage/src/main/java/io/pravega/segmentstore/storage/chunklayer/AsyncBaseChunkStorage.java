@@ -164,9 +164,9 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Validate parameters
         checkChunkName(chunkName);
         Preconditions.checkArgument(null != data, "data must not be null");
-        Preconditions.checkArgument(length > 0, "length must be non-zero and non-negative");
+        Preconditions.checkArgument(length > 0, "length must be non-zero and non-negative. Chunk=%s length=%s", chunkName, length);
 
-        val traceId = LoggerHelpers.traceEnter(log, "create", chunkName);
+        val traceId = LoggerHelpers.traceEnter(log, "CreateWithContent", chunkName);
         val opContext = new OperationContext();
 
         // Call concrete implementation.
@@ -174,10 +174,12 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         returnFuture.thenAcceptAsync(handle -> {
             // Record metrics.
             val elapsed = opContext.getInclusiveLatency();
-            ChunkStorageMetrics.CREATE_LATENCY.reportSuccessEvent(elapsed);
+            // Write metrics for create
+            ChunkStorageMetrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
+            ChunkStorageMetrics.WRITE_BYTES.add(length);
             ChunkStorageMetrics.CREATE_COUNT.inc();
-            log.debug("Create - chunk={}, latency={}.", chunkName, elapsed.toMillis());
-            LoggerHelpers.traceLeave(log, "create", traceId, chunkName);
+            log.debug("CreateWithContent - chunk={}, bytesWritten={}, latency={}.", handle.getChunkName(), length, elapsed.toMillis());
+            LoggerHelpers.traceLeave(log, "CreateWithContent", traceId, chunkName);
         }, executor);
         return returnFuture;
     }
@@ -196,7 +198,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle must not be null");
         checkChunkName(handle.getChunkName());
-        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly");
+        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly. Chunk=%s", handle.getChunkName());
 
         val traceId = LoggerHelpers.traceEnter(log, "delete", handle.getChunkName());
         val opContext = new OperationContext();
@@ -311,11 +313,12 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
     final public CompletableFuture<Integer> read(ChunkHandle handle, long fromOffset, int length, byte[] buffer, int bufferOffset) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         // Validate parameters
-        Preconditions.checkArgument(null != handle, "handle");
+        Preconditions.checkArgument(null != handle, "handle must not be null");
         checkChunkName(handle.getChunkName());
-        Preconditions.checkArgument(null != buffer, "buffer");
-        Preconditions.checkArgument(fromOffset >= 0, "fromOffset must be non-negative");
-        Preconditions.checkArgument(length >= 0 && length <= buffer.length, "length");
+        Preconditions.checkArgument(null != buffer, "buffer must not be null");
+        Preconditions.checkArgument(fromOffset >= 0, "fromOffset must be non-negative. Chunk=%s fromOffset=%s", handle.getChunkName(), fromOffset);
+        Preconditions.checkArgument(length >= 0 && length <= buffer.length,
+                "length must be non-negative and must not exceed buffer. Chunk=%s length=%s buffer.length=%s", handle.getChunkName(), length, buffer.length);
         Preconditions.checkElementIndex(bufferOffset, buffer.length, "bufferOffset");
 
         val traceId = LoggerHelpers.traceEnter(log, "read", handle.getChunkName(), fromOffset, bufferOffset, length);
@@ -359,10 +362,10 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle must not be null");
         checkChunkName(handle.getChunkName());
-        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly");
+        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly. Chunk = %s", handle.getChunkName());
         Preconditions.checkArgument(null != data, "data must not be null");
-        Preconditions.checkArgument(offset >= 0, "offset must be non-negative");
-        Preconditions.checkArgument(length >= 0, "length must be non-negative");
+        Preconditions.checkArgument(offset >= 0, "offset must be non-negative. Chunk=%s offset=%s", handle.getChunkName(), offset);
+        Preconditions.checkArgument(length >= 0, "length must be non-negative. Chunk=%s length=%s", handle.getChunkName(), length);
         if (!supportsAppend()) {
             Preconditions.checkArgument(offset == 0, "offset must be 0 because storage does not support appends.");
         }
@@ -455,8 +458,8 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
         // Validate parameters
         Preconditions.checkArgument(null != handle, "handle must not be null");
         checkChunkName(handle.getChunkName());
-        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly");
-        Preconditions.checkArgument(offset >= 0, "offset must be non-negative");
+        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be readonly. Chunk=%s", handle.getChunkName());
+        Preconditions.checkArgument(offset >= 0, "offset must be non-negative. Chunk=%s offset=%s", handle.getChunkName(), offset);
 
         val traceId = LoggerHelpers.traceEnter(log, "truncate", handle.getChunkName());
 
@@ -505,6 +508,11 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
     @Override
     public void close() {
         this.closed.set(true);
+    }
+
+    @Override
+    public void report() {
+        // Nothing to report yet.
     }
 
     /**

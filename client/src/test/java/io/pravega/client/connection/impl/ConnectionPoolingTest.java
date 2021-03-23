@@ -45,6 +45,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
@@ -298,8 +299,10 @@ public class ConnectionPoolingTest {
 
         // create a second connection, since the max number of connections is 1 this should reuse the same connection.
         Flow flow2 = new Flow(2, 0);
+        CompletableFuture<ClientConnection> cf = new CompletableFuture<>();
+        connectionPool.getClientConnection(flow2, new PravegaNodeUri("localhost", port), rp, cf);
         @Cleanup
-        ClientConnection connection2 = connectionPool.getClientConnection(flow2, new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection2 = cf.join();
 
         // send data over connection2 and verify.
         connection2.send(readRequestGenerator.apply(flow2.asLong()));

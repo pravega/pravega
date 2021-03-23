@@ -28,7 +28,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ScheduledExecutorService;
@@ -37,6 +36,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+
+import static io.pravega.shared.MetricsNames.SLTS_GC_QUEUE_SIZE;
 
 /**
  * Implements simple garbage collector for cleaning up the deleted chunks.
@@ -55,7 +56,7 @@ import java.util.function.Supplier;
  * </ol>
  */
 @Slf4j
-public class GarbageCollector extends AbstractThreadPoolService implements AutoCloseable {
+public class GarbageCollector extends AbstractThreadPoolService implements AutoCloseable, StatsReporter {
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     /**
      * Set of garbage chunks.
@@ -246,24 +247,21 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         // Find chunks to delete.
         val chunksToDelete = new ArrayList<GarbageChunkInfo>();
         int count = 0;
-        try {
-            // Block until you have at least one item.
-            GarbageChunkInfo info = garbageChunks.take();
-            log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
-            while (null != info ) {
-                queueSize.decrementAndGet();
-                chunksToDelete.add(info);
 
-                count++;
-                if (count >= maxItems) {
-                    break;
-                }
-                // Do not block
-                info = garbageChunks.poll();
-                log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
+        // Wait until you have at least one item or timeout expires.
+        GarbageChunkInfo info = Exceptions.handleInterruptedCall(() -> garbageChunks.poll(config.getGarbageCollectionDelay().toMillis(), TimeUnit.MILLISECONDS));
+        log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
+        while (null != info ) {
+            queueSize.decrementAndGet();
+            chunksToDelete.add(info);
+
+            count++;
+            if (count >= maxItems) {
+                break;
             }
-        } catch (InterruptedException e) {
-            throw new CompletionException(e);
+            // Do not block
+            info = garbageChunks.poll();
+            log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
         }
 
         // Sleep if no chunks to delete.
@@ -360,8 +358,14 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
                 loopFuture.cancel(true);
             }
             closed.set(true);
+            executor.shutdownNow();
             super.close();
         }
+    }
+
+    @Override
+    public void report() {
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_GC_QUEUE_SIZE, queueSize.get());
     }
 
     @RequiredArgsConstructor

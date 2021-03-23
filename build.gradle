@@ -1065,7 +1065,14 @@ project('test:system') {
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
 
+        if (System.getProperty("configFile") != null) {
+            systemProperty "configs", new File(System.getProperty("configFile")).text
+        }
         maxParallelForks = 1
+
+        if (System.getProperty("failFast", "false") == "true") {
+            failFast = true
+        }
     }
 
     task execShellScript(type: Exec) {
