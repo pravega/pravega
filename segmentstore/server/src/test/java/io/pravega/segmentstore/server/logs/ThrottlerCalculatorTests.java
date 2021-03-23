@@ -119,6 +119,21 @@ public class ThrottlerCalculatorTests {
         testThrottling(tc, queueStats, noThrottling, gradualThrottling, maxThrottling);
     }
 
+    /**
+     * Tests the ability to properly calculate throttling delays caused by OperationLog overflows.
+     */
+    @Test
+    public void testOperationLog() {
+        val targetSize = ThrottlerCalculator.OPERATION_LOG_TARGET_SIZE;
+        val maxSize = ThrottlerCalculator.OPERATION_LOG_MAX_SIZE;
+        val logSize = new AtomicReference<Integer>(0);
+        val tc = ThrottlerCalculator.builder().operationLogThrottler(logSize::get).build();
+        testThrottling(tc, logSize,
+                new Integer[]{-1, 0, targetSize / 2, targetSize},
+                new Integer[]{targetSize + 10, (maxSize + targetSize) / 2, maxSize},
+                new Integer[]{maxSize, maxSize + 10, maxSize * 2, Integer.MAX_VALUE});
+    }
+
     private QueueStats createStats(int queueSize, double fillRatio, int expectedProcessingTimeMillis) {
         int totalLength = (int) (fillRatio * MAX_APPEND_LENGTH * queueSize);
         return new QueueStats(queueSize, totalLength, MAX_APPEND_LENGTH, expectedProcessingTimeMillis);
@@ -127,14 +142,14 @@ public class ThrottlerCalculatorTests {
     private <T> void testThrottling(ThrottlerCalculator tc, AtomicReference<T> inputValue, T[] noThrottleValues, T[] gradualThrottleValues, T[] maxThrottleValues) {
         // Test for values where we don't expect throttling.
         Arrays.stream(noThrottleValues)
-              .forEach(v -> {
-                  inputValue.set(v);
-                  Assert.assertFalse("Unexpected value from isThrottlingRequired() when no throttling expected: " + v,
-                          tc.isThrottlingRequired());
-                  ThrottlerCalculator.DelayResult r = tc.getThrottlingDelay();
-                  Assert.assertEquals("Unexpected value from getDurationMillis() when no throttling expected " + v, 0, r.getDurationMillis());
-                  Assert.assertFalse("Unexpected value from isMaximum() when no throttling expected " + v, r.isMaximum());
-              });
+                .forEach(v -> {
+                    inputValue.set(v);
+                    Assert.assertFalse("Unexpected value from isThrottlingRequired() when no throttling expected: " + v,
+                            tc.isThrottlingRequired());
+                    ThrottlerCalculator.DelayResult r = tc.getThrottlingDelay();
+                    Assert.assertEquals("Unexpected value from getDurationMillis() when no throttling expected " + v, 0, r.getDurationMillis());
+                    Assert.assertFalse("Unexpected value from isMaximum() when no throttling expected " + v, r.isMaximum());
+                });
 
         // Test for values where we expect gradual throttling, up to max.
         AtomicInteger lastValue = new AtomicInteger();

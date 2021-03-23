@@ -663,6 +663,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         garbageCollector.report();
         metadataStore.report();
         chunkStorage.report();
+        readIndexCache.report();
     }
 
     @Override

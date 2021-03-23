@@ -882,7 +882,14 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
             this.connection = new MockConnection(rp, failConnection);
             return CompletableFuture.completedFuture(connection);
         }
-        
+
+        @Override
+        public void getClientConnection(Flow flow, PravegaNodeUri uri, ReplyProcessor rp, CompletableFuture<ClientConnection> connection) {
+            this.rp = rp;
+            this.connection = new MockConnection(rp, failConnection);
+            connection.complete(this.connection);
+        }
+
         @Override
         public ScheduledExecutorService getInternalExecutor() {
             return null;
