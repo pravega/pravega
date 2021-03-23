@@ -44,7 +44,7 @@ public interface SynchronizerClientFactory extends AutoCloseable {
                 .build();
         val connectionFactory = new SocketConnectionFactoryImpl(updatedConfig, 1);
         return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(updatedConfig).build(),
-                connectionFactory.getInternalExecutor()), connectionFactory);
+                connectionFactory.getInternalExecutor()), updatedConfig, connectionFactory);
     }
 
     /**

@@ -16,7 +16,6 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.net.URI;

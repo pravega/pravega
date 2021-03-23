@@ -10,6 +10,8 @@
 package io.pravega.client.state.impl;
 
 import io.pravega.client.ClientConfig;
+import io.pravega.client.SynchronizerClientFactory;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentAttribute;
@@ -35,6 +37,7 @@ import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.test.common.AssertExtensions;
 import java.io.Serializable;
+import java.net.URI;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Iterator;
@@ -614,6 +617,16 @@ public class SynchronizerTest {
 
         syncA.fetchUpdates(); // invoke fetchUpdates which will encounter TruncatedDataException from RevisionedStreamClient.
         assertEquals("x", syncA.getState().getValue());
+    }
+
+    @Test(timeout = 5000)
+    public void testSynchronizerClientFactory() {
+        ClientConfig config = ClientConfig.builder().controllerURI(URI.create("tls://localhost:9090")).build();
+        SynchronizerClientFactory factory1 = SynchronizerClientFactory.withScope("scope", config);
+        ClientFactoryImpl factory = (ClientFactoryImpl) factory1;
+        ConnectionPoolImpl cp = (ConnectionPoolImpl) factory.getConnectionPool();
+        assertEquals(1, cp.getClientConfig().getMaxConnectionsPerSegmentStore());
+        assertEquals(config.isEnableTls(), cp.getClientConfig().isEnableTls());
     }
 
     private void createScopeAndStream(String streamName, String scope, Controller controller) {

@@ -40,7 +40,9 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 
+import lombok.AccessLevel;
 import lombok.Cleanup;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -56,7 +58,10 @@ import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     private final String scope;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final AbstractClientFactoryImpl clientFactory;
+
     private final Controller controller;
 
     public ReaderGroupManagerImpl(String scope, ClientConfig config, ConnectionFactory connectionFactory) {
