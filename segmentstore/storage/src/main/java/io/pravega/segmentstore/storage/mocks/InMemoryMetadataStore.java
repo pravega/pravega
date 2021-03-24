@@ -17,6 +17,7 @@
 package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.metadata.BaseMetadataStore;
 import lombok.Getter;
 import lombok.Setter;
@@ -59,10 +60,11 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
     /**
      * Creates a new instance.
      *
+     * @param config Configuration options for this instance.
      * @param executor Executor to use.
      */
-    public InMemoryMetadataStore(Executor executor) {
-        super(executor);
+    public InMemoryMetadataStore(ChunkedSegmentStorageConfig config, Executor executor) {
+        super(config, executor);
     }
 
     /**
@@ -140,7 +142,7 @@ public class InMemoryMetadataStore extends BaseMetadataStore {
      * @return Clone of given instance.
      */
     public static InMemoryMetadataStore clone(InMemoryMetadataStore original) {
-        InMemoryMetadataStore cloneStore = new InMemoryMetadataStore(original.getExecutor());
+        InMemoryMetadataStore cloneStore = new InMemoryMetadataStore(original.getConfig(), original.getExecutor());
         synchronized (original) {
             synchronized (cloneStore) {
                 cloneStore.setVersion(original.getVersion());
