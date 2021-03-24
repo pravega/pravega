@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -102,7 +103,9 @@ public class WatermarkWorkflowTest {
                 (r, e, s) -> false);
 
         zkClient.start();
-
+        if (!zkClient.blockUntilConnected(10, TimeUnit.SECONDS)) {
+            throw new RuntimeException("Unable to connect to Zookeeper");
+        }
         executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
 
         streamMetadataStore = StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor),

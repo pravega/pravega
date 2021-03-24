@@ -36,6 +36,8 @@ import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -214,6 +216,13 @@ public final class ServiceStarter {
                 .sessionTimeoutMs(this.serviceConfig.getZkSessionTimeoutMs())
                 .build();
         zkClient.start();
+        try {
+            if (!zkClient.blockUntilConnected(10, TimeUnit.SECONDS)) {
+                throw new RuntimeException("Unable to connect to Zookeeper");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         return zkClient;
     }
 

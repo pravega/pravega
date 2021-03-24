@@ -88,6 +88,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -175,7 +176,7 @@ public class StreamTransactionMetadataTasksTest {
     }
 
     @Before
-    public void setup() {
+    public void setup() throws InterruptedException {
         try {
             zkServer = new TestingServerStarter().start();
         } catch (Exception e) {
@@ -184,6 +185,9 @@ public class StreamTransactionMetadataTasksTest {
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
+        if (!zkClient.blockUntilConnected(10, TimeUnit.SECONDS)) {
+            throw new RuntimeException("Unable to connect to Zookeeper");
+        }
 
         streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
@@ -837,7 +841,7 @@ public class StreamTransactionMetadataTasksTest {
     public static class RegularBookKeeperLogTests extends StreamTransactionMetadataTasksTest {
         @Override
         @Before
-        public void setup() {
+        public void setup() throws InterruptedException {
             this.authEnabled = true;
             super.setup();
         }

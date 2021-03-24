@@ -66,6 +66,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import io.pravega.test.integration.utils.TestUtils;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
@@ -139,6 +141,7 @@ class SegmentStoreAdapter extends StoreAdapter {
                     .connectionTimeoutMs(5000)
                     .build();
             this.zkClient.start();
+            TestUtils.blockUntilZkConnected(this.zkClient);
             return builder.withDataLogFactory(setup -> {
                 BookKeeperConfig bkConfig = setup.getConfig(BookKeeperConfig::builder);
                 return new BookKeeperLogFactory(bkConfig, this.zkClient, setup.getCoreExecutor());

@@ -71,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -120,7 +121,7 @@ public abstract class ControllerServiceWithStreamTest {
     private TableMetadataTasks kvtMetadataTasks;
 
     @Before
-    public void setup() {
+    public void setup() throws InterruptedException {
         try {
             zkServer = new TestingServerStarter().start();
         } catch (Exception e) {
@@ -129,6 +130,9 @@ public abstract class ControllerServiceWithStreamTest {
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
+        if (!zkClient.blockUntilConnected(10, TimeUnit.SECONDS)) {
+            throw new RuntimeException("Unable to connect to Zookeeper");
+        }
 
         streamStore = spy(getStore());
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);

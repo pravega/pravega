@@ -68,6 +68,9 @@ public class SegmentContainerMonitorTest {
 
         zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
+        if (!zkClient.blockUntilConnected(10, TimeUnit.SECONDS)) {
+            throw new RuntimeException("Unable to connect to Zookeeper");
+        }
         cluster = new ClusterZKImpl(zkClient, ClusterType.HOST);
     }
 

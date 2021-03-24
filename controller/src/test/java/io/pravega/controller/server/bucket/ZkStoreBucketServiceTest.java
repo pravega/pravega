@@ -41,6 +41,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
@@ -68,6 +69,9 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
                 (r, e, s) -> false);
 
         zkClient.start();
+        if (!zkClient.blockUntilConnected(10, TimeUnit.SECONDS)) {
+            throw new RuntimeException("Unable to connect to Zookeeper");
+        }
         super.setup();
     }
 

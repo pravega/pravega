@@ -35,10 +35,12 @@ import lombok.Cleanup;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertNotNull;
 
@@ -68,7 +70,7 @@ public class TestUtils {
         for (String stream: streams) {
             boolean isStreamCreated = streamManager.createStream(scope, stream,
                     StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
-            result = result && !isStreamCreated ? false : true;
+            result = !result || isStreamCreated;
         }
         return result;
     }
@@ -211,5 +213,15 @@ public class TestUtils {
      */
     public static String pathToConfig() {
         return "../../config/";
+    }
+
+    public static void blockUntilZkConnected(CuratorFramework zkClient) {
+        try {
+            if (!zkClient.blockUntilConnected(10, TimeUnit.SECONDS)) {
+                throw new RuntimeException("Unable to connect to Zookeeper.");
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

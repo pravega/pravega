@@ -20,6 +20,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.test.common.TestUtils;
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.val;
@@ -74,6 +75,9 @@ public class BookKeeperRunner implements AutoCloseable {
                 .sessionTimeoutMs(5000)
                 .build();
         this.zkClient.start();
+        if (!zkClient.blockUntilConnected(10, TimeUnit.SECONDS)) {
+            throw new RuntimeException("Unable to connect to Zookeeper");
+        }
 
         // Attach a sub-namespace for the Container Metadata.
         String logMetaNamespace = "segmentstore/containers";

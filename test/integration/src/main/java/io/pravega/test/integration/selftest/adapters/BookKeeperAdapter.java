@@ -41,6 +41,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+
+import io.pravega.test.integration.utils.TestUtils;
 import lombok.val;
 import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.api.DigestType;
@@ -110,7 +112,7 @@ class BookKeeperAdapter extends StoreAdapter {
                 .connectionTimeoutMs(5000)
                 .build();
         this.zkClient.start();
-
+        TestUtils.blockUntilZkConnected(this.zkClient);
         // Create a BK client.
         this.logFactory = new BookKeeperLogFactory(this.bkConfig, this.zkClient, this.executor);
         this.logFactory.initialize();

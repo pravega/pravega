@@ -26,6 +26,8 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 
+import java.util.concurrent.TimeUnit;
+
 public class PravegaTablesKVTMetadataTasksTest extends TableMetadataTasksTest {
     private CuratorFramework zkClient;
     private TestingServer zkServer;
@@ -39,6 +41,9 @@ public class PravegaTablesKVTMetadataTasksTest extends TableMetadataTasksTest {
         int connectionTimeout = 5000;
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         zkClient.start();
+        if (!zkClient.blockUntilConnected(10, TimeUnit.SECONDS)) {
+            throw new RuntimeException("Unable to connect to Zookeeper");
+        }
         SegmentHelper segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         // setup Stream Store, needed for creating scopes
         this.streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelperMockForTables, GrpcAuthHelper.getDisabledAuthHelper(),

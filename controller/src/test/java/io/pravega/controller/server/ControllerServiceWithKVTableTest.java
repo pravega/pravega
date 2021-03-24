@@ -51,6 +51,8 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.TestingServerStarter;
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -89,12 +91,16 @@ public abstract class ControllerServiceWithKVTableTest {
     public void setup() {
         try {
             zkServer = new TestingServerStarter().start();
+            zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
+                    new ExponentialBackoffRetry(200, 10, 5000));
+            zkClient.start();
+            if (!zkClient.blockUntilConnected(10, TimeUnit.SECONDS)) {
+                throw new RuntimeException("Unable to connect to Zookeeper");
+            }
         } catch (Exception e) {
             log.error("Error starting ZK server", e);
+            throw new RuntimeException(e);
         }
-        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
-                new ExponentialBackoffRetry(200, 10, 5000));
-        zkClient.start();
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         streamStore = spy(getStore());
