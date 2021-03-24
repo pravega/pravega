@@ -110,13 +110,13 @@ plugins.withId('java') {
 
         onOutput { descriptor, event ->
             outputCache.add(event.getMessage())
-            while (outputCache.size() > 30000) outputCache.remove()
+            while (outputCache.size() > 300) outputCache.remove()
         }
 
         afterTest { descriptor, result ->
             if (result.resultType == TestResult.ResultType.FAILURE && outputCache.size() > 0) {
                 println()
-                println("Output of ${descriptor.getClassName()}.${descriptor.getDisplayName()} (Last 30000 lines):")
+                println("Output of ${descriptor.getClassName()}.${descriptor.getDisplayName()} (Last 300 lines):")
                 outputCache.each { print(" > $it") }
             }
         }
