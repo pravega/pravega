@@ -84,7 +84,6 @@ nav:
     - 'Reader Groups': 'reader-group-design.md'
     - 'Watermarking': 'watermarking.md'
   - Developing Applications:
-    - '1st Code Walkthrough': 'beginner_dev_guide.md'
     - 'Client & Stream Semantics': 'dev-guide/clients-and-streams.md'
     - 'Event Reader and Writer': 'basic-reader-and-writer.md'
     - 'Reader Group notifications': 'reader-group-notifications.md'
@@ -124,7 +123,8 @@ nav:
       - 'User CLI': 'https://github.com/pravega/pravega/blob/master/cli/user/README.md'
       - 'Gateways': 'gateways.md'
       - 'Kafka Adapter': 'https://github.com/pravega/kafka-adapter/blob/master/README.md'
-      - 'Keycloak Security Plugin': 'https://github.com/pravega/pravega-keycloak/blob/master/README.md'
+      - 'Pravega Flink Tools': 'https://github.com/pravega/flink-tools/blob/master/README.md'
+      - 'Keycloak Plugin': 'https://github.com/pravega/pravega-keycloak/blob/master/README.md'
   - 'Managing Schemas':
     - 'Overview': 'schema-registry/documentation/src/docs/overview.md'
     - 'Schema Registry Concepts': 'schema-registry/documentation/src/docs/schema-registry-concepts.md'
@@ -143,11 +143,6 @@ nav:
     - 'DC/OS': 'deployment/dcos-install.md'
     - 'AWS': 'deployment/aws-install.md'
   - Admin Guide:
-    - 'Cluster Dependencies': 'admin-guide/cluster-dependencies.md'
-    - 'Number of Segment Containers': 'admin-guide/num-containers.md'
-    - 'Segment Store Cache and Memory': 'admin-guide/segmentstore-memory.md'
-    - 'Durable Log Configuration': 'admin-guide/durable-log-config.md'
-    - 'Right-Sizing Long-Term Storage': 'admin-guide/lts-right-sizing.md'
     - 'Admin CLI': 'https://github.com/pravega/pravega/blob/master/cli/admin/README.md'
     - 'Security':
       - 'Overview': 'security/pravega-security-authorization-authentication.md'

@@ -15,7 +15,7 @@ limitations under the License.
 -->
 # Working with Pravega: Basic Reader and Writer
 
-Lets examine how to build Pravega applications. The simplest kind of Pravega application uses a Reader to read from a Stream or a
+Let's examine how to build Pravega applications. The simplest kind of Pravega application uses a Reader to read from a Stream or a
 Writer that writes to a Stream. A simple sample application of both can be
 found in the [Pravega samples repository](https://github.com/pravega/pravega-samples/blob/v0.5.0/pravega-client-examples/README.md) (`HelloWorldReader` and  `HelloWorldWriter`) applications. These samples give a sense on how a Java application could use the Pravega's Java Client Library to access Pravega functionality.
 

@@ -22,14 +22,14 @@ Currently, Pravega offers the following connectors:
 end-to-end stream processing pipelines with Pravega in [Apache Flink](https://flink.apache.org/). This also allows 
 reading and writing data to external data sources and sinks via Flink Connector.
 
-- [Hadoop Connector](https://github.com/pravega/hadoop-connectors): Implements both the input and the output format 
-interfaces for [Apache Hadoop](https://hadoop.apache.org/). It leverages Pravega batch client to read existing events in parallel; 
-and uses write API to write events to Pravega streams.
-
 - [Spark Connector](https://github.com/pravega/spark-connectors): Connector to read and write Pravega Streams with 
 [Apache Spark](http://spark.apache.org/), a high-performance analytics engine for batch and streaming data.
  The connector can be used to build end-to-end stream processing pipelines that use Pravega as the stream storage and message bus, 
 and Apache Spark for computation over the streams.
+
+- [Hadoop Connector](https://github.com/pravega/hadoop-connectors): Implements both the input and the output format 
+interfaces for [Apache Hadoop](https://hadoop.apache.org/). It leverages Pravega batch client to read existing events in parallel; 
+and uses write API to write events to Pravega streams.
 
 - [Presto Connector](https://github.com/pravega/presto-connector): [Presto](ttps://prestodb.io) is a distributed SQL 
 query engine for big data. Presto uses connectors to query storage from different storage sources. 
