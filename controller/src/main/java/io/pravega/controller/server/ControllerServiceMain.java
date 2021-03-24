@@ -143,13 +143,13 @@ public class ControllerServiceMain extends AbstractExecutionThreadService implem
                     // stop ControllerServiceStarter.
                     if (sessionExpiryFuture.isDone()) {
                         zookeeperMetrics.reportZKSessionExpiration();
-                        log.debug("ZK session expired");
+                        log.info("ZK session expired. Stopping Controller Services.");
                     }
                 } else {
                     this.serviceStopFuture.join();
+                    log.info("Stopping Controller Services.");
                 }
 
-                log.info("Stopping Controller Services.");
                 notifyServiceStateChange(ServiceState.PAUSING);
                 starter.stopAsync();
 
