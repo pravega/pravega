@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
@@ -58,6 +64,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.MetricsTags.readerGroupTags;
 import static io.pravega.shared.MetricsTags.streamTags;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -211,29 +218,35 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
 
+        String failedScope = "failedScope";
+        String failedStream = "failedStream";
+        String failedRG = "failedRG";
+        String[] failedScopeTags = streamTags(failedScope, "");
+        String[] failedScopeStreamTags = streamTags(failedScope, failedStream);
+        String[] failedRGTags = readerGroupTags(failedRG, failedRG);
         // Exercise the metrics for failed stream and scope creation/deletion.
-        StreamMetrics.getInstance().createScopeFailed("failedScope");
-        StreamMetrics.getInstance().createStreamFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().deleteScopeFailed("failedScope");
-        StreamMetrics.getInstance().deleteStreamFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().updateStreamFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().truncateStreamFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().sealStreamFailed("failedScope", "failedStream");
-        StreamMetrics.getInstance().createReaderGroupFailed("failedRG", "failedRG");
-        StreamMetrics.getInstance().deleteReaderGroupFailed("failedRG", "failedRG");
-        StreamMetrics.getInstance().updateReaderGroupFailed("failedRG", "failedRG");
-        StreamMetrics.getInstance().updateTruncationSCFailed("failedRG", "failedRG");
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_STREAM_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.TRUNCATE_STREAM_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_READER_GROUP_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP_FAILED).count());
-        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER_FAILED).count());
+        StreamMetrics.getInstance().createScopeFailed(failedScope);
+        StreamMetrics.getInstance().deleteScopeFailed(failedScope);
+        StreamMetrics.getInstance().createStreamFailed(failedScope, failedStream);
+        StreamMetrics.getInstance().deleteStreamFailed(failedScope, failedStream);
+        StreamMetrics.getInstance().updateStreamFailed(failedScope, failedStream);
+        StreamMetrics.getInstance().truncateStreamFailed(failedScope, failedStream);
+        StreamMetrics.getInstance().sealStreamFailed(failedScope, failedStream);
+        StreamMetrics.getInstance().createReaderGroupFailed(failedRG, failedRG);
+        StreamMetrics.getInstance().deleteReaderGroupFailed(failedRG, failedRG);
+        StreamMetrics.getInstance().updateReaderGroupFailed(failedRG, failedRG);
+        StreamMetrics.getInstance().updateTruncationSCFailed(failedRG, failedRG);
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED, failedScopeTags).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED, failedScopeTags).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM_FAILED, failedScopeStreamTags).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM_FAILED, failedScopeStreamTags).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_STREAM_FAILED, failedScopeStreamTags).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.TRUNCATE_STREAM_FAILED, failedScopeStreamTags).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM_FAILED, failedScopeStreamTags).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_READER_GROUP_FAILED, failedRGTags).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_READER_GROUP_FAILED, failedRGTags).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_READER_GROUP_FAILED, failedRGTags).count());
+        assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.UPDATE_SUBSCRIBER_FAILED, streamTags(failedRG, failedRG)).count());
     }
 
     @Test(timeout = 30000)

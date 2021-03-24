@@ -1,10 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.connection.impl;
 
@@ -186,11 +193,12 @@ public class RawClientTest {
         Mockito.when(controller.getEndpointForSegment(Mockito.any(String.class))).thenReturn(endpointFuture);
 
         ConnectionPool connectionPool = Mockito.mock(ConnectionPool.class);
-        CompletableFuture<ClientConnection> connectionFuture = new CompletableFuture<>();
         // simulate error when obtaining a client connection.
-        connectionFuture.completeExceptionally(new RuntimeException("Mock error"));
-        Mockito.when(connectionPool.getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(ReplyProcessor.class)))
-                .thenReturn(connectionFuture);
+        Mockito.doAnswer(invocation -> {
+            final CompletableFuture<ClientConnection> future = invocation.getArgument(3);
+            future.completeExceptionally(new ConnectionFailedException(new RuntimeException("Mock error")));
+            return null;
+        }).when(connectionPool).getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(ReplyProcessor.class), Mockito.<CompletableFuture<ClientConnection>>any());
 
         // Test exception paths.
         RawClient rawClient = new RawClient(endpoint, connectionPool);

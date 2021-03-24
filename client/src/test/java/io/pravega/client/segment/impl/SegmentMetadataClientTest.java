@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -7,6 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.segment.impl;
 
@@ -16,7 +21,6 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -300,16 +304,21 @@ public class SegmentMetadataClientTest {
         ClientConnection connection1 = mock(ClientConnection.class);
         ClientConnection connection2 = mock(ClientConnection.class);
         AtomicReference<ReplyProcessor> processor = new AtomicReference<>();
-        Mockito.when(cf.getClientConnection(Mockito.any(), Mockito.eq(endpoint), Mockito.any()))
-               .thenReturn(Futures.failedFuture(new ConnectionFailedException()))
-               .thenReturn(CompletableFuture.completedFuture(connection1))
-               .thenAnswer(new Answer<CompletableFuture<ClientConnection>>() {
-                   @Override
-                   public CompletableFuture<ClientConnection> answer(InvocationOnMock invocation) throws Throwable {
-                       processor.set(invocation.getArgument(2));
-                       return CompletableFuture.completedFuture(connection2);
-                   }
-               });
+        Mockito.doAnswer(invocation -> {
+            final CompletableFuture<ClientConnection> future = invocation.getArgument(3);
+            future.completeExceptionally(new ConnectionFailedException(new RuntimeException("Mock error")));
+            return null;
+        }).doAnswer(invocation -> {
+            final CompletableFuture<ClientConnection> future = invocation.getArgument(3);
+            future.complete(connection1);
+            return null;
+        }).doAnswer(invocation -> {
+            final CompletableFuture<ClientConnection> future = invocation.getArgument(3);
+            processor.set(invocation.getArgument(2));
+            future.complete(connection2);
+            return null;
+        }).when(cf).getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(ReplyProcessor.class), Mockito.<CompletableFuture<ClientConnection>>any());
+
         final List<Long> requestIds = new ArrayList<>();
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -339,10 +348,10 @@ public class SegmentMetadataClientTest {
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
         InOrder order = Mockito.inOrder(connection1, connection2, cf);
         long length = client.fetchCurrentSegmentLength();
-        order.verify(cf, Mockito.times(2)).getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any());
+        order.verify(cf, Mockito.times(2)).getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(), Mockito.<CompletableFuture<ClientConnection>>any());
         order.verify(connection1).send(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(0), segment.getScopedName(), "")));
         order.verify(connection1).close();
-        order.verify(cf).getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any());
+        order.verify(cf).getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(), Mockito.<CompletableFuture<ClientConnection>>any());
         order.verify(connection2).send(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(1), segment.getScopedName(), "")));
         order.verifyNoMoreInteractions();
         assertEquals(123, length);

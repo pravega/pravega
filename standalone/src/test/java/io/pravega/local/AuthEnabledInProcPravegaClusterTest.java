@@ -1,18 +1,23 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.local;
 
 import java.net.URI;
 
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 
 import io.grpc.StatusRuntimeException;
@@ -21,48 +26,23 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 
 /**
  * This class contains tests for auth enabled in-process standalone cluster. It inherits the test methods defined
  * in the parent class.
  */
 @Slf4j
-public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest {
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        this.authEnabled = true;
-        this.tlsEnabled = false;
-        super.setUp();
-    }
+public class AuthEnabledInProcPravegaClusterTest {
 
-    @Override
-    String scopeName() {
-        return "AuthTestScope";
-    }
-
-    @Override
-    String streamName() {
-        return "AuthTestStream";
-    }
-
-    @Override
-    String eventMessage() {
-        return "Test message on the plaintext channel with auth credentials";
-    }
-
-    @Override
-    ClientConfig prepareValidClientConfig() {
-        return ClientConfig.builder()
-                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
-                .credentials(new DefaultCredentials(
-                        SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
-                        SecurityConfigDefaults.AUTH_ADMIN_USERNAME))
-                .build();
-    }
+    @ClassRule
+    public static final PravegaEmulatorResource EMULATOR = new PravegaEmulatorResource(true, false, false);
+    final String scope = "AuthTestScope";
+    final String stream = "AuthTestStream";
+    final String msg = "Test message on the plaintext channel with auth credentials";
 
     /**
      * This test verifies that create stream fails when the client config is invalid.
@@ -74,15 +54,20 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
     public void testCreateStreamFailsWithInvalidClientConfig() {
        ClientConfig clientConfig = ClientConfig.builder()
                 .credentials(new DefaultCredentials("", ""))
-                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
+                .controllerURI(URI.create(EMULATOR.pravega.getInProcPravegaCluster().getControllerURI()))
                 .build();
 
         @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);
 
         AssertExtensions.assertThrows("Auth exception did not occur.",
-                () -> streamManager.createScope(scopeName()),
+                () -> streamManager.createScope(scope),
                 e -> hasAuthExceptionAsRootCause(e));
+    }
+
+    @Test(timeout = 30000)
+    public void testWriteAndReadEventWithValidClientConfig() throws Exception {
+        testWriteAndReadAnEvent(scope, stream, msg, EMULATOR.getClientConfig());
     }
 
     private boolean hasAuthExceptionAsRootCause(Throwable e) {
@@ -93,11 +78,5 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
         // overly general io.grpc.StatusRuntimeException.
         return unwrapped instanceof StatusRuntimeException &&
                 unwrapped.getMessage().toUpperCase().contains("UNAUTHENTICATED");
-    }
-
-    @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
     }
 }

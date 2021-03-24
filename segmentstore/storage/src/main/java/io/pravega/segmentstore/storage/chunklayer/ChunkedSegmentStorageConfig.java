@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -44,6 +50,9 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_QUEUE_SIZE = Property.named("garbage.collection.queue.size.max", 16 * 1024);
     public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.millis", 10);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPTS = Property.named("garbage.collection.attempts.max", 3);
+    public static final Property<Integer> MAX_METADATA_ENTRIES_IN_BUFFER = Property.named("metadata.buffer.size.max", 1024);
+    public static final Property<Integer> MAX_METADATA_ENTRIES_IN_CACHE = Property.named("metadata.cache.size.max", 5000);
+
     public static final Property<Integer> JOURNAL_SNAPSHOT_FREQUENCY = Property.named("journal.snapshot.duration.minutes", 5);
     public static final Property<Integer> MAX_JOURNAL_RECORDS_PER_SNAPSHOT = Property.named("journal.snapshot.records.max", 100);
     public static final Property<Integer> MAX_JOURNAL_READ_ATTEMPTS = Property.named("journal.snapshot.attempts.read.max", 100);
@@ -71,6 +80,8 @@ public class ChunkedSegmentStorageConfig {
             .garbageCollectionSleep(Duration.ofMillis(10))
             .garbageCollectionMaxAttempts(3)
             .indexBlockSize(1024 * 1024)
+            .maxEntriesInCache(5000)
+            .maxEntriesInTxnBuffer(1024)
             .journalSnapshotCheckpointFrequency(Duration.ofMinutes(5))
             .maxJournalRecordsPerSnapshot(100)
             .maxJournalReadAttempts(100)
@@ -187,6 +198,18 @@ public class ChunkedSegmentStorageConfig {
     final private int garbageCollectionMaxAttempts;
 
     /**
+     * Maximum number of metadata entries to keep in recent transaction buffer.
+     */
+    @Getter
+    final private int maxEntriesInTxnBuffer;
+
+    /**
+     * Maximum number of metadata entries to keep in recent transaction buffer.
+     */
+    @Getter
+    final private int maxEntriesInCache;
+
+    /**
      * Duration between two system journal snapshot.
      */
     @Getter
@@ -243,6 +266,8 @@ public class ChunkedSegmentStorageConfig {
         this.maxJournalWriteAttempts = properties.getInt(MAX_JOURNAL_WRITE_ATTEMPTS);
         this.selfCheckEnabled = properties.getBoolean(SELF_CHECK_ENABLED);
         this.indexBlockSize = properties.getLong(READ_INDEX_BLOCK_SIZE);
+        this.maxEntriesInTxnBuffer = properties.getInt(MAX_METADATA_ENTRIES_IN_BUFFER);
+        this.maxEntriesInCache = properties.getInt(MAX_METADATA_ENTRIES_IN_CACHE);
     }
 
     /**
