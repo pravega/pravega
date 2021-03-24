@@ -101,7 +101,7 @@ nav:
         - Configurations: 'flink-connectors/documentation/src/docs/configurations.md'
         - Serialization: 'flink-connectors/documentation/src/docs/serialization.md'
       - 'Spark Connector':
-        - Overview: 'spark-connectors/documentation/src/docs/index.md'
+        - Overview: 'spark-connectors/documentation/src/docs/overview.md'
         - Samples: 'spark-connectors/documentation/src/docs/samples.md'
         - Configuration: 'spark-connectors/documentation/src/docs/configuration.md'
         - Building the Connector: 'spark-connectors/documentation/src/docs/build-connector.md'
