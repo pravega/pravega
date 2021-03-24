@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.metadata;
 
@@ -51,6 +57,54 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
         AssertExtensions.assertFutureThrows(
                 "read should throw an exception",
                 tableBasedMetadataStore.read("test"),
+                ex -> ex instanceof IllegalStateException);
+    }
+
+    @Test
+    public void testBadReadExceptionDuringRead() {
+        TableStore mockTableStore = mock(TableStore.class);
+        TableBasedMetadataStore tableBasedMetadataStore = spy(new TableBasedMetadataStore("test", mockTableStore, executorService()));
+
+        when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
+        when(tableBasedMetadataStore.read("test")).thenReturn(CompletableFuture.completedFuture(null));
+        val txn = tableBasedMetadataStore.beginTransaction(true, "test");
+        AssertExtensions.assertFutureThrows(
+                "read should throw an exception",
+                tableBasedMetadataStore.get(txn, "test"),
+                ex -> ex instanceof IllegalStateException);
+    }
+
+    @Test
+    public void testBadReadMissingDbObjectDuringRead() {
+        TableStore mockTableStore = mock(TableStore.class);
+        TableBasedMetadataStore tableBasedMetadataStore = spy(new TableBasedMetadataStore("test", mockTableStore, executorService()));
+
+        when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
+        when(tableBasedMetadataStore.read("test")).thenReturn(CompletableFuture.completedFuture(BaseMetadataStore.TransactionData.builder()
+                .key("test")
+                .build()));
+        val txn = tableBasedMetadataStore.beginTransaction(true, "test");
+        AssertExtensions.assertFutureThrows(
+                "read should throw an exception",
+                tableBasedMetadataStore.get(txn, "test"),
+                ex -> ex instanceof IllegalStateException);
+    }
+
+    @Test
+    public void testBadReadMissingNoVersionDuringRead() {
+        TableStore mockTableStore = mock(TableStore.class);
+        TableBasedMetadataStore tableBasedMetadataStore = spy(new TableBasedMetadataStore("test", mockTableStore, executorService()));
+
+        when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
+        when(tableBasedMetadataStore.read("test")).thenReturn(CompletableFuture.completedFuture(BaseMetadataStore.TransactionData.builder()
+                .key("test")
+                .value(new MockStorageMetadata("key", "value"))
+                .dbObject(new Long(10))
+                .build()));
+        val txn = tableBasedMetadataStore.beginTransaction(true, "test");
+        AssertExtensions.assertFutureThrows(
+                "read should throw an exception",
+                tableBasedMetadataStore.get(txn, "test"),
                 ex -> ex instanceof IllegalStateException);
     }
 

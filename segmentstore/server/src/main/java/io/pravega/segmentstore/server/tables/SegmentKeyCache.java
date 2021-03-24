@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.tables;
 
@@ -211,18 +217,19 @@ class SegmentKeyCache {
         }
 
         // Update the cache entry directly.
-        entry.update(keyHash, segmentOffset, generation);
+        if (!entry.update(keyHash, segmentOffset, generation)) {
+            evictEntry(entry);
+
+        }
         return segmentOffset;
     }
 
-    private synchronized void entryUpdateFailed(CacheEntry entry, Throwable ex) {
-        if (ex instanceof CacheDisabledException) {
-            log.debug("{}: Not updating cache for {} due to non-essential cache entries disabled.", this.segmentId, entry);
-        } else {
-            log.warn("{}: Cache Entry update failed for {}. Unregistering.", this.segmentId, entry, ex);
+    private void evictEntry(CacheEntry entry) {
+        synchronized (this) {
+            this.cacheEntries.remove(entry.hashGroup);
         }
-        this.cacheEntries.remove(entry.hashGroup);
-        entry.evict();
+
+        entry.evict(); // This need not be invoked while holding the lock (it has its own synchronization).
     }
 
     /**
@@ -280,11 +287,19 @@ class SegmentKeyCache {
             }
         }
 
-        candidates.forEach(mc -> mc.commit(cacheGeneration));
+        candidates.forEach(mc -> commitMigrationCandidate(mc, cacheGeneration));
         synchronized (this) {
             // Finally, remove tail hashes, but ONLY if they haven't changed - it's possible that since we released the lock
             // above a newer value was recorded; we shouldn't be removing it then. We use Map.remove(Key, Value) for this.
             candidates.forEach(c -> this.tailOffsets.remove(c.keyHash, c.offset));
+        }
+    }
+
+    private void commitMigrationCandidate(MigrationCandidate mc, int cacheGeneration) {
+        if (!mc.commit(cacheGeneration)) {
+            // If we were unable to commit a migration candidate, we should evict it. It likely is in an inconsistent state.
+            // This is safe to do since any data in this entry can be reloaded from the index.
+            evictEntry(mc.cacheEntry);
         }
     }
 
@@ -350,8 +365,7 @@ class SegmentKeyCache {
          */
         boolean commit(int cacheGeneration) {
             try {
-                this.cacheEntry.update(this.keyHash, this.offset.encode(), cacheGeneration);
-                return true;
+                return this.cacheEntry.update(this.keyHash, this.offset.encode(), cacheGeneration);
             } catch (CacheEntryEvictedException ex) {
                 // Nothing to do here. A concurrent eviction has removed this entry so there isn't much more we can do.
                 return false;
@@ -376,10 +390,8 @@ class SegmentKeyCache {
         private static final int INITIAL_ADDRESS = -1;
         private static final int EVICTED_ADDRESS = -2;
         private final short hashGroup;
-        @GuardedBy("this")
-        private int generation;
-        @GuardedBy("this")
-        private long highestOffset;
+        private volatile int generation;
+        private volatile long highestOffset;
         @GuardedBy("this")
         private int cacheAddress;
 
@@ -394,14 +406,14 @@ class SegmentKeyCache {
          * Gets a value representing the current Generation of this Cache Entry. This value is updated every time the
          * data behind this entry is modified or accessed.
          */
-        synchronized int getGeneration() {
+        int getGeneration() {
             return this.generation;
         }
 
         /**
          * Gets a value representing the Highest offset that is stored in any CacheValues in this CacheEntry.
          */
-        synchronized long getHighestOffset() {
+        long getHighestOffset() {
             return this.highestOffset;
         }
 
@@ -418,11 +430,8 @@ class SegmentKeyCache {
             int offset = locate(keyHash, data);
             if (offset >= 0) {
                 // Found it.
-                synchronized (this) {
-                    // Update Entry's generation.
-                    this.generation = currentGeneration;
-                }
-
+                // Update Entry's generation.
+                this.generation = currentGeneration;
                 return data.getLong(offset);
             }
 
@@ -438,7 +447,7 @@ class SegmentKeyCache {
          * @param segmentOffset     See {@link ContainerKeyCache#includeExistingKey} segmentOffset.
          * @param currentGeneration The current Cache Generation (from the Cache Manager).
          */
-        synchronized void update(UUID keyHash, long segmentOffset, int currentGeneration) {
+        synchronized boolean update(UUID keyHash, long segmentOffset, int currentGeneration) {
             ArrayView entryData = getFromCache();
             int entryOffset = locate(keyHash, entryData);
             if (entryOffset < 0) {
@@ -472,10 +481,16 @@ class SegmentKeyCache {
             } catch (CacheEntryEvictedException cex) {
                 // Pass-through exception. If this is the case, the entry has already been evicted so not more we can do.
                 throw cex;
+            } catch (CacheDisabledException cex) {
+                log.debug("SegmentKeyCache[{}]: Not updating cache for {} due to non-essential cache entries disabled.", segmentId, this);
+                return false;
             } catch (Throwable ex) {
                 // There is nothing we can do here. Invoke the general handler to remove this from the cache.
-                entryUpdateFailed(this, ex);
+                log.warn("SegmentKeyCache[{}]: Cache Entry update failed for {}.", segmentId, this, ex);
+                return false;
             }
+
+            return true;
         }
 
         /**
