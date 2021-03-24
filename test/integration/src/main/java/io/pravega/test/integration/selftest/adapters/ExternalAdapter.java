@@ -1,22 +1,30 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.KeyValueTableFactory;
+import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.Exceptions;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.common.util.Retry;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
@@ -131,6 +139,16 @@ class ExternalAdapter extends ClientAdapterBase {
     @Override
     protected EventStreamClientFactory getClientFactory() {
         return this.clientFactory.get();
+    }
+
+    @Override
+    protected KeyValueTableManager getKVTManager() {
+        throw new UnsupportedOperationException("getKVTManager is not supported for ExternalAdapter.");
+    }
+
+    @Override
+    protected KeyValueTableFactory getKVTFactory() {
+        throw new UnsupportedOperationException("getKVTFactory is not supported for ExternalAdapter.");
     }
 
     @Override
