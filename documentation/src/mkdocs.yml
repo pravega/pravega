@@ -84,7 +84,7 @@ nav:
     - 'Reader Groups': 'reader-group-design.md'
     - 'Watermarking': 'watermarking.md'
   - Developing Applications:
-    - 'Client & Stream Semantics': 'dev-guide/clients-and-streams.md'
+    - 'Client & Stream Semantics': 'clients-and-streams.md'
     - 'Event Reader and Writer': 'basic-reader-and-writer.md'
     - 'Reader Group notifications': 'reader-group-notifications.md'
     - 'State Synchronizer': 'state-synchronizer.md'

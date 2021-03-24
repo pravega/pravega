@@ -322,6 +322,6 @@ suggest you to continue exploring Pravega with the following documents:
 
 - [Deploying Pravega](../deployment/deployment.md): A more advanced guide on how to deploy Pravega on Kubernetes
 and other environments.
-- [Developer Guide](../dev-guide/clients-and-streams.md): Start creating your own applications using Pravega.
+- [Developer Guide](../clients-and-streams.md): Start creating your own applications using Pravega.
 - [Understanding Pravega](../pravega-concepts.md): Be curious to understand the concepts and design choices behind
 Pravega.

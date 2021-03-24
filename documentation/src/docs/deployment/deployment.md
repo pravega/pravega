@@ -49,8 +49,8 @@ There are multiple options provided for running Pravega in different environment
     - [Docker Compose (Distributed Mode)](run-local.md#docker-compose-distributed-mode)
 - Production - Multi-node installation suitable for running in production.
     - [Manual Installation](manual-install.md)
-    - [Kubernetes (Helm)](pravega-operator/charts/pravega/README.md)
-    - [Kubernetes (Custom)](pravega-operator/doc/manual-installation.md)
+    - [Kubernetes (Helm)](../pravega-operator/charts/pravega/README.md)
+    - [Kubernetes (Custom)](../pravega-operator/doc/manual-installation.md)
     - [Docker Swarm](docker-swarm.md)
     - [DC/OS](dcos-install.md)
     - [Cloud (AWS)](aws-install.md)
