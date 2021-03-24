@@ -99,7 +99,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.TruncateSegment.class));
-        client.truncateSegment(123L);
+        client.truncateSegment(123L).join();
         Mockito.verify(connection).send(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")));
     }
 
@@ -128,7 +128,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.TruncateSegment.class));
-        client.truncateSegment(123L);
+        client.truncateSegment(123L).join();
         Mockito.verify(connection).send(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")));
     }
 
@@ -157,7 +157,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.TruncateSegment.class));
-        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> client.truncateSegment(123L));
+        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> client.truncateSegment(123L).join());
         Mockito.verify(connection).send(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")));
     }
     
@@ -186,7 +186,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.SealSegment.class));
-        client.sealSegment();
+        client.sealSegment().join();
         Mockito.verify(connection).send(Mockito.eq(new WireCommands.SealSegment(requestId.get(), segment.getScopedName(), "")));
     }  
 
@@ -412,7 +412,7 @@ public class SegmentMetadataClientTest {
         }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
 
         AssertExtensions.assertThrows("TokenException was not thrown or server stacktrace contained unexpected content.",
-                () -> client.fetchCurrentSegmentLength(),
+                () -> client.fetchCurrentSegmentLength().join(),
                 e -> e instanceof InvalidTokenException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
     }
 
@@ -444,7 +444,7 @@ public class SegmentMetadataClientTest {
         }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
 
         AssertExtensions.assertThrows("TokenException was not thrown or server stacktrace contained unexpected content.",
-                () -> client.fetchCurrentSegmentLength(),
+                () -> client.fetchCurrentSegmentLength().join(),
                 e -> e instanceof InvalidTokenException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
     }
 }

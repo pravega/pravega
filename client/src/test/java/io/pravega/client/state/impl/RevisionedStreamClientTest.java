@@ -417,7 +417,7 @@ public class RevisionedStreamClientTest {
         doReturn(1000L).when(client).getReadTimeout();
 
         // Setup the SegmentMetadataClient mock.
-        doReturn(new SegmentInfo(segment, 0L, 30L, false, 1L))
+        doReturn(CompletableFuture.completedFuture(new SegmentInfo(segment, 0L, 30L, false, 1L)))
                 .when(segMetaClient).getSegmentInfo();
 
         // Get the iterator from Revisioned Stream Client.
