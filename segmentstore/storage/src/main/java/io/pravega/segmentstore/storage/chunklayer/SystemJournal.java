@@ -142,13 +142,17 @@ public class SystemJournal {
      */
     @GuardedBy("lock")
     private int attempt = 0;
-
     /**
      * Last successful checkpoint number.
      */
     @Getter
     @GuardedBy("lock")
     private SystemJournalCheckpointRecord lastSavedCheckpoint;
+
+    @GuardedBy("lock")
+    private Long lastSavedCheckpointVersion = null;
+
+    private CheckpointStore checkpointStore;
 
     /**
      * String prefix for all system segments.
@@ -238,10 +242,12 @@ public class SystemJournal {
      * Bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
      * @param epoch      Epoch of the current container instance.
+     * @param checkpointStore Pointer to store that saves checkpoints.
      * @throws Exception Exception in case of any error.
      */
-    public CompletableFuture<Void> bootstrap(long epoch) throws Exception {
+    public CompletableFuture<Void> bootstrap(long epoch, CheckpointStore checkpointStore) throws Exception {
         this.epoch = epoch;
+        this.checkpointStore = Preconditions.checkNotNull(checkpointStore, "checkpointStore");
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
         try (val txn = metadataStore.beginTransaction(false, getSystemSegments())) {
             // Keep track of offsets at which chunks were added to the system segments.
@@ -255,7 +261,9 @@ public class SystemJournal {
             val visitedRecords = new HashSet<SystemJournalRecord>();
 
             // Step 1: Create metadata records for system segments from latest snapshot.
-            val latestSnapshot = applyLatestSnapshot(txn, chunkStartOffsets);
+            val latestSnapshot = findLatestSnapshot();
+
+            applySystemSnapshotRecord(txn, chunkStartOffsets, latestSnapshot);
 
             // Step 2: For each epoch, find the corresponding system journal files, process them and apply operations recorded.
             applySystemLogOperations(txn, latestSnapshot, chunkStartOffsets, finalTruncateOffsets, finalFirstChunkStartsAtOffsets, visitedRecords);
@@ -272,7 +280,7 @@ public class SystemJournal {
             boolean saved = validateAndSaveSnapshot(txn, true, config.isSelfCheckEnabled());
             if (saved) {
                 long checkpointId = currentTimeSupplier.get() / config.getJournalSnapshotCheckpointFrequency().toMillis();
-                writeCheckpointRecord(getSnapshotCheckpointNamePrefix(0), checkpointId);
+                writeCheckpointRecord(checkpointId);
             }
 
             // Step 6: Check invariants.
@@ -370,12 +378,12 @@ public class SystemJournal {
             long checkpointId = currentTimeSupplier.get() / config.getJournalSnapshotCheckpointFrequency().toMillis();
             if (lastSavedSystemSnapshot != null
                && (lastSavedCheckpoint == null || lastSavedCheckpoint.checkpointId < checkpointId )) {
-                writeCheckpointRecord(getSnapshotCheckpointNamePrefix(checkpointId), checkpointId);
+                writeCheckpointRecord(checkpointId);
             }
         }
     }
 
-    private void writeCheckpointRecord(String checkpointNamePrefix, long checkpointId) {
+    private void writeCheckpointRecord(long checkpointId) {
         synchronized (lock) {
             val checkpointRecord = SystemJournalCheckpointRecord.builder()
                     .snapshotFileName(lastSavedSystemSnapshotFile)
@@ -385,32 +393,20 @@ public class SystemJournal {
             try {
                 bytes = SYSTEM_CHECKPOINT_SERIALIZER.serialize(checkpointRecord);
             } catch (IOException e) {
-                log.warn(checkpointNamePrefix, "Unable to persist snapshot checkpointRecord.", e);
+                log.warn("Unable to persist snapshot checkpointRecord.{}", checkpointRecord, e);
                 return;
             }
             boolean done = false;
 
             while (!done) {
                 try {
-                    val snapshotCheckpointName = checkpointNamePrefix + "." + attempt;
-                    chunkStorage.createWithContent(snapshotCheckpointName,
-                            bytes.getLength(),
-                            new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())).get();
-
-                    // Read back written contents.
-                    byte[] contents = getContents(snapshotCheckpointName);
-                    val checkPointRead = SYSTEM_CHECKPOINT_SERIALIZER.deserialize(contents);
-
-                    // Validate
-                    Preconditions.checkState(checkpointRecord.checkpointId == checkPointRead.checkpointId);
-                    Preconditions.checkState(checkpointRecord.snapshotFileName.equals(checkPointRead.snapshotFileName));
-
+                    lastSavedCheckpointVersion = checkpointStore.setData(Long.toString(containerId), bytes.array(), lastSavedCheckpointVersion);
                     lastSavedCheckpoint = checkpointRecord;
                     attempt = 0;
                     done = true;
                 } catch (Exception e) {
                     attempt++;
-                    log.warn(checkpointNamePrefix, "Unable to persist snapshot checkpointRecord.", e);
+                    log.warn("Unable to persist snapshot checkpointRecord. {}", checkpointRecord, e);
                 }
             }
         }
@@ -419,85 +415,29 @@ public class SystemJournal {
     /**
      * Find and apply latest snapshot.
      */
-    private SystemSnapshotRecord applyLatestSnapshot(MetadataTransaction txn, HashMap<String, Long> chunkStartOffsets) throws Exception {
-        long epochToCheck = 0;
-        SystemJournalCheckpointRecord firstCheckpointRecord = null;
-        SystemSnapshotRecord firstSystemSnapshot = null;
-        SystemJournalCheckpointRecord checkpointRecord = null;
-        SystemSnapshotRecord systemSnapshot = null;
-
+    private SystemSnapshotRecord findLatestSnapshot() throws Exception {
         // Find the first valid checkpoint of the latest epoch.
-        LOOP1:
-        for (epochToCheck = epoch - 1; epochToCheck >= 0; epochToCheck--) {
-            // find the first checkpoint in the latest epoch
-            // First checkpoint for the epoch always has the fixed name.
-            for (int attempt = 0; attempt < config.getMaxJournalReadAttempts(); attempt++) {
-                val firstCheckpointName = getSnapshotCheckpointName(epochToCheck, 0, attempt);
-                if (chunkStorage.exists(firstCheckpointName).get()) {
-                    try {
-                        // Read contents.
-                        byte[] contents = getContents(firstCheckpointName);
-                        firstCheckpointRecord = SYSTEM_CHECKPOINT_SERIALIZER.deserialize(contents);
-                        try {
-                            // Read contents.
-                            byte[] snapshotContents = getContents(firstCheckpointRecord.snapshotFileName);
-                            firstSystemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(snapshotContents);
-                            break LOOP1;
-                        } catch (Exception e) {
-                            handleException(e, "snapshot", firstCheckpointRecord.snapshotFileName);
-                        }
-                    } catch (Exception e) {
-                        handleException(e, "checkpoint", firstCheckpointName);
-                    }
-                } else {
-                    log.debug("SystemJournal[{}] Did not find find checkpoint {}.", containerId, firstCheckpointName);
-                    break;
+        try {
+            // Read contents.
+            val contents = checkpointStore.getData(Long.toString(containerId), null);
+            if (null != contents) {
+                val checkpointRecord = SYSTEM_CHECKPOINT_SERIALIZER.deserialize(contents);
+                // Read the snapshot
+                try {
+                    // Read contents.
+                    byte[] snapshotContents = getContents(checkpointRecord.snapshotFileName);
+                    val systemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(snapshotContents);
+                    log.debug("SystemJournal[{}] snapshot found and parsed.", containerId, checkpointRecord.snapshotFileName);
+                    log.debug("SystemJournal[{}] Done finding snapshots.", containerId);
+                    return systemSnapshot;
+                } catch (Exception e) {
+                    handleException(e, "snapshot", Long.toString(containerId));
                 }
             }
+        } catch (Exception e) {
+            handleException(e, "checkpoint", Long.toString(containerId));
         }
-
-        // Use current time to find the latest checkpoint id
-        long duration = config.getJournalSnapshotCheckpointFrequency().toMillis();
-        long lastCheckpointId = currentTimeSupplier.get() / duration;
-        log.debug("SystemJournal[{}] lastCheckpointId = {}.", containerId, lastCheckpointId);
-
-        // Find latest checkpoint in epoch.
-        LOOP2:
-        if (null != firstCheckpointRecord && epochToCheck >= 0) {
-            for (long checkpointId = lastCheckpointId; checkpointId >= firstCheckpointRecord.getCheckpointId(); checkpointId--) {
-                for (int attempt = 0; attempt < config.getMaxJournalReadAttempts(); attempt++) {
-                    val checkpointName = getSnapshotCheckpointName(epochToCheck, checkpointId, attempt);
-                    if (chunkStorage.exists(checkpointName).get()) {
-                        try {
-                            // Read contents.
-                            byte[] contents = getContents(checkpointName);
-                            checkpointRecord = SYSTEM_CHECKPOINT_SERIALIZER.deserialize(contents);
-                            // Read the snapshot
-                            try {
-                                // Read contents.
-                                byte[] snapshotContents = getContents(checkpointRecord.snapshotFileName);
-                                systemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(snapshotContents);
-                                log.debug("SystemJournal[{}] snapshot found and parsed.", containerId, checkpointRecord.snapshotFileName);
-                                break LOOP2;
-                            } catch (Exception e) {
-                                handleException(e, "snapshot", firstCheckpointRecord.snapshotFileName);
-                            }
-                        } catch (Exception e) {
-                            handleException(e, "checkpoint", checkpointName);
-                            break;
-                        }
-                    } else {
-                        log.debug("SystemJournal[{}] Did not find checkpoint {}.", containerId, checkpointName);
-                        break;
-                    }
-                }
-            }
-        }
-        if (null == systemSnapshot) {
-            systemSnapshot = firstSystemSnapshot;
-        }
-        log.debug("SystemJournal[{}] Done finding snapshots.", containerId);
-        return applySystemSnapshotRecord(txn, chunkStartOffsets, systemSnapshot);
+        return null;
     }
 
     private SystemSnapshotRecord applySystemSnapshotRecord(MetadataTransaction txn, HashMap<String, Long> chunkStartOffsets, SystemSnapshotRecord systemSnapshot) throws Exception {
@@ -1432,5 +1372,34 @@ public class SystemJournal {
                 b.checkpointId(input.readCompactLong());
             }
         }
+    }
+
+    /**
+     * Interface for store that persistently stores checkpoint data.
+     */
+    public interface CheckpointStore {
+        /**
+         * Retrieves data for given path and version.
+         *
+         * @param path String key.
+         * @param version Version to retrieve
+         * @return Byte array containing data.
+         * @throws Exception Exception if any.
+         */
+        byte[] getData(String path, Long version) throws Exception;
+
+        /**
+         * Retrieves data for given path.
+         * If the version is null then value is set unconditionally.
+         * Otherwise value is set only if version in store matches version provided.
+         *
+         * @param path String key.
+         * @param value Byte array containing data
+         * @param version Expected version.
+         * @return Version of data after this operation.
+         * @throws Exception Exception if any.
+         */
+        Long setData(String path, byte[] value, Long version) throws Exception;
+
     }
 }

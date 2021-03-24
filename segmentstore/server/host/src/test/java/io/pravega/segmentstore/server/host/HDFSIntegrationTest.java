@@ -14,6 +14,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryCheckpointStore;
 import io.pravega.storage.hdfs.HDFSClusterHelpers;
 import io.pravega.storage.hdfs.HDFSSimpleStorageFactory;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
@@ -41,6 +42,7 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        InMemoryCheckpointStore.getSingletonInstance().clear();
         this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(getBaseDir().getAbsolutePath());
         this.configBuilder.include(HDFSStorageConfig
                 .builder()

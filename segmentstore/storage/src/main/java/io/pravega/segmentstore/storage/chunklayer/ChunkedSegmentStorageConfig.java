@@ -46,7 +46,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPTS = Property.named("garbage.collection.attempts.max", 3);
     public static final Property<Integer> JOURNAL_SNAPSHOT_FREQUENCY = Property.named("journal.snapshot.duration.minutes", 5);
     public static final Property<Integer> MAX_JOURNAL_RECORDS_PER_SNAPSHOT = Property.named("journal.snapshot.records.max", 100);
-    public static final Property<Integer> MAX_JOURNAL_READ_ATTEMPTS = Property.named("journal.snapshot.attempts.read.max", 10);
+    public static final Property<Integer> MAX_JOURNAL_READ_ATTEMPTS = Property.named("journal.snapshot.attempts.read.max", 100);
     public static final Property<Integer> MAX_JOURNAL_WRITE_ATTEMPTS = Property.named("journal.snapshot.attempts.write.max", 10);
     public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", false);
 
@@ -73,7 +73,7 @@ public class ChunkedSegmentStorageConfig {
             .indexBlockSize(1024 * 1024)
             .journalSnapshotCheckpointFrequency(Duration.ofMinutes(5))
             .maxJournalRecordsPerSnapshot(100)
-            .maxJournalReadAttempts(10)
+            .maxJournalReadAttempts(100)
             .maxJournalWriteAttempts(10)
             .selfCheckEnabled(false)
             .build();

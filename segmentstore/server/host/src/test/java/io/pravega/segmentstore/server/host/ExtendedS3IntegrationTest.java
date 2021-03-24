@@ -23,6 +23,7 @@ import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
+import io.pravega.segmentstore.storage.mocks.InMemoryCheckpointStore;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.storage.extendeds3.ExtendedS3ChunkStorage;
 import io.pravega.storage.extendeds3.ExtendedS3Storage;
@@ -54,6 +55,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        InMemoryCheckpointStore.getSingletonInstance().clear();
         s3ConfigUri = "http://127.0.0.1:" + TestUtils.getAvailableListenPort() + "?identity=x&secretKey=x";
         s3Mock = new S3Mock();
         this.configBuilder.include(ExtendedS3StorageConfig.builder()

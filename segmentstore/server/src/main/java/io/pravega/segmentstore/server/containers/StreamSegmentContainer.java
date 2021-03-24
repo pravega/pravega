@@ -71,6 +71,7 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
 import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
+import io.pravega.segmentstore.storage.mocks.InMemoryCheckpointStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -213,10 +214,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             ChunkedSegmentStorage chunkedStorage = (ChunkedSegmentStorage) this.storage;
 
             // Bootstrap
-            return chunkedStorage.bootstrap();
+            return chunkedStorage.bootstrap(InMemoryCheckpointStore.getSingletonInstance());
         }
         return CompletableFuture.completedFuture(null);
     }
+
 
     //endregion
 

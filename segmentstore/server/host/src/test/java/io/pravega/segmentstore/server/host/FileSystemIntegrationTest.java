@@ -14,6 +14,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryCheckpointStore;
 import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
@@ -34,6 +35,7 @@ public class FileSystemIntegrationTest extends BookKeeperIntegrationTestBase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        InMemoryCheckpointStore.getSingletonInstance().clear();
         this.configBuilder.include(FileSystemStorageConfig.builder()
                 .with(FileSystemStorageConfig.ROOT, getBaseDir().getAbsolutePath())
                 .with(FileSystemStorageConfig.REPLACE_ENABLED, true));

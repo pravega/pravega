@@ -15,6 +15,7 @@ import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
+import io.pravega.segmentstore.storage.mocks.InMemoryCheckpointStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -492,7 +493,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     }
 
     void testWithFlakyReads(TestMethod test, TestScenarioProvider scenarioProvider) throws Exception {
-        val primes = new int[] {3, 5, 7, 11, 13, 17};
+        val primes = new int[] {5, 7, 11, 13, 17};
         for (val prime : primes) {
             FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(executorService());
             flakyChunkStorage.flakyPredicates.add(FlakinessPredicate.builder()
@@ -660,6 +661,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         GarbageCollector garbageCollector;
         SegmentRollingPolicy policy;
         SystemJournal systemJournal;
+        SystemJournal.CheckpointStore checkpointStore;
         long epoch;
 
         TestInstance(TestContext testContext, long epoch) {
@@ -671,12 +673,13 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                     metadataStore,
                     testContext.config,
                     executorService());
+            this.checkpointStore = new InMemoryCheckpointStore();
             systemJournal = new SystemJournal(testContext.containerId, testContext.chunkStorage,
                     metadataStore, garbageCollector, () -> testContext.getTime(), testContext.config);
         }
 
         void bootstrap() throws Exception {
-            systemJournal.bootstrap(epoch).get();
+            systemJournal.bootstrap(epoch, checkpointStore).get();
         }
 
         /**

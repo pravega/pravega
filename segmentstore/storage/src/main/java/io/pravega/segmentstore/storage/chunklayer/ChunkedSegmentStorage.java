@@ -181,15 +181,16 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     /**
      * Initializes the ChunkedSegmentStorage and bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
+     * @param checkpointStore Pointer to store that saves checkpoints.
      * @throws Exception In case of any errors.
      */
-    public CompletableFuture<Void> bootstrap() throws Exception {
+    public CompletableFuture<Void> bootstrap(SystemJournal.CheckpointStore checkpointStore) throws Exception {
 
         this.logPrefix = String.format("ChunkedSegmentStorage[%d]", containerId);
 
         // Now bootstrap
         log.debug("{} STORAGE BOOT: Started.", logPrefix);
-        return this.systemJournal.bootstrap(epoch)
+        return this.systemJournal.bootstrap(epoch, checkpointStore)
                 .thenRun(() -> garbageCollector.initialize())
                 .thenRun(() -> log.debug("{} STORAGE BOOT: Ended.", logPrefix));
     }
