@@ -21,9 +21,9 @@ import java.lang.reflect.Modifier;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.Random;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,43 +40,43 @@ public class TestUtils {
     private static final int GLOBAL_BASE_PORT = 11221;
     private static final int GLOBAL_MAX_PORT = 32767;
 
-    private static PortRange portRange = null;
-    private static int nextPort;
+    private static final AtomicReference<PortRange> PORT_RANGE = new AtomicReference<>();
+    private static final AtomicInteger NEXT_PORT = new AtomicInteger();
 
     // We use a random start position here to avoid ports conflicts when this method is executed from multiple processes
     // in parallel. This is needed since the processes will contend for the same port sequence.
     // private static final AtomicInteger NEXT_PORT = new AtomicInteger(new Random().nextInt(MAX_PORT_COUNT));
 
     public static synchronized int getAvailableListenPort() {
-        if (portRange == null) {
+        if (PORT_RANGE.get() == null) {
             Integer threadId = Integer.getInteger("zookeeper.junit.threadid");
-            portRange = setupPortRange(
+            PORT_RANGE.set(setupPortRange(
                     System.getProperty("test.junit.threads"),
-                    threadId != null ? "threadid=" + threadId : System.getProperty("sun.java.command"));
-            nextPort = portRange.getMinimum();
+                    threadId != null ? "threadid=" + threadId : System.getProperty("sun.java.command")));
+            NEXT_PORT.set(PORT_RANGE.get().getMinimum());
         }
-        int candidatePort = nextPort;
+        int candidatePort = NEXT_PORT.get();
         for (;;) {
             ++candidatePort;
-            if (candidatePort > portRange.getMaximum()) {
-                candidatePort = portRange.getMinimum();
+            if (candidatePort > PORT_RANGE.get().getMaximum()) {
+                candidatePort = PORT_RANGE.get().getMinimum();
             }
-            if (candidatePort == nextPort) {
+            if (candidatePort == NEXT_PORT.get()) {
                 throw new IllegalStateException(String.format(
                         "Could not assign port from range %s.  The entire range has been exhausted.",
-                        portRange));
+                        PORT_RANGE.get()));
             }
             try {
                 ServerSocket s = new ServerSocket(candidatePort);
                 s.close();
-                nextPort = candidatePort;
-                log.info("Assigned port {} from range {}.", nextPort, portRange);
-                return nextPort;
+                NEXT_PORT.set(candidatePort);
+                log.info("Assigned port {} from range {}.", NEXT_PORT.get(), PORT_RANGE.get());
+                return NEXT_PORT.get();
             } catch (IOException e) {
                 log.debug(
                         "Could not bind to port {} from range {}.  Attempting next port.",
                         candidatePort,
-                        portRange,
+                        PORT_RANGE.get(),
                         e);
             }
         }
@@ -171,11 +171,6 @@ public class TestUtils {
 
     }
 
-    /**
-     * A helper method to get a random free TCP port.
-     *
-     * @return free port.
-     */
     /*public synchronized static int getAvailableListenPort() {
         for (int i = 0; i < MAX_PORT_COUNT; i++) {
             int candidatePort = BASE_PORT + NEXT_PORT.getAndIncrement() % MAX_PORT_COUNT;

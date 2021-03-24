@@ -17,6 +17,7 @@ package io.pravega.local;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.common.Exceptions;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.security.ZKTLSUtils;
@@ -241,15 +242,14 @@ public class InProcPravegaCluster implements AutoCloseable {
         @Cleanup
         CuratorFramework zclient = builder.build();
         zclient.start();
-        for ( String path : pathsTobeCleaned ) {
+        Exceptions.handleInterrupted(zclient::blockUntilConnected);
+        for (String path : pathsTobeCleaned) {
             try {
-                zclient.delete().guaranteed().deletingChildrenIfNeeded()
-                        .forPath(path);
+                zclient.delete().guaranteed().deletingChildrenIfNeeded().forPath(path);
             } catch (Exception e) {
                 log.warn("Not able to delete path {} . Exception {}", path, e.getMessage());
             }
         }
-        zclient.close();
     }
 
     private void startLocalHDFS() throws IOException {
