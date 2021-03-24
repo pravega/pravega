@@ -76,7 +76,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
         ChunkedSegmentStorage forkedChunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, storage.getChunkStorage(),
                 getCloneMetadataStore(storage.getMetadataStore()),
                 executor,
-                ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+                storage.getConfig());
         return forkedChunkedSegmentStorage;
     }
 
@@ -87,7 +87,7 @@ public abstract class SimpleStorageTests extends StorageTestBase {
      * @throws Exception Exceptions in case of any errors.
      */
     protected ChunkMetadataStore getMetadataStore() throws Exception {
-        return new InMemoryMetadataStore(executorService());
+        return new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
     }
 
     /**

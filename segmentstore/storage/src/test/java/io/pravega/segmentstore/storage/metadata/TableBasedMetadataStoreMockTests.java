@@ -15,6 +15,7 @@ import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryTableStore;
 import io.pravega.segmentstore.storage.mocks.MockStorageMetadata;
 import io.pravega.test.common.AssertExtensions;
@@ -44,7 +45,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
     @Test
     public void testIllegalStateExceptionDuringRead() {
         TableStore mockTableStore = mock(TableStore.class);
-        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
+        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
 
         when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
         when(mockTableStore.get(anyString(), any(), any())).thenThrow(new IllegalStateException());
@@ -57,7 +58,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
     @Test
     public void testBadReadExceptionDuringRead() {
         TableStore mockTableStore = mock(TableStore.class);
-        TableBasedMetadataStore tableBasedMetadataStore = spy(new TableBasedMetadataStore("test", mockTableStore, executorService()));
+        TableBasedMetadataStore tableBasedMetadataStore = spy(new TableBasedMetadataStore("test", mockTableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
 
         when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
         when(tableBasedMetadataStore.read("test")).thenReturn(CompletableFuture.completedFuture(null));
@@ -71,7 +72,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
     @Test
     public void testBadReadMissingDbObjectDuringRead() {
         TableStore mockTableStore = mock(TableStore.class);
-        TableBasedMetadataStore tableBasedMetadataStore = spy(new TableBasedMetadataStore("test", mockTableStore, executorService()));
+        TableBasedMetadataStore tableBasedMetadataStore = spy(new TableBasedMetadataStore("test", mockTableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
 
         when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
         when(tableBasedMetadataStore.read("test")).thenReturn(CompletableFuture.completedFuture(BaseMetadataStore.TransactionData.builder()
@@ -87,7 +88,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
     @Test
     public void testBadReadMissingNoVersionDuringRead() {
         TableStore mockTableStore = mock(TableStore.class);
-        TableBasedMetadataStore tableBasedMetadataStore = spy(new TableBasedMetadataStore("test", mockTableStore, executorService()));
+        TableBasedMetadataStore tableBasedMetadataStore = spy(new TableBasedMetadataStore("test", mockTableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
 
         when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
         when(tableBasedMetadataStore.read("test")).thenReturn(CompletableFuture.completedFuture(BaseMetadataStore.TransactionData.builder()
@@ -105,7 +106,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
     @Test
     public void testRandomExceptionDuringRead() {
         TableStore mockTableStore = mock(TableStore.class);
-        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
+        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
 
         when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
         // Throw random exception
@@ -122,7 +123,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
     @Test
     public void testDataLogWriterNotPrimaryExceptionDuringWrite() {
         TableStore mockTableStore = mock(TableStore.class);
-        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
+        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
 
         when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
 
@@ -142,7 +143,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
     @Test
     public void testBadKeyVersionExceptionDuringWrite() {
         TableStore mockTableStore = mock(TableStore.class);
-        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
+        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
 
         when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
 
@@ -162,7 +163,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
     @Test
     public void testRandomRuntimeExceptionDuringWrite() {
         TableStore mockTableStore = mock(TableStore.class);
-        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
+        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
 
         when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
 
@@ -182,7 +183,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
     @Test
     public void testExceptionDuringRemove() throws Exception {
         TableStore mockTableStore = mock(TableStore.class);
-        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
+        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
 
         when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
 
@@ -201,7 +202,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
     @Test
     public void testExceptionDuringRemoveWithSpy() throws Exception {
         TableStore mockTableStore = spy(new InMemoryTableStore(executorService()));
-        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
+        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
 
         // Step 1 - set up keys
         try (val txn = tableBasedMetadataStore.beginTransaction(false, "TEST")) {
@@ -259,7 +260,7 @@ public class TableBasedMetadataStoreMockTests extends ThreadPooledTestSuite {
     @Test
     public void testRandomExceptionDuringWrite() {
         TableStore mockTableStore = mock(TableStore.class);
-        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, executorService());
+        TableBasedMetadataStore tableBasedMetadataStore = new TableBasedMetadataStore("test", mockTableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
 
         when(mockTableStore.createSegment(any(), any(), any())).thenReturn(Futures.failedFuture(new CompletionException(new StreamSegmentExistsException("test"))));
 

@@ -25,12 +25,16 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public class InMemorySimpleStorageFactory implements SimpleStorageFactory {
     @Getter
+    protected ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
+
+    @Getter
     protected ScheduledExecutorService executor;
 
     private Storage singletonStorage;
     private boolean reuseStorage;
 
-    public InMemorySimpleStorageFactory(ScheduledExecutorService executor, boolean reuseStorage) {
+    public InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig config, ScheduledExecutorService executor, boolean reuseStorage) {
+        this.chunkedSegmentStorageConfig = Preconditions.checkNotNull(config, "config");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.reuseStorage = reuseStorage;
     }
