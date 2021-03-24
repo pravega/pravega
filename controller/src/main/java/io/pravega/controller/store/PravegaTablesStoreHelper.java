@@ -120,18 +120,20 @@ public class PravegaTablesStoreHelper {
 
     /**
      * Api to read cached value for the specified key from the requested table.
+     * @param <T> Type of object to deserialize the response into.
      * @param table name of table
      * @param key key to query
      * @param time time after which the cache entry should have been loaded. 
-     * @param <T> Type of object to deserialize the response into.
+     * @param requestId request id
      * @return Returns a completableFuture which when completed will have the deserialized value with its store key version.
      */
-    private <T> VersionedMetadata<T> getCachedData(String table, String key, long time) {
+    private <T> VersionedMetadata<T> getCachedData(String table, String key, long time, long requestId) {
         TableCacheKey<T> cacheKey = new TableCacheKey<>(table, key);
         VersionedMetadata<?> cachedData = cache.getCachedData(cacheKey, time);
         if (cachedData == null) {
             return null;
         }
+        log.trace(requestId, "found entry for key {} in table {} in cache", key, table);
         return getVersionedMetadata(cachedData);
     }
     
@@ -225,7 +227,7 @@ public class PravegaTablesStoreHelper {
                 })
                 .thenApplyAsync(x -> {
                     TableSegmentKeyVersion first = x.get(0);
-                    log.trace(requestId, "entry for key {} added to table {} with version {}", 
+                    log.debug(requestId, "entry for key {} added to table {} with version {}", 
                             key, tableName, first.getSegmentVersion());
                     Version version = new Version.LongVersion(first.getSegmentVersion());
                     putInCache(tableName, key, new VersionedMetadata<>(val, version), time);
@@ -288,7 +290,7 @@ public class PravegaTablesStoreHelper {
                             throw new CompletionException(e);
                         }
                     } else {
-                        log.trace(requestId, "entries added to table {}", tableName);
+                        log.debug(requestId, "entries added {} to table {}", toAdd, tableName);
                         for (int i = 0; i < r.size(); i++) {
                             putInCache(tableName, toAdd.get(i).getKey(), 
                                     new VersionedMetadata<>(toAdd.get(i).getValue(),
@@ -322,7 +324,7 @@ public class PravegaTablesStoreHelper {
                 () -> String.format("updateEntry: key: %s table: %s", key, tableName), true, requestId)
                 .thenApplyAsync(x -> {
                     TableSegmentKeyVersion first = x.get(0);
-                    log.trace(requestId, "entry for key {} updated to table {} with new version {}", 
+                    log.debug(requestId, "entry for key {} updated to table {} with new version {}", 
                             key, tableName, first.getSegmentVersion());
                     Version newVersion = new Version.LongVersion(first.getSegmentVersion());
                     putInCache(tableName, key, new VersionedMetadata<>(val, newVersion), time);
@@ -399,10 +401,7 @@ public class PravegaTablesStoreHelper {
     public <T> CompletableFuture<VersionedMetadata<T>> getCachedOrLoad(String tableName, String key, Function<byte[], T> fromBytes,
                                                                        long afterTime, long requestId) {
         log.trace(requestId, "get entry called for : {} key : {}", tableName, key);
-        if (key.equals("kvtable1")) {
-            
-        }
-        VersionedMetadata<Object> cached = getCachedData(tableName, key, afterTime);
+        VersionedMetadata<Object> cached = getCachedData(tableName, key, afterTime, requestId);
         if (cached != null) {
             return CompletableFuture.completedFuture(getVersionedMetadata(cached));
         } else {
