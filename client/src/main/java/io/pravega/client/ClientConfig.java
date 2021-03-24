@@ -92,6 +92,12 @@ public class ClientConfig implements Serializable {
     private final int maxConnectionsPerSegmentStore;
 
     /**
+     * An internal property that determines if the client config.
+     */
+    @Getter(AccessLevel.PACKAGE)
+    private final boolean canOverrideMaxConnectionsConfiguration;
+
+    /**
      * An internal property that determines whether TLS enabled is derived from Controller URI. It cannot be set
      * directly by the caller. It is interpreted as:
      *
@@ -187,6 +193,7 @@ public class ClientConfig implements Serializable {
         private boolean validateHostName = true;
 
         private boolean deriveTlsEnabledFromControllerURI = true;
+        private boolean canOverrideMaxConnectionsConfiguration = true;
 
         /**
          * Note: by making this method private, we intend to hide the corresponding property
@@ -197,6 +204,21 @@ public class ClientConfig implements Serializable {
          */
         private ClientConfigBuilder deriveTlsEnabledFromControllerURI(boolean value) {
             this.deriveTlsEnabledFromControllerURI = value;
+            return this;
+        }
+
+        private ClientConfigBuilder canOverrideMaxConnectionsConfiguration(boolean value) {
+            this.canOverrideMaxConnectionsConfiguration = value;
+            return this;
+        }
+
+        public ClientConfigBuilder maxConnectionsPerSegmentStore(int maxConnectionsPerSegmentStore) {
+            if (this.canOverrideMaxConnectionsConfiguration) {
+                this.canOverrideMaxConnectionsConfiguration(false);
+                this.maxConnectionsPerSegmentStore = maxConnectionsPerSegmentStore;
+            } else {
+                log.warn("Update to maxConnectionsPerSegmentStore configuration from {} to {} is ignored,", this.maxConnectionsPerSegmentStore, maxConnectionsPerSegmentStore);
+            }
             return this;
         }
 
@@ -221,7 +243,8 @@ public class ClientConfig implements Serializable {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
             }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
-                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore, metricListener);
+                    canOverrideMaxConnectionsConfiguration, deriveTlsEnabledFromControllerURI, enableTlsToController,
+                    enableTlsToSegmentStore, metricListener);
         }
 
         /**
