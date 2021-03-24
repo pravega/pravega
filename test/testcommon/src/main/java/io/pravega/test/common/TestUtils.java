@@ -21,6 +21,7 @@ import java.lang.reflect.Modifier;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Random;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -37,141 +38,19 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class TestUtils {
     // Linux uses ports from range 32768 - 61000.
-    private static final int GLOBAL_BASE_PORT = 11221;
-    private static final int GLOBAL_MAX_PORT = 32767;
-
-    private static final AtomicReference<PortRange> PORT_RANGE = new AtomicReference<>();
-    private static final AtomicInteger NEXT_PORT = new AtomicInteger();
+    private static final int BASE_PORT = 32768;
+    private static final int MAX_PORT_COUNT = 28233;
 
     // We use a random start position here to avoid ports conflicts when this method is executed from multiple processes
     // in parallel. This is needed since the processes will contend for the same port sequence.
-    // private static final AtomicInteger NEXT_PORT = new AtomicInteger(new Random().nextInt(MAX_PORT_COUNT));
-
-    public static synchronized int getAvailableListenPort() {
-        if (PORT_RANGE.get() == null) {
-            Integer threadId = Integer.getInteger("zookeeper.junit.threadid");
-            PORT_RANGE.set(setupPortRange(
-                    System.getProperty("test.junit.threads"),
-                    threadId != null ? "threadid=" + threadId : System.getProperty("sun.java.command")));
-            NEXT_PORT.set(PORT_RANGE.get().getMinimum());
-        }
-        int candidatePort = NEXT_PORT.get();
-        for (;;) {
-            ++candidatePort;
-            if (candidatePort > PORT_RANGE.get().getMaximum()) {
-                candidatePort = PORT_RANGE.get().getMinimum();
-            }
-            if (candidatePort == NEXT_PORT.get()) {
-                throw new IllegalStateException(String.format(
-                        "Could not assign port from range %s.  The entire range has been exhausted.",
-                        PORT_RANGE.get()));
-            }
-            try {
-                ServerSocket s = new ServerSocket(candidatePort);
-                s.close();
-                NEXT_PORT.set(candidatePort);
-                log.info("Assigned port {} from range {}.", NEXT_PORT.get(), PORT_RANGE.get());
-                return NEXT_PORT.get();
-            } catch (IOException e) {
-                log.debug(
-                        "Could not bind to port {} from range {}.  Attempting next port.",
-                        candidatePort,
-                        PORT_RANGE.get(),
-                        e);
-            }
-        }
-    }
-
-    static PortRange setupPortRange(String strProcessCount, String cmdLine) {
-        Integer processCount = null;
-        if (strProcessCount != null && !strProcessCount.isEmpty()) {
-            try {
-                processCount = Integer.valueOf(strProcessCount);
-            } catch (NumberFormatException e) {
-                log.warn("Error parsing test.junit.threads = {}.", strProcessCount, e);
-            }
-        }
-
-        Integer threadId = null;
-        if (processCount != null) {
-            if (cmdLine != null && !cmdLine.isEmpty()) {
-                Matcher m = Pattern.compile("threadid=(\\d+)").matcher(cmdLine);
-                if (m.find()) {
-                    try {
-                        threadId = Integer.valueOf(m.group(1));
-                    } catch (NumberFormatException e) {
-                        log.warn("Error parsing threadid from {}.", cmdLine, e);
-                    }
-                }
-            }
-        }
-
-        final PortRange newPortRange;
-        if (processCount != null && processCount > 1 && threadId != null) {
-            // We know the total JUnit process count and this test process's ID.
-            // Use these values to calculate the valid range for port assignments
-            // within this test process.  We lose a few possible ports to the
-            // remainder, but that's acceptable.
-            int portRangeSize = (GLOBAL_MAX_PORT - GLOBAL_BASE_PORT) / processCount;
-            int minPort = GLOBAL_BASE_PORT + ((threadId - 1) * portRangeSize);
-            int maxPort = minPort + portRangeSize - 1;
-            newPortRange = new PortRange(minPort, maxPort);
-            log.info("Test process {}/{} using ports from {}.", threadId, processCount, newPortRange);
-        } else {
-            // If running outside the context of Ant or Ant is using a single
-            // test process, then use all valid ports.
-            newPortRange = new PortRange(GLOBAL_BASE_PORT, GLOBAL_MAX_PORT);
-            log.info("Single test process using ports from {}.", newPortRange);
-        }
-
-        return newPortRange;
-    }
+    private static final AtomicInteger NEXT_PORT = new AtomicInteger(new Random().nextInt(MAX_PORT_COUNT));
 
     /**
-     * Contains the minimum and maximum (both inclusive) in a range of ports.
+     * A helper method to get a random free TCP port.
+     *
+     * @return free port.
      */
-    static final class PortRange {
-
-        private final int minimum;
-        private final int maximum;
-
-        /**
-         * Creates a new PortRange.
-         *
-         * @param minimum lower bound port number
-         * @param maximum upper bound port number
-         */
-        PortRange(int minimum, int maximum) {
-            this.minimum = minimum;
-            this.maximum = maximum;
-        }
-
-        /**
-         * Returns maximum port in the range.
-         *
-         * @return maximum
-         */
-        int getMaximum() {
-            return maximum;
-        }
-
-        /**
-         * Returns minimum port in the range.
-         *
-         * @return minimum
-         */
-        int getMinimum() {
-            return minimum;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("%d - %d", minimum, maximum);
-        }
-
-    }
-
-    /*public synchronized static int getAvailableListenPort() {
+    public synchronized static int getAvailableListenPort() {
         for (int i = 0; i < MAX_PORT_COUNT; i++) {
             int candidatePort = BASE_PORT + NEXT_PORT.getAndIncrement() % MAX_PORT_COUNT;
             try {
@@ -185,7 +64,7 @@ public class TestUtils {
         }
         throw new IllegalStateException(
                 String.format("Could not assign port in range %d - %d", BASE_PORT, MAX_PORT_COUNT + BASE_PORT));
-    }*/
+    }
 
     /**
      * Awaits the given condition to become true.
