@@ -21,8 +21,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
+import lombok.experimental.Delegate;
+
+import static org.junit.Assert.assertNull;
 
 @RequiredArgsConstructor
 public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionPool {
@@ -42,8 +46,9 @@ public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionP
     public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri location, ReplyProcessor rp) {
         ClientConnection connection = connections.get(location);
         Preconditions.checkState(connection != null, "Unexpected Endpoint");
-        processors.put(location, rp);
-        return CompletableFuture.completedFuture(connection);
+        ReplyProcessor previous = processors.put(location, rp);
+        assertNull("Mock connection fractory does not support multiple concurrent connections to the same location", previous);
+        return CompletableFuture.completedFuture(new DelegateClientConnection(location, connection));
     }
 
     @Override
@@ -54,6 +59,7 @@ public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionP
     @Synchronized
     public void provideConnection(PravegaNodeUri location, ClientConnection c) {
         connections.put(location, c);
+        processors.remove(location);
     }
 
     @Synchronized
@@ -84,4 +90,21 @@ public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionP
     public void getClientConnection(Flow flow, PravegaNodeUri uri, ReplyProcessor rp, CompletableFuture<ClientConnection> connection) {
         establishConnection(uri, rp).thenApply(connection::complete);
     }
+    
+    @RequiredArgsConstructor
+    @EqualsAndHashCode
+    private class DelegateClientConnection implements ClientConnection {
+        
+        private final PravegaNodeUri location;
+        
+        @Delegate(excludes = AutoCloseable.class)
+        private final ClientConnection impl;
+        
+        @Override
+        public void close() {
+            processors.remove(location);
+            impl.close();
+        }
+    }
+    
 }

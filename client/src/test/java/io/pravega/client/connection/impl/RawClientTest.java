@@ -21,8 +21,8 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
-import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.ErrorMessage;
+import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -128,7 +128,6 @@ public class RawClientTest {
         ClientConnection connection = Mockito.mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, connection);
         Segment segment = new Segment("scope", "test", 0);
-        @Cleanup
         RawClient rawClient = new RawClient(controller, connectionFactory, segment);
 
         WireCommands.ReadSegment request1 = new WireCommands.ReadSegment(segment.getScopedName(), 0, 10, "",
@@ -144,7 +143,8 @@ public class RawClientTest {
         assertTrue(future.isCompletedExceptionally());
         assertFutureThrows("The future should be completed exceptionally", future,
                 t -> t instanceof ConnectionFailedException);
-
+        rawClient.close();
+        rawClient = new RawClient(controller, connectionFactory, segment);
         WireCommands.ReadSegment request2 = new WireCommands.ReadSegment(segment.getScopedName(), 0, 10, "", 2L);
         future = rawClient.sendRequest(2L, request2);
         // Verify if the request was sent over the connection.
@@ -156,6 +156,7 @@ public class RawClientTest {
         assertTrue(future.isCompletedExceptionally());
         assertFutureThrows("The future should be completed exceptionally", future,
                 t -> t instanceof AuthenticationException);
+        rawClient.close();
     }
 
     @Test
