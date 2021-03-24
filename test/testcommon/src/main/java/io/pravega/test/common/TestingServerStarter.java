@@ -25,13 +25,16 @@ public class TestingServerStarter {
 
     @Getter
     private final int adminServerPort;
+    @Getter
+    private final int serverPort;
 
     public TestingServerStarter() {
         adminServerPort = TestUtils.getAvailableListenPort();
+        serverPort = TestUtils.getAvailableListenPort();
     }
 
     public TestingServer start() throws Exception {
         System.setProperty("zookeeper.admin.serverPort", Integer.toString(adminServerPort));
-        return new TestingServer();
+        return new TestingServer(serverPort);
     }
 }

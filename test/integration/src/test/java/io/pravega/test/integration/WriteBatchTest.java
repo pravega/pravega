@@ -59,6 +59,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
+
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -72,9 +74,9 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class WriteBatchTest {
     private static final String STREAM_NAME = "testBatchWrite" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    private static final int NUM_WRITERS = 20;
-    private static final int NUM_READERS = 20;
-    private static final int NUM_EVENT_ITERATIONS_BY_WRITER = 1000;
+    private static final int NUM_WRITERS = 10;
+    private static final int NUM_READERS = 10;
+    private static final int NUM_EVENT_ITERATIONS_BY_WRITER = 500;
     private TestingServer zkTestServer = null;
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
@@ -230,11 +232,9 @@ public class WriteBatchTest {
         log.info("Read write test succeeds");
     }
 
-    private CompletableFuture<Void> startNewWriter(final AtomicLong data,
-                                                   final EventStreamClientFactory clientFactory) {
+    private CompletableFuture<Void> startNewWriter(final AtomicLong data, final EventStreamClientFactory clientFactory) {
         return CompletableFuture.runAsync(() -> {
-            final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
-                    new JavaSerializer<Long>(),
+            final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME, new JavaSerializer<>(),
                     EventWriterConfig.builder().build());
             for (int i = 0; i < NUM_EVENT_ITERATIONS_BY_WRITER; i++) {
                 // for every 20th event, create a batch of 10 events.
