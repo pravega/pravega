@@ -32,8 +32,8 @@ To complete this guide, you need:
 * <details>
   <summary>Gradle 6.5.1+</summary>
   Installation : https://gradle.org/install/
-
-  :warning: Verify Gradle is using the Java you expect. You can verify which JDK Gradle uses by running `gradle --version`.
+  
+  Note: Verify Gradle is using the Java you expect. You can verify which JDK Gradle uses by running `gradle --version`.
 </details>
 
 # 2. Goal
