@@ -10,17 +10,15 @@
 
 set -euo pipefail
 
+TAR_NAME="pravega-logs-export.tar"
 CONFIG_MAP_NAME="pravega-logrotate"
 PVC_NAME=pravega-log-sink
 VOLUME_NAME=logs
-
-NAMESPACE=${NAMESPACE:-"default"}
 HOST_LOGS=host-logs
 MOUNT_PATH=/data
 CONFIG_MAP_DATA=/etc/config
 KEEP_PVC=false
-NAME=${NAME:-"pravega-fluent-bit"}
-TAR_NAME="pravega-logs-export.tar"
+LOG_EXT="gz"
 
 # Configurable flag parameters.
 FLUENT_BIT_DEPLOYMENT=${FLUENT_BIT_DEPLOYMENT:-"pravega-logs"}
@@ -35,7 +33,8 @@ FLUENT_BIT_HOST_LOGS_PATH=${FLUENT_BIT_HOST_LOGS_PATH:-""}
 FLUENT_BIT_ROTATE_THRESHOLD_BYTES=${FLUENT_BIT_ROTATE_THRESHOLD_BYTES:-10000000}
 FLUENT_BIT_EXPORT_PATH=${FLUENT_BIT_EXPORT_PATH:-"/tmp/pravega.logs"}
 LOG_ROTATE_CONF_PATH=${LOG_ROTATE_CONF_PATH:-$CONFIG_MAP_DATA/"logrotate.conf"}
-LOG_EXT="gz"
+NAMESPACE=${NAMESPACE:-"default"}
+NAME=${NAME:-"pravega-fluent-bit"}
 
 ###################################
 ### Flags/Args Parsing
