@@ -642,22 +642,22 @@ public class SegmentHelper implements AutoCloseable {
         WireCommandFailedException ex = null;
         if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
             ex = new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
-            log.warn(requestId, "Connection dropped: {}", ex.getMessage());
+            log.warn(requestId, "Connection dropped: {}.", ex.getMessage());
             throw ex;
         } else if (unwrap instanceof AuthenticationException) {
             ex = new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
-            log.warn(requestId, "Authentication Exception: {}", ex.getMessage());
+            log.warn(requestId, "Authentication Exception: {}.", ex.getMessage());
             throw ex;
         } else if (unwrap instanceof TokenExpiredException) {
             ex = new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
-            log.warn(requestId, "Token expired: {}", ex.getMessage());
+            log.warn(requestId, "Token expired: {}.", ex.getMessage());
             throw ex;
         } else if (unwrap instanceof TimeoutException) {
             ex = new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
-            log.warn(requestId, "Request timed out: {}", ex.getMessage());
+            log.warn(requestId, "Request timed out with exception: {}. Request: {}.", ex.getMessage(), request);
             throw ex;
         } else {
-            log.error(requestId, "Request failed: {}", e);
+            log.error(requestId, "Request failed.", e);
             throw new CompletionException(e);
         }
     }
