@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
@@ -886,7 +892,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             BiConsumerWithException<TestContext, UpdateableSegmentMetadata> executeBetweenReads,
             BiConsumerWithException<TestContext, UpdateableSegmentMetadata> finalCheck) throws Exception {
         val maxAllowedStorageReads = 2 + extraAllowedStorageReads;
-        val cachePolicy = new CachePolicy(100, 0.01, 1.0, Duration.ofMillis(10), Duration.ofMillis(10));
+
+        // Set a cache size big enough to prevent the Cache Manager from enabling "essential-only" mode due to over-utilization.
+        val cachePolicy = new CachePolicy(10000, 0.01, 1.0, Duration.ofMillis(10), Duration.ofMillis(10));
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG, cachePolicy);
 
@@ -1472,6 +1480,75 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the {@link ContainerReadIndex#trimCache()} method.
+     */
+    @Test
+    public void testTrimCache() throws Exception {
+        // Create a CachePolicy with a set number of generations and a known max size.
+        // Each generation contains exactly one entry, so the number of generations is also the number of entries.
+        // We append one byte at each time. This allows us to test edge cases as well by having the finest precision when
+        // it comes to selecting which bytes we want evicted and which kept.
+        final int appendCount = 100;
+        final int segmentId = 123;
+        final byte[] appendData = new byte[2];
+
+        val removedEntryCount = new AtomicInteger();
+        @Cleanup
+        TestContext context = new TestContext();
+        context.metadata.enterRecoveryMode();
+        context.readIndex.enterRecoveryMode(context.metadata);
+
+        // To ease our testing, we disable appends and instruct the TestCache to report the same value for UsedBytes as it
+        // has for StoredBytes. This shields us from having to know internal details about the layout of the cache.
+        context.cacheStorage.usedBytesSameAsStoredBytes = true;
+        context.cacheStorage.disableAppends = true;
+        context.cacheStorage.deleteCallback = e -> removedEntryCount.incrementAndGet();
+
+        createSegment(segmentId, context);
+        val metadata = context.metadata.getStreamSegmentMetadata(segmentId);
+        metadata.setLength(appendCount * appendData.length);
+        for (int i = 0; i < appendCount; i++) {
+            long offset = i * appendData.length;
+            context.readIndex.append(segmentId, offset, new ByteArraySegment(appendData));
+        }
+
+        // Gradually increase the StorageLength of the segment and invoke trimCache twice at every step. We want to verify
+        // that it also does not evict more than it should if it has nothing to do.
+        int deltaIncrease = 0;
+        while (metadata.getStorageLength() < metadata.getLength()) {
+            val trim1 = context.readIndex.trimCache();
+            Assert.assertEquals("Not expecting any bytes trimmed.", 0, trim1);
+
+            // Every time we trim, increase the StorageLength by a bigger amount - but make sure we don't exceed the length of the segment.
+            deltaIncrease = (int) Math.min(metadata.getLength() - metadata.getStorageLength(), deltaIncrease + appendData.length);
+            metadata.setStorageLength(Math.min(metadata.getLength(), metadata.getStorageLength() + deltaIncrease));
+            removedEntryCount.set(0);
+            val trim2 = context.readIndex.trimCache();
+            Assert.assertEquals("Unexpected number of bytes trimmed.", deltaIncrease, trim2);
+            Assert.assertEquals("Unexpected number of cache entries evicted.", deltaIncrease / appendData.length, removedEntryCount.get());
+        }
+
+        // Take the index out of recovery mode.
+        context.metadata.exitRecoveryMode();
+        context.readIndex.exitRecoveryMode(true);
+
+        // Verify that the entries have actually been evicted.
+        for (int i = 0; i < appendCount; i++) {
+            long offset = i * appendData.length;
+            @Cleanup
+            val readResult = context.readIndex.read(segmentId, offset, appendData.length, TIMEOUT);
+            val first = readResult.next();
+            Assert.assertEquals("", ReadResultEntryType.Storage, first.getType());
+        }
+
+        // Verify trimCache() doesn't work when we are not in recovery mode.
+        AssertExtensions.assertThrows(
+                "trimCache worked in non-recovery mode.",
+                context.readIndex::trimCache,
+                ex -> ex instanceof IllegalStateException);
+    }
+
+    /**
      * Tests the {@link ContainerReadIndex#cleanup} method as well as its handling of inactive segments.
      */
     @Test
@@ -1575,7 +1652,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         transactionWriteData.copyTo(writtenStream);
 
         // Clear the cache.
-        context.cacheManager.applyCachePolicy();
+        boolean evicted = context.cacheManager.applyCachePolicy();
+        Assert.assertTrue("Expected an eviction.", evicted);
 
         // Issue read from the parent.
         ReadResult rr = context.readIndex.read(parentId, mergeOffset, transactionWriteData.getLength(), TIMEOUT);
@@ -1728,9 +1806,11 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     @Test
     public void testConcurrentReadTransactionStorageReadCacheFull() throws Exception {
         val appendLength = 4 * 1024; // Must equal Cache Block size for easy eviction.
-        CachePolicy cachePolicy = new CachePolicy(1, Duration.ZERO, Duration.ofMillis(1));
+        val maxCacheSize = 2 * 1024 * 1024;
+        // We set the policy's max size to a much higher value to avoid entering "essential-only" state.
+        CachePolicy cachePolicy = new CachePolicy(2 * maxCacheSize, Duration.ZERO, Duration.ofMillis(1));
         @Cleanup
-        TestContext context = new TestContext(DEFAULT_CONFIG, cachePolicy, 2 * appendLength);
+        TestContext context = new TestContext(DEFAULT_CONFIG, cachePolicy, maxCacheSize);
         val rnd = new Random(0);
 
         // Create parent segment and one transaction
@@ -2198,6 +2278,109 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Release the delete blocker. If all goes well, all the other operations should be unblocked at this point.
         segment1Delete.release();
         append2Future.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Tests the ability of the Read Index to handle "Essential-Only" cache mode, where only cache entries that are not
+     * yet persisted to Storage may be added to the cache.
+     */
+    @Test
+    public void testCacheEssentialOnlyMode() throws Exception {
+        val rnd = new Random(0);
+        val appendSize = 4 * 1024; // Cache block size.
+        val segmentLength = 10 * appendSize;
+        // Setup a cache policy that will keep at most 4 blocks in the cache, and enter essential mode after 4 blocks too
+        // NOTE: blocks includes the metadata block (internal to the cache), so usable blocks is 3.
+        CachePolicy cachePolicy = new CachePolicy(segmentLength, 0.3, 0.4, Duration.ofHours(1000), Duration.ofSeconds(1));
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG, cachePolicy);
+        context.cacheStorage.appendReturnBlocker = null; // Not blocking anything now.
+
+        // Create segment, generate some content for it, setup its metadata and write 40% of it to Storage.
+        long segmentId = createSegment(0, context);
+        val segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
+        createSegmentsInStorage(context);
+        val segmentData = new byte[segmentLength];
+        rnd.nextBytes(segmentData);
+        val part1 = new ByteArraySegment(segmentData, 0, appendSize);
+        val part2 = new ByteArraySegment(segmentData, appendSize, appendSize);
+        val part3 = new ByteArraySegment(segmentData, 2 * appendSize, appendSize);
+        val part4 = new ByteArraySegment(segmentData, 3 * appendSize, appendSize);
+        val part5 = new ByteArraySegment(segmentData, 4 * appendSize, appendSize);
+        segmentMetadata.setLength(segmentLength);
+        segmentMetadata.setStorageLength(part1.getLength() + part2.getLength());
+        context.storage.openWrite(segmentMetadata.getName())
+                .thenCompose(h -> context.storage.write(h, 0, new ByteArrayInputStream(segmentData),
+                        (int) segmentMetadata.getStorageLength(), TIMEOUT)).join();
+
+        val insertCount = new AtomicInteger(0);
+        val storageReadCount = new AtomicInteger(0);
+        context.cacheStorage.insertCallback = address -> insertCount.incrementAndGet();
+        context.storage.setReadInterceptor((segment, wrappedStorage) -> storageReadCount.incrementAndGet());
+
+        // Helper for reading a segment part.
+        BiConsumer<Long, BufferView> readPart = (partOffset, partContents) -> {
+            try {
+                @Cleanup
+                val rr = context.readIndex.read(segmentId, partOffset, partContents.getLength(), TIMEOUT);
+                val readData = rr.readRemaining(partContents.getLength(), TIMEOUT);
+                Assert.assertEquals(partContents, BufferView.wrap(readData));
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+        };
+
+        // Read parts 1 and 2 (separately). They should be cached as individual entries.
+        readPart.accept(0L, part1);
+        Assert.assertEquals(1, storageReadCount.get());
+
+        // Cache insertion is done async. Need to wait until we write
+        AssertExtensions.assertEventuallyEquals(1, insertCount::get, TIMEOUT.toMillis());
+        AssertExtensions.assertEventuallyEquals(1, context.readIndex.getIndex(segmentId).getSummary()::size, TIMEOUT.toMillis());
+
+        boolean evicted = context.cacheManager.applyCachePolicy(); // No eviction, but increase generation.
+        Assert.assertFalse("Not expected an eviction now.", evicted);
+
+        readPart.accept((long) part1.getLength(), part2);
+
+        // We expect 2 storage reads and also 2 cache inserts.
+        Assert.assertEquals(2, storageReadCount.get());
+        AssertExtensions.assertEventuallyEquals(2, insertCount::get, TIMEOUT.toMillis()); // This one is done asynchronously.
+        AssertExtensions.assertEventuallyEquals(2, context.readIndex.getIndex(segmentId).getSummary()::size, TIMEOUT.toMillis());
+
+        evicted = context.cacheManager.applyCachePolicy(); // No eviction, but increase generation.
+        Assert.assertFalse("Not expected an eviction now.", evicted);
+
+        // Append parts 3, 4 and 5.
+        context.readIndex.append(segmentId, segmentMetadata.getStorageLength(), part3);
+        Assert.assertEquals(3, insertCount.get()); // This insertion is done synchronously.
+        evicted = context.cacheManager.applyCachePolicy(); // Eviction (part 1) + increase generation.
+        Assert.assertTrue("Expected an eviction after writing 3 blocks.", evicted);
+
+        context.readIndex.append(segmentId, segmentMetadata.getStorageLength() + part3.getLength(), part4);
+        Assert.assertEquals("Expected an insertion for appends even in essential-only mode.", 4, insertCount.get());
+        evicted = context.cacheManager.applyCachePolicy(); // Eviction (part 2) + increase generation.
+        Assert.assertTrue("Expected an eviction after writing 4 blocks.", evicted);
+
+        context.readIndex.append(segmentId, segmentMetadata.getStorageLength() + part3.getLength() + part4.getLength(), part5);
+        Assert.assertEquals("Expected an insertion for appends even in essential-only mode.", 5, insertCount.get());
+        evicted = context.cacheManager.applyCachePolicy(); // Nothing to evict.
+        Assert.assertFalse("Not expecting an eviction after writing 5 blocks.", evicted);
+        Assert.assertTrue("Expected to be in essential-only mode after pinning 3 blocks.", context.cacheManager.isEssentialEntriesOnly());
+
+        // Verify that re-reading parts 1 and 2 results in no cache inserts.
+        insertCount.set(0);
+        storageReadCount.set(0);
+        int expectedReadCount = 0;
+        for (int i = 0; i < 5; i++) {
+            readPart.accept(0L, part1);
+            readPart.accept((long) part1.getLength(), part2);
+            expectedReadCount += 2;
+        }
+
+        Assert.assertTrue("Not expected to have exited essential-only mode.", context.cacheManager.isEssentialEntriesOnly());
+        Assert.assertEquals("Unexpected number of storage reads in essential-only mode.", expectedReadCount, storageReadCount.get());
+        Assert.assertEquals("Unexpected number of cache inserts in essential-only mode.", 0, insertCount.get());
     }
 
     //endregion

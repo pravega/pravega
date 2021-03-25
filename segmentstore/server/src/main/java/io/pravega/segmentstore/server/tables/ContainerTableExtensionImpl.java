@@ -1,17 +1,22 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.tables;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
@@ -69,20 +74,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * Default value used for when no offset is provided for a remove or put call.
      */
     private static final int NO_OFFSET = -1;
-    private static final int MAX_BATCH_SIZE = 32 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
-    /**
-     * The default value to supply to a {@link WriterTableProcessor} to indicate how big compactions need to be.
-     * We need to return a value that is large enough to encompass the largest possible Table Entry (otherwise
-     * compaction will stall), but not too big, as that will introduce larger indexing pauses when compaction is running.
-     */
-    private static final int DEFAULT_MAX_COMPACTION_SIZE = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH; // Approx 4MB.
-    /**
-     * The default Segment Attributes to set for every new Table Segment. These values will override the corresponding
-     * defaults from {@link TableAttributes#DEFAULT_VALUES}.
-     */
-    @VisibleForTesting
-    static final Map<UUID, Long> DEFAULT_COMPACTION_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
-            Attributes.ROLLOVER_SIZE, 4L * DEFAULT_MAX_COMPACTION_SIZE);
 
     private final SegmentContainer segmentContainer;
     private final ScheduledExecutorService executor;
@@ -92,6 +83,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     private final EntrySerializer serializer;
     private final AtomicBoolean closed;
     private final String traceObjectId;
+    @Getter
+    private final TableExtensionConfig config;
 
     //endregion
 
@@ -105,7 +98,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * @param executor         An Executor to use for async tasks.
      */
     public ContainerTableExtensionImpl(SegmentContainer segmentContainer, CacheManager cacheManager, ScheduledExecutorService executor) {
-        this(segmentContainer, cacheManager, KeyHasher.sha256(), executor);
+        this(TableExtensionConfig.builder().build(), segmentContainer, cacheManager, KeyHasher.sha256(), executor);
     }
 
     /**
@@ -117,13 +110,14 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * @param executor         An Executor to use for async tasks.
      */
     @VisibleForTesting
-    ContainerTableExtensionImpl(@NonNull SegmentContainer segmentContainer, @NonNull CacheManager cacheManager,
-                                @NonNull KeyHasher hasher, @NonNull ScheduledExecutorService executor) {
+    ContainerTableExtensionImpl(@NonNull TableExtensionConfig config, @NonNull SegmentContainer segmentContainer,
+                                @NonNull CacheManager cacheManager, @NonNull KeyHasher hasher, @NonNull ScheduledExecutorService executor) {
+        this.config = config;
         this.segmentContainer = segmentContainer;
         this.executor = executor;
         this.hasher = hasher;
         this.sortedKeyIndex = createSortedIndex();
-        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheManager, this.sortedKeyIndex, this.hasher, this.executor);
+        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), this.config, cacheManager, this.sortedKeyIndex, this.hasher, this.executor);
         this.serializer = new EntrySerializer();
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("TableExtension[%d]", this.segmentContainer.getId());
@@ -131,8 +125,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     private ContainerSortedKeyIndex createSortedIndex() {
         val ds = new SortedKeyIndexDataSource(
-                (s, entries, timeout) -> put(s, entries, false, timeout),
-                (s, keys, timeout) -> remove(s, keys, false, timeout),
+                this::putInternalNonAtomic,
+                (s, keys, timeout) -> remove(s, keys, false, NO_OFFSET, timeout),
                 (s, keys, timeout) -> get(s, keys, false, timeout));
         return new ContainerSortedKeyIndex(ds, this.executor);
     }
@@ -172,7 +166,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, SegmentType segmentType, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
-        attributes.putAll(DEFAULT_COMPACTION_ATTRIBUTES);
+        attributes.putAll(this.config.getDefaultCompactionAttributes());
         if (segmentType.isSortedTableSegment()) {
             attributes.put(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE);
         }
@@ -228,10 +222,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return put(segmentName, entries, true, tableSegmentOffset, timeout);
     }
 
-    public CompletableFuture<List<Long>> put(@NonNull String segmentName, @NonNull List<TableEntry> entries, boolean external, Duration timeout) {
-        return put(segmentName, entries, external, NO_OFFSET, timeout);
-    }
-
     private CompletableFuture<List<Long>> put(@NonNull String segmentName, @NonNull List<TableEntry> entries, boolean external, long tableSegmentOffset, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -243,7 +233,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
                     // Generate an Update Batch for all the entries (since we need to know their Key Hashes and relative
                     // offsets in the batch itself).
-                    val updateBatch = batch(toUpdate, TableEntry::getKey, this.serializer::getUpdateLength, TableKeyBatch.update());
+                    val updateBatch = batch(toUpdate, TableEntry::getKey, this.serializer::getUpdateLength, TableKeyBatch.update(external));
                     logRequest("put", segmentInfo.getName(), updateBatch.isConditional(), tableSegmentOffset, updateBatch.isRemoval(),
                             toUpdate.size(), updateBatch.getLength());
                     return this.keyIndex.update(segment, updateBatch,
@@ -251,17 +241,49 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 }, this.executor);
     }
 
+    /**
+     * Same as {@link #put(String, List, Duration)}, but if the given {@code entries} cannot be atomically updated due to
+     * their total size exceeding {@link EntrySerializer#MAX_BATCH_SIZE}, this will progressively split the list in halves,
+     * and reattempting the update, successively, on each.
+     * <p>
+     * Note that it is possible that, upon an unsuccessful execution of this method, not all the requested {@code entries}
+     * could be updated. In such case, the method does guarantee that, should the update be interrupted at an index
+     * {@code i} within {@code entries}, then all {@link TableEntry} updates prior to {@code i} will have applied.
+     *
+     * @param segmentName Segment to update.
+     * @param entries     Entries to update.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that will contain the resulting entries versions. See {@link #put} for more details.
+     */
+    @VisibleForTesting
+    CompletableFuture<List<Long>> putInternalNonAtomic(@NonNull String segmentName, @NonNull List<TableEntry> entries, Duration timeout) {
+        return Futures.exceptionallyComposeExpecting(
+                put(segmentName, entries, false, NO_OFFSET, timeout),
+                ex -> ex instanceof UpdateBatchTooLargeException && entries.size() > 1,
+                () -> {
+                    val midIndex = entries.size() / 2;
+                    val e1 = entries.subList(0, midIndex);
+                    val e2 = entries.subList(midIndex, entries.size());
+                    log.debug("{}: Internal update too big for '{}'. Splitting {} entries into {} and {}.",
+                            this.traceObjectId, segmentName, entries.size(), e1.size(), e2.size());
+                    return putInternalNonAtomic(segmentName, e1, timeout)
+                            .thenCompose(v1 -> putInternalNonAtomic(segmentName, e2, timeout)
+                                    .thenApply(v2 -> {
+                                        val result = new ArrayList<>(v1);
+                                        result.addAll(v2);
+                                        return result;
+                                    }));
+                });
+    }
+
     @Override
     public CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, Duration timeout) {
         return remove(segmentName, keys, true, NO_OFFSET, timeout);
     }
 
+    @Override
     public CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
         return remove(segmentName, keys, true, tableSegmentOffset, timeout);
-    }
-
-    private CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, boolean external, Duration timeout) {
-        return remove(segmentName, keys, external, NO_OFFSET, timeout);
     }
 
     private CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, boolean external, long tableSegmentOffset, Duration timeout) {
@@ -272,7 +294,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 .thenComposeAsync(segment -> {
                     val segmentInfo = segment.getInfo();
                     val toRemove = translateItems(keys, segmentInfo, external, KeyTranslator::inbound);
-                    val removeBatch = batch(toRemove, key -> key, this.serializer::getRemovalLength, TableKeyBatch.removal());
+                    val removeBatch = batch(toRemove, key -> key, this.serializer::getRemovalLength, TableKeyBatch.removal(external));
                     logRequest("remove", segmentInfo.getName(), removeBatch.isConditional(), removeBatch.isRemoval(),
                             toRemove.size(), removeBatch.getLength());
                     return this.keyIndex.update(segment, removeBatch,
@@ -381,17 +403,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     //region Helpers
 
-    /**
-     * When overridden in a derived class, this will indicate how much to compact at each step. By default this returns
-     * {@link #DEFAULT_MAX_COMPACTION_SIZE}.
-     *
-     * @return The maximum length to compact at each step.
-     */
-    @VisibleForTesting
-    protected int getMaxCompactionSize() {
-        return DEFAULT_MAX_COMPACTION_SIZE;
-    }
-
     private <T> TableKeyBatch batch(Collection<T> toBatch, Function<T, TableKey> getKey, Function<T, Integer> getLength, TableKeyBatch batch) {
         for (T item : toBatch) {
             val length = getLength.apply(item);
@@ -399,19 +410,20 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             batch.add(key, this.hasher.hash(key.getKey()), length);
         }
 
-        Preconditions.checkArgument(batch.getLength() <= MAX_BATCH_SIZE,
-                "Update Batch length (%s) exceeds the maximum limit.", MAX_BATCH_SIZE);
+        if (batch.getLength() > this.config.getMaxBatchSize()) {
+            throw new UpdateBatchTooLargeException(batch.getLength(), this.config.getMaxBatchSize());
+        }
         return batch;
     }
 
     private <T> CompletableFuture<Long> commit(Collection<T> toCommit, Function<Collection<T>, BufferView> serializer,
                                                DirectSegmentAccess segment, long tableSegmentOffset, Duration timeout) {
-            BufferView s = serializer.apply(toCommit);
-            if (tableSegmentOffset == NO_OFFSET) {
-                return segment.append(s, null, timeout);
-            } else {
-                return segment.append(s, null, tableSegmentOffset, timeout);
-            }
+        BufferView s = serializer.apply(toCommit);
+        if (tableSegmentOffset == NO_OFFSET) {
+            return segment.append(s, null, timeout);
+        } else {
+            return segment.append(s, null, tableSegmentOffset, timeout);
+        }
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newSortedIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
@@ -564,19 +576,19 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         }
 
         @Override
-        public void notifyIndexOffsetChanged(long lastIndexedOffset) {
-            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), lastIndexedOffset);
+        public void notifyIndexOffsetChanged(long lastIndexedOffset, int processedSizeBytes) {
+            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), lastIndexedOffset, processedSizeBytes);
         }
 
         @Override
         public int getMaxCompactionSize() {
-            return ContainerTableExtensionImpl.this.getMaxCompactionSize();
+            return ContainerTableExtensionImpl.this.config.getMaxCompactionSize();
         }
 
         @Override
         public void close() {
             // Tell the KeyIndex that it's ok to clear any tail-end cache.
-            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), -1L);
+            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), -1L, 0);
         }
     }
 
@@ -632,6 +644,17 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @FunctionalInterface
     private interface GetBucketReader<T> {
         TableBucketReader<T> apply(DirectSegmentAccess segment, TableBucketReader.GetBackpointer getBackpointer, ScheduledExecutorService executor);
+    }
+
+    //endregion
+
+    //region UpdateBatchTooLargeException
+
+    @VisibleForTesting
+    static class UpdateBatchTooLargeException extends IllegalArgumentException {
+        UpdateBatchTooLargeException(int length, int maxLength) {
+            super(String.format("Update Batch length %s exceeds the maximum limit %s.", length, maxLength));
+        }
     }
 
     //endregion
