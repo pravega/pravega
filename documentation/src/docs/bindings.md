@@ -15,6 +15,7 @@ limitations under the License.
 -->
 # Pravega Client Libraries
 
+## Supported clients
 Pravega supports the following client libraries:
 
 - [Java client](javadoc.md)
@@ -23,11 +24,9 @@ Pravega supports the following client libraries:
 
 - [Python client](https://pravega.github.io/pravega-client-rust/Python/index.html) ([package](https://pypi.org/project/pravega/))
 
-**Third-party contributions**: In addition to the connectors provided by the Pravega organization, open-source contributors have also
+## Third-party contributions
+In addition to the connectors provided by the Pravega organization, open-source contributors have also
 created connectors for external projects:
 
 - [.NET client (via gRPC Gateway)](https://github.com/rofr/pravega-sharp) ([package](https://www.nuget.org/packages/PravegaSharp.Grpc))
-
-- [Pravega Spring Cloud Stream Binder](https://github.com/gustavomzw/pravega-binder) 
- 
-
+connects .NET languages to [Pravega gRPC Gateway](gateways.md#grpc-gateway)

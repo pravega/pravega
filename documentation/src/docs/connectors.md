@@ -16,6 +16,8 @@ limitations under the License.
 # Pravega Connectors
 
 Connectors allow integrating Pravega with different data sources and sinks.
+
+## Supported connectors
 Currently, Pravega offers the following connectors:  
 
 - [Flink Connector](flink-connectors/documentation/src/docs/index.md): The Flink Connector enables building 
@@ -42,7 +44,8 @@ This connector allows Presto to query storage from Pravega streams.
 with [Apache NiFi](https://nifi.apache.org/).
 
 
-**Third-party contributions**: In addition to the connectors provided by the Pravega organization, open-source contributors have also
+## Third-party contributions
+In addition to the connectors provided by the Pravega organization, open-source contributors have also
 created connectors for external projects:
 
 - [Alpakka connector](https://doc.akka.io/docs/alpakka/current/pravega.html): 
@@ -52,9 +55,13 @@ and has been designed from the ground up to understand streaming natively and pr
 stream-oriented programming, with built-in support for back-pressure. This Alpakka Pravega connector lets you connect 
 Pravega to Akka Streams.
 
+- [Pravega Spring Cloud Stream Binder](https://github.com/gustavomzw/pravega-binder):
+[Spring Cloud Stream](https://spring.io/projects/spring-cloud-stream) is a framework for building highly scalable
+event-driven microservices connected with shared messaging systems. The Pravega Binder connects Pravega to
+[Spring Cloud Data Flow](https://spring.io/projects/spring-cloud-dataflow), which provides tools to create complex
+topologies for streaming and batch data pipelines. The data pipelines consist of Spring Boot apps, built using the
+Spring Cloud Stream or Spring Cloud Task microservice frameworks.
+
 - [Memstate Connector](https://github.com/DevrexLabs/memstate/tree/master/src/Memstate.Pravega): 
 [Memstate](https://memstate.io/) is an in-memory event-sourced ACID-transactional replicated object graph engine. 
 The Pravega connector allows Memstate to use it as storage provider for persistence and global message ordering.
-
- 
-
