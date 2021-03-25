@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.selftest;
 
@@ -222,19 +228,22 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
 
         TableUpdate generateRemoval() {
             KeyWithVersion toUpdate = pickKey();
-            return TableUpdate.removal(toUpdate.keyId, toUpdate.version);
+            return TableUpdate.removal(toUpdate.keyId, config.getTableKeyLength(), toUpdate.version);
         }
 
         TableUpdate generateUpdate() {
             KeyWithVersion toUpdate = pickKey();
-            return TableUpdate.update(toUpdate.keyId, config.getMaxAppendSize(), toUpdate.version);
+            return TableUpdate.update(toUpdate.keyId, config.getTableKeyLength(), config.getMaxAppendSize(), toUpdate.version);
         }
 
         synchronized private KeyWithVersion pickKey() {
             // Choose whether to pick existing key or not (using configuration).
-            return decide(config.getTableNewKeyPercentage()) || this.recentKeys.isEmpty()
-                    ? new KeyWithVersion(UUID.randomUUID(), config.isTableConditionalUpdates() ? TableKey.NOT_EXISTS : null)
-                    : this.recentKeys.removeFirst();
+            if (decide(config.getTableNewKeyPercentage()) || this.recentKeys.isEmpty()) {
+                return new KeyWithVersion(UUID.randomUUID(), config.isTableConditionalUpdates() ? TableKey.NOT_EXISTS : null);
+            } else {
+                val first = this.recentKeys.removeFirst();
+                return new KeyWithVersion(first.keyId, config.isTableConditionalUpdates() ? first.version : null);
+            }
         }
     }
 

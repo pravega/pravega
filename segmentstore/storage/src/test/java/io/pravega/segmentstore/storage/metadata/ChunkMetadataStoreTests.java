@@ -1,18 +1,30 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.metadata;
 
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.MockStorageMetadata;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import lombok.SneakyThrows;
+import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -20,6 +32,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -51,7 +64,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
     @Before
     public void setUp() throws Exception {
         super.before();
-        metadataStore = new InMemoryMetadataStore(executorService());
+        metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
     }
 
     @After
@@ -942,6 +955,369 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testEvictionFromBufferInParallel() throws Exception {
+        if (metadataStore instanceof InMemoryMetadataStore) {
+            metadataStore.setMaxEntriesInCache(10);
+            metadataStore.setMaxEntriesInTxnBuffer(10);
+            val futures = new ArrayList<CompletableFuture<Void>>();
+            for (int i = 0; i < 10000; i++) {
+                final int k = i;
+                futures.add(CompletableFuture.runAsync(() -> simpleScenarioForKey("Key" + k)));
+            }
+            Futures.allOf(futures);
+        }
+    }
+
+    @SneakyThrows
+    private void simpleScenarioForKey(String key) {
+        // Create key.
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, key)) {
+            txn.create(new MockStorageMetadata(key, VALUE0));
+            assertEquals(txn.get(key), key, VALUE0);
+            txn.commit().get();
+        }
+
+        // Modify
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, key)) {
+            assertEquals(txn.get(key), key, VALUE0);
+            txn.update(new MockStorageMetadata(key, VALUE1));
+            assertEquals(txn.get(key), key, VALUE1);
+            txn.commit().get();
+        }
+
+        // Delete
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, key)) {
+            assertEquals(txn.get(key), key, VALUE1);
+            txn.delete(key);
+            assertNull(txn.get(key));
+            txn.commit().get();
+        }
+
+        try (MetadataTransaction txn = metadataStore.beginTransaction(true, key)) {
+            assertNull(txn.get(key));
+        }
+    }
+
+    @Test
+    public void testEviction() throws Exception {
+        if (!(metadataStore instanceof InMemoryMetadataStore)) {
+            return;
+        }
+
+        val testMetadataStore = (InMemoryMetadataStore) metadataStore;
+
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+            txn.create(new MockStorageMetadata(KEY1, VALUE0));
+            txn.commit().get();
+        }
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+            // Delete data from backing store , the data should be still in buffer.
+            testMetadataStore.evictFromCache();
+            testMetadataStore.getBackingStore().clear();
+            Assert.assertNull(testMetadataStore.getBackingStore().get(KEY1));
+
+            assertEquals(txn.get(KEY1), KEY1, VALUE0);
+
+            // Invoke eviction, this will move data from buffer to the Guava cache.
+            testMetadataStore.evictAllEligibleEntriesFromBuffer();
+
+            // But data should be still there in Guava cache.
+            // It will be inserted into buffer.
+            assertEquals(txn.get(KEY1), KEY1, VALUE0);
+
+            // Forcibly delete it from cache
+            testMetadataStore.evictFromCache();
+            testMetadataStore.getBackingStore().clear();
+            Assert.assertNull(testMetadataStore.getBackingStore().get(KEY1));
+
+            // But data should be still there in buffer.
+            assertEquals(txn.get(KEY1), KEY1, VALUE0);
+
+        }
+    }
+
+    @Test
+    public void testParallelReadsAfterEviction() throws Exception {
+        if (!(metadataStore instanceof InMemoryMetadataStore)) {
+            return;
+        }
+
+        val testMetadataStore = (InMemoryMetadataStore) metadataStore;
+
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+            txn.create(new MockStorageMetadata(KEY1, VALUE1));
+            txn.commit().get();
+        }
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY2)) {
+            val metadata = new MockStorageMetadata(KEY2, VALUE2);
+            txn.create(metadata);
+            txn.markPinned(metadata);
+            txn.commit().get();
+        }
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY4)) {
+            val metadata = new MockStorageMetadata(KEY4, VALUE4);
+            txn.create(metadata);
+            txn.commit(true).get();
+        }
+
+        testMetadataStore.evictFromCache();
+        testMetadataStore.getBackingStore().clear();
+        Assert.assertNull(testMetadataStore.getBackingStore().get(KEY1));
+        // Invoke eviction, this will move data from buffer to the Guava cache.
+        testMetadataStore.evictAllEligibleEntriesFromBuffer();
+
+        val futures = new ArrayList<CompletableFuture<Void>>();
+        for (int i = 0; i < 100; i++) {
+            futures.add(CompletableFuture.runAsync(() -> {
+                readKey(KEY1, VALUE1);
+                readKey(KEY2, VALUE2);
+                readKey(KEY4, VALUE4);
+                evictAll(testMetadataStore);
+            }));
+        }
+        Futures.allOf(futures);
+
+        evictAll(testMetadataStore);
+
+        val futures2 = new ArrayList<CompletableFuture<Void>>();
+        for (int i = 0; i < 100; i++) {
+            futures.add(CompletableFuture.runAsync(() -> {
+                readKey(KEY1, VALUE1);
+                readKey(KEY2, VALUE2);
+                readKey(KEY4, VALUE4);
+                testMetadataStore.evictFromCache();
+                // Invoke eviction, this will move data from buffer to the Guava cache.
+                testMetadataStore.evictAllEligibleEntriesFromBuffer();
+            }));
+        }
+        Futures.allOf(futures2);
+
+        evictAll(testMetadataStore);
+
+        val futures3 = new ArrayList<CompletableFuture<Void>>();
+        for (int i = 0; i < 100; i++) {
+            futures.add(CompletableFuture.runAsync(() -> {
+                readKey(KEY1, VALUE1);
+                readKey(KEY2, VALUE2);
+                readKey(KEY4, VALUE4);
+            }));
+        }
+        Futures.allOf(futures3);
+    }
+
+    private void evictAll(InMemoryMetadataStore testMetadataStore) {
+        testMetadataStore.evictFromCache();
+        testMetadataStore.getBackingStore().clear();
+        testMetadataStore.evictAllEligibleEntriesFromBuffer();
+    }
+
+    @SneakyThrows
+    private void readKey(String key, String value) {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(true, key)) {
+            // But data should be still there in Guava cache.
+            // It will be inserted into buffer.
+            assertEquals(txn.get(key), key, value);
+        }
+    }
+
+    @Test
+    public void testEvictionPinnedKeys() throws Exception {
+        if (!(metadataStore instanceof InMemoryMetadataStore)) {
+            return;
+        }
+
+        val testMetadataStore = (InMemoryMetadataStore) metadataStore;
+
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+            val metadata = new MockStorageMetadata(KEY1, VALUE0);
+            txn.create(metadata);
+            txn.markPinned(metadata);
+            txn.commit().get();
+            Assert.assertNull(testMetadataStore.getBackingStore().get(KEY1));
+        }
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+            // Delete data from backing store , the data should be still in buffer.
+            testMetadataStore.evictFromCache();
+            testMetadataStore.getBackingStore().clear();
+            Assert.assertNull(testMetadataStore.getBackingStore().get(KEY1));
+
+            assertEquals(txn.get(KEY1), KEY1, VALUE0);
+
+            // Invoke eviction, this will move data from buffer to the Guava cache.
+            testMetadataStore.evictAllEligibleEntriesFromBuffer();
+
+            // Forcibly delete it from cache
+            testMetadataStore.evictFromCache();
+            testMetadataStore.getBackingStore().clear();
+            Assert.assertNull(testMetadataStore.getBackingStore().get(KEY1));
+
+            // But data should be still there in buffer.
+            assertEquals(txn.get(KEY1), KEY1, VALUE0);
+        }
+    }
+
+    @Test
+    public void testEvictionForLazyCommits() throws Exception {
+        if (!(metadataStore instanceof InMemoryMetadataStore)) {
+            return;
+        }
+
+        val testMetadataStore = (InMemoryMetadataStore) metadataStore;
+
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+            val metadata = new MockStorageMetadata(KEY1, VALUE0);
+            txn.create(metadata);
+            txn.commit(true).get();
+            Assert.assertNull(testMetadataStore.getBackingStore().get(KEY1));
+        }
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+            // Delete data from backing store , the data should be still in buffer.
+            testMetadataStore.evictFromCache();
+            testMetadataStore.getBackingStore().clear();
+            Assert.assertNull(testMetadataStore.getBackingStore().get(KEY1));
+
+            assertEquals(txn.get(KEY1), KEY1, VALUE0);
+
+            // Invoke eviction, this will move data from buffer to the Guava cache.
+            testMetadataStore.evictAllEligibleEntriesFromBuffer();
+
+            // Forcibly delete it from cache
+            testMetadataStore.evictFromCache();
+            testMetadataStore.getBackingStore().clear();
+            Assert.assertNull(testMetadataStore.getBackingStore().get(KEY1));
+
+            // But data should be still there in buffer.
+            assertEquals(txn.get(KEY1), KEY1, VALUE0);
+        }
+    }
+
+    @Test
+    public void testEvictionDuringCommit() throws Exception {
+        if (!(metadataStore instanceof InMemoryMetadataStore)) {
+            return;
+        }
+
+        val testMetadataStore = (InMemoryMetadataStore) metadataStore;
+
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+            txn.create(new MockStorageMetadata(KEY1, VALUE0));
+            txn.commit().get();
+        }
+
+        CompletableFuture commitStepFurure = new CompletableFuture();
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+            // Block commit
+            txn.setExternalCommitStep(() -> validateInsideCommit(testMetadataStore, txn));
+            txn.commit().join();
+        }
+    }
+
+    @SneakyThrows
+    private Void validateInsideCommit(InMemoryMetadataStore testMetadataStore, MetadataTransaction txn) {
+        // Delete data from backing store , the data should be still in buffer.
+        testMetadataStore.evictFromCache();
+        testMetadataStore.getBackingStore().clear();
+        Assert.assertNull(testMetadataStore.getBackingStore().get(KEY1));
+
+        assertEquals(txn.get(KEY1), KEY1, VALUE0);
+
+        // Invoke eviction, this will move data from buffer to the Guava cache.
+        testMetadataStore.evictAllEligibleEntriesFromBuffer();
+
+        // Forcibly delete data from cache.
+        testMetadataStore.evictFromCache();
+        testMetadataStore.getBackingStore().clear();
+
+        // But data should be still there.
+        assertEquals(txn.get(KEY1), KEY1, VALUE0);
+        return null;
+    }
+
+    @Test
+    public void testCommitFailureAfterEvictionFromBuffer() throws Exception {
+        if (metadataStore instanceof InMemoryMetadataStore) {
+
+            val testMetadataStore = (InMemoryMetadataStore) metadataStore;
+
+            // Add some data
+            try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+                txn.create(new MockStorageMetadata(KEY1, VALUE0));
+                txn.commit().get();
+            }
+
+            // Force eviction of all cache
+            testMetadataStore.evictAllEligibleEntriesFromBuffer();
+            testMetadataStore.evictFromCache();
+
+            // Set hook to cause failure on next commit.
+            testMetadataStore.setWriteCallback(dummy -> CompletableFuture.failedFuture(new IntentionalException("Intentional")));
+
+            // Now start new transaction. Mutate the local copy.
+            // This txn will fail to commit.
+            try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+                val metadata = (MockStorageMetadata) txn.get(KEY1).get();
+                metadata.setValue(VALUE1);
+                txn.update(metadata);
+                txn.commit().get();
+                Assert.fail();
+            } catch (Exception e) {
+                Assert.assertTrue(Exceptions.unwrap(e) instanceof IntentionalException);
+            }
+            // disable hook.
+            testMetadataStore.setWriteCallback(null);
+
+            // Validate that object in buffer remains unchanged.
+            try (MetadataTransaction txn = metadataStore.beginTransaction(true, KEY1)) {
+                assertEquals(txn.get(KEY1), KEY1, VALUE0);
+            }
+        }
+    }
+
+    @Test
+    public void testCommitFailureWithExternalSteps() throws Exception {
+        // Add some data
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+            txn.create(new MockStorageMetadata(KEY1, VALUE0));
+            txn.commit().get();
+        }
+
+        // Now start new transaction. Mutate the local copy.
+        // This txn will fail to commit.
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY1)) {
+            txn.setExternalCommitStep(() -> {
+                throw new IntentionalException("Intentional");
+            });
+            val metadata = (MockStorageMetadata) txn.get(KEY1).get();
+            metadata.setValue(VALUE1);
+            txn.update(metadata);
+            txn.commit().get();
+            Assert.fail();
+        } catch (Exception e) {
+            Assert.assertTrue(Exceptions.unwrap(e).getCause() instanceof IntentionalException);
+        }
+
+        // Validate that object in buffer remains unchanged.
+        try (MetadataTransaction txn = metadataStore.beginTransaction(true, KEY1)) {
+            assertEquals(txn.get(KEY1), KEY1, VALUE0);
+        }
+
+    }
+
+    @Test
+    public void testWithNullExternalStep() throws Exception {
+        try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY0, KEY1)) {
+            assertNull(txn.get(KEY0));
+            txn.setExternalCommitStep(null);
+            txn.create(new MockStorageMetadata(KEY0, VALUE0));
+            Assert.assertNotNull(txn.get(KEY0));
+            txn.commit().get();
+        }
+        try (MetadataTransaction txn = metadataStore.beginTransaction(true, KEY1)) {
+            assertEquals(txn.get(KEY0), KEY0, VALUE0);
+        }
+    }
+
+    @Test
     public void testReadonlyTransaction() throws Exception {
         try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY0, KEY1)) {
             assertNull(txn.get(KEY0));
@@ -1014,6 +1390,22 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testTransactionDataIllegalStateException() throws Exception {
+        BaseMetadataStore.TransactionData[] badData = new BaseMetadataStore.TransactionData[] {
+                BaseMetadataStore.TransactionData.builder().build(),
+        };
+        for (val txnData : badData) {
+            try (MetadataTransaction txn = metadataStore.beginTransaction(false, KEY0, KEY1)) {
+                assertNull(txn.get(KEY0));
+                txn.getData().put(KEY0, txnData);
+                AssertExtensions.assertFutureThrows("commit should throw an exception",
+                        txn.commit(),
+                        ex -> ex instanceof IllegalStateException);
+            }
+        }
+    }
+
+    @Test
     public void testIllegalArgumentException() throws Exception {
         AssertExtensions.assertThrows("commit should throw an exception",
                 () -> metadataStore.commit(null),
@@ -1043,7 +1435,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                 () -> metadataStore.get(null, KEY0),
                 ex -> ex instanceof IllegalArgumentException);
         AssertExtensions.assertThrows("get should throw an exception",
-                () -> metadataStore.beginTransaction(true, null),
+                () -> metadataStore.beginTransaction(true, (String[]) null),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows("get should throw an exception",
                 () -> metadataStore.beginTransaction(true, new String[0]),
