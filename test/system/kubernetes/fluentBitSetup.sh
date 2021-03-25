@@ -114,7 +114,7 @@ fetch_fluent_logs() {
         echo "$output directory does not exist!"
         exit 1
     fi
-    pravega_log_pod=$(kubectl get pods -l "app=$FLUENT_BIT_DEPLOYMENT" -o custom-columns=:.metadata.name --no-headers)
+    pravega_log_pod=$(kubectl get pods -n=$NAMESPACE -l "app=$FLUENT_BIT_DEPLOYMENT" -o custom-columns=:.metadata.name --no-headers)
     # Prematurely rotate the logs to receive the most up to date log set.
     kubectl exec $pravega_log_pod -n=$NAMESPACE -- /etc/config/watch.sh force
 
