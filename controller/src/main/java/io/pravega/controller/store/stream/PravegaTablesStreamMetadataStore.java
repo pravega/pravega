@@ -80,12 +80,14 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     private final ScheduledExecutorService executor;
     @VisibleForTesting
-    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, ScheduledExecutorService executor, GrpcAuthHelper authHelper) {
+    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, 
+                                     ScheduledExecutorService executor, GrpcAuthHelper authHelper) {
         this(segmentHelper, client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS), authHelper);
     }
 
     @VisibleForTesting
-    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod, GrpcAuthHelper authHelper) {
+    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient,
+                                     ScheduledExecutorService executor, Duration gcPeriod, GrpcAuthHelper authHelper) {
         super(new ZKHostIndex(curatorClient, "/hostTxnIndex", executor), new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
         this.orderer = new ZkOrderedStore("txnCommitOrderer", zkStoreHelper, executor);
