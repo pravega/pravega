@@ -28,6 +28,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
@@ -127,16 +128,6 @@ import static io.pravega.shared.MetricsNames.STORAGE_METADATA_CACHE_SIZE;
 @Beta
 abstract public class BaseMetadataStore implements ChunkMetadataStore {
     /**
-     * Maximum number of metadata entries to keep in recent transaction buffer.
-     */
-    private static final int MAX_ENTRIES_IN_TXN_BUFFER = 1000;
-
-    /**
-     * Maximum number of metadata entries to keep in cache.
-     */
-    private static final int MAX_ENTRIES_IN_CACHE = 5000;
-
-    /**
      * Percentage of cache evicted at any time. (1 / CACHE_EVICTION_RATIO) entries are evicted at once.
      */
     private static final int CACHE_EVICTION_RATIO = 10;
@@ -185,14 +176,14 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
      */
     @Getter
     @Setter
-    int maxEntriesInTxnBuffer = MAX_ENTRIES_IN_TXN_BUFFER;
+    private int maxEntriesInTxnBuffer;
 
     /**
      * Maximum number of metadata entries to keep in recent transaction buffer.
      */
     @Getter
     @Setter
-    int maxEntriesInCache = MAX_ENTRIES_IN_CACHE;
+    private int maxEntriesInCache;
 
     /**
      * Keep count of records in buffer. ConcurrentHashMap.size() is an expensive operation.
@@ -210,19 +201,29 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
     private final Object evictionLock = new Object();
 
     /**
+     * Configuration options for this instance.
+     */
+    @Getter
+    private final ChunkedSegmentStorageConfig config;
+
+    /**
      * Constructs a BaseMetadataStore object.
      *
+     * @param config Configuration options for this instance.
      * @param executor Executor to use for async operations.
      */
-    public BaseMetadataStore(Executor executor) {
+    public BaseMetadataStore(ChunkedSegmentStorageConfig config, Executor executor) {
+        this.config = Preconditions.checkNotNull(config, "config");
+        this.executor = Preconditions.checkNotNull(executor, "executor");
         version = new AtomicLong(System.currentTimeMillis()); // Start with unique number.
         fenced = new AtomicBoolean(false);
         bufferedTxnData = new ConcurrentHashMap<>(); // Don't think we need anything fancy here. But we'll measure and see.
         activeKeys = ConcurrentHashMultiset.create();
+        maxEntriesInTxnBuffer = config.getMaxEntriesInTxnBuffer();
+        maxEntriesInCache = config.getMaxEntriesInCache();
         cache = CacheBuilder.newBuilder()
                 .maximumSize(maxEntriesInCache)
                 .build();
-        this.executor = Preconditions.checkNotNull(executor, "executor");
     }
 
     /**
