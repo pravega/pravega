@@ -15,16 +15,12 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
@@ -41,9 +37,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
-import io.pravega.test.integration.utils.SetupUtils;
 import java.io.Serializable;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -239,32 +233,30 @@ public class TransactionTest extends LeakDetectorTestSuite {
         producer.flush();
         assertEquals(nonTxEvent, consumer.readNextEvent(1500).getEvent());
     }
+
     @Test(timeout = 30000)
     public void testDeleteStreamWithOpenTransaction() throws Exception {
-        @Cleanup("stopAllServices")
-        SetupUtils setupUtils = new SetupUtils();
-        setupUtils.startAllServices(1);
-
-        final String scope = setupUtils.getScope();
-        final ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(setupUtils.getControllerUri())
-                .build();
+        String endpoint = "localhost";
+        String scopeName = "scope";
+        String streamName = "abc";
+        int port = TestUtils.getAvailableListenPort();
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
 
         @Cleanup
-        final StreamManager streamManager = StreamManager.create(clientConfig);
-
-        streamManager.createScope(scope);
-        final String stream = "test";
-        streamManager.createStream(scope, stream, StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(3))
-                .build());
-
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
+                serviceBuilder.getLowPriorityExecutor());
+        server.startListening();
         @Cleanup
-        final EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+        MockStreamManager streamManager = new MockStreamManager(scopeName, endpoint, port);
+        streamManager.createScope(scopeName);
+        streamManager.createStream(scopeName, streamName, StreamConfiguration.builder().build());
+
+        MockClientFactory clientFactory = streamManager.getClientFactory();
 
         @Cleanup
         final TransactionalEventStreamWriter<String> writer =
-                clientFactory.createTransactionalEventWriter("writerId1", stream, new JavaSerializer<>(),
+                clientFactory.createTransactionalEventWriter("writerId1", streamName, new JavaSerializer<>(),
                         EventWriterConfig.builder().build());
 
         // Transactions 0-4 will be opened, written, flushed, committed.
@@ -284,9 +276,9 @@ public class TransactionTest extends LeakDetectorTestSuite {
                 txn.commit();
             }
         }
-        boolean sealed = streamManager.sealStream(scope, stream);
+        boolean sealed = streamManager.sealStream(scopeName, streamName);
         Assert.assertTrue(sealed);
-        boolean deleted = streamManager.deleteStream(scope, stream);
+        boolean deleted = streamManager.deleteStream(scopeName, streamName);
         Assert.assertTrue(deleted);
     }
 }
