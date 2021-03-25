@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -43,10 +49,12 @@ import java.util.function.Consumer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
-import org.junit.Ignore;
+import lombok.val;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import static io.pravega.test.common.AssertExtensions.assertBlocks;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -183,6 +191,7 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
 
         @Override
         public void close() throws SegmentSealedException {
+            flush();
         }
 
         @Override
@@ -375,9 +384,84 @@ public class EventStreamWriterTest extends LeakDetectorTestSuite {
     }
 
     @Test
-    @Ignore
     public void testNoNextSegment() {
-        fail();
+        String scope = "scope";
+        String streamName = "stream";
+        String routingKey = "RoutingKey";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment1 = new Segment(scope, streamName, 0);
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+
+        FakeSegmentOutputStream outputStream1 = new FakeSegmentOutputStream(segment1);
+
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any(), any(), any())).thenAnswer(i -> {
+            outputStream1.callBackForSealed = i.getArgument(1);
+            return outputStream1;
+        });
+
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        val empty = CompletableFuture.completedFuture(new StreamSegments(new TreeMap<>()));
+        Mockito.when(controller.getCurrentSegments(scope, streamName))
+               .thenReturn(getSegmentsFuture(segment1))
+               .thenReturn(empty);
+        @Cleanup
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
+                config, executorService(), executorService());
+
+        writer.writeEvent(routingKey, "Foo");
+
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(empty);
+        val noFutures = CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(new HashMap<>(), ""));
+        Mockito.when(controller.getSuccessors(segment1)).thenReturn(noFutures);
+
+        //invoke the sealed callback invocation simulating a netty call back with segment sealed exception.
+        outputStream1.sealed = true;
+        assertBlocks(() -> writer.flush(), () -> outputStream1.invokeSealedCallBack());
+
+        assertThrows("Stream should be sealed", () -> writer.writeEvent(routingKey, "Bar"), e -> e.getMessage().contains("sealed"));
+        writer.close();
+    }
+    
+    @Test
+    public void testNoNextSegmentMidClose() {
+        String scope = "scope";
+        String streamName = "stream";
+        String routingKey = "RoutingKey";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment1 = new Segment(scope, streamName, 0);
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+
+        FakeSegmentOutputStream outputStream1 = new FakeSegmentOutputStream(segment1);
+
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any(), any(), any())).thenAnswer(i -> {
+            outputStream1.callBackForSealed = i.getArgument(1);
+            return outputStream1;
+        });
+
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        val empty = CompletableFuture.completedFuture(new StreamSegments(new TreeMap<>()));
+        Mockito.when(controller.getCurrentSegments(scope, streamName))
+               .thenReturn(getSegmentsFuture(segment1))
+               .thenReturn(empty);
+        @Cleanup
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
+                config, executorService(), executorService());
+
+        CompletableFuture<Void> future = writer.writeEvent(routingKey, "Foo");
+
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(empty);
+        val noFutures = CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(new HashMap<>(), ""));
+        Mockito.when(controller.getSuccessors(segment1)).thenReturn(noFutures);
+
+        //invoke the sealed callback invocation simulating a netty call back with segment sealed exception.
+        outputStream1.sealed = true;
+        assertBlocks(() -> writer.close(), () -> outputStream1.invokeSealedCallBack());
+        assertTrue(future.isDone());
+        assertTrue(future.isCompletedExceptionally());
     }
 
     @Test
