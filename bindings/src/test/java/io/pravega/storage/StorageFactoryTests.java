@@ -81,7 +81,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         Assert.assertTrue(factory1 instanceof HDFSSimpleStorageFactory);
 
         @Cleanup
-        Storage storage1 = ((HDFSSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(executorService()));
+        Storage storage1 = ((HDFSSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
@@ -128,7 +128,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         Assert.assertTrue(factory1 instanceof ExtendedS3SimpleStorageFactory);
 
         @Cleanup
-        Storage storage1 = ((ExtendedS3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(executorService()));
+        Storage storage1 = ((ExtendedS3SimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
@@ -171,7 +171,7 @@ public class StorageFactoryTests extends ThreadPooledTestSuite {
         Assert.assertTrue(factory1 instanceof FileSystemSimpleStorageFactory);
 
         @Cleanup
-        Storage storage1 = ((FileSystemSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(executorService()));
+        Storage storage1 = ((FileSystemSimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
