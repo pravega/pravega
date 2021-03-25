@@ -95,7 +95,7 @@ public class ClientConfig implements Serializable {
      * An internal property that determines if the client config.
      */
     @Getter(AccessLevel.PACKAGE)
-    private final boolean canOverrideMaxConnectionsConfiguration;
+    private final boolean isDefaultMaxConnections;
 
     /**
      * An internal property that determines whether TLS enabled is derived from Controller URI. It cannot be set
@@ -193,7 +193,7 @@ public class ClientConfig implements Serializable {
         private boolean validateHostName = true;
 
         private boolean deriveTlsEnabledFromControllerURI = true;
-        private boolean canOverrideMaxConnectionsConfiguration = true;
+        private boolean isDefaultMaxConnections = true;
 
         /**
          * Note: by making this method private, we intend to hide the corresponding property
@@ -207,14 +207,9 @@ public class ClientConfig implements Serializable {
             return this;
         }
 
-        private ClientConfigBuilder canOverrideMaxConnectionsConfiguration(boolean value) {
-            this.canOverrideMaxConnectionsConfiguration = value;
-            return this;
-        }
-
         public ClientConfigBuilder maxConnectionsPerSegmentStore(int maxConnectionsPerSegmentStore) {
-            if (this.canOverrideMaxConnectionsConfiguration) {
-                this.canOverrideMaxConnectionsConfiguration(false);
+            if (this.isDefaultMaxConnections) {
+                this.isDefaultMaxConnections(false);
                 this.maxConnectionsPerSegmentStore = maxConnectionsPerSegmentStore;
             } else {
                 log.warn("Update to maxConnectionsPerSegmentStore configuration from {} to {} is ignored,", this.maxConnectionsPerSegmentStore, maxConnectionsPerSegmentStore);
@@ -243,7 +238,7 @@ public class ClientConfig implements Serializable {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
             }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
-                    canOverrideMaxConnectionsConfiguration, deriveTlsEnabledFromControllerURI, enableTlsToController,
+                    isDefaultMaxConnections, deriveTlsEnabledFromControllerURI, enableTlsToController,
                     enableTlsToSegmentStore, metricListener);
         }
 

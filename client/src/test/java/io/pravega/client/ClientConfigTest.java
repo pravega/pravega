@@ -121,10 +121,10 @@ public class ClientConfigTest {
                 .controllerURI(URI.create("//hostname:9090"))
                 .build();
         assertEquals(ClientConfig.DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE, clientConfig.getMaxConnectionsPerSegmentStore());
-        assertTrue(clientConfig.isCanOverrideMaxConnectionsConfiguration());
+        assertTrue(clientConfig.isDefaultMaxConnections());
         ClientConfig clientConfigUpdated = clientConfig.toBuilder().maxConnectionsPerSegmentStore(1).build();
         assertEquals(1, clientConfigUpdated.getMaxConnectionsPerSegmentStore());
-        assertFalse(clientConfigUpdated.isCanOverrideMaxConnectionsConfiguration());
+        assertFalse(clientConfigUpdated.isDefaultMaxConnections());
         assertEquals(clientConfig.isEnableTls(), clientConfigUpdated.isEnableTls());
         assertEquals(clientConfig.isEnableTlsToController(), clientConfigUpdated.isEnableTlsToController());
         assertEquals(clientConfig.isEnableTlsToSegmentStore(), clientConfigUpdated.isEnableTlsToSegmentStore());
@@ -136,13 +136,13 @@ public class ClientConfigTest {
                 .controllerURI(URI.create("//hostname:9090"))
                 .maxConnectionsPerSegmentStore(5)
                 .build();
-        assertFalse(clientConfig.isCanOverrideMaxConnectionsConfiguration());
+        assertFalse(clientConfig.isDefaultMaxConnections());
         // try resetting the number of connections to 1.
         ClientConfig.ClientConfigBuilder clientConfigBuilder = clientConfig.toBuilder();
         ClientConfig clientConfigUpdated = clientConfigBuilder.maxConnectionsPerSegmentStore(1).build();
         // no changes expected with the max connection configuration.
         assertEquals(5, clientConfigUpdated.getMaxConnectionsPerSegmentStore());
-        assertFalse(clientConfigUpdated.isCanOverrideMaxConnectionsConfiguration());
+        assertFalse(clientConfigUpdated.isDefaultMaxConnections());
         assertEquals(clientConfig.isEnableTls(), clientConfigUpdated.isEnableTls());
         assertEquals(clientConfig.isEnableTlsToController(), clientConfigUpdated.isEnableTlsToController());
         assertEquals(clientConfig.isEnableTlsToSegmentStore(), clientConfigUpdated.isEnableTlsToSegmentStore());
