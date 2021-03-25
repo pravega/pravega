@@ -24,6 +24,8 @@ import io.pravega.segmentstore.storage.StorageFactoryInfo;
 import io.pravega.segmentstore.storage.StorageLayoutType;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
+import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -61,18 +63,17 @@ public class InMemorySimpleStorageFactoryTests {
 
         // Simple Storage
         ConfigSetup configSetup1 = mock(ConfigSetup.class);
-        val config = new Object();
-        when(configSetup1.getConfig(any())).thenReturn(config);
+        when(configSetup1.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         val factory1 = factoryCreator.createFactory(expected[0], configSetup1, executor);
         Assert.assertTrue(factory1 instanceof InMemorySimpleStorageFactory);
 
         @Cleanup
-        Storage storage1 = ((InMemorySimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(executor));
+        Storage storage1 = ((InMemorySimpleStorageFactory) factory1).createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
         Assert.assertTrue(storage1 instanceof ChunkedSegmentStorage);
 
         // Legacy Storage
         ConfigSetup configSetup2 = mock(ConfigSetup.class);
-        when(configSetup2.getConfig(any())).thenReturn(config);
+        when(configSetup2.getConfig(any())).thenReturn(ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
         val factory2 = factoryCreator.createFactory(expected[1], configSetup2, executor);
 
         Assert.assertTrue(factory2 instanceof InMemoryStorageFactory);
@@ -87,12 +88,12 @@ public class InMemorySimpleStorageFactoryTests {
     public void testReuse() {
         @Cleanup("shutdownNow")
         val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
-        val factory = new InMemorySimpleStorageFactory(executor, true);
+        val factory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor, true);
 
         @Cleanup
-        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(executor));
+        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
         @Cleanup
-        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(executor));
+        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
 
         Assert.assertEquals(s1.getChunkStorage(), s2.getChunkStorage());
     }
@@ -101,13 +102,27 @@ public class InMemorySimpleStorageFactoryTests {
     public void testNoReuse() {
         @Cleanup("shutdownNow")
         val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
-        val factory = new InMemorySimpleStorageFactory(executor, false);
+        val factory = new InMemorySimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor, false);
 
         @Cleanup
-        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(executor));
+        val s1 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
         @Cleanup
-        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(executor));
+        val s2 = (ChunkedSegmentStorage) factory.createStorageAdapter(42, new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executor));
 
         Assert.assertNotEquals(s1.getChunkStorage(), s2.getChunkStorage());
+    }
+
+    @Test
+    public void testNull() {
+        @Cleanup("shutdownNow")
+        val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+        AssertExtensions.assertThrows(
+                " should throw exception.",
+                () -> new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, null),
+                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows(
+                " should throw exception.",
+                () -> new InMemoryMetadataStore(null, executor),
+                ex -> ex instanceof NullPointerException);
     }
 }

@@ -35,6 +35,7 @@ import java.util.concurrent.ScheduledExecutorService;
 @RequiredArgsConstructor
 public class ExtendedS3SimpleStorageFactory implements SimpleStorageFactory {
     @NonNull
+    @Getter
     private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
 
     @NonNull
