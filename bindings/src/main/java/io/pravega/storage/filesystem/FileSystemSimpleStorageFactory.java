@@ -32,6 +32,7 @@ import java.util.concurrent.ScheduledExecutorService;
 @RequiredArgsConstructor
 public class FileSystemSimpleStorageFactory implements SimpleStorageFactory {
     @NonNull
+    @Getter
     private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig;
 
     @NonNull
