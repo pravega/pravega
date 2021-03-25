@@ -65,7 +65,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
 
     private static final String LOOPBACK_ADDRESS = "localhost";
     private final AtomicReference<ZooKeeperServer> server = new AtomicReference<>();
-    private final AtomicReference<ServerCnxnFactory> serverFactory = new AtomicReference<ServerCnxnFactory>();
+    private final AtomicReference<ServerCnxnFactory> serverFactory = new AtomicReference<>();
     private final int zkPort;
     private final boolean secureZK;
     private final String keyStore;

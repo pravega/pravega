@@ -92,7 +92,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     private static final int MAX_LEDGER_SIZE = WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 20);
 
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
-    private static final AtomicInteger BK_PORT = new AtomicInteger();
+    private static final AtomicInteger ZK_PORT = new AtomicInteger();
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(100 * TIMEOUT.getSeconds());
@@ -107,7 +107,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     public static void setUpBookKeeper(boolean secure) throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
         SECURE_BK.set(secure);
-        BK_PORT.set(TestUtils.getAvailableListenPort());
+        ZK_PORT.set(TestUtils.getAvailableListenPort());
         val bookiePorts = new ArrayList<Integer>();
         for (int i = 0; i < BOOKIE_COUNT; i++) {
             bookiePorts.add(TestUtils.getAvailableListenPort());
@@ -115,7 +115,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
         val runner = BookKeeperServiceRunner.builder()
                                             .startZk(true)
-                                            .zkPort(BK_PORT.get())
+                                            .zkPort(ZK_PORT.get())
                                             .ledgersPath("/pravega/bookkeeper/ledgers")
                                             .secureBK(isSecure())
                                             .secureZK(isSecure())
@@ -150,16 +150,19 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         String namespace = "pravega/segmentstore/unittest_" + Long.toHexString(System.nanoTime());
         this.zkClient.set(CuratorFrameworkFactory
                 .builder()
-                .connectString("localhost:" + BK_PORT.get())
+                .connectString("localhost:" + ZK_PORT.get())
                 .namespace(namespace)
                 .retryPolicy(new ExponentialBackoffRetry(1000, 5))
                 .build());
         this.zkClient.get().start();
+        if (!zkClient.get().blockUntilConnected(10, TimeUnit.SECONDS)) {
+            throw new RuntimeException("Unable to connect to Zookeeper");
+        }
 
         // Setup config to use the port and namespace.
         this.config.set(BookKeeperConfig
                 .builder()
-                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + ZK_PORT.get())
                 .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, MAX_WRITE_ATTEMPTS)
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, MAX_LEDGER_SIZE)
                 .with(BookKeeperConfig.ZK_METADATA_PATH, namespace)
@@ -197,7 +200,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     public void testFactoryInitialize() {
         BookKeeperConfig bkConfig = BookKeeperConfig
                 .builder()
-                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
+                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + ZK_PORT.get())
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * 10) // Very frequent rollovers.
                 .with(BookKeeperConfig.ZK_METADATA_PATH, this.zkClient.get().getNamespace())
                 .build();

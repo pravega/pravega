@@ -350,6 +350,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                     .build());
 
             this.zkClient.get().start();
+            if (!zkClient.get().blockUntilConnected(10, TimeUnit.SECONDS)) {
+                throw new RuntimeException("Unable to connect to Zookeeper");
+            }
 
             logMetaNamespace = "segmentstore/containers" + instanceId;
             this.bkConfig.set(BookKeeperConfig
