@@ -9,12 +9,16 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
@@ -31,14 +35,19 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
+import io.pravega.test.integration.utils.SetupUtils;
 import java.io.Serializable;
+
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
+@Slf4j
 public class TransactionTest extends LeakDetectorTestSuite {
     private ServiceBuilder serviceBuilder;
 
@@ -223,5 +232,55 @@ public class TransactionTest extends LeakDetectorTestSuite {
         producer.writeEvent(routingKey, nonTxEvent);
         producer.flush();
         assertEquals(nonTxEvent, consumer.readNextEvent(1500).getEvent());
+    }
+    @Test(timeout = 30000)
+    public void testDeleteStreamWithOpenTransaction() throws Exception {
+        @Cleanup("stopAllServices")
+        SetupUtils setupUtils = new SetupUtils();
+        setupUtils.startAllServices(1);
+
+        final String scope = setupUtils.getScope();
+        final ClientConfig clientConfig = ClientConfig.builder()
+                .controllerURI(setupUtils.getControllerUri())
+                .build();
+
+        @Cleanup
+        final StreamManager streamManager = StreamManager.create(clientConfig);
+
+        streamManager.createScope(scope);
+        final String stream = "test";
+        streamManager.createStream(scope, stream, StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(3))
+                .build());
+
+        @Cleanup
+        final EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+
+        @Cleanup
+        final TransactionalEventStreamWriter<String> writer =
+                clientFactory.createTransactionalEventWriter("writerId1", stream, new JavaSerializer<>(),
+                        EventWriterConfig.builder().build());
+
+        // Transactions 0-4 will be opened, written, flushed, committed.
+        // Transactions 5-6 will be opened, written, flushed.
+        // Transactions 7-8 will be opened, written.
+        // Transactions 9-10 will be opened.
+        for (int i = 0; i < 11; i++) {
+            final Transaction<String> txn = writer.beginTxn();
+            log.info("i={}, txnId={}", i, txn.getTxnId());
+            if (i <= 8) {
+                txn.writeEvent("foo");
+            }
+            if (i <= 6) {
+                txn.flush();
+            }
+            if (i <= 4) {
+                txn.commit();
+            }
+        }
+        boolean sealed = streamManager.sealStream(scope, stream);
+        Assert.assertTrue(sealed);
+        boolean deleted = streamManager.deleteStream(scope, stream);
+        Assert.assertTrue(deleted);
     }
 }
