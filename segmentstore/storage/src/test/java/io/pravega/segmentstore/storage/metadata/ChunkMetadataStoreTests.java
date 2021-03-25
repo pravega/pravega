@@ -17,6 +17,7 @@ package io.pravega.segmentstore.storage.metadata;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.MockStorageMetadata;
 import io.pravega.test.common.AssertExtensions;
@@ -63,7 +64,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
     @Before
     public void setUp() throws Exception {
         super.before();
-        metadataStore = new InMemoryMetadataStore(executorService());
+        metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
     }
 
     @After
@@ -1434,7 +1435,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                 () -> metadataStore.get(null, KEY0),
                 ex -> ex instanceof IllegalArgumentException);
         AssertExtensions.assertThrows("get should throw an exception",
-                () -> metadataStore.beginTransaction(true, null),
+                () -> metadataStore.beginTransaction(true, (String[]) null),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows("get should throw an exception",
                 () -> metadataStore.beginTransaction(true, new String[0]),
