@@ -82,6 +82,7 @@ import org.junit.rules.Timeout;
 public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     //region Setup, Config and Cleanup
 
+    // Test to retriger tests
     private static final AtomicBoolean SECURE_BK = new AtomicBoolean();
 
     private static final int CONTAINER_ID = 9999;
