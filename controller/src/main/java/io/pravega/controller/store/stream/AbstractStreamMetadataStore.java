@@ -250,7 +250,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
             } else {
-                log.debug("Create scope failed due to ", ex);
+                log.error("Create scope failed for scope {} due to ", scopeName, ex);
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.FAILURE).build();
             }
         });
@@ -274,7 +274,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             } else if (ex instanceof StoreException.DataNotEmptyException) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
             } else {
-                log.debug("DeleteScope failed due to {} ", ex);
+                log.error("DeleteScope failed for scope {} due to {} ", scopeName, ex);
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
             }
         });
