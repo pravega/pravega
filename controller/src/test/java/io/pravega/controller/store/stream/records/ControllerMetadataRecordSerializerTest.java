@@ -56,7 +56,8 @@ public class ControllerMetadataRecordSerializerTest {
     @Test
     public void epochRecordTest() {
         List<StreamSegmentRecord> list = Lists.newArrayList(StreamSegmentRecord.newSegmentRecord(1, 0, 10L, 0.0, 1.0));
-        EpochRecord record = new EpochRecord(10, 0, ImmutableList.copyOf(list), 10L);
+        EpochRecord record = new EpochRecord(10, 0, ImmutableList.copyOf(list), 10L,
+                0L, 0L);
         assertEquals(EpochRecord.fromBytes(record.toBytes()), record);
     }
     
