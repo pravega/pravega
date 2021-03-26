@@ -435,7 +435,7 @@ public class AppendTest extends LeakDetectorTestSuite {
             }
         }
         producer.flush();
-        log.info("Max latency: {}", (maxLatency.get() / 1000000.0));
+        log.info("Max latency: {}", maxLatency.get() / 1000000.0);
         return timer.getElapsedMillis();
     }
 
