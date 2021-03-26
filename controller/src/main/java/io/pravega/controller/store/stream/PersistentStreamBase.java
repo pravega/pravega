@@ -1290,8 +1290,8 @@ public abstract class PersistentStreamBase implements Stream {
                                     .getSegments().stream()
                                     .forEach(x -> duplicateActiveSegmentsBuilder.add(
                                             newSegmentRecord(computeSegmentId(getSegmentNumber(x.segmentId()),
-                                                    committingTxnRecord.getNewActiveEpoch()),
-                                                    timeStamp + 1, x.getKeyStart(), x.getKeyEnd())));
+                                            committingTxnRecord.getNewActiveEpoch()),
+                                            timeStamp + 1, x.getKeyStart(), x.getKeyEnd())));
 
                             CompletableFuture<EpochRecord> txnEpochFuture = getSplitMergeCountsTillEpoch(activeEpochRecord).thenCompose(txnSplitMergeCount -> {
                                 ImmutableList<StreamSegmentRecord> duplicateTxnEpochSegments = duplicateTxnSegmentsBuilder.build();
