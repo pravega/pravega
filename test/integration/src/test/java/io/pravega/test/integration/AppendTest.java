@@ -413,10 +413,10 @@ public class AppendTest extends LeakDetectorTestSuite {
         EventStreamWriter<ByteBuffer> producer = clientFactory.createEventWriter(streamName, new ByteBufferSerializer(), EventWriterConfig.builder().build());
         long blockingTime = timeWrites(testPayload, 3000, producer, true);
         long nonBlockingTime = timeWrites(testPayload, 60000, producer, false);
-        System.out.println("Blocking took: " + blockingTime + "ms.");
-        System.out.println("Non blocking took: " + nonBlockingTime + "ms.");        
-        assertTrue(blockingTime < 10000);
-        assertTrue(nonBlockingTime < 10000);
+        log.info("Blocking took: {} ms.", blockingTime);
+        log.info("Non blocking took: {} ms.", nonBlockingTime);        
+        assertTrue(blockingTime < 15000);
+        assertTrue(nonBlockingTime < 15000);
     }
 
     private long timeWrites(byte[] testPayload, int number, EventStreamWriter<ByteBuffer> producer, boolean synchronous)
@@ -435,7 +435,7 @@ public class AppendTest extends LeakDetectorTestSuite {
             }
         }
         producer.flush();
-        System.out.println("Max latency: " + (maxLatency.get() / 1000000.0));
+        log.info("Max latency: {}", (maxLatency.get() / 1000000.0));
         return timer.getElapsedMillis();
     }
 

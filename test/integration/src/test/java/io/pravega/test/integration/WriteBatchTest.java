@@ -72,9 +72,9 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class WriteBatchTest {
     private static final String STREAM_NAME = "testBatchWrite" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    private static final int NUM_WRITERS = 20;
-    private static final int NUM_READERS = 20;
-    private static final int NUM_EVENT_ITERATIONS_BY_WRITER = 1000;
+    private static final int NUM_WRITERS = 10;
+    private static final int NUM_READERS = 10;
+    private static final int NUM_EVENT_ITERATIONS_BY_WRITER = 500;
     private TestingServer zkTestServer = null;
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
