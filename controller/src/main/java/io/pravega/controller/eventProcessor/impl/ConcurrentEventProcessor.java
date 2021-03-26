@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.eventProcessor.impl;
 
@@ -142,7 +148,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
             // note: Since stop was requested we will not do any processing on new event.
             // Event processor will pick the next event until it is eventually stopped. But we will keep ignoring them.
             // And since this class does its own checkpointing, so we are not updating our last checkpoint.
-            log.info("processing requested after processor is stopped");
+            log.warn("processing requested after processor is stopped.");
         }
     }
 
@@ -155,7 +161,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         }
 
         if (RetryableException.isRetryable(cause)) {
-            log.info("ConcurrentEventProcessor Processing failed, Retryable Exception {}. Putting the event back.", cause.getClass().getName());
+            log.warn("ConcurrentEventProcessor Processing failed, Retryable Exception {}. Putting the event back.", cause.getClass().getName());
 
             Writer<R> writer;
             if (internalWriter != null) {

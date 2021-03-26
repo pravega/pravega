@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.tables;
 
@@ -601,6 +607,42 @@ public class ContainerKeyCacheTests {
             val mc = new SegmentKeyCache.MigrationCandidate(keyHash, entry, new CacheBucketOffset(0, false));
             boolean committed = mc.commit(2);
             Assert.assertFalse("Not expected commit() to go through.", committed);
+        } finally {
+            // Clean up the cache in case of an error. We do not want to leave data hanging around in the Cache.
+            if (evictedEntries != null) {
+                evictedEntries.forEach(SegmentKeyCache.CacheEntry::evict);
+            }
+        }
+    }
+
+    /**
+     * Test the {@link SegmentKeyCache.MigrationCandidate} class when cache is full.
+     */
+    @Test
+    public void testMigrationCandidateFailedCacheFull() {
+        @Cleanup
+        val fullCache = new DirectMemoryCache(10);
+        fullCache.insert(new ByteArraySegment(new byte[(int) (fullCache.getState().getMaxBytes() - fullCache.getBlockAlignment())]));
+
+        val keyCache = new SegmentKeyCache(1L, fullCache);
+        val rnd = new Random(0);
+
+        val batch = TableKeyBatch.update();
+        val key = newTableKey(rnd);
+        val keyHash = KEY_HASHER.hash(key.getKey());
+        batch.add(key, keyHash, key.getKey().getLength());
+        keyCache.includeUpdateBatch(batch, 0, 0);
+
+        List<SegmentKeyCache.CacheEntry> evictedEntries = null;
+        try {
+            // Migrate the tail index to a Cache Entry.
+            keyCache.setLastIndexedOffset(batch.getLength() + 1, 1);
+
+            // Try to evict all entries.
+            evictedEntries = keyCache.evictAll();
+
+            // We expect no evictions because we shouldn't have inserted anything.
+            Assert.assertEquals(0, evictedEntries.size());
         } finally {
             // Clean up the cache in case of an error. We do not want to leave data hanging around in the Cache.
             if (evictedEntries != null) {

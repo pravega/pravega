@@ -1,19 +1,35 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.local;
 
+import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
+import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.rules.ExternalResource;
+
+import java.net.URI;
+
+import static org.junit.Assert.assertNotNull;
 
 /**
  * This class contains the rules to start and stop LocalPravega / standalone.
@@ -77,13 +93,57 @@ public class PravegaEmulatorResource extends ExternalResource {
         pravega = emulatorBuilder.build();
     }
 
+    @Override
     protected void before() throws Exception {
         pravega.start();
+        waitUntilHealthy();
+    }
+
+    /**
+     * Return the ClientConfig based on the Pravega standalone configuration.
+     *
+     * @return ClientConfig
+     */
+    public ClientConfig getClientConfig() {
+        ClientConfig.ClientConfigBuilder builder = ClientConfig.builder()
+                .controllerURI(URI.create(pravega.getInProcPravegaCluster().getControllerURI()));
+        if (authEnabled) {
+            builder.credentials(new DefaultCredentials(
+                    SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
+                    SecurityConfigDefaults.AUTH_ADMIN_USERNAME));
+        }
+        if (tlsEnabled) {
+            builder.trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                    .validateHostName(false);
+        }
+        return builder.build();
     }
 
     @SneakyThrows
+    @Override
     protected void after() {
         pravega.close();
+    }
+
+    /*
+     * Wait until Pravega standalone is up and running.
+     */
+    private void waitUntilHealthy() {
+        ClientConfig clientConfig = getClientConfig();
+        ControllerImplConfig controllerConfig = ControllerImplConfig.builder()
+                .clientConfig(clientConfig)
+                .retryAttempts(20)
+                .initialBackoffMillis(1000)
+                .backoffMultiple(2)
+                .maxBackoffMillis(10000)
+                .build();
+        @Cleanup
+        StreamManager streamManager = new StreamManagerImpl(clientConfig, controllerConfig);
+        assertNotNull(streamManager);
+        // Try creating a scope. This will retry based on the provided retry configuration.
+        // If all the retries fail a RetriesExhaustedException will be thrown failing the tests.
+        boolean isScopeCreated = streamManager.createScope("healthCheck-scope");
+        log.debug("Health check scope creation is successful {}", isScopeCreated);
     }
 }
 
