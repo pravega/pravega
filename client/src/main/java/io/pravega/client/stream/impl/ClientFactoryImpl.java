@@ -112,6 +112,20 @@ public class ClientFactoryImpl extends AbstractClientFactoryImpl implements Even
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
         this(scope, controller, new ConnectionPoolImpl(ClientConfig.builder().build(), connectionFactory));
     }
+
+    /**
+     * Creates a new instance of the ClientFactory class.
+     * Note: ConnectionFactory  and Controller is closed when {@link ClientFactoryImpl#close()} is invoked.
+     *
+     * @param scope             The scope string.
+     * @param controller        The reference to Controller.
+     * @param config            The client config.
+     * @param connectionFactory The reference to Connection Factory impl.
+     */
+    @VisibleForTesting
+    public ClientFactoryImpl(String scope, Controller controller, ClientConfig config, ConnectionFactory connectionFactory) {
+        this(scope, controller, new ConnectionPoolImpl(config, connectionFactory));
+    }
     
     /**
      * Creates a new instance of the ClientFactory class. Note: ConnectionFactory and Controller is
