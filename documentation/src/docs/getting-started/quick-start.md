@@ -73,5 +73,5 @@ In completing this guide, you have launched Pravega, created a scope, created a 
 
 To use Pravega in real world applications, you’ll want to explore:
 
-* [Deploying Pravega with Kubernetes](https://blog.pravega.io/2020/06/20/deploying-pravega-in-kubernetes/), and
-* [Using Pravega's Client APIs](https://blog.pravega.io/2020/09/22/pravega-client-api-101/).
+* [Deploying Pravega with Kubernetes](pravega-on-kubernetes-101.md), and
+* [Using Pravega's Client APIs](../clients-and-streams.md).
