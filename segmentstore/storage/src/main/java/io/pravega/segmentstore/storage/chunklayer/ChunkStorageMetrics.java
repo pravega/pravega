@@ -37,6 +37,8 @@ public class ChunkStorageMetrics {
 
     static final OpStatsLogger SLTS_READ_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_READ_LATENCY);
     static final OpStatsLogger SLTS_WRITE_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_WRITE_LATENCY);
+    static final OpStatsLogger SLTS_SYSTEM_READ_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_SYSTEM_READ_LATENCY);
+    static final OpStatsLogger SLTS_SYSTEM_WRITE_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_SYSTEM_WRITE_LATENCY);
     static final OpStatsLogger SLTS_CREATE_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_CREATE_LATENCY);
     static final OpStatsLogger SLTS_DELETE_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_DELETE_LATENCY);
     static final OpStatsLogger SLTS_CONCAT_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_CONCAT_LATENCY);
@@ -57,12 +59,23 @@ public class ChunkStorageMetrics {
 
     static final Counter SLTS_READ_BYTES = STATS_LOGGER.createCounter(MetricsNames.SLTS_READ_BYTES);
     static final Counter SLTS_WRITE_BYTES = STATS_LOGGER.createCounter(MetricsNames.SLTS_WRITE_BYTES);
+    static final Counter SLTS_SYSTEM_READ_BYTES = STATS_LOGGER.createCounter(MetricsNames.SLTS_SYSTEM_READ_BYTES);
+    static final Counter SLTS_SYSTEM_WRITE_BYTES = STATS_LOGGER.createCounter(MetricsNames.SLTS_SYSTEM_WRITE_BYTES);
     static final Counter SLTS_CONCAT_BYTES = STATS_LOGGER.createCounter(MetricsNames.SLTS_CONCAT_BYTES);
+
+    static final OpStatsLogger SLTS_NUM_CHUNKS_READ = STATS_LOGGER.createStats(MetricsNames.SLTS_NUM_CHUNKS_READ);
+    static final OpStatsLogger SLTS_SYSTEM_NUM_CHUNKS_READ = STATS_LOGGER.createStats(MetricsNames.SLTS_SYSTEM_NUM_CHUNKS_READ);
+    static final OpStatsLogger SLTS_NUM_CHUNKS_ADDED = STATS_LOGGER.createStats(MetricsNames.SLTS_NUM_CHUNKS_ADDED);
+    static final OpStatsLogger SLTS_SYSTEM_NUM_CHUNKS_ADDED = STATS_LOGGER.createStats(MetricsNames.SLTS_SYSTEM_NUM_CHUNKS_ADDED);
+
+    static final OpStatsLogger SLTS_READ_INSTANT_TPUT = STATS_LOGGER.createStats(MetricsNames.SLTS_READ_INSTANT_TPUT);
+    static final OpStatsLogger SLTS_WRITE_INSTANT_TPUT = STATS_LOGGER.createStats(MetricsNames.SLTS_WRITE_INSTANT_TPUT);
 
     static final Counter SLTS_CREATE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_CREATE_COUNT);
     static final Counter SLTS_DELETE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_DELETE_COUNT);
     static final Counter SLTS_CONCAT_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_CONCAT_COUNT);
     static final Counter SLTS_TRUNCATE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_TRUNCATE_COUNT);
+    static final Counter SLTS_SYSTEM_TRUNCATE_COUNT = STATS_LOGGER.createCounter(MetricsNames.SLTS_SYSTEM_TRUNCATE_COUNT);
 
     static final Counter LARGE_CONCAT_COUNT = STATS_LOGGER.createCounter(MetricsNames.STORAGE_LARGE_CONCAT_COUNT);
 }

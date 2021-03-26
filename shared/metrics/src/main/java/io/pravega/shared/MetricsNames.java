@@ -121,10 +121,20 @@ public final class MetricsNames {
     // SLTS stats
     public static final String SLTS_READ_LATENCY = PREFIX + "segmentstore.storage.slts.read_latency_ms";            // Histogram
     public static final String SLTS_WRITE_LATENCY = PREFIX + "segmentstore.storage.slts.write_latency_ms";          // Histogram
+    public static final String SLTS_SYSTEM_READ_LATENCY = PREFIX + "segmentstore.storage.slts.system_read_latency_ms";      // Histogram
+    public static final String SLTS_SYSTEM_WRITE_LATENCY = PREFIX + "segmentstore.storage.slts.system_write_latency_ms";    // Histogram
     public static final String SLTS_CREATE_LATENCY = PREFIX + "segmentstore.storage.slts.create_latency_ms";        // Histogram
     public static final String SLTS_DELETE_LATENCY = PREFIX + "segmentstore.storage.slts.delete_latency_ms";        // Histogram
     public static final String SLTS_CONCAT_LATENCY = PREFIX + "segmentstore.storage.slts.concat_latency_ms";        // Histogram
     public static final String SLTS_TRUNCATE_LATENCY = PREFIX + "segmentstore.storage.slts.truncate_latency_ms";    // Histogram
+
+    public static final String SLTS_NUM_CHUNKS_READ = PREFIX + "segmentstore.storage.slts.num_chunks_read";         // Histogram
+    public static final String SLTS_SYSTEM_NUM_CHUNKS_READ = PREFIX + "segmentstore.storage.slts.system_num_chunks_read"; // Histogram
+    public static final String SLTS_NUM_CHUNKS_ADDED = PREFIX + "segmentstore.storage.slts.num_chunks_added";         // Histogram
+    public static final String SLTS_SYSTEM_NUM_CHUNKS_ADDED = PREFIX + "segmentstore.storage.slts.system_num_chunks_added"; // Histogram
+
+    public static final String SLTS_READ_INSTANT_TPUT = PREFIX + "segmentstore.storage.slts.read_instant_tput";       // Histogram
+    public static final String SLTS_WRITE_INSTANT_TPUT = PREFIX + "segmentstore.storage.slts.write_instant_tput";     // Histogram
 
     public static final String SLTS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.read_index.scan_latency_ms";              // Histogram
     public static final String SLTS_READ_INDEX_NUM_SCANNED = PREFIX + "segmentstore.storage.slts.read_index.num_scanned";                   // Histogram
@@ -137,15 +147,20 @@ public final class MetricsNames {
 
     public static final String SLTS_READ_BYTES = PREFIX + "segmentstore.storage.slts.read_bytes";          // Counter
     public static final String SLTS_WRITE_BYTES = PREFIX + "segmentstore.storage.slts.write_bytes";        // Counter
+    public static final String SLTS_SYSTEM_READ_BYTES = PREFIX + "segmentstore.storage.slts.system_read_bytes";     // Counter
+    public static final String SLTS_SYSTEM_WRITE_BYTES = PREFIX + "segmentstore.storage.slts.system_write_bytes";   // Counter
     public static final String SLTS_CONCAT_BYTES = PREFIX + "segmentstore.storage.slts.concat_bytes";      // Counter
     public static final String SLTS_CREATE_COUNT = PREFIX + "segmentstore.storage.slts.create_count";      // Counter
     public static final String SLTS_DELETE_COUNT = PREFIX + "segmentstore.storage.slts.delete_count";      // Counter
     public static final String SLTS_CONCAT_COUNT = PREFIX + "segmentstore.storage.slts.concat_count";      // Counter
     public static final String SLTS_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.truncate_count";  // Counter
+    public static final String SLTS_SYSTEM_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.system_truncate_count";  // Counter
 
     public static final String SLTS_GC_QUEUE_SIZE = PREFIX + "segmentstore.storage.slts.GC_queue_record_count";  // Counter
 
     // SLTS Metadata stats
+    public static final String STORAGE_METADATA_SIZE = PREFIX + "segmentstore.storage.size.";
+    public static final String STORAGE_METADATA_NUM_CHUNKS = PREFIX + "segmentstore.storage.num_chunks.";
     public static final String STORAGE_METADATA_GET_LATENCY = PREFIX + "segmentstore.storage.metadata_get_latency_ms";                  // Histogram
     public static final String STORAGE_METADATA_COMMIT_LATENCY = PREFIX + "segmentstore.storage.metadata_commit_latency_ms";            // Histogram
     public static final String STORAGE_METADATA_TABLE_GET_LATENCY = PREFIX + "segmentstore.storage.metadata_table_get_latency_ms";      // Histogram

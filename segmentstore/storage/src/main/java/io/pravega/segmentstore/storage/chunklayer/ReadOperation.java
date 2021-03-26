@@ -39,12 +39,17 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_NUM_CHUNKS_READ;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_BYTES;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_INDEX_NUM_SCANNED;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_INDEX_SCAN_LATENCY;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_INSTANT_TPUT;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_LATENCY;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_NUM_CHUNKS_READ;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_READ_BYTES;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_READ_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYS_READ_INDEX_NUM_SCANNED;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYS_READ_INDEX_SCAN_LATENCY;
-import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_LATENCY;
 
 @Slf4j
 class ReadOperation implements Callable<CompletableFuture<Integer>> {
@@ -67,6 +72,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
     private volatile boolean isLoopExited;
     private final AtomicInteger cntScanned = new AtomicInteger();
     private volatile int bytesToRead;
+    private final AtomicInteger cntChunksRead = new AtomicInteger();
 
     ReadOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) {
         this.handle = handle;
@@ -121,7 +127,18 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
     private void logEnd() {
         Duration elapsed = timer.getElapsed();
         SLTS_READ_LATENCY.reportSuccessEvent(elapsed);
+        SLTS_NUM_CHUNKS_READ.reportSuccessValue(cntChunksRead.get());
         SLTS_READ_BYTES.add(length);
+        if (segmentMetadata.isStorageSystemSegment()) {
+            SLTS_SYSTEM_READ_LATENCY.reportSuccessEvent(elapsed);
+            SLTS_SYSTEM_NUM_CHUNKS_READ.reportSuccessValue(cntChunksRead.get());
+            SLTS_SYSTEM_READ_BYTES.add(length);
+        }
+        if (elapsed.toMillis() > 0) {
+            val bytesPerSecond = 1000 * length / elapsed.toMillis();
+            SLTS_READ_INSTANT_TPUT.reportSuccessValue(bytesPerSecond);
+        }
+
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
             log.warn("{} read - late op={}, segment={}, offset={}, bytesRead={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, totalBytesRead, elapsed.toMillis());
@@ -168,6 +185,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                     currentOffset.get() - startOffsetForCurrentChunk.get(),
                                     bytesToRead,
                                     currentBufferOffset.get());
+                            cntChunksRead.incrementAndGet();
                             bytesRemaining.addAndGet(-bytesToRead);
                             currentOffset.addAndGet(bytesToRead);
                             currentBufferOffset.addAndGet(bytesToRead);
