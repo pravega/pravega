@@ -88,7 +88,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService implem
 
     @Override
     protected void triggerShutdown() {
-        log.info("Shutting down ControllerServiceMain");
+        log.info("Shutting down Controller Service.");
         this.serviceStopFuture.complete(null);
     }
 
@@ -98,7 +98,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService implem
         try {
             while (isRunning()) {
                 // Create store client.
-                log.info("Creating store client");
+                log.debug("Creating store client");
                 storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
 
                 starter = starterFactory.apply(serviceConfig, storeClient);
@@ -110,11 +110,11 @@ public class ControllerServiceMain extends AbstractExecutionThreadService implem
                 if (hasZkConnection) {
                     CuratorFramework client = (CuratorFramework) storeClient.getClient();
 
-                    log.info("Awaiting ZK client connection to ZK server");
+                    log.debug("Awaiting ZK client connection to ZK server");
                     client.blockUntilConnected();
 
                     // Await ZK session expiry.
-                    log.info("Awaiting ZK session expiry or termination trigger for ControllerServiceMain");
+                    log.debug("Awaiting ZK session expiry or termination trigger for ControllerServiceMain");
                     client.getConnectionStateListenable().addListener((client1, newState) -> {
                         if (newState.equals(ConnectionState.LOST)) {
                             sessionExpiryFuture.complete(null);
@@ -124,13 +124,11 @@ public class ControllerServiceMain extends AbstractExecutionThreadService implem
                 }
 
                 // Start controller services.
-                log.info("Starting controller services");
+                log.info("Starting Controller Services.");
                 notifyServiceStateChange(ServiceState.STARTING);
                 starter.startAsync();
-
-                log.info("Awaiting controller services start");
                 starter.awaitRunning();
-
+                log.info("Controller Services started successfully.");
                 if (hasZkConnection) {
                     // At this point, wait until either of the two things happen
                     // 1. ZK session expires, i.e., sessionExpiryFuture completes, or
@@ -145,23 +143,24 @@ public class ControllerServiceMain extends AbstractExecutionThreadService implem
                     // stop ControllerServiceStarter.
                     if (sessionExpiryFuture.isDone()) {
                         zookeeperMetrics.reportZKSessionExpiration();
-                        log.info("ZK session expired");
+                        log.info("ZK session expired. Stopping Controller Services.");
                     }
                 } else {
                     this.serviceStopFuture.join();
+                    log.info("Stopping Controller Services.");
                 }
 
-                log.info("Stopping ControllerServiceStarter");
                 notifyServiceStateChange(ServiceState.PAUSING);
                 starter.stopAsync();
 
-                log.info("Awaiting termination of ControllerServiceStarter");
+                log.debug("Awaiting termination of ControllerServices");
                 starter.awaitTerminated();
 
                 if (hasZkConnection) {
-                    log.info("calling close on store client");
+                    log.debug("Calling close on store client.");
                     storeClient.close();
                 }
+                log.info("Controller Services terminated successfully.");
             }
         } catch (Exception e) {
             log.error("Controller Service Main thread exited exceptionally", e);
@@ -252,11 +251,11 @@ public class ControllerServiceMain extends AbstractExecutionThreadService implem
     public void close() {
         if (starter != null) {
             triggerShutdown();
-            Callbacks.invokeSafely(starter::close, ex -> log.error("Closing starter.", ex));
+            Callbacks.invokeSafely(starter::close, ex -> log.debug("Error closing starter. " + ex.getMessage()));
         }
 
         if (storeClient != null) {
-            Callbacks.invokeSafely(storeClient::close, ex -> log.error("Closing storeClient.", ex));
+            Callbacks.invokeSafely(storeClient::close, ex -> log.debug("Error closing storeClient. " + ex.getMessage()));
         }
     }
 }
