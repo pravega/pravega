@@ -1839,7 +1839,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private UpdateStreamStatus.Status handleUpdateStreamError(Throwable ex, long requestId, String logMessage, String streamFullName) {
         Throwable cause = Exceptions.unwrap(ex);
-        log.error(requestId, "Exception updating Stream {}. Cause: {}, {} ", streamFullName, logMessage, cause);
+        log.error(requestId, "Exception updating Stream {}. Cause: {}.", streamFullName, logMessage, cause);
         if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
         } else if (cause instanceof TimeoutException) {
