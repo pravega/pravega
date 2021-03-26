@@ -68,9 +68,6 @@ nav:
   - Getting Started:
     - 'Running a Sample Application': 'getting-started/getting-started.md'
     - 'Deploying Pravega on Kubernetes': 'getting-started/pravega-on-kubernetes-101.md'
-    - 'Using Flink': 'flink-connectors/documentation/src/docs/dev-guide.md'
-    - 'Using Spark': 'spark-connectors/documentation/src/docs/getting-started.md'
-    - 'Using Schema Registry': 'schema-registry/documentation/src/docs/getting-started.md'
   - Understanding Pravega:
     - 'Concepts': 'pravega-concepts.md'
     - 'Terminology': 'terminology.md'
@@ -93,27 +90,11 @@ nav:
     - 'Client APIs': 'javadoc.md'
     - 'Controller REST API': 'rest/restapis.md'
     - 'Working with Metrics': 'metrics.md'
-    - 'Working with Schema Registry': 'schema-registry/documentation/src/docs/pravega-applications.md'
   - Ecosystem:
     - 'Connectors':
       - 'Overview': 'connectors.md'
-      - 'Flink Connector':
-        - Overview: 'flink-connectors/documentation/src/docs/index.md'
-        - Quick Start: 'flink-connectors/documentation/src/docs/quickstart.md'
-        - Features:
-          - 'Streaming': 'flink-connectors/documentation/src/docs/streaming.md'
-          - 'Batch': 'flink-connectors/documentation/src/docs/batch.md'
-          - 'Table API': 'flink-connectors/documentation/src/docs/table-api.md'
-        - Metrics: 'flink-connectors/documentation/src/docs/metrics.md'
-        - Configurations: 'flink-connectors/documentation/src/docs/configurations.md'
-        - Serialization: 'flink-connectors/documentation/src/docs/serialization.md'
-      - 'Spark Connector':
-        - Overview: 'spark-connectors/documentation/src/docs/overview.md'
-        - Samples: 'spark-connectors/documentation/src/docs/samples.md'
-        - Configuration: 'spark-connectors/documentation/src/docs/configuration.md'
-        - Building the Connector: 'spark-connectors/documentation/src/docs/build-connector.md'
-        - Limitations: 'spark-connectors/documentation/src/docs/limitations.md'
-        - Source Code: 'https://github.com/pravega/spark-connectors/blob/master/README.md'
+      - 'Flink Connector': 'https://github.com/pravega/flink-connectors/blob/master/README.md'
+      - 'Spark Connector': 'https://github.com/pravega/spark-connectors/blob/master/README.md'
       - 'Hadoop Connector': 'https://github.com/pravega/hadoop-connectors/blob/master/README.md'
       - 'Presto Connector': 'https://github.com/pravega/presto-connector/blob/main/README.md'
       - 'Boomi Connector': 'https://github.com/pravega/boomi-connector/blob/master/README.md'
@@ -125,20 +106,12 @@ nav:
       - 'Kafka Adapter': 'https://github.com/pravega/kafka-adapter/blob/master/README.md'
       - 'Pravega Flink Tools': 'https://github.com/pravega/flink-tools/blob/master/README.md'
       - 'Keycloak Plugin': 'https://github.com/pravega/pravega-keycloak/blob/master/README.md'
-  - 'Managing Schemas':
-    - 'Overview': 'schema-registry/documentation/src/docs/overview.md'
-    - 'Schema Registry Concepts': 'schema-registry/documentation/src/docs/schema-registry-concepts.md'
-    - 'Using Schema Registry SDK':
-      - 'Java API Reference': 'schema-registry/documentation/src/docs/javadoc.md'
-      - 'REST API': 'schema-registry/documentation/src/docs/rest-documentation.md'
-    - 'Security': 'schema-registry/documentation/src/docs/security.md'
-    - 'Deployment': 'schema-registry/documentation/src/docs/installation-guide.md'
+  - 'Schema Registry': 'https://github.com/pravega/schema-registry/blob/master/README.md'
   - 'Deployment':
     - 'Overview': 'deployment/deployment.md'
     - 'Running Locally': 'deployment/run-local.md'
     - 'Manual Install': 'deployment/manual-install.md'
-    - 'Kubernetes (Helm)': 'pravega-operator/charts/pravega/README.md'
-    - 'Kubernetes (custom)': 'pravega-operator/doc/manual-installation.md'
+    - 'Kubernetes Operators': 'admin-guide/operators.md'
     - 'Docker Swarm': 'deployment/docker-swarm.md'
     - 'DC/OS': 'deployment/dcos-install.md'
     - 'AWS': 'deployment/aws-install.md'
@@ -152,10 +125,7 @@ nav:
       - 'Encryption': 'security/pravega-security-encryption.md'
       - 'Standalone Mode': 'security/securing-standalone-mode-cluster.md'
       - 'Distributed Mode': 'security/securing-distributed-mode-cluster.md'
-    - 'Kubernetes Operations':
-      - 'Operators': 'admin-guide/operators.md'
-      - 'Pravega Configuration': 'pravega-operator/doc/configuration.md'
-      - 'Upgrade Pravega': 'pravega-operator/doc/upgrade-cluster.md'
+      - 'TLS Artifacts': 'security/generating-tls-artifacts.md'
   - Contributing:
     - 'Coding guildelines': 'contributing.md'
     - 'Pravega Roadmap': 'roadmap.md'

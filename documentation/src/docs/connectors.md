@@ -20,7 +20,7 @@ Connectors allow integrating Pravega with different data sources and sinks.
 ## Supported connectors
 Currently, Pravega offers the following connectors:  
 
-- [Flink Connector](flink-connectors/documentation/src/docs/index.md): The Flink Connector enables building 
+- [Flink Connector](https://github.com/pravega/flink-connectors): The Flink Connector enables building 
 end-to-end stream processing pipelines with Pravega in [Apache Flink](https://flink.apache.org/). This also allows 
 reading and writing data to external data sources and sinks via Flink Connector.
 
