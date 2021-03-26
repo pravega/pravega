@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.selftest;
 
@@ -187,10 +193,9 @@ class SelfTest extends AbstractService implements AutoCloseable {
 
         TestLogger.log(LOG_ID, "Created %s Producer(s).", this.testConfig.getProducerCount());
 
-        // Create Consumers (based on the number of non-transaction Segments).
-        if (!this.testConfig.isReadsEnabled() || !Consumer.canUseStoreAdapter(this.store)) {
-            TestLogger.log(LOG_ID, "Not creating any consumers because reads are not enabled or the StorageAdapter"
-                    + " does not support all required features.");
+        // Create Consumers.
+        if (!this.testConfig.isReadsEnabled()) {
+            TestLogger.log(LOG_ID, "Not creating any consumers because reads are not enabled.");
             return;
         }
 
@@ -200,6 +205,11 @@ class SelfTest extends AbstractService implements AutoCloseable {
             TestLogger.log(LOG_ID, "Created TableConsumer.");
         } else {
             // Create Stream Consumers.
+            if (!Consumer.canUseStoreAdapter(this.store)) {
+                TestLogger.log(LOG_ID, "Not creating any consumers because the StorageAdapter does not support all required features.");
+                return;
+            }
+
             int count = 0;
             for (val si : this.state.getAllStreams()) {
                 if (!si.isTransaction()) {
