@@ -713,9 +713,9 @@ public class EventStreamReaderTest {
         assertEquals(0, length % 3);
         EventRead<byte[]> event1 = reader.readNextEvent(0);
         assertEquals(buffer1, ByteBuffer.wrap(event1.getEvent()));
-        metadataClient.truncateSegment(length / 3);
+        metadataClient.truncateSegment(length / 3).join();
         assertEquals(buffer2, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-        metadataClient.truncateSegment(length);
+        metadataClient.truncateSegment(length).join();
         ByteBuffer buffer4 = writeInt(stream, 4);
         assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
         assertEquals(buffer4, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));

@@ -181,7 +181,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         long writeOffset = metadataClient.getSegmentInfo().join().getWriteOffset();
         assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength().join().longValue());
         assertTrue(metadataClient.getSegmentInfo().join().getWriteOffset() > testString.length());
-        metadataClient.truncateSegment(writeOffset);
+        metadataClient.truncateSegment(writeOffset).join();
         assertEquals(writeOffset, metadataClient.getSegmentInfo().join().getStartingOffset());
         assertEquals(writeOffset, metadataClient.getSegmentInfo().join().getWriteOffset());
         assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength().join().longValue());
