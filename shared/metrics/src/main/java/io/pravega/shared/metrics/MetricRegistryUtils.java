@@ -15,33 +15,70 @@
  */
 package io.pravega.shared.metrics;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Timer;
-import io.micrometer.core.instrument.DistributionSummary;
-
+import java.util.Collection;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
 /**
+ * FOR TESTS ONLY. 
  * Utility class to access metrics stored in the local cache of the metrics registry.
+ * NOTE: All operations on this class take O(n) where n is the number of metrics in the system.
  */
 @Slf4j
+@VisibleForTesting
 public class MetricRegistryUtils {
 
     public static Counter getCounter(String metricsName, String... tags) {
-        return Metrics.globalRegistry.find(metricsName).tags(tags).counter();
+        Collection<Counter> counters = Metrics.globalRegistry.find(metricsName).tags(tags).counters();
+        int size = counters.size();
+        if (size == 0) {
+            return null;
+        } else if (size == 1) {
+            return counters.iterator().next();
+        } else {
+            throw new IllegalStateException("Metric was not unique " + counters.stream().map(m -> m.getId()).collect(Collectors.toList()));
+        }
     }
 
     public static DistributionSummary getMeter(String metricsName, String... tags) {
-        return Metrics.globalRegistry.find(metricsName).tags(tags).summary();
+        Collection<DistributionSummary> summaries = Metrics.globalRegistry.find(metricsName).tags(tags).summaries();
+        int size = summaries.size();
+        if (size == 0) {
+            return null;
+        } else if (size == 1) {
+            return summaries.iterator().next();
+        } else {
+            throw new IllegalStateException("Metric was not unique " + summaries.stream().map(m -> m.getId()).collect(Collectors.toList()));
+        }
     }
 
     public static Gauge getGauge(String metricsName, String... tags) {
-        return Metrics.globalRegistry.find(metricsName).tags(tags).gauge();
+        Collection<Gauge> gauges = Metrics.globalRegistry.find(metricsName).tags(tags).gauges();
+        int size = gauges.size();
+        if (size == 0) {
+            return null;
+        } else if (size == 1) {
+            return gauges.iterator().next();
+        } else {
+            throw new IllegalStateException("Metric was not unique " + gauges.stream().map(m -> m.getId()).collect(Collectors.toList()));
+        }
     }
 
     public static Timer getTimer(String metricsName, String... tags) {
-        return Metrics.globalRegistry.find(metricsName).tags(tags).timer();
+        Collection<Timer> timers = Metrics.globalRegistry.find(metricsName).tags(tags).timers();
+        int size = timers.size();
+        if (size == 0) {
+            return null;
+        } else if (size == 1) {
+            return timers.iterator().next();
+        } else {
+            throw new IllegalStateException("Metric was not unique " + timers.stream().map(m -> m.getId()).collect(Collectors.toList()));
+        }
     }
 }
