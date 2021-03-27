@@ -150,7 +150,7 @@ public class StoreClientFactory {
                 client.close();
             } catch (Exception e) {
                 // We prevent throwing uncontrolled exceptions here, which may lead Curator to retry indefinitely.
-                log.error("Exception while attempting to close ZooKeeper client.", e);
+                log.warn("Exception when closing ZooKeeper client. {}", e.getMessage());
             }
         }
     }

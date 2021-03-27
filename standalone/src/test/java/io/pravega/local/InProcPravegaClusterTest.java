@@ -44,7 +44,7 @@ public class InProcPravegaClusterTest {
      * intended to also run as a unit test, but it could be moved to an integration test suite if and when necessary.
      *
      */
-    @Test(timeout = 30000)
+    @Test(timeout = 50000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
         testWriteAndReadAnEvent("TestScope", "TestStream", msg, EMULATOR.getClientConfig());
     }
