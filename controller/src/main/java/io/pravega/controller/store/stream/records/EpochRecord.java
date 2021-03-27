@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 @Data
 public class EpochRecord {
     public static final EpochRecordSerializer SERIALIZER = new EpochRecordSerializer();
+    public static final long DEFAULT_COUNT_VALUE = -1L;
 
     private final int epoch;
     /**
@@ -52,14 +53,31 @@ public class EpochRecord {
     private final long creationTime;
     @Getter(AccessLevel.PRIVATE)
     private final Map<Long, StreamSegmentRecord> segmentMap;
+    /**
+     * Cumulative number of splits till this Epoch.
+     */
+    private final long splits;
+    /**
+     * Cumulative number of merges till this Epoch.
+     */
+    private final long merges;
     
     @Builder
-    public EpochRecord(int epoch, int referenceEpoch, @NonNull ImmutableList<StreamSegmentRecord> segments, long creationTime) {
+    public EpochRecord(int epoch, int referenceEpoch, @NonNull ImmutableList<StreamSegmentRecord> segments, long creationTime, long splits, long merges) {
         this.epoch = epoch;
         this.referenceEpoch = referenceEpoch;
         this.segments = segments;
         this.creationTime = creationTime;
         this.segmentMap = segments.stream().collect(Collectors.toMap(StreamSegmentRecord::segmentId, x -> x));
+        this.splits = splits;
+        this.merges = merges;
+    }
+
+    public boolean hasSplitMergeCounts() {
+        if (this.getSplits() != DEFAULT_COUNT_VALUE && this.getMerges() != DEFAULT_COUNT_VALUE) {
+                return true;
+            }
+        return false;
     }
     
     @SneakyThrows(IOException.class)
@@ -90,7 +108,22 @@ public class EpochRecord {
     }
 
     private static class EpochRecordBuilder implements ObjectBuilder<EpochRecord> {
+        private long splits = DEFAULT_COUNT_VALUE;
+        private long merges = DEFAULT_COUNT_VALUE;
 
+        private EpochRecordBuilder splits(final long splitCount) {
+            this.splits = splitCount;
+            return this;
+        }
+
+        private EpochRecordBuilder merges(final long mergeCount) {
+            this.merges = mergeCount;
+            return this;
+        }
+
+        public EpochRecord build() {
+            return new EpochRecord(epoch, referenceEpoch, segments, creationTime, splits, merges);
+        }
     }
     
     private static class EpochRecordSerializer extends VersionedSerializer.WithBuilder<EpochRecord, EpochRecord.EpochRecordBuilder> {
@@ -101,7 +134,7 @@ public class EpochRecord {
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00);
+            version(0).revision(0, this::write00, this::read00).revision(1, this::write01, this::read01);
         }
 
         private void read00(RevisionDataInput revisionDataInput, EpochRecord.EpochRecordBuilder builder) throws IOException {
@@ -118,6 +151,15 @@ public class EpochRecord {
             revisionDataOutput.writeInt(history.getReferenceEpoch());
             revisionDataOutput.writeCollection(history.getSegments(), StreamSegmentRecord.SERIALIZER::serialize);
             revisionDataOutput.writeLong(history.getCreationTime());
+        }
+
+        private void read01(RevisionDataInput revisionDataInput, EpochRecord.EpochRecordBuilder builder) throws IOException {
+            builder.splits(revisionDataInput.readLong()).merges(revisionDataInput.readLong());
+        }
+
+        private void write01(EpochRecord epochRecord, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(epochRecord.getSplits());
+            revisionDataOutput.writeLong(epochRecord.getMerges());
         }
 
         @Override

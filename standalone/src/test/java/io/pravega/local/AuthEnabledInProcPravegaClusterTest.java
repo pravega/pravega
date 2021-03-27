@@ -50,7 +50,7 @@ public class AuthEnabledInProcPravegaClusterTest {
      * Note: The timeout being used for the test is kept rather large so that there is ample time for the expected
      * exception to be raised even in case of abnormal delays in test environments.
      */
-    @Test(timeout = 30000)
+    @Test(timeout = 50000)
     public void testCreateStreamFailsWithInvalidClientConfig() {
        ClientConfig clientConfig = ClientConfig.builder()
                 .credentials(new DefaultCredentials("", ""))
@@ -65,7 +65,7 @@ public class AuthEnabledInProcPravegaClusterTest {
                 e -> hasAuthExceptionAsRootCause(e));
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 50000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
         testWriteAndReadAnEvent(scope, stream, msg, EMULATOR.getClientConfig());
     }
