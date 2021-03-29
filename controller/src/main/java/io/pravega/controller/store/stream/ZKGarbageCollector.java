@@ -112,7 +112,7 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                     x.cancel(true);
                     x.whenComplete((r, e) -> {
                         if (e != null && !(Exceptions.unwrap(e) instanceof CancellationException)) {
-                            log.error("Exception while trying to stop GC {}", gcName, e);
+                            log.warn("Exception while trying to stop GC {}", gcName, e);
                             notifyFailed(e);
                         } else {
                             notifyStopped();
@@ -160,7 +160,7 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                     } else {
                         // if GC failed, it will be tried again in the next cycle. So log and ignore.
                         if (unwrap instanceof StoreException.StoreConnectionException) {
-                            log.info("StoreConnectionException thrown during Garbage Collection iteration for {}.", gcName);
+                            log.warn("StoreConnectionException thrown during Garbage Collection iteration for {}.", gcName);
                         } else {
                             log.warn("Exception thrown during Garbage Collection iteration for {}. Log and ignore.", gcName, unwrap);
                         }

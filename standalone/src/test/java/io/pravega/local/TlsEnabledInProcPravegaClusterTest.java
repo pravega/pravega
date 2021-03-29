@@ -49,7 +49,7 @@ public class TlsEnabledInProcPravegaClusterTest {
      * Note: The timeout being used for the test is kept rather large so that there is ample time for the expected
      * exception to be raised even in case of abnormal delays in test environments.
      */
-    @Test(timeout = 30000)
+    @Test(timeout = 50000)
     public void testCreateStreamFailsWithInvalidClientConfig() {
         // Truststore for the TLS connection is missing.
         ClientConfig clientConfig = ClientConfig.builder()

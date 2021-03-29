@@ -16,6 +16,9 @@
 package io.pravega.client.admin.impl;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
@@ -31,6 +34,7 @@ import io.pravega.client.stream.impl.ReaderGroupNotFoundException;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.shared.NameUtils;
+import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,12 +43,14 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
@@ -187,6 +193,17 @@ public class ReaderGroupManagerImplTest {
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
         verify(controller, times(1)).deleteStream(SCOPE, NameUtils.getStreamForReaderGroup(GROUP_NAME));
         verify(controller, times(0)).deleteReaderGroup(SCOPE, GROUP_NAME, expectedConfig.getReaderGroupId());
+    }
+
+    @Test
+    public void testCreateReaderGroupManager() {
+        ClientConfig config = ClientConfig.builder().controllerURI(URI.create("tls://localhost:9090")).build();
+        @Cleanup
+        ReaderGroupManagerImpl readerGroupMgr = (ReaderGroupManagerImpl) ReaderGroupManager.withScope(SCOPE, config);
+        ClientFactoryImpl factory = (ClientFactoryImpl) readerGroupMgr.getClientFactory();
+        ConnectionPoolImpl cp = (ConnectionPoolImpl) factory.getConnectionPool();
+        assertEquals(1, cp.getClientConfig().getMaxConnectionsPerSegmentStore());
+        assertEquals(config.isEnableTls(), cp.getClientConfig().isEnableTls());
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {

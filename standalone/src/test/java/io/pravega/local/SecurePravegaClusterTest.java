@@ -33,7 +33,7 @@ public class SecurePravegaClusterTest {
     final String stream = "TlsAndAuthTestStream";
     final String msg = "Test message on the encrypted channel with auth credentials";
 
-    @Test(timeout = 30000)
+    @Test(timeout = 50000)
     public void testWriteAndReadEventWithValidClientConfig() throws Exception {
         testWriteAndReadAnEvent(scope, stream, msg, EMULATOR.getClientConfig());
     }
