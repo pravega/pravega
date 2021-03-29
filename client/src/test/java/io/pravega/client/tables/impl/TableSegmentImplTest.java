@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.tables.impl;
 
@@ -24,7 +30,9 @@ import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.NoSuchKeyException;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -408,6 +416,58 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability to separate read and write requests on their own connections.
+     */
+    @Test
+    public void testDualConnections() throws Exception {
+        val testEntries = Arrays.asList(
+                notExistsEntry(1L, "one"),
+                unversionedEntry(2L, "two"),
+                versionedEntry(3L, "three", 123L));
+        val expectedVersions = Arrays.asList(0L, 1L, 2L);
+
+        // No retry attempts - this will speed up the testing.
+        val config = KeyValueTableClientConfiguration.builder().retryAttempts(1).build();
+
+        @Cleanup
+        val context = new TestContext(config);
+        context.autoReconnect.set(false); // Disable auto-reconnects; this will make our testing life easier.
+
+        // Successful operation. This should cause the "write" connection to be established (the "read" connection is not, yet).
+        // We need to do this because MockConnectionFactoryImpl only supports one outstanding connection per URI.
+        val put1 = context.segment.put(testEntries.iterator());
+        context.sendReply(new WireCommands.TableEntriesUpdated(context.getConnection().getLastRequestId(), expectedVersions));
+        val result1 = put1.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS)
+                .stream().map(TableSegmentKeyVersion::getSegmentVersion).collect(Collectors.toList());
+        AssertExtensions.assertListEquals("Unexpected return value", expectedVersions, result1, Long::equals);
+
+        // Close the active connection and disable auto-reconnects.
+        context.getConnection().close();
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected update operation to fail when write connection forcibly closed.",
+                () -> context.segment.put(testEntries.iterator()),
+                ex -> ex instanceof RetriesExhaustedException
+                        && Exceptions.unwrap(ex.getCause()) instanceof ConnectionFailedException);
+
+        // Reestablish a connection, and do a read request to set up the "read" context.
+        context.autoReconnect.set(true);
+        context.reconnect();
+        val getResult = context.segment.get(Iterators.singletonIterator(Unpooled.wrappedBuffer(new byte[1])));
+        context.sendReply(new WireCommands.TableRead(context.getConnection().getLastRequestId(), SEGMENT.getScopedName(), new WireCommands.TableEntries(Collections.emptyList())));
+        val actualEntries = getResult.get(SHORT_TIMEOUT, TimeUnit.MILLISECONDS);
+        Assert.assertEquals(1, actualEntries.size());
+
+        // Again, close the active connection. Verify that read requests fail.
+        context.getConnection().close();
+        context.autoReconnect.set(false);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected update operation to fail when write connection forcibly closed.",
+                () -> context.segment.get(Iterators.singletonIterator(Unpooled.wrappedBuffer(new byte[1]))),
+                ex -> ex instanceof RetriesExhaustedException
+                        && Exceptions.unwrap(ex.getCause()) instanceof ConnectionFailedException);
+    }
+
+    /**
      * Tests the ability to swiftly reject requests with Key or Value lengths exceeding predefined limits.
      */
     @Test
@@ -596,12 +656,15 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         final AtomicInteger reconnectCount = new AtomicInteger();
 
         TestContext() {
+            this(KeyValueTableClientConfiguration.builder().build());
+        }
+
+        TestContext(KeyValueTableClientConfiguration config) {
             this.connection = new AtomicReference<>();
             this.connectionFactory = new MockConnectionFactoryImpl();
             this.connectionFactory.setExecutor(executorService());
             this.controller = new MockController(URI.getEndpoint(), URI.getPort(), this.connectionFactory, true);
-            val factory = new TableSegmentFactoryImpl(this.controller, this.connectionFactory,
-                    KeyValueTableClientConfiguration.builder().build(),
+            val factory = new TableSegmentFactoryImpl(this.controller, this.connectionFactory, config,
                     DelegationTokenProviderFactory.createWithEmptyToken());
             this.segment = factory.forSegment(SEGMENT);
             reconnect();

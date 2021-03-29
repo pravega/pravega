@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.metadata;
 
@@ -23,6 +29,7 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -64,13 +71,13 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
 
     /**
      * Constructor.
-     *
      * @param tableName  Name of the table segment.
      * @param tableStore Instance of the {@link TableStore}.
+     * @param config Configuration options for this instance.
      * @param executor Executor to use for async operations.
      */
-    public TableBasedMetadataStore(String tableName, TableStore tableStore, Executor executor) {
-        super(executor);
+    public TableBasedMetadataStore(String tableName, TableStore tableStore, ChunkedSegmentStorageConfig config, Executor executor) {
+        super(config, executor);
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.tableName = Preconditions.checkNotNull(tableName, "tableName");
     }
