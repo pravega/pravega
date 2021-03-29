@@ -22,6 +22,7 @@ import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.batch.impl.BatchClientFactoryImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
@@ -85,6 +86,14 @@ public interface BatchClientFactory extends AutoCloseable {
      * @return A SegmentIterator over the requested segment
      */
     <T> SegmentIterator<T> readSegment(SegmentRange segment, Serializer<T> deserializer);
+
+    /**
+     * Return {@link SegmentRange} with lowest and highest offset for the given {@link Segment}.
+     *
+     * @param segment The {@link Segment}
+     * @return {@link SegmentRange} representing the entire {@link Segment}.
+     */
+    SegmentRange currentSegmentRange(Segment segment);
 
     /**
      * Closes the client factory. This will close any connections created through it.

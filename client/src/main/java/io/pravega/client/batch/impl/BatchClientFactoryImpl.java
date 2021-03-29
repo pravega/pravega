@@ -83,6 +83,20 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                 segment.asImpl().getStartOffset(), segment.asImpl().getEndOffset());
     }
 
+    @Override
+    public SegmentRange currentSegmentRange(final Segment segment) {
+        final DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory
+                .create(controller, segment.getStream().getScope(), segment.getStream().getStreamName(), AccessOperation.READ);
+
+        SegmentInfo segmentInfo = segmentToInfo(segment, tokenProvider);
+
+        return SegmentRangeImpl.builder()
+                .segment(segment)
+                .startOffset(segmentInfo.getStartingOffset())
+                .endOffset(segmentInfo.getWriteOffset())
+                .build();
+    }
+
     private StreamSegmentsIterator listSegments(final Stream stream, final Optional<StreamCut> startStreamCut,
                                                 final Optional<StreamCut> endStreamCut) {
         val startCut = startStreamCut.filter(sc -> !sc.equals(StreamCut.UNBOUNDED));

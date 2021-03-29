@@ -69,9 +69,13 @@ public class StreamCutImpl extends StreamCutInternal {
         this.positions = ImmutableMap.copyOf(positions);
     }
 
+    public StreamCutImpl(Stream stream, Segment segment, long position) {
+        this(stream, Collections.singletonMap(segment, position));
+    }
+
     @Override
     public Map<Segment, Long> getPositions() {
-        return Collections.unmodifiableMap(positions);
+        return positions;
     }
 
     @Override
