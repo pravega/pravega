@@ -96,6 +96,21 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         this.executor = executor;
     }
 
+    @VisibleForTesting
+    PravegaTablesStreamMetadataStore(CuratorFramework curatorClient, ScheduledExecutorService executor,
+                                     Duration gcPeriod, PravegaTablesStoreHelper helper) {
+        super(new ZKHostIndex(curatorClient, "/hostTxnIndex", executor), new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
+        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
+        this.orderer = new ZkOrderedStore("txnCommitOrderer", zkStoreHelper, executor);
+        this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, zkStoreHelper, this::gcCompletedTxn, gcPeriod);
+        this.completedTxnGC.startAsync();
+        this.completedTxnGC.awaitRunning();
+        this.completedTxnGCRef = new AtomicReference<>(completedTxnGC);
+        this.counter = new ZkInt96Counter(zkStoreHelper);
+        this.storeHelper = helper;
+        this.executor = executor;
+    }
+
     @VisibleForTesting 
     CompletableFuture<Void> gcCompletedTxn() {
         List<String> batches = new ArrayList<>();
