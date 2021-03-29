@@ -1,16 +1,23 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.metadata;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.MockStorageMetadata;
 import io.pravega.test.common.AssertExtensions;
@@ -57,7 +64,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
     @Before
     public void setUp() throws Exception {
         super.before();
-        metadataStore = new InMemoryMetadataStore(executorService());
+        metadataStore = new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
     }
 
     @After
@@ -1428,7 +1435,7 @@ public class ChunkMetadataStoreTests extends ThreadPooledTestSuite {
                 () -> metadataStore.get(null, KEY0),
                 ex -> ex instanceof IllegalArgumentException);
         AssertExtensions.assertThrows("get should throw an exception",
-                () -> metadataStore.beginTransaction(true, null),
+                () -> metadataStore.beginTransaction(true, (String[]) null),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows("get should throw an exception",
                 () -> metadataStore.beginTransaction(true, new String[0]),

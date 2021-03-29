@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -135,7 +141,7 @@ public abstract class PersistentStreamBase implements Stream {
                  .forEach(x -> builder.add(newSegmentRecord(0, startingSegmentNumber + x, creationTime,
                                                                     x * keyRangeChunk, (x + 1) * keyRangeChunk)));
 
-        EpochRecord epoch0 = new EpochRecord(0, 0, builder.build(), creationTime);
+        EpochRecord epoch0 = new EpochRecord(0, 0, builder.build(), creationTime, 0L, 0L);
 
         return createEpochRecord(epoch0)
                 .thenCompose(r -> createHistoryChunk(epoch0))
@@ -531,12 +537,12 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     private List<ScaleMetadata> mapToScaleMetadata(List<EpochRecord> epochRecords) {
-        final AtomicReference<List<StreamSegmentRecord>> previous = new AtomicReference<>();
+        final AtomicReference<ImmutableList<StreamSegmentRecord>> previous = new AtomicReference<>();
         return epochRecords.stream()
                            .map(record -> {
                                long splits = 0;
                                long merges = 0;
-                               List<StreamSegmentRecord> segments = record.getSegments();
+                               ImmutableList<StreamSegmentRecord> segments = record.getSegments();
                                if (previous.get() != null) {
                                    splits = findSegmentSplitsMerges(previous.get(), segments);
                                    merges = findSegmentSplitsMerges(segments, previous.get());
@@ -557,7 +563,7 @@ public abstract class PersistentStreamBase implements Stream {
      * @param targetSegmentsList Target segment list.
      * @return Number of splits/merges.
      */
-    private long findSegmentSplitsMerges(List<StreamSegmentRecord> referenceSegmentsList, List<StreamSegmentRecord> targetSegmentsList) {
+    private long findSegmentSplitsMerges(ImmutableList<StreamSegmentRecord> referenceSegmentsList, ImmutableList<StreamSegmentRecord> targetSegmentsList) {
         return referenceSegmentsList.stream().filter(
                 segment -> targetSegmentsList.stream().filter(target -> target.overlaps(segment)).count() > 1 ).count();
     }
@@ -1086,7 +1092,7 @@ public abstract class PersistentStreamBase implements Stream {
             VersionedMetadata<EpochTransitionRecord> versionedMetadata) {
         return getActiveEpochRecord(true)
                 .thenCompose(currentEpoch -> {
-                    // only perform idempotent update. If update is already completed, do nothing. 
+                    // only perform idempotent update. If update is already completed, do nothing.
                     if (currentEpoch.getEpoch() < versionedMetadata.getObject().getNewEpoch()) {
                         EpochTransitionRecord epochTransition = versionedMetadata.getObject();
                         // time
@@ -1111,21 +1117,57 @@ public abstract class PersistentStreamBase implements Stream {
                                     } );
                         ImmutableList<StreamSegmentRecord> newSegments = newSegmentsBuilder.build();
                         builder.addAll(newSegments);
+                        ImmutableList<StreamSegmentRecord> newEpochSegments = builder.build();
                         // epoch record
-                        EpochRecord epochRecord = new EpochRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(), 
-                                builder.build(), time);
-
-                        HistoryTimeSeriesRecord timeSeriesRecord = 
-                                new HistoryTimeSeriesRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(), 
-                                        sealedSegmentsBuilder.build(), newSegments, epochRecord.getCreationTime());
-                        return createEpochRecord(epochRecord)
-                                .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecord))
-                                .thenCompose(x -> createSegmentSealedEpochRecords(epochTransition.getSegmentsToSeal(), epochTransition.getNewEpoch()))
-                                .thenApply(x -> versionedMetadata);
+                        return getSplitMergeCountsTillEpoch(currentEpoch).thenCompose(cumulativeSplitMergeCount -> {
+                            EpochRecord epochRecord = new EpochRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(), newEpochSegments, time,
+                                    getNewEpochSplitCount(cumulativeSplitMergeCount.getKey(), currentEpoch.getSegments(), newEpochSegments),
+                                    getNewEpochMergeCount(cumulativeSplitMergeCount.getValue(), currentEpoch.getSegments(), newEpochSegments));
+                            HistoryTimeSeriesRecord timeSeriesRecord =
+                                    new HistoryTimeSeriesRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(),
+                                            sealedSegmentsBuilder.build(), newSegments, epochRecord.getCreationTime());
+                            return createEpochRecord(epochRecord)
+                                    .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecord))
+                                    .thenCompose(x -> createSegmentSealedEpochRecords(epochTransition.getSegmentsToSeal(), epochTransition.getNewEpoch()))
+                                    .thenApply(x -> versionedMetadata);
+                        });
                     } else {
                         return CompletableFuture.completedFuture(versionedMetadata);
                     }
                 });
+    }
+
+    @Override
+    public CompletableFuture<SimpleEntry<Long, Long>> getSplitMergeCountsTillEpoch(EpochRecord epochRecord) {
+        if (epochRecord.hasSplitMergeCounts()) {
+            return CompletableFuture.completedFuture(new SimpleEntry<>(epochRecord.getSplits(), epochRecord.getMerges()));
+        } else {
+            //migration case: build the cumulative count from all previous epochs
+            return fetchEpochs(0, epochRecord.getEpoch(), true).thenApply(this::mapToScaleMetadata)
+                    .thenApply(scaleMetadataList -> {
+                AtomicLong totalNumSplits = new AtomicLong(0L);
+                AtomicLong totalNumMerges = new AtomicLong(0L);
+                scaleMetadataList.forEach(x -> {
+                    totalNumMerges.addAndGet(x.getMerges());
+                    totalNumSplits.addAndGet(x.getSplits());
+                });
+                return new SimpleEntry<>(totalNumSplits.get(), totalNumMerges.get());
+            });
+        }
+    }
+
+    private long getNewEpochSplitCount(final long splitCountPrevEpoch, ImmutableList<StreamSegmentRecord> lastEpochSegments, ImmutableList<StreamSegmentRecord> newEpochSegments) {
+        if (splitCountPrevEpoch == EpochRecord.DEFAULT_COUNT_VALUE) {
+            return EpochRecord.DEFAULT_COUNT_VALUE;
+        }
+        return splitCountPrevEpoch + findSegmentSplitsMerges(lastEpochSegments, newEpochSegments);
+    }
+
+    private long getNewEpochMergeCount(final long mergeCountPrevEpoch, ImmutableList<StreamSegmentRecord> lastEpochSegments, ImmutableList<StreamSegmentRecord> newEpochSegments) {
+        if (mergeCountPrevEpoch == EpochRecord.DEFAULT_COUNT_VALUE) {
+            return EpochRecord.DEFAULT_COUNT_VALUE;
+        }
+        return mergeCountPrevEpoch + findSegmentSplitsMerges(newEpochSegments, lastEpochSegments);
     }
  
     private CompletableFuture<Void> updateHistoryTimeSeries(HistoryTimeSeriesRecord record) {
@@ -1251,31 +1293,44 @@ public abstract class PersistentStreamBase implements Stream {
                                             committingTxnRecord.getNewActiveEpoch()),
                                             timeStamp + 1, x.getKeyStart(), x.getKeyEnd())));
 
-                            EpochRecord duplicateTxnEpoch = new EpochRecord(committingTxnRecord.getNewTxnEpoch(), 
-                                    transactionEpochRecord.getReferenceEpoch(), duplicateTxnSegmentsBuilder.build(), timeStamp);
+                            CompletableFuture<EpochRecord> txnEpochFuture = getSplitMergeCountsTillEpoch(activeEpochRecord).thenCompose(txnSplitMergeCount -> {
+                                ImmutableList<StreamSegmentRecord> duplicateTxnEpochSegments = duplicateTxnSegmentsBuilder.build();
+                                EpochRecord duplicateTxnEpoch = new EpochRecord(committingTxnRecord.getNewTxnEpoch(),
+                                        transactionEpochRecord.getReferenceEpoch(), duplicateTxnEpochSegments, timeStamp,
+                                        getNewEpochSplitCount(txnSplitMergeCount.getKey(), activeEpochRecord.getSegments(), duplicateTxnEpochSegments),
+                                        getNewEpochMergeCount(txnSplitMergeCount.getValue(), activeEpochRecord.getSegments(), duplicateTxnEpochSegments));
+                                return CompletableFuture.completedFuture(duplicateTxnEpoch);
+                            });
+                            CompletableFuture<EpochRecord> activeEpochFuture = txnEpochFuture.thenCompose(previousEpoch -> getSplitMergeCountsTillEpoch(previousEpoch).thenCompose(prevSplitMergeCounts -> {
+                                ImmutableList<StreamSegmentRecord> activeEpochSegments = duplicateActiveSegmentsBuilder.build();
+                                EpochRecord duplicateActiveEpoch = new EpochRecord(committingTxnRecord.getNewActiveEpoch(),
+                                        activeEpochRecord.getReferenceEpoch(), activeEpochSegments, timeStamp + 1,
+                                        getNewEpochSplitCount(prevSplitMergeCounts.getKey(), previousEpoch.getSegments(), activeEpochSegments),
+                                        getNewEpochMergeCount(prevSplitMergeCounts.getValue(), previousEpoch.getSegments(), activeEpochSegments));
+                                return CompletableFuture.completedFuture(duplicateActiveEpoch);
+                            }));
+                            return CompletableFuture.allOf(txnEpochFuture, activeEpochFuture).thenCompose(v -> {
+                                EpochRecord duplicateTxnEpoch = txnEpochFuture.join();
+                                EpochRecord duplicateActiveEpoch = activeEpochFuture.join();
+                                HistoryTimeSeriesRecord timeSeriesRecordTxnEpoch =
+                                        new HistoryTimeSeriesRecord(duplicateTxnEpoch.getEpoch(), duplicateTxnEpoch.getReferenceEpoch(),
+                                                ImmutableList.of(), ImmutableList.of(), timeStamp);
 
-                            EpochRecord duplicateActiveEpoch = new EpochRecord(committingTxnRecord.getNewActiveEpoch(),
-                                    activeEpochRecord.getReferenceEpoch(), duplicateActiveSegmentsBuilder.build(), timeStamp + 1);
-
-                            HistoryTimeSeriesRecord timeSeriesRecordTxnEpoch =
-                                    new HistoryTimeSeriesRecord(duplicateTxnEpoch.getEpoch(), duplicateTxnEpoch.getReferenceEpoch(), 
-                                            ImmutableList.of(), ImmutableList.of(), timeStamp);
-
-                            HistoryTimeSeriesRecord timeSeriesRecordActiveEpoch =
-                                    new HistoryTimeSeriesRecord(duplicateActiveEpoch.getEpoch(), duplicateActiveEpoch.getReferenceEpoch(),
-                                            ImmutableList.of(), ImmutableList.of(), timeStamp + 1);
-                            return createEpochRecord(duplicateTxnEpoch)
-                                    .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecordTxnEpoch))
-                                    .thenCompose(x -> createEpochRecord(duplicateActiveEpoch))
-                                    .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecordActiveEpoch))
-                                    .thenCompose(x -> createSegmentSealedEpochRecords(
-                                            activeEpochRecord.getSegments().stream().map(StreamSegmentRecord::segmentId)
-                                                             .collect(Collectors.toList()), duplicateTxnEpoch.getEpoch()))
-                                    .thenCompose(x -> createSegmentSealedEpochRecords(
-                                            duplicateTxnEpoch.getSegments().stream().map(StreamSegmentRecord::segmentId)
-                                                             .collect(Collectors.toList()), duplicateActiveEpoch.getEpoch()));
-                        })
-                        .thenCompose(r -> updateSealedSegmentSizes(sealedTxnEpochSegments)));
+                                HistoryTimeSeriesRecord timeSeriesRecordActiveEpoch =
+                                        new HistoryTimeSeriesRecord(duplicateActiveEpoch.getEpoch(), duplicateActiveEpoch.getReferenceEpoch(),
+                                                ImmutableList.of(), ImmutableList.of(), timeStamp + 1);
+                                return createEpochRecord(duplicateTxnEpoch)
+                                        .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecordTxnEpoch))
+                                        .thenCompose(x -> createEpochRecord(duplicateActiveEpoch))
+                                        .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecordActiveEpoch))
+                                        .thenCompose(x -> createSegmentSealedEpochRecords(
+                                                activeEpochRecord.getSegments().stream().map(StreamSegmentRecord::segmentId)
+                                                        .collect(Collectors.toList()), duplicateTxnEpoch.getEpoch()))
+                                        .thenCompose(x -> createSegmentSealedEpochRecords(
+                                                duplicateTxnEpoch.getSegments().stream().map(StreamSegmentRecord::segmentId)
+                                                        .collect(Collectors.toList()), duplicateActiveEpoch.getEpoch()));
+                            }).thenCompose(r -> updateSealedSegmentSizes(sealedTxnEpochSegments));
+                        }));
     }
 
     @Override
@@ -2169,7 +2224,14 @@ public abstract class PersistentStreamBase implements Stream {
                    }
                 });
                 segmentsBuilder.addAll(createdSegments);
-                return new EpochRecord(epoch, referenceEpoch, segmentsBuilder.build(), time);
+                ImmutableList<StreamSegmentRecord> epochSegments = segmentsBuilder.build();
+                if (!lastRecord.hasSplitMergeCounts()) {
+                    return new EpochRecord(epoch, referenceEpoch, epochSegments, time, EpochRecord.DEFAULT_COUNT_VALUE, EpochRecord.DEFAULT_COUNT_VALUE);
+                } else {
+                    return new EpochRecord(epoch, referenceEpoch, epochSegments, time,
+                            getNewEpochSplitCount(lastRecord.getSplits(), lastRecord.getSegments(), epochSegments),
+                            getNewEpochMergeCount(lastRecord.getMerges(), lastRecord.getSegments(), epochSegments));
+                }
             });
         } else {
             return getEpochRecord(epoch);

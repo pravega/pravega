@@ -1,9 +1,9 @@
-# Pravega Controller APIs
+# Pravega Controller REST API
 
 
 <a name="overview"></a>
 ## Overview
-List of admin REST APIs for the pravega controller service.
+List of admin REST APIs for the Pravega Controller service.
 
 
 ### Version information
