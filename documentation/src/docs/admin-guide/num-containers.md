@@ -21,8 +21,8 @@ Cluster. Therefore, we need to set this parameter carefully in a production envi
 in Pravega to reason about setting the right number of Segment Containers are the following:
 
 - **`pravegaservice.container.count`, `controller.container.count`**: Number of Segment Containers in the system. 
-This value must be the same across all SegmentStore instances in this cluster. This value cannot be changed dynamically, 
-it will require special administrative tasks when changing. See documentation for details. Valid values: Positive integer.
+This value must be the same across all SegmentStore instances in this cluster. This value cannot be changed dynamically. 
+See documentation for details. Valid values: Positive integer.
 _Type_: `Integer`. _Default_: `4`. _Update-mode_: `read-only`.
 
 - **`pravegaservice.threadPool.core.size`**: Maximum number of threads in the Core SegmentStore Thread Pool. This pool 
@@ -61,7 +61,7 @@ reason about these aspects.
 With the previous points in mind, we can define the number of Segment Containers in the system 
 (i.e., `pravegaservice.container.count`, `controller.container.count`) by just multiplying the number of Segment Containers 
 per instance by the number of initial instances. Let's see a practical example. Image that we want to deploy a Pravega 
-Cluster using AWS EKS instances with 8 vCPUs and 16GB of RAM for running Segment Stores. If we consider the normal load
+Cluster using AWS EKS instances with 8 vCPUs and 16GB of RAM for running Segment Stores. If we assume that the normal load
 in the system to be 50MBps (1KB events), then we can safely assume that 3 Segment Stores may be enough to absorb it.
 Given that, we could suggest a configuration as follows:
 

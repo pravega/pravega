@@ -16,7 +16,7 @@ limitations under the License.
 # Cluster Service Dependencies
 
 A Pravega Cluster consists of a set of services (Zookeeper, Bookkeeper, Segment Store, Controller and Long-Term Storage)
-that interact among them. Understanding such dependencies and the parameters that express them is key. Next, we describe
+that interact among each other. Understanding such dependencies and the parameters that express them is key. Next, we describe
 such dependencies and the main parameters in this regard with a practical example: to configure a Pravega Cluster with
 Zookeeper and Bookkeeper using NFS as Long-Term Storage.
 
@@ -37,12 +37,12 @@ _Type_: `String`. _Default_: `HDFS`. _Update-mode_: `read-only`.
 - **`autoScale.controller.connect.uri`**: URI for the Pravega Controller.
 _Type_: `String`. _Default_: `pravega://localhost:9090`. _Update-mode_: `cluster-wide`.
 
-- **`bookkeeper.zk.connect.uri`**: Endpoint address (hostname:port) where the ZooKeeper controlling BookKeeper for this 
+- **`bookkeeper.zk.connect.uri`**: Endpoint address (hostname:port) where the ZooKeeper controlling Bookkeeper for this 
 cluster can be found at. This value must be the same for all Pravega SegmentStore instances in this cluster.
 _Type_: `String`. _Default_: `localhost:2181`. _Update-mode_: `read-only`.
 
-- **`bookkeeper.ledger.path`**: Default root path for BookKeeper Ledger metadata. This property tells the BookKeeper 
-client where to look up Ledger Metadata for the BookKeeper cluster it is connecting to. If this property isn't uncommented, 
+- **`bookkeeper.ledger.path`**: Default root path for Bookkeeper Ledger metadata. This property tells the Bookkeeper 
+client where to look up Ledger Metadata for the Bookkeeper cluster it is connecting to. If this property isn't uncommented, 
 then the default value for the path is the Pravega cluster namespace (`/pravega/<cluster-name>/`) with "ledgers" appended:
 `/pravega/<cluster-name>/ledgers`. Otherwise, it will take the value specified below. 
 _Type_: `String`. _Default_: `/pravega/bookkeeper/ledgers`. _Update-mode_: `read-only`.

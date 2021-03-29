@@ -23,15 +23,15 @@ Apache Bookkeeper service itself are critical for a production cluster. Note tha
 the configuration of Bookkeeper ([available here](https://bookkeeper.apache.org/docs/latest/reference/config/)). Instead, 
 we focus on the parameters that we have found important to properly configure in our practical experience:
 
-- **`bookkeeper.ensemble.size`**: Ensemble size for BookKeeper ledgers. This value need not be the same for all 
+- **`bookkeeper.ensemble.size`**: Ensemble size for Bookkeeper ledgers. This value need not be the same for all 
 Pravega SegmentStore instances in this cluster, but it highly recommended for consistency. 
 _Type_: `Integer`. _Default_: `3`. _Update-mode_: `per-server`.
 
-- **`bookkeeper.ack.quorum.size`**: Write Ack Quorum size for BookKeeper ledgers. This value need not be the same 
+- **`bookkeeper.ack.quorum.size`**: Write Ack Quorum size for Bookkeeper ledgers. This value need not be the same 
 for all Pravega SegmentStore instances in this cluster, but it highly recommended for consistency.
 _Type_: `Integer`. _Default_: `3`. _Update-mode_: `per-server`.
 
-- **`bookkeeper.write.quorum.size`**: Write Quorum size for BookKeeper ledgers. This value need not be the same for all 
+- **`bookkeeper.write.quorum.size`**: Write Quorum size for Bookkeeper ledgers. This value need not be the same for all 
 Pravega SegmentStore instances in this cluster, but it highly recommended for consistency.
 _Type_: `Integer`. _Default_: `3`. _Update-mode_: `per-server`.
 

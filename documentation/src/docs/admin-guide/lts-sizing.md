@@ -39,6 +39,12 @@ _Type_: `Integer`. _Default_: `1`. _Update-mode_: `read-only`.
 
 - **_`controller.retention.thread.count`_**: Number of threads in the Controller devoted to execute Stream auto-retention tasks.
 _Type_: `Integer`. _Default_: `1`. _Update-mode_: `per-server`.
+
+- **_`writer.rollover.size.bytes.max`_**: The maximum size of a single Segment Chunk in Storage. While this can 
+be configured on a per-segment basis via the Segment Store API, this setting establishes a ceiling to that value. 
+No Segment Chunk may exceed this length regardless of how it was configured via the API (if at all). Use this setting 
+if you need to meet some hardware limitation with the underlying Storage implementation (i.e., maximum file size).
+Valid values: Positive number.
  
 We can enforce two types of auto-retention policies on our Streams: _size-based_ and _time-based_. There is also
 a new [consumption-based retention model](https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Consumption-Based-Retention), 
@@ -51,7 +57,7 @@ a high data ingestion rate unavoidably leads to higher Long-Term Storage require
 - _Stream retention policy used_: The retention configuration of our Streams is almost as important as the ingestion rate.
 That is, we can have a data high ingestion rate on Streams configured with frequent/small retention period/size, 
 which would still keep the Long-Term Storage requirements low.
-- _Efficiency of serializers_: Pravega only understands about bytes, not events. This means that applications writing and
+- _Efficiency of serializers_: Pravega only understands bytes, not events. This means that applications writing and
 reading events from Pravega are required to provide serializers in order to convert events into bytes and the other way
 round. Depending on the type of data being stored and the serializer implementation, the write amplification of user
 events into bytes may be significant.
@@ -96,3 +102,8 @@ the new instances will share the load along with with the previous ones.
 per Controller devoted to auto-retention should be enough. However, if you expect your workload to be very 
 intensive in terms of auto-retention (i.e., thousands of Streams, stringent retention requirements) consider to increase
 the thread pool size to 2-4 threads. 
+
+- _Maximum size of single chunk in LTS: In production, it may be required to revisit the value of `writer.rollover.size.bytes.max`.
+Limiting the size of chunks in LTS poses a trade-off: if the value is low, the system will achieve fine retention granularity 
+(good) but extra metadata overhead (not so good). On the contrary, a high value in this parameter induces coarse retention 
+granularity with less metadata overhead. Limiting chunk sizes between 1GB-16GB seems reasonable in many scenarios. 
