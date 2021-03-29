@@ -66,6 +66,7 @@ nav:
     - 'Reader Groups': 'reader-group-design.md'
     - 'Watermarking': 'watermarking.md'
   - Developing Applications:
+    - '1st Code Walkthrough': 'beginner_dev_guide.md'
     - 'Client & Stream Semantics': 'clients-and-streams.md'
     - 'Event Reader and Writer': 'basic-reader-and-writer.md'
     - 'Reader Group notifications': 'reader-group-notifications.md'
