@@ -142,7 +142,7 @@ public class EventProcessorTest extends ThreadPooledTestSuite {
 
         @Override
         public String getKey() {
-            return null;
+            return "" + number;
         }
 
         @Override
@@ -487,7 +487,7 @@ public class EventProcessorTest extends ThreadPooledTestSuite {
         ConcurrentSkipListSet<Integer> output = new ConcurrentSkipListSet<>();
 
         for (int val : input) {
-            writer.writeEvent(new TestEvent(val));
+            writer.writeEvent("" + val, new TestEvent(val));
         }
         writer.flush();
 
@@ -542,7 +542,7 @@ public class EventProcessorTest extends ThreadPooledTestSuite {
 
         // write 10 new events
         for (int val : input) {
-            writer.writeEvent(new TestEvent(val));
+            writer.writeEvent("" + val, new TestEvent(val));
         }
         writer.flush();
 
