@@ -704,4 +704,13 @@ interface Stream {
      * is strictly before the supplied streamcut. 
      */
     CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long, Long> streamCut, RetentionSet retentionSet);
+
+    /**
+     * Finds the cumulative number of splits and merges in this Stream till this epoch.
+     *
+     * @param epochRecord EpochRecord till which to compute splits/merges.
+     * @return A completable future which when completed will return an Entry<Key, Value>,
+     * where 'Key' is number of splits and 'Value' is number of merges in the Stream till this epoch.
+     */
+    CompletableFuture<SimpleEntry<Long, Long>> getSplitMergeCountsTillEpoch(EpochRecord epochRecord);
 }
