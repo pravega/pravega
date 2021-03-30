@@ -124,7 +124,7 @@ public class ControllerMetricsTest extends ThreadPooledTestSuite {
                 serviceHost,
                 servicePort,
                 containerCount,
-                9091);
+                TestUtils.getAvailableListenPort());
         controllerWrapper.awaitRunning();
     }
 
