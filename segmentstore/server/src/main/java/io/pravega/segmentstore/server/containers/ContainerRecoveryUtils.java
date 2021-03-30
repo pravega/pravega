@@ -314,7 +314,7 @@ public class ContainerRecoveryUtils {
                                             Duration timeout) throws InterruptedException, ExecutionException,
             TimeoutException {
         Preconditions.checkState(backUpMetadataSegments.size() == containersMap.size(), "The number of " +
-                "back-up metadata segments and containers should match.");
+                "back-up metadata segments = " + backUpMetadataSegments.size() + " and containers" + containersMap.size() + "should match.");
 
         val args = IteratorArgs.builder().fetchTimeout(timeout).build();
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containersMap.size());
@@ -385,9 +385,6 @@ public class ContainerRecoveryUtils {
      */
     protected static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor,
                                                          Duration timeout) {
-        if (!storage.exists(sourceSegment, timeout).join()) {
-            return CompletableFuture.completedFuture(null);
-        }
         byte[] buffer = new byte[BUFFER_SIZE];
         return storage.create(targetSegment, timeout).thenComposeAsync(targetHandle -> {
             return storage.getStreamSegmentInfo(sourceSegment, timeout).thenComposeAsync(info -> {
