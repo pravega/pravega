@@ -21,7 +21,7 @@ import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
-import io.pravega.segmentstore.storage.mocks.InMemoryCheckpointStore;
+import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -63,6 +63,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     @Before
     public void before() throws Exception {
         super.before();
+        InMemorySnapshotInfoStore.getSingletonInstance().clear();
     }
 
     @After
@@ -641,6 +642,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                         .build());
                 expectedChunks.put(segment, new ArrayList<>());
             }
+            InMemorySnapshotInfoStore.getSingletonInstance().clear();
         }
 
         void addTime(long toAdd) {
@@ -667,7 +669,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         GarbageCollector garbageCollector;
         SegmentRollingPolicy policy;
         SystemJournal systemJournal;
-        SystemJournal.CheckpointStore checkpointStore;
+        SystemJournal.SnapshotInfoStore snapshotInfoStore;
         long epoch;
 
         TestInstance(TestContext testContext, long epoch) {
@@ -679,13 +681,17 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                     metadataStore,
                     testContext.config,
                     executorService());
-            this.checkpointStore = new InMemoryCheckpointStore();
+            val data = InMemorySnapshotInfoStore.getSingletonInstance();
+            val snapshotInfoStore = new SystemJournal.SnapshotInfoStore(testContext.containerId,
+                    snapshotId -> data.setSnapshotId(testContext.containerId, snapshotId),
+                    () -> data.getSnapshotId(testContext.containerId));
+            this.snapshotInfoStore = snapshotInfoStore;
             systemJournal = new SystemJournal(testContext.containerId, testContext.chunkStorage,
                     metadataStore, garbageCollector, () -> testContext.getTime(), testContext.config);
         }
 
         void bootstrap() throws Exception {
-            systemJournal.bootstrap(epoch, checkpointStore).get();
+            systemJournal.bootstrap(epoch, snapshotInfoStore).get();
         }
 
         /**
@@ -858,7 +864,6 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
          * Validates the metadata against expected results.
          */
         void validate() throws Exception {
-            Assert.assertEquals(1, systemJournal.getCurrentSnapshotIndex());
             Assert.assertEquals(0, systemJournal.getCurrentFileIndex());
             for (val expectedSegmentInfo : testContext.expectedSegments.values()) {
                 // Check segment metadata.

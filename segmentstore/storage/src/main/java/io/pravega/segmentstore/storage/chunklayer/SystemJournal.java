@@ -32,6 +32,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -47,6 +48,7 @@ import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static com.google.common.base.Strings.emptyToNull;
@@ -81,11 +83,6 @@ public class SystemJournal {
      */
     private static final SystemSnapshotRecord.Serializer SYSTEM_SNAPSHOT_SERIALIZER = new SystemSnapshotRecord.Serializer();
 
-    /**
-     * Serializer for {@link SystemJournalCheckpointRecord}.
-     */
-    private static final SystemJournalCheckpointRecord.Serializer SYSTEM_CHECKPOINT_SERIALIZER = new SystemJournalCheckpointRecord.Serializer();
-
     private final Object lock = new Object();
 
     @Getter
@@ -118,7 +115,7 @@ public class SystemJournal {
      */
     @Getter
     @GuardedBy("lock")
-    private int currentSnapshotIndex;
+    private long currentSnapshotIndex;
 
     @GuardedBy("lock")
     private boolean newChunkRequired;
@@ -130,6 +127,17 @@ public class SystemJournal {
     @GuardedBy("lock")
     private SystemSnapshotRecord lastSavedSystemSnapshot;
 
+    @Getter
+    @GuardedBy("lock")
+    private long lastSavedSystemSnapshotId;
+
+    @Getter
+    @GuardedBy("lock")
+    private SnapshotInfo lastSavedSnapshotInfo;
+
+    @GuardedBy("lock")
+    private long lastSavedSnapshotTime;
+
     /**
      * The current attempt for writing system snapshot.
      */
@@ -137,28 +145,9 @@ public class SystemJournal {
     private int recordsSinceSnapshot = 0;
 
     /**
-     * Name of last successful snapshot.
+     * SnapshotInfoStore .
      */
-    @Getter
-    @GuardedBy("lock")
-    private String lastSavedSystemSnapshotFile;
-
-    /**
-     * The current attempt for writing system snapshot.
-     */
-    @GuardedBy("lock")
-    private int attempt = 0;
-    /**
-     * Last successful checkpoint number.
-     */
-    @Getter
-    @GuardedBy("lock")
-    private SystemJournalCheckpointRecord lastSavedCheckpoint;
-
-    @GuardedBy("lock")
-    private Long lastSavedCheckpointVersion = null;
-
-    private CheckpointStore checkpointStore;
+    private SnapshotInfoStore snapshotInfoStore;
 
     /**
      * String prefix for all system segments.
@@ -248,12 +237,12 @@ public class SystemJournal {
      * Bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
      * @param epoch      Epoch of the current container instance.
-     * @param checkpointStore Pointer to store that saves checkpoints.
+     * @param snapshotInfoStore Pointer to store that saves checkpoints.
      * @throws Exception Exception in case of any error.
      */
-    public CompletableFuture<Void> bootstrap(long epoch, CheckpointStore checkpointStore) throws Exception {
+    public CompletableFuture<Void> bootstrap(long epoch, SnapshotInfoStore snapshotInfoStore) throws Exception {
         this.epoch = epoch;
-        this.checkpointStore = Preconditions.checkNotNull(checkpointStore, "checkpointStore");
+        this.snapshotInfoStore = Preconditions.checkNotNull(snapshotInfoStore, "checkpointStore");
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
         try (val txn = metadataStore.beginTransaction(false, getSystemSegments())) {
             // Keep track of offsets at which chunks were added to the system segments.
@@ -285,22 +274,34 @@ public class SystemJournal {
             // Step 5: Validate and save a snapshot.
             boolean saved = validateAndSaveSnapshot(txn, true, config.isSelfCheckEnabled());
             if (saved) {
-                long checkpointId = currentTimeSupplier.get() / config.getJournalSnapshotCheckpointFrequency().toMillis();
-                writeCheckpointRecord(checkpointId);
+                writeCheckpointRecord(lastSavedSystemSnapshotId);
             }
-
             // Step 6: Check invariants.
             Preconditions.checkState(currentFileIndex == 0, "currentFileIndex must be zero");
             Preconditions.checkState(systemJournalOffset == 0, "systemJournalOffset must be zero");
             Preconditions.checkState(newChunkRequired, "newChunkRequired must be true");
             if (saved) {
                 Preconditions.checkState(lastSavedSystemSnapshot != null, "lastSavedSystemSnapshot must be initialized");
-                Preconditions.checkState(lastSavedCheckpoint != null, "lastSavedSystemSnapshot must be initialized");
-                Preconditions.checkState(lastSavedCheckpoint.checkpointId > 0, "lastSuccessfulCheckpoint must be initialized");
             }
 
             // Step 7: Finally commit all data.
             return txn.commit(true, true);
+        }
+    }
+
+    private void writeCheckpointRecord(long snapshotId) {
+        try {
+            val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, snapshotId);
+            Preconditions.checkState(chunkStorage.exists(snapshotFileName).get(), "Snapshot file must exist");
+            val info = SnapshotInfo.builder()
+                    .snapshotId(snapshotId)
+                    .epoch(epoch)
+                    .build();
+            snapshotInfoStore.writeSnapshotInfo(info);
+            lastSavedSnapshotInfo = info;
+            lastSavedSnapshotTime = currentTimeSupplier.get();
+        } catch (Exception e) {
+            log.warn("Unable to persist snapshot checkpoint.{}", currentSnapshotIndex, e);
         }
     }
 
@@ -364,9 +365,10 @@ public class SystemJournal {
         log.debug("SystemJournal[{}] Logging system log records - file={}, batch={}.", containerId, currentHandle.getChunkName(), batch);
     }
 
-    public void addSnapshotIfRequired() throws ChunkStorageException {
+    public void addSnapshotIfRequired() {
         synchronized (lock) {
-            if (recordsSinceSnapshot > config.getMaxJournalRecordsPerSnapshot()) {
+            if (recordsSinceSnapshot > config.getMaxJournalRecordsPerSnapshot() ||
+                currentTimeSupplier.get() - lastSavedSnapshotTime > config.getJournalSnapshotCheckpointFrequency().toMillis()) {
                 // Write a snapshot.
                 try (val txn = metadataStore.beginTransaction(true, getSystemSegments())) {
                     validateAndSaveSnapshot(txn, true, config.isSelfCheckEnabled());
@@ -381,39 +383,9 @@ public class SystemJournal {
 
     public void addCheckpointIfRequired() {
         synchronized (lock) {
-            long checkpointId = currentTimeSupplier.get() / config.getJournalSnapshotCheckpointFrequency().toMillis();
-            if (lastSavedSystemSnapshot != null
-               && (lastSavedCheckpoint == null || lastSavedCheckpoint.checkpointId < checkpointId )) {
-                writeCheckpointRecord(checkpointId);
-            }
-        }
-    }
-
-    private void writeCheckpointRecord(long checkpointId) {
-        synchronized (lock) {
-            val checkpointRecord = SystemJournalCheckpointRecord.builder()
-                    .snapshotFileName(lastSavedSystemSnapshotFile)
-                    .checkpointId(checkpointId)
-                    .build();
-            ByteArraySegment bytes = null;
-            try {
-                bytes = SYSTEM_CHECKPOINT_SERIALIZER.serialize(checkpointRecord);
-            } catch (IOException e) {
-                log.warn("Unable to persist snapshot checkpointRecord.{}", checkpointRecord, e);
-                return;
-            }
-            boolean done = false;
-
-            while (!done) {
-                try {
-                    lastSavedCheckpointVersion = checkpointStore.setData(Long.toString(containerId), bytes.array(), lastSavedCheckpointVersion);
-                    lastSavedCheckpoint = checkpointRecord;
-                    attempt = 0;
-                    done = true;
-                } catch (Exception e) {
-                    attempt++;
-                    log.warn("Unable to persist snapshot checkpointRecord. {}", checkpointRecord, e);
-                }
+            if (lastSavedSystemSnapshot != null && lastSavedSnapshotInfo != null
+                    && lastSavedSnapshotInfo.snapshotId < lastSavedSystemSnapshotId) {
+                writeCheckpointRecord(lastSavedSystemSnapshotId);
             }
         }
     }
@@ -422,26 +394,22 @@ public class SystemJournal {
      * Find and apply latest snapshot.
      */
     private SystemSnapshotRecord findLatestSnapshot() throws Exception {
-        // Find the first valid checkpoint of the latest epoch.
-        try {
-            // Read contents.
-            val contents = checkpointStore.getData(Long.toString(containerId), null);
-            if (null != contents) {
-                val checkpointRecord = SYSTEM_CHECKPOINT_SERIALIZER.deserialize(contents);
-                // Read the snapshot
-                try {
-                    // Read contents.
-                    byte[] snapshotContents = getContents(checkpointRecord.snapshotFileName);
-                    val systemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(snapshotContents);
-                    log.debug("SystemJournal[{}] snapshot found and parsed.", containerId, checkpointRecord.snapshotFileName);
-                    log.debug("SystemJournal[{}] Done finding snapshots.", containerId);
-                    return systemSnapshot;
-                } catch (Exception e) {
-                    handleException(e, "snapshot", Long.toString(containerId));
-                }
+        // Read contents.
+        val persisted = snapshotInfoStore.readSnapshotInfo();
+        if (null != persisted) {
+            // Read the snapshot
+            try {
+                val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, persisted.epoch, persisted.snapshotId);
+                Preconditions.checkState(chunkStorage.exists(snapshotFileName).get(), "File pointed by SnapshotInfo must exist");
+                // Read contents.
+                byte[] snapshotContents = getContents(snapshotFileName);
+                val systemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(snapshotContents);
+                log.debug("SystemJournal[{}] snapshot found and parsed. {}", containerId, persisted);
+                log.debug("SystemJournal[{}] Done finding snapshots.", containerId);
+                return systemSnapshot;
+            } catch (Exception e) {
+                handleException(e, "snapshot", Long.toString(containerId));
             }
-        } catch (Exception e) {
-            handleException(e, "checkpoint", Long.toString(containerId));
         }
         return null;
     }
@@ -521,7 +489,7 @@ public class SystemJournal {
         }
     }
 
-    private void validateSystemSnapshot(SystemSnapshotRecord systemSnapshot) throws Exception {
+    private void validateSystemSnapshot(SystemSnapshotRecord systemSnapshot) {
         if (null != systemSnapshot) {
             for (val segmentSnapshot : systemSnapshot.getSegmentSnapshotRecords()) {
                 segmentSnapshot.segmentMetadata.checkInvariants();
@@ -854,43 +822,51 @@ public class SystemJournal {
         return systemSnapshot;
     }
 
-    private boolean writeSystemSnapshotRecord(SystemSnapshotRecord systemSnapshot) {
-        val snapshotFile = getSystemSnapshotName();
+    private boolean writeSystemSnapshotRecord(SystemSnapshotRecord systemSnapshot) throws Exception {
         // Write snapshot
         ByteArraySegment bytes;
         try {
             bytes = SYSTEM_SNAPSHOT_SERIALIZER.serialize(systemSnapshot);
         } catch (IOException e) {
-            log.warn("SystemJournal[{}] Error while creating snapshot {}", containerId, snapshotFile, e);
+            log.warn("SystemJournal[{}] Error while creating snapshot {}", containerId, e);
             return false;
         }
 
         // Persist
         synchronized (lock) {
-            try {
-                chunkStorage.createWithContent(snapshotFile,
-                        bytes.getLength(),
-                        new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())).get();
-
-                // Read back snapshot.
-                byte[] contents = getContents(snapshotFile);
-                val snapshotReadback = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(contents);
-
-                // Record as successful.
-                lastSavedSystemSnapshot = systemSnapshot;
-                lastSavedSystemSnapshotFile = snapshotFile;
-
-                return true;
-            } catch (Exception e) {
-                log.warn("SystemJournal[{}] Error while creating snapshot {}", containerId, snapshotFile, e);
-            } finally {
+            Exception e = null;
+            for (int i = 0; i < config.getMaxJournalWriteAttempts(); i++) {
                 // always write snapshot to new file.
                 currentSnapshotIndex++;
-                // Start new journal.
-                newChunkRequired = true;
+                val snapshotFile = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, currentSnapshotIndex);
+                try {
+                    chunkStorage.createWithContent(snapshotFile,
+                            bytes.getLength(),
+                            new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.getLength())).get();
+
+                    // Read back snapshot.
+                    byte[] contents = getContents(snapshotFile);
+                    val snapshotReadback = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(contents);
+                    if (config.isSelfCheckEnabled()) {
+                        validateSystemSnapshot(snapshotReadback);
+                    }
+
+                    // Record as successful.
+                    lastSavedSystemSnapshot = systemSnapshot;
+                    lastSavedSystemSnapshotId = currentSnapshotIndex;
+                    return true;
+                } catch (Exception ex) {
+                    e = ex;
+                    log.warn("SystemJournal[{}] Error while creating snapshot {}", containerId, snapshotFile, e);
+                } finally {
+                    // Start new journal.
+                    newChunkRequired = true;
+                }
+            }
+            if (null != e) {
+                throw e;
             }
         }
-
         return false;
     }
 
@@ -954,10 +930,6 @@ public class SystemJournal {
 
     private String getSystemJournalChunkName(int containerId, long epoch, long currentFileIndex) {
         return NameUtils.getSystemJournalFileName(containerId, epoch, currentFileIndex);
-    }
-
-    private String getSystemSnapshotName() {
-        return NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, currentSnapshotIndex);
     }
 
     private String getSnapshotCheckpointNamePrefix(long checkpointId) {
@@ -1310,102 +1282,50 @@ public class SystemJournal {
     }
 
     /**
-     * Represents a check point to system journal record.
+     * Stores {@link SnapshotInfo}.
      */
     @Data
-    @Builder(toBuilder = true)
-    public static class SystemJournalCheckpointRecord {
+    @RequiredArgsConstructor
+    public static class SnapshotInfoStore {
+        final long containerId;
+        final Consumer<SnapshotInfo> setter;
+        final Supplier<SnapshotInfo> getter;
 
         /**
-         * Name of the snapshot file.
+         * Retrieves data for given path and version.
+         *
+         * @return Info about the snapshot.
+         * @throws Exception Exception if any.
          */
-        String snapshotFileName;
-
-        /**
-         * Name of the snapshot file.
-         */
-        long checkpointId;
-
-        /**
-         * Serializer that implements {@link VersionedSerializer}.
-         */
-        public static class SystemJournalCheckpointRecordSerializer extends VersionedSerializer.MultiType<SystemJournalCheckpointRecord> {
-            /**
-             * Declare all supported serializers of subtypes.
-             *
-             * @param builder A MultiType.Builder that can be used to declare serializers.
-             */
-            @Override
-            protected void declareSerializers(Builder builder) {
-                // Unused values (Do not repurpose!):
-                // - 0: Unsupported Serializer.
-                builder.serializer(SystemJournalCheckpointRecord.class, 1, new SystemJournalCheckpointRecord.Serializer());
-            }
+        public SnapshotInfo readSnapshotInfo() throws Exception {
+            return getter.get();
         }
 
         /**
-         * Builder that implements {@link ObjectBuilder}.
+         * Set snapshot info.
+         *
+         * @param snapshotInfo snapshotInfo to set
+         * @throws Exception Exception if any.
          */
-        public static class SystemJournalCheckpointRecordBuilder implements ObjectBuilder<SystemJournalCheckpointRecord> {
-        }
-
-        /**
-         * Serializer that implements {@link VersionedSerializer}.
-         */
-        public static class Serializer extends VersionedSerializer.WithBuilder<SystemJournalCheckpointRecord, SystemJournalCheckpointRecordBuilder> {
-            @Override
-            protected SystemJournalCheckpointRecordBuilder newBuilder() {
-                return SystemJournalCheckpointRecord.builder();
-            }
-
-            @Override
-            protected byte getWriteVersion() {
-                return 0;
-            }
-
-            @Override
-            protected void declareVersions() {
-                version(0).revision(0, this::write00, this::read00);
-            }
-
-            private void write00(SystemJournalCheckpointRecord object, RevisionDataOutput output) throws IOException {
-                output.writeUTF(object.snapshotFileName);
-                output.writeCompactLong(object.checkpointId);
-            }
-
-            private void read00(RevisionDataInput input, SystemJournalCheckpointRecordBuilder b) throws IOException {
-                b.snapshotFileName(input.readUTF());
-                b.checkpointId(input.readCompactLong());
-            }
+        public void writeSnapshotInfo(SnapshotInfo snapshotInfo) throws Exception {
+            setter.accept(snapshotInfo);
         }
     }
 
     /**
-     * Interface for store that persistently stores checkpoint data.
+     * Basic info about snapshot.
      */
-    public interface CheckpointStore {
+    @Data
+    @Builder
+    public static class SnapshotInfo {
         /**
-         * Retrieves data for given path and version.
-         *
-         * @param path String key.
-         * @param version Version to retrieve
-         * @return Byte array containing data.
-         * @throws Exception Exception if any.
+         * Epoch.
          */
-        byte[] getData(String path, Long version) throws Exception;
+        final long epoch;
 
         /**
-         * Retrieves data for given path.
-         * If the version is null then value is set unconditionally.
-         * Otherwise value is set only if version in store matches version provided.
-         *
-         * @param path String key.
-         * @param value Byte array containing data
-         * @param version Expected version.
-         * @return Version of data after this operation.
-         * @throws Exception Exception if any.
+         * Id of the snapshot.
          */
-        Long setData(String path, byte[] value, Long version) throws Exception;
-
+        final long snapshotId;
     }
 }

@@ -76,8 +76,8 @@ import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
 import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
-import io.pravega.segmentstore.storage.mocks.InMemoryCheckpointStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -99,6 +99,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+
+import static io.pravega.segmentstore.contracts.AttributeUpdateType.Replace;
+import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH;
+import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -218,9 +222,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         if (this.storage instanceof ChunkedSegmentStorage) {
             ChunkedSegmentStorage chunkedStorage = (ChunkedSegmentStorage) this.storage;
-
+            val connector = new SystemJournal.SnapshotInfoStore(this.metadata.getContainerId(),
+                    snapshotInfo -> saveStorageSnapshot(snapshotInfo, Duration.ofMinutes(1)),
+                    () -> readStorageSnapshot(Duration.ofMinutes(1)));
             // Bootstrap
-            return chunkedStorage.bootstrap(InMemoryCheckpointStore.getSingletonInstance());
+            return chunkedStorage.bootstrap(connector);
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -616,6 +622,37 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     //endregion
+    public SystemJournal.SnapshotInfo readStorageSnapshot(Duration timeout) {
+        val attributeIds = new ArrayList<UUID>();
+        attributeIds.add(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID);
+        attributeIds.add(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH);
+        val segmentId =   this.metadata.getStreamSegmentId(NameUtils.getMetadataSegmentName(this.metadata.getContainerId()), false);
+        if (segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+            val map =  this.metadata.getStreamSegmentMetadata(segmentId).getAttributes();
+            val epoch = map.getOrDefault(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH, 0L);
+            val snapshotId = map.getOrDefault(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID, 0L);
+            if (epoch > 0) {
+                val retValue = SystemJournal.SnapshotInfo.builder()
+                        .snapshotId(snapshotId)
+                        .epoch(epoch)
+                        .build();
+                log.info("{}: Read SLTS snapshot. {}", this.traceObjectId, retValue);
+                return retValue;
+            }
+        }
+        return null;
+    }
+
+    @SneakyThrows
+    public void saveStorageSnapshot(SystemJournal.SnapshotInfo checkpoint, Duration timeout) {
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        val attributeUpdates = new ArrayList<AttributeUpdate>();
+        attributeUpdates.add(new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID, Replace, checkpoint.getSnapshotId()));
+        attributeUpdates.add(new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH, Replace, checkpoint.getEpoch()));
+        this.metadataStore.getOrAssignSegmentId(NameUtils.getMetadataSegmentName(this.metadata.getContainerId()), timer.getRemaining(),
+                streamSegmentId -> updateAttributesForSegment(streamSegmentId, attributeUpdates, timer.getRemaining())).get();
+        log.info("{}: Save SLTS snapshot. {}", this.traceObjectId, checkpoint);
+    }
 
     //region SegmentContainer Implementation
 
