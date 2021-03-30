@@ -99,13 +99,13 @@ public class StreamRecreationTest {
         zkTestServer.close();
     }
 
-    @Test(timeout = 40000)
+    @Test(timeout = 60000)
     @SuppressWarnings("deprecation")
     public void testStreamRecreation() throws Exception {
         final String myScope = "myScope";
         final String myStream = "myStream";
         final String myReaderGroup = "myReaderGroup";
-        final int numIterations = 10;
+        final int numIterations = 6;
 
         // Create the scope and the stream.
         @Cleanup
