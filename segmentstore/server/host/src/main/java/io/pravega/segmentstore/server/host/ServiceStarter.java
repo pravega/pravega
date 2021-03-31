@@ -89,10 +89,13 @@ public final class ServiceStarter {
     public void start() throws Exception {
         Exceptions.checkNotClosed(this.closed, this);
 
-        log.info("Initializing metrics provider ...");
-        MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
-        statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start();
+        MetricsConfig metricsConfig = builderConfig.getConfig(MetricsConfig::builder);
+        if (metricsConfig.isEnableStatistics()) {
+            log.info("Initializing metrics provider ...");
+            MetricsProvider.initialize(metricsConfig);
+            statsProvider = MetricsProvider.getMetricsProvider();
+            statsProvider.start();
+        }
 
         log.info("Initializing ZooKeeper Client ...");
         this.zkClient = createZKClient();
