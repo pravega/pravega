@@ -439,9 +439,9 @@ public class ContainerRecoveryUtils {
                 futures.add(Futures.exceptionallyExpecting(
                         ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
                                 backUpMetadataSegment, backUpAttributeSegment, executorService, timeout)
-                                .thenCompose(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout))
-                                        .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment)),
+                                .thenCompose(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout)),
                                         ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
+                backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment);
             }
             Futures.allOf(futures).join();
             return backUpMetadataSegments;
