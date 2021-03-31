@@ -165,7 +165,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertEquals("data1", eventRead.getEvent());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testCreateSubscriberReaderGroup() throws InterruptedException, ExecutionException {
         StreamConfiguration config = getStreamConfig();
         LocalController controller = (LocalController) PRAVEGA.getLocalController();
@@ -192,7 +192,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertTrue("Subscriber list does not contain required reader group", subs.contains("test/" + groupName));
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testResetSubscriberToNonSubscriberReaderGroup() throws InterruptedException, ExecutionException {
         StreamConfiguration config = getStreamConfig();
         LocalController controller = (LocalController) PRAVEGA.getLocalController();
@@ -224,7 +224,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertFalse("Subscriber list contains required reader group", subs.contains("test/" + group));
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testResetNonSubscriberToSubscriberReaderGroup() throws InterruptedException, ExecutionException {
         StreamConfiguration config = getStreamConfig();
         LocalController controller = (LocalController) PRAVEGA.getLocalController();
@@ -257,7 +257,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertTrue("Subscriber list does not contain required reader group", subs.contains("test/" + group));
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testLaggingResetReaderGroup() throws Exception {
         StreamConfiguration config = getStreamConfig();
         LocalController controller = (LocalController) PRAVEGA.getLocalController();
