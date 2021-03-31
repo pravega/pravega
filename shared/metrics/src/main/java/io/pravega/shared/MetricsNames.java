@@ -137,8 +137,10 @@ public final class MetricsNames {
     public static final String SLTS_WRITE_INSTANT_TPUT = PREFIX + "segmentstore.storage.slts.write_instant_tput";     // Histogram
 
     public static final String SLTS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.read_index.scan_latency_ms";              // Histogram
+    public static final String SLTS_READ_INDEX_BLOCK_LOOKUP_LATENCY = PREFIX + "segmentstore.storage.slts.read_index.block_lookup_latency_ms";    // Histogram
     public static final String SLTS_READ_INDEX_NUM_SCANNED = PREFIX + "segmentstore.storage.slts.read_index.num_scanned";                   // Histogram
     public static final String SLTS_SYS_READ_INDEX_SCAN_LATENCY = PREFIX + "segmentstore.storage.slts.read_index.system_scan_latency_ms";   // Histogram
+    public static final String SLTS_SYS_READ_INDEX_BLOCK_LOOKUP_LATENCY = PREFIX + "segmentstore.storage.slts.read_index.system_block_lookup_latency_ms";   // Histogram
     public static final String SLTS_SYS_READ_INDEX_NUM_SCANNED = PREFIX + "segmentstore.storage.slts.read_index.system_num_scanned";        // Histogram
 
     public static final String SLTS_READ_INDEX_SEGMENT_INDEX_SIZE = PREFIX + "segmentstore.storage.slts.read_index.segment_index_size";     // Gauge

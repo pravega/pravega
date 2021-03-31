@@ -45,9 +45,11 @@ public class ChunkStorageMetrics {
     static final OpStatsLogger SLTS_TRUNCATE_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_TRUNCATE_LATENCY);
     static final OpStatsLogger SLTS_READ_INDEX_SCAN_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_READ_INDEX_SCAN_LATENCY);
     static final OpStatsLogger SLTS_READ_INDEX_NUM_SCANNED = STATS_LOGGER.createStats(MetricsNames.SLTS_READ_INDEX_NUM_SCANNED);
+    static final OpStatsLogger SLTS_READ_INDEX_BLOCK_LOOKUP_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_READ_INDEX_BLOCK_LOOKUP_LATENCY);
 
     static final OpStatsLogger SLTS_SYS_READ_INDEX_SCAN_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_SYS_READ_INDEX_SCAN_LATENCY);
     static final OpStatsLogger SLTS_SYS_READ_INDEX_NUM_SCANNED = STATS_LOGGER.createStats(MetricsNames.SLTS_SYS_READ_INDEX_NUM_SCANNED);
+    static final OpStatsLogger SLTS_SYS_READ_INDEX_BLOCK_LOOKUP_LATENCY = STATS_LOGGER.createStats(MetricsNames.SLTS_SYS_READ_INDEX_BLOCK_LOOKUP_LATENCY);
 
     static final Counter READ_BYTES = STATS_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES);
     static final Counter WRITE_BYTES = STATS_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES);
