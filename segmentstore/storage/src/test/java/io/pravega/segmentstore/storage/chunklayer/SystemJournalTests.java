@@ -32,7 +32,6 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -551,38 +550,6 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val expected = "Test1Test2Test3Test4Test5Test6Test7Test8Test9";
         val actual = new String(out);
         Assert.assertEquals(expected, actual);
-    }
-
-    @Ignore
-    @Test
-    public void testSimpleBootstrapWithIncompleteSnapshot() throws Exception {
-        val containerId = 42;
-        @Cleanup
-        ChunkStorage chunkStorage = getChunkStorage();
-        testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, epoch -> {
-            val snapShotFile = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, 1);
-            val size = 1;
-            if (chunkStorage.supportsTruncation()) {
-                chunkStorage.truncate(ChunkHandle.writeHandle(snapShotFile), size).join();
-            } else {
-                val bytes = new byte[size];
-                chunkStorage.read(ChunkHandle.readHandle(snapShotFile), 0, size, bytes, 0).join();
-                chunkStorage.delete(ChunkHandle.writeHandle(snapShotFile)).join();
-                chunkStorage.createWithContent(snapShotFile, size, new ByteArrayInputStream(bytes)).join();
-            }
-        });
-    }
-
-    @Ignore
-    @Test
-    public void testSimpleBootstrapWithMissingSnapshot() throws Exception {
-        val containerId = 42;
-        @Cleanup
-        ChunkStorage chunkStorage = getChunkStorage();
-        testSimpleBootstrapWithMultipleFailovers(containerId, chunkStorage, epoch -> {
-            val snapShotFile = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, 1);
-            chunkStorage.delete(ChunkHandle.writeHandle(snapShotFile)).join();
-        });
     }
 
     /**

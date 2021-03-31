@@ -53,7 +53,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> MAX_METADATA_ENTRIES_IN_BUFFER = Property.named("metadata.buffer.size.max", 1024);
     public static final Property<Integer> MAX_METADATA_ENTRIES_IN_CACHE = Property.named("metadata.cache.size.max", 5000);
 
-    public static final Property<Integer> JOURNAL_SNAPSHOT_FREQUENCY = Property.named("journal.snapshot.duration.minutes", 5);
+    public static final Property<Integer> JOURNAL_SNAPSHOT_INFO_UPDATE_FREQUENCY = Property.named("journal.snapshot.update.frequency.minutes", 5);
     public static final Property<Integer> MAX_JOURNAL_RECORDS_PER_SNAPSHOT = Property.named("journal.snapshot.records.max", 100);
     public static final Property<Integer> MAX_JOURNAL_READ_ATTEMPTS = Property.named("journal.snapshot.attempts.read.max", 100);
     public static final Property<Integer> MAX_JOURNAL_WRITE_ATTEMPTS = Property.named("journal.snapshot.attempts.write.max", 10);
@@ -82,7 +82,7 @@ public class ChunkedSegmentStorageConfig {
             .indexBlockSize(1024 * 1024)
             .maxEntriesInCache(5000)
             .maxEntriesInTxnBuffer(1024)
-            .journalSnapshotCheckpointFrequency(Duration.ofMinutes(5))
+            .journalSnapshotInfoUpdateFrequency(Duration.ofMinutes(5))
             .maxJournalRecordsPerSnapshot(100)
             .maxJournalReadAttempts(100)
             .maxJournalWriteAttempts(10)
@@ -213,7 +213,7 @@ public class ChunkedSegmentStorageConfig {
      * Duration between two system journal snapshot.
      */
     @Getter
-    final private Duration journalSnapshotCheckpointFrequency;
+    final private Duration journalSnapshotInfoUpdateFrequency;
 
     /**
      * Number of journal writes since last snapshot after which new snapshot is taken.
@@ -260,7 +260,7 @@ public class ChunkedSegmentStorageConfig {
         this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
         this.garbageCollectionSleep = Duration.ofMillis(properties.getInt(GARBAGE_COLLECTION_SLEEP));
         this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPTS);
-        this.journalSnapshotCheckpointFrequency = Duration.ofMinutes(properties.getInt(JOURNAL_SNAPSHOT_FREQUENCY));
+        this.journalSnapshotInfoUpdateFrequency = Duration.ofMinutes(properties.getInt(JOURNAL_SNAPSHOT_INFO_UPDATE_FREQUENCY));
         this.maxJournalRecordsPerSnapshot =  properties.getInt(MAX_JOURNAL_RECORDS_PER_SNAPSHOT);
         this.maxJournalReadAttempts = properties.getInt(MAX_JOURNAL_READ_ATTEMPTS);
         this.maxJournalWriteAttempts = properties.getInt(MAX_JOURNAL_WRITE_ATTEMPTS);

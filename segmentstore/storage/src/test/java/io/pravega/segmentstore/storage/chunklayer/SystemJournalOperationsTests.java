@@ -196,7 +196,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         instance.append(testSegmentName, "B", 1, 2);
 
         // Trigger checkpoint.
-        testContext.addTime(testContext.config.getJournalSnapshotCheckpointFrequency().toMillis() + 1);
+        testContext.addTime(testContext.config.getJournalSnapshotInfoUpdateFrequency().toMillis() + 1);
 
         // Add another 2 chunks.
         instance.append(testSegmentName, "C", 3, 3);
@@ -223,7 +223,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         instance2.truncate(testSegmentName, 2);
 
         // Trigger checkpoint.
-        testContext.addTime(testContext.config.getJournalSnapshotCheckpointFrequency().toMillis() + 1);
+        testContext.addTime(testContext.config.getJournalSnapshotInfoUpdateFrequency().toMillis() + 1);
 
         // Truncate another 2 times.
         instance2.truncate(testSegmentName, 3);
@@ -650,7 +650,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         }
 
         long getTimeForCycles(int i) {
-            return config.getJournalSnapshotCheckpointFrequency().toMillis() * i + 1;
+            return config.getJournalSnapshotInfoUpdateFrequency().toMillis() * i + 1;
         }
 
         @Override

@@ -59,7 +59,7 @@ public class FileSystemIntegrationTest extends BookKeeperIntegrationTestBase {
                 .newInMemoryBuilder(builderConfig)
                 .withStorageFactory(setup -> useChunkedSegmentStorage ?
                         new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                                .journalSnapshotCheckpointFrequency(Duration.ofMillis(1))
+                                .journalSnapshotInfoUpdateFrequency(Duration.ofMillis(1))
                                 .selfCheckEnabled(true)
                                 .build(),
                                 setup.getConfig(FileSystemStorageConfig::builder),

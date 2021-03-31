@@ -237,12 +237,12 @@ public class SystemJournal {
      * Bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
      * @param epoch      Epoch of the current container instance.
-     * @param snapshotInfoStore Pointer to store that saves checkpoints.
+     * @param snapshotInfoStore Store that saves {@link SnapshotInfo}.
      * @throws Exception Exception in case of any error.
      */
     public CompletableFuture<Void> bootstrap(long epoch, SnapshotInfoStore snapshotInfoStore) throws Exception {
         this.epoch = epoch;
-        this.snapshotInfoStore = Preconditions.checkNotNull(snapshotInfoStore, "checkpointStore");
+        this.snapshotInfoStore = Preconditions.checkNotNull(snapshotInfoStore, "snapshotInfoStore");
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
         try (val txn = metadataStore.beginTransaction(false, getSystemSegments())) {
             // Keep track of offsets at which chunks were added to the system segments.
@@ -274,7 +274,7 @@ public class SystemJournal {
             // Step 5: Validate and save a snapshot.
             boolean saved = validateAndSaveSnapshot(txn, true, config.isSelfCheckEnabled());
             if (saved) {
-                writeCheckpointRecord(lastSavedSystemSnapshotId);
+                writeSnapshotInfo(lastSavedSystemSnapshotId);
             }
             // Step 6: Check invariants.
             Preconditions.checkState(currentFileIndex == 0, "currentFileIndex must be zero");
@@ -289,7 +289,7 @@ public class SystemJournal {
         }
     }
 
-    private void writeCheckpointRecord(long snapshotId) {
+    private void writeSnapshotInfo(long snapshotId) {
         try {
             val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, snapshotId);
             Preconditions.checkState(chunkStorage.exists(snapshotFileName).get(), "Snapshot file must exist");
@@ -301,7 +301,7 @@ public class SystemJournal {
             lastSavedSnapshotInfo = info;
             lastSavedSnapshotTime = currentTimeSupplier.get();
         } catch (Exception e) {
-            log.warn("Unable to persist snapshot checkpoint.{}", currentSnapshotIndex, e);
+            log.warn("Unable to persist snapshot info.{}", currentSnapshotIndex, e);
         }
     }
 
@@ -330,8 +330,8 @@ public class SystemJournal {
         Preconditions.checkArgument(null != records, "records must not be null");
         Preconditions.checkArgument(records.size() > 0, "records must not be empty");
 
-        addSnapshotIfRequired();
-        addCheckpointIfRequired();
+        generateSnapshotIfRequired();
+        writeSnapshotInfoIfRequired();
 
         SystemJournalRecordBatch batch = SystemJournalRecordBatch.builder().systemJournalRecords(records).build();
         ByteArraySegment bytes;
@@ -365,10 +365,10 @@ public class SystemJournal {
         log.debug("SystemJournal[{}] Logging system log records - file={}, batch={}.", containerId, currentHandle.getChunkName(), batch);
     }
 
-    public void addSnapshotIfRequired() {
+    public void generateSnapshotIfRequired() {
         synchronized (lock) {
             if (recordsSinceSnapshot > config.getMaxJournalRecordsPerSnapshot() ||
-                currentTimeSupplier.get() - lastSavedSnapshotTime > config.getJournalSnapshotCheckpointFrequency().toMillis()) {
+                currentTimeSupplier.get() - lastSavedSnapshotTime > config.getJournalSnapshotInfoUpdateFrequency().toMillis()) {
                 // Write a snapshot.
                 try (val txn = metadataStore.beginTransaction(true, getSystemSegments())) {
                     validateAndSaveSnapshot(txn, true, config.isSelfCheckEnabled());
@@ -381,11 +381,11 @@ public class SystemJournal {
         }
     }
 
-    public void addCheckpointIfRequired() {
+    public void writeSnapshotInfoIfRequired() {
         synchronized (lock) {
             if (lastSavedSystemSnapshot != null && lastSavedSnapshotInfo != null
                     && lastSavedSnapshotInfo.snapshotId < lastSavedSystemSnapshotId) {
-                writeCheckpointRecord(lastSavedSystemSnapshotId);
+                writeSnapshotInfo(lastSavedSystemSnapshotId);
             }
         }
     }
@@ -932,14 +932,6 @@ public class SystemJournal {
         return NameUtils.getSystemJournalFileName(containerId, epoch, currentFileIndex);
     }
 
-    private String getSnapshotCheckpointNamePrefix(long checkpointId) {
-        return NameUtils.getSystemJournalCheckpointFileNamePrefix(containerId, epoch, checkpointId);
-    }
-
-    private String getSnapshotCheckpointName(long epoch, long checkpointId, int attempt) {
-        return NameUtils.getSystemJournalCheckpointFileNamePrefix(containerId, epoch, checkpointId) + "." + attempt;
-    }
-
     /**
      * Represents a system journal record.
      */
@@ -1292,7 +1284,7 @@ public class SystemJournal {
         final Supplier<SnapshotInfo> getter;
 
         /**
-         * Retrieves data for given path and version.
+         * Read snapshot info.
          *
          * @return Info about the snapshot.
          * @throws Exception Exception if any.
@@ -1302,7 +1294,7 @@ public class SystemJournal {
         }
 
         /**
-         * Set snapshot info.
+         * Save snapshot info.
          *
          * @param snapshotInfo snapshotInfo to set
          * @throws Exception Exception if any.
