@@ -50,6 +50,7 @@ class StatsProviderImpl implements StatsProvider {
     StatsProviderImpl(MetricsConfig conf, CompositeMeterRegistry registry) {
         this.conf = Preconditions.checkNotNull(conf, "conf");
         this.metrics = registry;
+        this.metrics.config().commonTags(createHostTag(DEFAULT_HOSTNAME_KEY));
     }
 
     @Synchronized
@@ -72,7 +73,7 @@ class StatsProviderImpl implements StatsProvider {
         if (conf.isEnableInfluxDBReporter()) {
             metrics.add(new InfluxMeterRegistry(RegistryConfigUtil.createInfluxConfig(conf), Clock.SYSTEM));
         }
-        metrics.config().commonTags(createHostTag(DEFAULT_HOSTNAME_KEY));
+
         Preconditions.checkArgument(metrics.getRegistries().size() != 0,
                 "No meter register bound hence no storage for metrics!");
         init();
@@ -87,7 +88,6 @@ class StatsProviderImpl implements StatsProvider {
         }
 
         Metrics.addRegistry(new SimpleMeterRegistry());
-        metrics.config().commonTags(createHostTag(DEFAULT_HOSTNAME_KEY));
         init();
     }
 
