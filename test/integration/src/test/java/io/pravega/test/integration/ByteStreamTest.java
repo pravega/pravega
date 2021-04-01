@@ -54,6 +54,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertArrayEquals;
@@ -124,7 +125,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller, null);
+        StreamManager streamManager = new StreamManagerImpl(controller, Mockito.mock(ConnectionPool.class));
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -169,7 +170,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller, null);
+        StreamManager streamManager = new StreamManagerImpl(controller, Mockito.mock(ConnectionPool.class));
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -222,7 +223,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller, null);
+        StreamManager streamManager = new StreamManagerImpl(controller, Mockito.mock(ConnectionPool.class));
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -263,7 +264,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller, null);
+        StreamManager streamManager = new StreamManagerImpl(controller, Mockito.mock(ConnectionPool.class));
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -309,7 +310,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller, null);
+        StreamManager streamManager = new StreamManagerImpl(controller, Mockito.mock(ConnectionPool.class));
         // create a scope
         assertTrue("Create scope failed", streamManager.createScope(scope));
         // create a stream
