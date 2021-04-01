@@ -108,7 +108,7 @@ jobs:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
           key: ${{github.run_id}}-${{github.job}}
       - name: Unit tests
-        run: ./gradlew client:test common:test test:testcommon:test ${{env.GRADLE_OPTS}}
+        run: ./gradlew client:test common:test test:testcommon:test --parallel ${{env.GRADLE_OPTS}}
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
@@ -134,7 +134,7 @@ jobs:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
           key: ${{github.run_id}}-${{github.job}}
       - name: Controller Unit tests
-        run: ./gradlew controller:test ${{env.GRADLE_OPTS}}
+        run: ./gradlew controller:test --parallel ${{env.GRADLE_OPTS}}
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
@@ -262,7 +262,7 @@ jobs:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
           key: ${{github.run_id}}-${{github.job}}
       - name: Integration Tests
-        run: ./gradlew test:integration:test ${{env.GRADLE_OPTS}}
+        run: ./gradlew test:integration:test --parallel ${{env.GRADLE_OPTS}}
 
   # DO NOT RENAME THIS JOB. Mergers to master branch are gated on this completing successfully.
   build_and_test_complete:
