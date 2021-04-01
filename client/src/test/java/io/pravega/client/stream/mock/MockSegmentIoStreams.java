@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.mock;
 
@@ -80,8 +86,8 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public long fetchCurrentSegmentLength() {
-        return writeOffset;
+    public CompletableFuture<Long> fetchCurrentSegmentLength() {
+        return CompletableFuture.completedFuture(writeOffset);
     }
 
     
@@ -204,15 +210,15 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public long fetchProperty(SegmentAttribute attribute) {
+    public CompletableFuture<Long> fetchProperty(SegmentAttribute attribute) {
         Long result = attributes.get(attribute);
-        return result == null ? SegmentAttribute.NULL_VALUE : result;
+        return CompletableFuture.completedFuture(result == null ? Long.valueOf(SegmentAttribute.NULL_VALUE) : result);
     }
 
     @Override
-    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
+    public CompletableFuture<Boolean> compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
         attributes.putIfAbsent(attribute, SegmentAttribute.NULL_VALUE);
-        return attributes.replace(attribute, expectedValue, newValue);
+        return CompletableFuture.completedFuture(attributes.replace(attribute, expectedValue, newValue));
     }
 
     public boolean isClosed() {
@@ -221,17 +227,18 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public SegmentInfo getSegmentInfo() {
-        return new SegmentInfo(segment, startingOffset, writeOffset, false, System.currentTimeMillis());
+    public CompletableFuture<SegmentInfo> getSegmentInfo() {
+        return CompletableFuture.completedFuture(new SegmentInfo(segment, startingOffset, writeOffset, false, System.currentTimeMillis()));
     }
 
     @Override
     @Synchronized
-    public void truncateSegment(long offset) {
+    public CompletableFuture<Void> truncateSegment(long offset) {
         Preconditions.checkArgument(offset <= writeOffset);
         if (offset >= startingOffset) {
             startingOffset = offset;
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
@@ -246,12 +253,13 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public void sealSegment() {
+    public CompletableFuture<Void> sealSegment() {
         //Nothing to do
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public long getLastObservedWriteOffset() {
-        return fetchCurrentSegmentLength();
+        return fetchCurrentSegmentLength().join();
     }
 }

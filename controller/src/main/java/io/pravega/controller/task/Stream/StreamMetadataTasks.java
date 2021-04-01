@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.task.Stream;
 
@@ -240,8 +246,8 @@ public class StreamMetadataTasks extends TaskBase {
         return Futures.exceptionallyExpecting(streamMetadataStore.getState(scope, stream, true, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
                 .thenCompose(state -> {
-                    log.debug("CREATING RG Stream...{}", state.toString());
                     if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                        log.debug("Creating StateSynchronizer Stream {}", stream);
                         return createStreamRetryOnLockFailure(scope,
                                 stream,
                                 config,
@@ -440,7 +446,8 @@ public class StreamMetadataTasks extends TaskBase {
                     return Futures.failedFuture(new IllegalStateException(String.format("Error creating StateSynchronizer Stream for Reader Group %s: %s",
                             readerGroup, createStatus.toString())));
                 })).exceptionally(ex -> {
-            log.debug("RG Stream Create failed with error: " + ex.getMessage());
+            log.warn("Error creating StateSynchronizer Stream:{} for Reader Group: {}. Exception: {} ",
+                    NameUtils.getStreamForReaderGroup(readerGroup), readerGroup, ex.getMessage());
             Throwable cause = Exceptions.unwrap(ex);
             throw new CompletionException(cause);
         });
@@ -456,7 +463,6 @@ public class StreamMetadataTasks extends TaskBase {
         try {
             NameUtils.validateReaderGroupName(rgName);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Create ReaderGroup failed due to invalid name {}", rgName);
             return CompletableFuture.completedFuture(CreateReaderGroupResponse.newBuilder()
                     .setStatus(CreateReaderGroupResponse.Status.INVALID_RG_NAME).build());
         }
@@ -557,7 +563,7 @@ public class StreamMetadataTasks extends TaskBase {
                                           }))));
                              });
                         } else {
-                          log.warn("Reader group update failed as another update is in progress.");
+                            log.error("Reader group config update failed as another update was in progress.");
                             UpdateReaderGroupResponse response = UpdateReaderGroupResponse.newBuilder()
                                     .setStatus(UpdateReaderGroupResponse.Status.FAILURE)
                                     .setGeneration(config.getGeneration()).build();
@@ -720,15 +726,14 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(x -> eventHelper.checkDone(() -> isUpdated(scope, stream, newConfig, context))
                                         .thenApply(y -> UpdateStreamStatus.Status.SUCCESS)));
                     } else {
-                        log.warn(requestId, "Another update in progress for {}/{}",
+                        log.error(requestId, "Another update in progress for {}/{}",
                                 scope, stream);
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
                     }
                 })
                 .exceptionally(ex -> {
-                    log.warn(requestId, "Exception thrown in trying to update stream configuration {}",
-                            ex.getMessage());
-                    return handleUpdateStreamError(ex, requestId);
+                    final String message = "Exception updating stream configuration {}";
+                    return handleUpdateStreamError(ex, requestId, message, NameUtils.getScopedStreamName(scope, stream));
                 });
     }
 
@@ -776,13 +781,12 @@ public class StreamMetadataTasks extends TaskBase {
                                      .setStatus(SubscribersResponse.Status.SUCCESS)
                                      .addAllSubscribers(result).build())
                             .exceptionally(ex -> {
-                                log.warn(requestId, "Exception trying to get list of Stream subscribers. {}",
-                                        ex.getMessage());
+                                log.error(requestId, "Exception trying to get list of subscribers for Stream {}. Cause {}",
+                                        NameUtils.getScopedStreamName(scope, stream), ex);
                                 Throwable cause = Exceptions.unwrap(ex);
                                 if (cause instanceof TimeoutException) {
                                     throw new CompletionException(cause);
                                 } else {
-                                    log.warn(requestId, "listSubscribers failed due to {}", ex.getMessage());
                                     return SubscribersResponse.newBuilder()
                                             .setStatus(SubscribersResponse.Status.FAILURE).build();
                                 }
@@ -837,15 +841,14 @@ public class StreamMetadataTasks extends TaskBase {
                                                                                         subscriberRecord, context, executor)
                                           .thenApply(x -> UpdateSubscriberStatus.Status.SUCCESS)
                                           .exceptionally(ex -> {
-                                              log.warn(requestId, "Exception when trying to update StreamCut for subscriber {}", ex.getMessage());
+                                              log.error(requestId, "Exception updating StreamCut for Subscriber {} on Stream {}. Cause:{}",
+                                                      subscriber, NameUtils.getScopedStreamName(scope, stream), ex);
                                               Throwable cause = Exceptions.unwrap(ex);
                                               if (cause instanceof StoreException.OperationNotAllowedException) {
-                                                    log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
                                                     return UpdateSubscriberStatus.Status.STREAM_CUT_NOT_VALID;
                                               } else if (cause instanceof TimeoutException) {
                                                    throw new CompletionException(cause);
                                               } else {
-                                                   log.warn(requestId, "Exception when trying to update StreamCut for subscriber ", cause);
                                                    return UpdateSubscriberStatus.Status.FAILURE;
                                               }
                                           });
@@ -1327,13 +1330,13 @@ public class StreamMetadataTasks extends TaskBase {
                         return eventHelper.checkDone(() -> isTruncated(scope, stream, streamCut, context), 1000L)
                                 .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
-                        log.warn(requestId, "Unable to start truncation for {}/{}", scope, stream);
+                        log.error(requestId, "Unable to start truncation for {}/{}", scope, stream);
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
                     }
                 }))
                 .exceptionally(ex -> {
-                    log.warn(requestId, "Exception thrown in trying to truncate stream", ex);
-                    return handleUpdateStreamError(ex, requestId);
+                    final String message = "Exception thrown in trying to truncate stream";
+                    return handleUpdateStreamError(ex, requestId, message, NameUtils.getScopedStreamName(scope, stream));
                 });
     }
 
@@ -1354,7 +1357,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     return true;
                                 }));
                     } else {
-                        log.warn(requestId, "Another truncation in progress for {}/{}", scope, stream);
+                        log.error(requestId, "Another truncation in progress for {}/{}", scope, stream);
                         return CompletableFuture.completedFuture(false);
                     }
                 });
@@ -1420,8 +1423,8 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 }))
                 .exceptionally(ex -> {
-                    log.warn(requestId, "Exception thrown in trying to notify sealed segments {}", ex.getMessage());
-                    return handleUpdateStreamError(ex, requestId);
+                    final String message = "Exception thrown in trying to notify sealed segments.";
+                    return handleUpdateStreamError(ex, requestId, message, NameUtils.getScopedStreamName(scope, stream));
                 });
     }
 
@@ -1483,8 +1486,7 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 }))
                 .exceptionally(ex -> {
-                    log.warn(requestId, "Exception thrown while deleting stream {}", ex.getMessage());
-                    return handleDeleteStreamError(ex, requestId);
+                    return handleDeleteStreamError(ex, requestId, NameUtils.getScopedStreamName(scope, stream));
                 });
     }
 
@@ -1523,7 +1525,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 if (cause instanceof EpochTransitionOperationExceptions.PreConditionFailureException) {
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
                                 } else {
-                                    log.warn(requestId, "Scale for stream {}/{} failed with exception {}", scope, stream, cause);
+                                    log.error(requestId, "Scale for stream {}/{} failed with exception {}", scope, stream, cause);
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.FAILURE);
                                 }
                             } else {
@@ -1614,7 +1616,7 @@ public class StreamMetadataTasks extends TaskBase {
         final long requestId = requestTracker.getRequestIdFor("createStream", scope, stream);
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(response -> {
-                    log.info(requestId, "{}/{} created in metadata store", scope, stream);
+                    log.debug(requestId, "{}/{} created in metadata store", scope, stream);
                     CreateStreamStatus.Status status = translate(response.getStatus());
                     // only if its a new stream or an already existing non-active stream then we will create
                     // segments and change the state of the stream to active.
@@ -1835,26 +1837,26 @@ public class StreamMetadataTasks extends TaskBase {
                 segment.getValue().getValue());
     }
 
-    private UpdateStreamStatus.Status handleUpdateStreamError(Throwable ex, long requestId) {
+    private UpdateStreamStatus.Status handleUpdateStreamError(Throwable ex, long requestId, String logMessage, String streamFullName) {
         Throwable cause = Exceptions.unwrap(ex);
+        log.error(requestId, "Exception updating Stream {}. Cause: {}.", streamFullName, logMessage, cause);
         if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
         } else if (cause instanceof TimeoutException) {
             throw new CompletionException(cause);
         } else {
-            log.warn(requestId, "Update stream failed due to ", cause);
             return UpdateStreamStatus.Status.FAILURE;
         }
     }
 
-    private DeleteStreamStatus.Status handleDeleteStreamError(Throwable ex, long requestId) {
+    private DeleteStreamStatus.Status handleDeleteStreamError(Throwable ex, long requestId, String streamFullName) {
         Throwable cause = Exceptions.unwrap(ex);
+        log.error(requestId, "Exception deleting stream {}. Cause: {}", streamFullName, ex);
         if (cause instanceof StoreException.DataNotFoundException) {
             return DeleteStreamStatus.Status.STREAM_NOT_FOUND;
         } else if (cause instanceof TimeoutException) {
             throw new CompletionException(cause);
         } else {
-            log.warn(requestId, "Delete stream failed.", ex);
             return DeleteStreamStatus.Status.FAILURE;
         }
     }

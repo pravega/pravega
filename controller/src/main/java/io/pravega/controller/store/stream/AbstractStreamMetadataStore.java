@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -66,7 +72,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -245,7 +250,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
             } else {
-                log.debug("Create scope failed due to ", ex);
+                log.error("Create scope failed for scope {} due to ", scopeName, ex);
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.FAILURE).build();
             }
         });
@@ -269,7 +274,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             } else if (ex instanceof StoreException.DataNotEmptyException) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
             } else {
-                log.debug("DeleteScope failed due to {} ", ex);
+                log.error("DeleteScope failed for scope {} due to {} ", scopeName, ex);
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
             }
         });
@@ -1036,16 +1041,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     //endregion
 
     private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, OperationContext context, Executor executor) {
-        return getScaleMetadata(scopeName, streamName, 0, Long.MAX_VALUE, context, executor).thenApply(scaleMetadataList -> {
-            AtomicLong totalNumSplits = new AtomicLong(0L);
-            AtomicLong totalNumMerges = new AtomicLong(0L);
-            scaleMetadataList.forEach(x -> {
-                totalNumMerges.addAndGet(x.getMerges());
-                totalNumSplits.addAndGet(x.getSplits());
-            });
-
-            return new SimpleEntry<>(totalNumSplits.get(), totalNumMerges.get());
-        });
+        Stream stream = getStream(scopeName, streamName, context);
+        return Futures.completeOn(stream.getActiveEpoch(true).thenCompose(lastEpoch -> stream.getSplitMergeCountsTillEpoch(lastEpoch)), executor);
     }
 
     /**

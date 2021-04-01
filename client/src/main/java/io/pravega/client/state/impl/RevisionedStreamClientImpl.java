@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.state.impl;
 
@@ -131,7 +137,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         log.trace("Read segment {} from revision {}", segment, start);
         synchronized (lock) {
             long startOffset = start.asImpl().getOffsetInSegment();
-            SegmentInfo segmentInfo = meta.getSegmentInfo();
+            SegmentInfo segmentInfo = Futures.getThrowingException(meta.getSegmentInfo());
             long endOffset = segmentInfo.getWriteOffset();
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", start, segmentInfo));
@@ -143,10 +149,12 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     
     @Override
     public Revision fetchLatestRevision() {
+        CompletableFuture<Long> streamLength;
         synchronized (lock) {
-            long streamLength = meta.fetchCurrentSegmentLength();
-            return new RevisionImpl(segment, streamLength, 0);
+            streamLength = meta.fetchCurrentSegmentLength();
         }
+        return new RevisionImpl(segment, Futures.getThrowingException(streamLength), 0);
+        
     }
 
     private class StreamIterator implements Iterator<Entry<Revision, T>> {
@@ -196,30 +204,34 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @Override
     public Revision getMark() {
         log.trace("Fetching mark for segment {}", segment);
+        CompletableFuture<Long> valueF;
         synchronized (lock) {
-            long value = meta.fetchProperty(RevisionStreamClientMark);
-            return value == NULL_VALUE ? null : new RevisionImpl(segment, value, 0);
+            valueF = meta.fetchProperty(RevisionStreamClientMark);
         }
+        long value = Futures.getThrowingException(valueF);
+        return value == NULL_VALUE ? null : new RevisionImpl(segment, value, 0);
     }
 
     @Override
     public boolean compareAndSetMark(Revision expected, Revision newLocation) {
         long expectedValue = expected == null ? NULL_VALUE : expected.asImpl().getOffsetInSegment();
         long newValue = newLocation == null ? NULL_VALUE : newLocation.asImpl().getOffsetInSegment();
+        CompletableFuture<Boolean> result;
         synchronized (lock) {
-            return meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue);
+            result = meta.compareAndSetAttribute(RevisionStreamClientMark, expectedValue, newValue);
         }
+        return Futures.getThrowingException(result);
     }
 
     @Override
     public Revision fetchOldestRevision() {
-        long startingOffset = meta.getSegmentInfo().getStartingOffset();
+        long startingOffset = Futures.getThrowingException(meta.getSegmentInfo()).getStartingOffset();
         return new RevisionImpl(segment, startingOffset, 0);
     }
 
     @Override
     public void truncateToRevision(Revision newStart) {
-        meta.truncateSegment(newStart.asImpl().getOffsetInSegment());
+        Futures.getThrowingException(meta.truncateSegment(newStart.asImpl().getOffsetInSegment()));
     }
 
     @Override

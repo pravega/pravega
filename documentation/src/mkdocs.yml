@@ -1,10 +1,18 @@
-# Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+#
+# Copyright Pravega Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 site_name: 'Exploring Pravega'
 site_url: 'https://pravega.io/'
@@ -13,68 +21,101 @@ site_description: 'Documentation to help you get familiar with Pravega'
 repo_url: 'https://github.com/pravega/pravega'
 edit_uri: 'tree/master/documentation/src/docs'
 
-theme: 'material'
-
+theme:
+  name: material
+  custom_dir: custom_theme
+  # Necessary for search to work properly
+  #include_search_page: false
+  #search_index_only: true
+  favicon: assets/favicon.ico
 
 # Extensions
 markdown_extensions:
   - admonition
-  - codehilite(guess_lang=false)
+  - codehilite:
+      guess_lang: false
   - footnotes
   - meta
-  - toc(permalink=true)
-  - pymdownx.betterem(smart_enable=all)
+  - toc:
+      permalink: true
+  - pymdownx.betterem:
+      smart_enable: all
   - pymdownx.caret
   - pymdownx.inlinehilite
   - pymdownx.magiclink
   - pymdownx.smartsymbols
   - pymdownx.superfences
+  - pymdownx.highlight
 
-pages:
+nav:
   - Overview: 'index.md'
-  - Getting Started: 'getting-started.md'
+  - Quick Start: 'getting-started/quick-start.md'
+  - Getting Started:
+    - 'Running a Sample Application': 'getting-started/getting-started.md'
+    - 'Deploying Pravega on Kubernetes': 'getting-started/pravega-on-kubernetes-101.md'
   - Understanding Pravega:
-      - 'Pravega Concepts': 'pravega-concepts.md'
-      - 'Terminology': 'terminology.md'
-      - 'Key Features': 'key-features.md'
-      - 'Pravega FAQ': 'faq.md'
-      - 'Segment Store Service': 'segment-store-service.md'
-      - 'Segment Containers': 'segment-containers.md'
-      - 'Controller Service': 'controller-service.md'
-      - 'Wire Protocol': 'wire-protocol.md'
-      - 'StateSynchronizer': 'state-synchronizer-design.md'
-      - 'Reader Groups': 'reader-group-design.md'
-      - 'Watermarking': 'watermarking.md'
-
-  - Developing Pravega Applications:
-      - 'Java API Reference': 'javadoc.md'
-      - 'REST API - Controller': 'rest/restapis.md'
-      - 'Pravega Connectors': 'connectors.md'
-      - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
-      - 'Working with Reader Group notifications': 'reader-group-notifications.md'
-      - 'Working with State Synchronizer': 'state-synchronizer.md'
-      - 'Working with Transactions': 'transactions.md'
-      - 'Working with StreamCuts': 'streamcuts.md'
-  - Running Pravega:
-      - 'Deployment Overview': 'deployment/deployment.md'
-      - 'Running Locally': 'deployment/run-local.md'
-      - 'Manual Install': 'deployment/manual-install.md'
-      - 'Deployment on Kubernetes': 'deployment/kubernetes-install.md'
-      - 'Deployment on Docker Swarm': 'deployment/docker-swarm.md'
-      - 'Deployment on DC/OS': 'deployment/dcos-install.md'
-      - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
-      - 'Pravega Metrics': 'metrics.md'
-  - Pravega Security:
-      - 'Pravega Authentication/Authorization Plugin': 'auth/auth-plugin.md'
+    - 'Concepts': 'pravega-concepts.md'
+    - 'Terminology': 'terminology.md'
+    - 'Key Features': 'key-features.md'
+    - 'FAQ': 'faq.md'
+    - 'Segment Store Service': 'segment-store-service.md'
+    - 'Segment Containers': 'segment-containers.md'
+    - 'Controller Service': 'controller-service.md'
+    - 'Wire Protocol': 'wire-protocol.md'
+    - 'StateSynchronizer': 'state-synchronizer-design.md'
+    - 'Reader Groups': 'reader-group-design.md'
+    - 'Watermarking': 'watermarking.md'
+  - Developing Applications:
+    - '1st Code Walkthrough': 'beginner_dev_guide.md'
+    - 'Client & Stream Semantics': 'clients-and-streams.md'
+    - 'Event Reader and Writer': 'basic-reader-and-writer.md'
+    - 'Reader Group notifications': 'reader-group-notifications.md'
+    - 'State Synchronizer': 'state-synchronizer.md'
+    - 'Transactions': 'transactions.md'
+    - 'StreamCuts': 'streamcuts.md'
+    - 'Client APIs': 'javadoc.md'
+    - 'Controller REST API': 'rest/restapis.md'
+    - 'Working with Metrics': 'metrics.md'
+  - Ecosystem:
+    - 'Connectors':
+      - 'Overview': 'connectors.md'
+      - 'Flink Connector': 'https://github.com/pravega/flink-connectors/blob/master/README.md'
+      - 'Spark Connector': 'https://github.com/pravega/spark-connectors/blob/master/README.md'
+      - 'Hadoop Connector': 'https://github.com/pravega/hadoop-connectors/blob/master/README.md'
+      - 'Presto Connector': 'https://github.com/pravega/presto-connector/blob/main/README.md'
+      - 'Boomi Connector': 'https://github.com/pravega/boomi-connector/blob/master/README.md'
+      - 'NiFi Connector': 'https://github.com/pravega/nifi-pravega/blob/master/README.md'
+    - Client Bingings: 'bindings.md'
+    - Tools:
+      - 'User CLI': 'https://github.com/pravega/pravega/blob/master/cli/user/README.md'
+      - 'Gateways': 'gateways.md'
+      - 'Kafka Adapter': 'https://github.com/pravega/kafka-adapter/blob/master/README.md'
+      - 'Pravega Flink Tools': 'https://github.com/pravega/flink-tools/blob/master/README.md'
+      - 'Keycloak Plugin': 'https://github.com/pravega/pravega-keycloak/blob/master/README.md'
+  - 'Schema Registry': 'https://github.com/pravega/schema-registry/blob/master/README.md'
+  - 'Deployment':
+    - 'Overview': 'deployment/deployment.md'
+    - 'Running Locally': 'deployment/run-local.md'
+    - 'Manual Install': 'deployment/manual-install.md'
+    - 'Kubernetes Operators': 'admin-guide/operators.md'
+    - 'Docker Swarm': 'deployment/docker-swarm.md'
+    - 'DC/OS': 'deployment/dcos-install.md'
+    - 'AWS': 'deployment/aws-install.md'
+  - Admin Guide:
+    - 'Admin CLI': 'https://github.com/pravega/pravega/blob/master/cli/admin/README.md'
+    - 'Security':
+      - 'Overview': 'security/pravega-security-authorization-authentication.md'
+      - 'Authentication/Authorization Plugin': 'auth/auth-plugin.md'
       - 'Client Auth Interface': 'auth/client-auth.md'
-      - 'Pravega Security Authorization/Authentication': 'security/pravega-security-authorization-authentication.md'
-      - 'Pravega Security Configurations': 'security/pravega-security-configurations.md'
-      - 'Pravega Security Encryption': 'security/pravega-security-encryption.md'
-      - 'Securing Pravega in Distributed Mode': 'security/securing-distributed-mode-cluster.md'
-  - Contributing to Pravega:
-      - 'Coding guildelines': 'contributing.md'
-      - 'Pravega Roadmap': 'roadmap.md'
-      - 'Join the Community': 'join-community.md'
+      - 'Configurations': 'security/pravega-security-configurations.md'
+      - 'Encryption': 'security/pravega-security-encryption.md'
+      - 'Standalone Mode': 'security/securing-standalone-mode-cluster.md'
+      - 'Distributed Mode': 'security/securing-distributed-mode-cluster.md'
+      - 'TLS Artifacts': 'security/generating-tls-artifacts.md'
+  - Contributing:
+    - 'Coding guildelines': 'contributing.md'
+    - 'Pravega Roadmap': 'roadmap.md'
+    - 'Join the Community': 'join-community.md'
 extra:
     version: 0.1
 
