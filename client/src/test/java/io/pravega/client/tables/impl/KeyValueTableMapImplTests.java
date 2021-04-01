@@ -53,10 +53,10 @@ import org.junit.rules.Timeout;
  */
 public class KeyValueTableMapImplTests extends KeyValueTableTestSetup {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
-    
     private static final KeyValueTableInfo KVT = new KeyValueTableInfo("Scope", "KVT");
+    @Rule
+    public final Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+    
     private MockConnectionFactoryImpl connectionFactory;
     private MockTableSegmentFactory segmentFactory;
     private MockController controller;
