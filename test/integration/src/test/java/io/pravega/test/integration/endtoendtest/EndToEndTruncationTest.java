@@ -428,6 +428,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                          .stream(scope + "/" + streamName)
                                                                          .build());
+        @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 
         // Write two events to the Stream.
@@ -484,6 +485,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
             streamManager.createStream(scope, streamName, streamConf);
             groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                              .stream(Stream.of(scope, streamName)).build());
+            @Cleanup
             ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 
             // Write events to the Stream.
