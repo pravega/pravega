@@ -51,8 +51,6 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_BYTES;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_INSTANT_TPUT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_LATENCY;
-import static io.pravega.shared.MetricsNames.STORAGE_METADATA_NUM_CHUNKS;
-import static io.pravega.shared.MetricsNames.STORAGE_METADATA_SIZE;
 
 /**
  * Implements the write operation.
@@ -176,12 +174,10 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             SLTS_SYSTEM_WRITE_LATENCY.reportSuccessEvent(elapsed);
             SLTS_SYSTEM_WRITE_BYTES.add(length);
             SLTS_SYSTEM_NUM_CHUNKS_ADDED.reportSuccessValue(chunksAddedCount.get());
-            val name = segmentMetadata.getName().substring(segmentMetadata.getName().lastIndexOf("/") + 1).replace("$", "_");
-            ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_SIZE + name, segmentMetadata.getLength() - segmentMetadata.getStartOffset());
-            ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_NUM_CHUNKS + name, segmentMetadata.getChunkCount());
+            chunkedSegmentStorage.reportMetricsForSystemSegment(segmentMetadata);
         }
         if (elapsed.toMillis() > 0) {
-            val bytesPerSecond = 1000 * length / elapsed.toMillis();
+            val bytesPerSecond = 1000L * length / elapsed.toMillis();
             SLTS_WRITE_INSTANT_TPUT.reportSuccessValue(bytesPerSecond);
         }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {

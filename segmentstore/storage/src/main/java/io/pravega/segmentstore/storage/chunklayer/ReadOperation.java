@@ -137,7 +137,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
             SLTS_SYSTEM_READ_BYTES.add(length);
         }
         if (elapsed.toMillis() > 0) {
-            val bytesPerSecond = 1000 * length / elapsed.toMillis();
+            val bytesPerSecond = 1000L * length / elapsed.toMillis();
             SLTS_READ_INSTANT_TPUT.reportSuccessValue(bytesPerSecond);
         }
 
@@ -239,11 +239,10 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
 
         // Find the first chunk that contains the data.
         startOffsetForCurrentChunk.set(segmentMetadata.getFirstChunkStartOffset());
-        boolean found = false;
-        if (offset >= segmentMetadata.getLastChunkStartOffset()) {
+        boolean shouldOnlyReadLastChunk = offset >= segmentMetadata.getLastChunkStartOffset();
+        if (shouldOnlyReadLastChunk) {
             startOffsetForCurrentChunk.set(segmentMetadata.getLastChunkStartOffset());
             currentChunkName = segmentMetadata.getLastChunk();
-            found = true;
         } else {
             // Find the name of the chunk in the cached read index that is floor to required offset.
             val floorEntry = chunkedSegmentStorage.getReadIndexCache().findFloor(handle.getSegmentName(), offset);
@@ -255,7 +254,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
 
         final long floorBlockStartOffset = getFloorBlockStartOffset(offset);
         CompletableFuture<Void>  f;
-        if (!found && !segmentMetadata.isStorageSystemSegment() && startOffsetForCurrentChunk.get() < floorBlockStartOffset) {
+        if (!shouldOnlyReadLastChunk && !segmentMetadata.isStorageSystemSegment() && startOffsetForCurrentChunk.get() < floorBlockStartOffset) {
             val indexLookupTimer = new Timer();
             f = txn.get(NameUtils.getSegmentReadIndexBlockName(segmentMetadata.getName(), floorBlockStartOffset))
                     .thenAcceptAsync(storageMetadata -> {
