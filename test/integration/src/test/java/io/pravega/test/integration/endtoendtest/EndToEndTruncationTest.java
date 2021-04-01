@@ -123,16 +123,17 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
         Segment segment = new Segment(scope, streamName, 0);
+        @Cleanup
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segment,
                 DelegationTokenProviderFactory.createWithEmptyToken());
-        assertEquals(0, metadataClient.getSegmentInfo().getStartingOffset());
-        long writeOffset = metadataClient.getSegmentInfo().getWriteOffset();
-        assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength());
-        assertTrue(metadataClient.getSegmentInfo().getWriteOffset() > testString.length());
-        metadataClient.truncateSegment(writeOffset);
-        assertEquals(writeOffset, metadataClient.getSegmentInfo().getStartingOffset());
-        assertEquals(writeOffset, metadataClient.getSegmentInfo().getWriteOffset());
-        assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength());
+        assertEquals(0, metadataClient.getSegmentInfo().join().getStartingOffset());
+        long writeOffset = metadataClient.getSegmentInfo().join().getWriteOffset();
+        assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength().join().longValue());
+        assertTrue(metadataClient.getSegmentInfo().join().getWriteOffset() > testString.length());
+        metadataClient.truncateSegment(writeOffset).join();
+        assertEquals(writeOffset, metadataClient.getSegmentInfo().join().getStartingOffset());
+        assertEquals(writeOffset, metadataClient.getSegmentInfo().join().getWriteOffset());
+        assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength().join().longValue());
 
         ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);

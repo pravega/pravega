@@ -43,6 +43,7 @@ import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertArrayEquals;
@@ -62,7 +63,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), null);
+        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), Mockito.mock(ConnectionPool.class));
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -107,7 +108,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), null);
+        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), Mockito.mock(ConnectionPool.class));
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -160,7 +161,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), null);
+        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), Mockito.mock(ConnectionPool.class));
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -201,7 +202,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), null);
+        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), Mockito.mock(ConnectionPool.class));
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -247,7 +248,7 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), null);
+        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), Mockito.mock(ConnectionPool.class));
         // create a scope
         streamManager.createScope(scope);
         // create a stream
