@@ -42,9 +42,15 @@ public interface SynchronizerClientFactory extends AutoCloseable {
      * @return Instance of ClientFactory implementation.
      */
     static SynchronizerClientFactory withScope(String scope, ClientConfig config) {
-        val connectionFactory = new SocketConnectionFactoryImpl(config);
-        return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
-                connectionFactory.getInternalExecutor()), connectionFactory);
+        // Change the max number of number of allowed connections to the segment store to 1.
+        val updatedConfig = config.toBuilder()
+                .maxConnectionsPerSegmentStore(1)
+                .enableTlsToSegmentStore(config.isEnableTlsToSegmentStore())
+                .enableTlsToController(config.isEnableTlsToController())
+                .build();
+        val connectionFactory = new SocketConnectionFactoryImpl(updatedConfig, 1);
+        return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(updatedConfig).build(),
+                connectionFactory.getInternalExecutor()), updatedConfig, connectionFactory);
     }
 
     /**
