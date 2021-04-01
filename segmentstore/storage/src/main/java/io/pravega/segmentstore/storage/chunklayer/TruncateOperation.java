@@ -31,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_TRUNCATE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_TRUNCATE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_TRUNCATE_LATENCY;
 
@@ -115,6 +116,10 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         val elapsed = timer.getElapsed();
         SLTS_TRUNCATE_LATENCY.reportSuccessEvent(elapsed);
         SLTS_TRUNCATE_COUNT.inc();
+        if (segmentMetadata.isStorageSystemSegment()) {
+            SLTS_SYSTEM_TRUNCATE_COUNT.inc();
+            chunkedSegmentStorage.reportMetricsForSystemSegment(segmentMetadata);
+        }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
             log.warn("{} truncate - late op={}, segment={}, offset={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, elapsed.toMillis());
