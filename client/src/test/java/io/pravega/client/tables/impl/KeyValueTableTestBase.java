@@ -38,6 +38,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
+import lombok.Getter;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -52,8 +53,9 @@ import org.junit.rules.Timeout;
 public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
     
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    @Getter
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+    public final Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     
     /**
      * Tests the ability to perform single-key conditional insertions. These methods are exercised:
