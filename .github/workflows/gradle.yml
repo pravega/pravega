@@ -111,7 +111,7 @@ jobs:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
           key: ${{github.run_id}}-${{github.job}}
       - name: Unit tests
-        run: ./gradlew client:test common:test test:testcommon:test --parallel ${{env.GRADLE_OPTS}}
+        run: ./gradlew client:test shared:protocol:test shared:security:test common:test test:testcommon:test --parallel ${{env.GRADLE_OPTS}}
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
@@ -230,6 +230,8 @@ jobs:
         run: >
           ./gradlew test
           -x client:test
+          -x shared:protocol:test
+          -x shared:security:test
           -x common:test
           -x test:testcommon:test
           -x controller:test
