@@ -217,7 +217,7 @@ public class AppendTest extends LeakDetectorTestSuite {
         channel.writeInbound(request);
         log.info("Request {} sent to Segment store", request);
         Object encodedReply = channel.readOutbound();
-        for (int i = 0; encodedReply == null && i < 50; i++) {
+        for (int i = 0; encodedReply == null && i < 500; i++) {
             channel.runPendingTasks();
             Thread.sleep(10);
             encodedReply = channel.readOutbound();
