@@ -71,7 +71,7 @@ jobs:
       - name: Build Information
         run: echo Building a '${{ github.event_name }}' for target '${{ github.ref }}'.
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -85,6 +85,9 @@ jobs:
           key: ${{github.run_id}}
       - name: Compile & Checkstyle
         run: ./gradlew jar compileTest checkstyleMain checkstyleTest --parallel ${{env.GRADLE_OPTS}}
+# Uncomment these two lines if you need ssh access to debug a build.
+#      - name: Setup upterm session
+#        uses: lhotari/action-upterm@v1
 
   unit_client:
     name: Client Unit Tests
