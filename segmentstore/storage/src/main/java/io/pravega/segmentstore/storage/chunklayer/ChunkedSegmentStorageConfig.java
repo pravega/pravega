@@ -57,7 +57,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> MAX_JOURNAL_RECORDS_PER_SNAPSHOT = Property.named("journal.snapshot.records.max", 100);
     public static final Property<Integer> MAX_JOURNAL_READ_ATTEMPTS = Property.named("journal.snapshot.attempts.read.max", 100);
     public static final Property<Integer> MAX_JOURNAL_WRITE_ATTEMPTS = Property.named("journal.snapshot.attempts.write.max", 10);
-    public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", false);
+    public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", true);
 
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
@@ -86,7 +86,7 @@ public class ChunkedSegmentStorageConfig {
             .maxJournalRecordsPerSnapshot(100)
             .maxJournalReadAttempts(100)
             .maxJournalWriteAttempts(10)
-            .selfCheckEnabled(false)
+            .selfCheckEnabled(true)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -233,6 +233,9 @@ public class ChunkedSegmentStorageConfig {
     @Getter
     final private int maxJournalWriteAttempts;
 
+    /**
+     * When enabled, SLTS will perform extra validation.
+     */
     @Getter
     final private boolean selfCheckEnabled;
 

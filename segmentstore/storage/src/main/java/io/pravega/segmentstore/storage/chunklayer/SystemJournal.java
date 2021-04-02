@@ -113,7 +113,6 @@ public class SystemJournal {
     /**
      * Index of current snapshot.
      */
-    @Getter
     @GuardedBy("lock")
     private long currentSnapshotIndex;
 
@@ -123,18 +122,24 @@ public class SystemJournal {
     /**
      * Last successful snapshot.
      */
-    @Getter
     @GuardedBy("lock")
     private SystemSnapshotRecord lastSavedSystemSnapshot;
 
-    @Getter
+    /**
+     * Id of the last saved snapshot.
+     */
     @GuardedBy("lock")
     private long lastSavedSystemSnapshotId;
 
-    @Getter
+    /**
+     * Most recently saved {@link SnapshotInfo} instance.
+     */
     @GuardedBy("lock")
     private SnapshotInfo lastSavedSnapshotInfo;
 
+    /**
+     * Time when last snapshot was saved.
+     */
     @GuardedBy("lock")
     private long lastSavedSnapshotTime;
 
@@ -253,6 +258,7 @@ public class SystemJournal {
             val finalTruncateOffsets = new HashMap<String, Long>();
             val finalFirstChunkStartsAtOffsets = new HashMap<String, Long>();
 
+            // Keep track of already processed records.
             val visitedRecords = new HashSet<SystemJournalRecord>();
 
             // Step 1: Create metadata records for system segments from latest snapshot.
@@ -276,6 +282,7 @@ public class SystemJournal {
             if (saved) {
                 writeSnapshotInfo(lastSavedSystemSnapshotId);
             }
+
             // Step 6: Check invariants.
             Preconditions.checkState(currentFileIndex == 0, "currentFileIndex must be zero");
             Preconditions.checkState(systemJournalOffset == 0, "systemJournalOffset must be zero");
@@ -291,8 +298,11 @@ public class SystemJournal {
 
     private void writeSnapshotInfo(long snapshotId) {
         try {
-            val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, snapshotId);
-            Preconditions.checkState(chunkStorage.exists(snapshotFileName).get(), "Snapshot file must exist");
+            if (getConfig().isSelfCheckEnabled()) {
+                val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, snapshotId);
+                Preconditions.checkState(chunkStorage.exists(snapshotFileName).get(), "Snapshot file must exist");
+            }
+
             val info = SnapshotInfo.builder()
                     .snapshotId(snapshotId)
                     .epoch(epoch)
@@ -365,7 +375,10 @@ public class SystemJournal {
         log.debug("SystemJournal[{}] Logging system log records - file={}, batch={}.", containerId, currentHandle.getChunkName(), batch);
     }
 
-    public void generateSnapshotIfRequired() {
+    /**
+     * Generate a snapshot if required.
+     */
+    private void generateSnapshotIfRequired() {
         synchronized (lock) {
             if (recordsSinceSnapshot > config.getMaxJournalRecordsPerSnapshot() ||
                 currentTimeSupplier.get() - lastSavedSnapshotTime > config.getJournalSnapshotInfoUpdateFrequency().toMillis()) {
@@ -381,7 +394,10 @@ public class SystemJournal {
         }
     }
 
-    public void writeSnapshotInfoIfRequired() {
+    /**
+     * Write snapshot info if required.
+     */
+    private void writeSnapshotInfoIfRequired() {
         synchronized (lock) {
             if (lastSavedSystemSnapshot != null && lastSavedSnapshotInfo != null
                     && lastSavedSnapshotInfo.snapshotId < lastSavedSystemSnapshotId) {
@@ -394,26 +410,41 @@ public class SystemJournal {
      * Find and apply latest snapshot.
      */
     private SystemSnapshotRecord findLatestSnapshot() throws Exception {
-        // Read contents.
+        // Read snapshot info.
         val persisted = snapshotInfoStore.readSnapshotInfo();
         if (null != persisted) {
-            // Read the snapshot
-            try {
-                val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, persisted.epoch, persisted.snapshotId);
+            // Validate
+            val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, persisted.epoch, persisted.snapshotId);
+            if (getConfig().isSelfCheckEnabled()) {
                 Preconditions.checkState(chunkStorage.exists(snapshotFileName).get(), "File pointed by SnapshotInfo must exist");
-                // Read contents.
+            }
+
+            // Read contents.
+            try {
                 byte[] snapshotContents = getContents(snapshotFileName);
                 val systemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(snapshotContents);
                 log.debug("SystemJournal[{}] snapshot found and parsed. {}", containerId, persisted);
                 log.debug("SystemJournal[{}] Done finding snapshots.", containerId);
                 return systemSnapshot;
             } catch (Exception e) {
-                handleException(e, "snapshot", Long.toString(containerId));
+                String object = persisted.toString();
+                val ex = Exceptions.unwrap(e);
+                if (ex instanceof EOFException) {
+                    log.warn("SystemJournal[{}] Incomplete {} found, skipping {}.", containerId, "snapshot", object, e);
+                } else if (ex instanceof ChunkNotFoundException) {
+                    log.warn("SystemJournal[{}] Missing {}, skipping {}.", containerId, "snapshot", object, e);
+                } else {
+                    log.warn("SystemJournal[{}] Error with {}, skipping {}.", containerId, "snapshot", object, e);
+                    throw e;
+                }
             }
         }
         return null;
     }
 
+    /**
+     * Recreates in-memory state from the given snapshot record.
+     */
     private SystemSnapshotRecord applySystemSnapshotRecord(MetadataTransaction txn, HashMap<String, Long> chunkStartOffsets, SystemSnapshotRecord systemSnapshot) throws Exception {
         if (null != systemSnapshot) {
             log.debug("SystemJournal[{}] Processing system log snapshot {}.", containerId, systemSnapshot);
@@ -444,6 +475,7 @@ public class SystemJournal {
                 }
             }
         } else {
+            // Initialize with default values.
             for (String systemSegment : systemSegments) {
                 SegmentMetadata segmentMetadata = SegmentMetadata.builder()
                         .name(systemSegment)
@@ -515,20 +547,6 @@ public class SystemJournal {
                 }
             }
         }
-    }
-
-    private void handleException(Exception e, String type, String fileName) throws Exception {
-        val ex = Exceptions.unwrap(e);
-        if (ex instanceof EOFException) {
-            log.warn("SystemJournal[{}] Incomplete {} found, skipping {}.", containerId, type, fileName, e);
-            return;
-        }
-        if (ex instanceof ChunkNotFoundException) {
-            log.warn("SystemJournal[{}] Missing {}, skipping {}.", containerId, type, fileName, e);
-            return;
-        }
-        log.warn("SystemJournal[{}] Error with {}, skipping {}.", containerId, type, fileName, e);
-        throw e;
     }
 
     /**
@@ -763,7 +781,7 @@ public class SystemJournal {
 
     }
 
-    public boolean validateAndSaveSnapshot(MetadataTransaction txn,
+    boolean validateAndSaveSnapshot(MetadataTransaction txn,
                                         boolean validateSegment,
                                         boolean validateChunks) throws Exception {
         SystemSnapshotRecord systemSnapshot = createSystemSnapshotRecord(txn, validateSegment, validateChunks);
@@ -1280,7 +1298,9 @@ public class SystemJournal {
     @RequiredArgsConstructor
     public static class SnapshotInfoStore {
         final long containerId;
+        @NonNull
         final Consumer<SnapshotInfo> setter;
+        @NonNull
         final Supplier<SnapshotInfo> getter;
 
         /**

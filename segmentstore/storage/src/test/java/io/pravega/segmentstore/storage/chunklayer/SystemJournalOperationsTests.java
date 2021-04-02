@@ -620,7 +620,9 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
      */
     @Data
     class TestContext implements AutoCloseable {
-        ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
+        ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .selfCheckEnabled(true)
+                .build();
         ChunkStorage chunkStorage;
         HashMap<String, ArrayList<ExpectedChunkInfo>> expectedChunks = new HashMap<>();
         HashMap<String, ExpectedSegmentInfo> expectedSegments = new HashMap<>();
