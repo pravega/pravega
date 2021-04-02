@@ -279,7 +279,7 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(5, connectionPool, connectionFactory);
     }
     
-    @Test//(timeout = 30000)
+    @Test(timeout = 30000)
     public void testDetectChannelLeakSegmentSealed() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
