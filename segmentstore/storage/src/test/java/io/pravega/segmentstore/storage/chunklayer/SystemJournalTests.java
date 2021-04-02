@@ -54,6 +54,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     @Before
     public void before() throws Exception {
         super.before();
+        InMemorySnapshotInfoStore.clear();
     }
 
     @After
@@ -210,7 +211,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long epoch = 1;
 
         val data = new InMemorySnapshotInfoStore();
-        val snapshotInfoStore = new SystemJournal.SnapshotInfoStore(containerId,
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
                 () -> data.getSnapshotId(containerId));
 
@@ -268,7 +269,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         val data = new InMemorySnapshotInfoStore();
-        val snapshotInfoStore = new SystemJournal.SnapshotInfoStore(containerId,
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
                 () -> data.getSnapshotId(containerId));
 
@@ -337,7 +338,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val policy = new SegmentRollingPolicy(8);
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
         val data = new InMemorySnapshotInfoStore();
-        val snapshotInfoStore = new SystemJournal.SnapshotInfoStore(containerId,
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
                 () -> data.getSnapshotId(containerId));
         long offset = 0;
@@ -411,7 +412,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val policy = new SegmentRollingPolicy(4);
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
         val data = new InMemorySnapshotInfoStore();
-        val snapshotInfoStore = new SystemJournal.SnapshotInfoStore(containerId,
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
                 () -> data.getSnapshotId(containerId));
         long offset = 0;
@@ -492,7 +493,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val policy = new SegmentRollingPolicy(100);
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
         val data = new InMemorySnapshotInfoStore();
-        val snapshotInfoStore = new SystemJournal.SnapshotInfoStore(containerId,
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
                 () -> data.getSnapshotId(containerId));
         long offset = 0;
@@ -610,7 +611,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val policy = new SegmentRollingPolicy(1024);
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
         val data = new InMemorySnapshotInfoStore();
-        val snapshotInfoStore = new SystemJournal.SnapshotInfoStore(containerId,
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
                 () -> data.getSnapshotId(containerId));
         long offset = 0;
@@ -767,7 +768,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val policy = new SegmentRollingPolicy(maxLength);
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
         val data = new InMemorySnapshotInfoStore();
-        val snapshotInfoStore = new SystemJournal.SnapshotInfoStore(containerId,
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
                 () -> data.getSnapshotId(containerId));
         long offset = 0;
@@ -847,7 +848,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         long offset = 0;
 
         val data = new InMemorySnapshotInfoStore();
-        val snapshotInfoStore = new SystemJournal.SnapshotInfoStore(containerId,
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
                 () -> data.getSnapshotId(containerId));
         // Epoch 1
@@ -911,7 +912,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         int containerId = 42;
         val data = new InMemorySnapshotInfoStore();
-        val snapshotInfoStore = new SystemJournal.SnapshotInfoStore(containerId,
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
                 () -> data.getSnapshotId(containerId));
         @Cleanup
@@ -991,7 +992,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         int containerId = 42;
         val data = new InMemorySnapshotInfoStore();
-        val snapshotInfoStore = new SystemJournal.SnapshotInfoStore(containerId,
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
                 () -> data.getSnapshotId(containerId));
         @Cleanup
@@ -1075,7 +1076,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         int containerId = 42;
         val data = new InMemorySnapshotInfoStore();
-        val snapshotInfoStore = new SystemJournal.SnapshotInfoStore(containerId,
+        val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
                 () -> data.getSnapshotId(containerId));
         @Cleanup

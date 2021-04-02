@@ -92,6 +92,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
+import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
@@ -1939,6 +1940,59 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             entryContents.copyTo(ByteBuffer.wrap(readBuffer));
             AssertExtensions.assertArrayEquals("Unexpected data read back.", appendData, 1, readBuffer, 0, readBuffer.length);
         }
+    }
+
+
+    /**
+     * Tests the ability to save and read {@link SnapshotInfo}
+     */
+    @Test
+    public void testSnapshotInfo() throws Exception {
+        @Cleanup
+        TestContext context = createContext();
+        val container = (StreamSegmentContainer) context.container;
+        container.startAsync().awaitRunning();
+        Assert.assertNull(container.readStorageSnapshot(TIMEOUT).get());
+        container.saveStorageSnapshot(SnapshotInfo.builder()
+                .snapshotId(1)
+                .epoch(2)
+                .build(), TIMEOUT).get();
+        for (int i = 0; i < 3; i++) {
+            val v = container.readStorageSnapshot(TIMEOUT).get();
+            Assert.assertNotNull(v);
+            Assert.assertEquals(1, v.getSnapshotId());
+            Assert.assertEquals(2, v.getEpoch());
+        }
+
+        for (int i = 0; i < 3; i++) {
+            container.saveStorageSnapshot(SnapshotInfo.builder()
+                    .snapshotId(i)
+                    .epoch(2)
+                    .build(), TIMEOUT).get();
+            val v = container.readStorageSnapshot(TIMEOUT).get();
+            Assert.assertNotNull(v);
+            Assert.assertEquals(i, v.getSnapshotId());
+            Assert.assertEquals(2, v.getEpoch());
+        }
+
+        container.saveStorageSnapshot(SnapshotInfo.builder()
+                .snapshotId(1)
+                .epoch(0)
+                .build(), TIMEOUT).get();
+        Assert.assertNull(container.readStorageSnapshot(TIMEOUT).get());
+
+        for (int i = 1; i < 4; i++) {
+            container.saveStorageSnapshot(SnapshotInfo.builder()
+                    .snapshotId(1)
+                    .epoch(i)
+                    .build(), TIMEOUT).get();
+            val v = container.readStorageSnapshot(TIMEOUT).get();
+            Assert.assertNotNull(v);
+            Assert.assertEquals(1, v.getSnapshotId());
+            Assert.assertEquals(i, v.getEpoch());
+        }
+
+        container.stopAsync().awaitTerminated();
     }
 
     /**

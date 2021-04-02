@@ -32,7 +32,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -48,7 +48,6 @@ import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static com.google.common.base.Strings.emptyToNull;
@@ -296,22 +295,23 @@ public class SystemJournal {
         }
     }
 
+    @SneakyThrows
     private void writeSnapshotInfo(long snapshotId) {
-        try {
-            if (getConfig().isSelfCheckEnabled()) {
-                val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, snapshotId);
-                Preconditions.checkState(chunkStorage.exists(snapshotFileName).get(), "Snapshot file must exist");
-            }
+        if (getConfig().isSelfCheckEnabled()) {
+            val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, snapshotId);
+            Preconditions.checkState(chunkStorage.exists(snapshotFileName).get(), "Snapshot file must exist");
+        }
 
+        try {
             val info = SnapshotInfo.builder()
                     .snapshotId(snapshotId)
                     .epoch(epoch)
                     .build();
-            snapshotInfoStore.writeSnapshotInfo(info);
+            snapshotInfoStore.writeSnapshotInfo(info).get();
             lastSavedSnapshotInfo = info;
             lastSavedSnapshotTime = currentTimeSupplier.get();
         } catch (Exception e) {
-            log.warn("Unable to persist snapshot info.{}", currentSnapshotIndex, e);
+            log.error("Unable to persist snapshot info.{}", currentSnapshotIndex, e);
         }
     }
 
@@ -388,7 +388,7 @@ public class SystemJournal {
                     recordsSinceSnapshot = 0;
                     newChunkRequired = true;
                 } catch (Exception e) {
-                    log.warn("SystemJournal[{}] Error while creating snapshot", containerId, e);
+                    log.error("SystemJournal[{}] Error while creating snapshot", containerId, e);
                 }
             }
         }
@@ -411,7 +411,7 @@ public class SystemJournal {
      */
     private SystemSnapshotRecord findLatestSnapshot() throws Exception {
         // Read snapshot info.
-        val persisted = snapshotInfoStore.readSnapshotInfo();
+        val persisted = snapshotInfoStore.readSnapshotInfo().get();
         if (null != persisted) {
             // Validate
             val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, persisted.epoch, persisted.snapshotId);
@@ -430,11 +430,11 @@ public class SystemJournal {
                 String object = persisted.toString();
                 val ex = Exceptions.unwrap(e);
                 if (ex instanceof EOFException) {
-                    log.warn("SystemJournal[{}] Incomplete {} found, skipping {}.", containerId, "snapshot", object, e);
+                    log.error("SystemJournal[{}] Incomplete {} found, skipping {}.", containerId, "snapshot", object, e);
                 } else if (ex instanceof ChunkNotFoundException) {
-                    log.warn("SystemJournal[{}] Missing {}, skipping {}.", containerId, "snapshot", object, e);
+                    log.error("SystemJournal[{}] Missing {}, skipping {}.", containerId, "snapshot", object, e);
                 } else {
-                    log.warn("SystemJournal[{}] Error with {}, skipping {}.", containerId, "snapshot", object, e);
+                    log.error("SystemJournal[{}] Error with {}, skipping {}.", containerId, "snapshot", object, e);
                     throw e;
                 }
             }
@@ -846,7 +846,7 @@ public class SystemJournal {
         try {
             bytes = SYSTEM_SNAPSHOT_SERIALIZER.serialize(systemSnapshot);
         } catch (IOException e) {
-            log.warn("SystemJournal[{}] Error while creating snapshot {}", containerId, e);
+            log.error("SystemJournal[{}] Error while creating snapshot {}", containerId, e);
             return false;
         }
 
@@ -1291,53 +1291,4 @@ public class SystemJournal {
         }
     }
 
-    /**
-     * Stores {@link SnapshotInfo}.
-     */
-    @Data
-    @RequiredArgsConstructor
-    public static class SnapshotInfoStore {
-        final long containerId;
-        @NonNull
-        final Consumer<SnapshotInfo> setter;
-        @NonNull
-        final Supplier<SnapshotInfo> getter;
-
-        /**
-         * Read snapshot info.
-         *
-         * @return Info about the snapshot.
-         * @throws Exception Exception if any.
-         */
-        public SnapshotInfo readSnapshotInfo() throws Exception {
-            return getter.get();
-        }
-
-        /**
-         * Save snapshot info.
-         *
-         * @param snapshotInfo snapshotInfo to set
-         * @throws Exception Exception if any.
-         */
-        public void writeSnapshotInfo(SnapshotInfo snapshotInfo) throws Exception {
-            setter.accept(snapshotInfo);
-        }
-    }
-
-    /**
-     * Basic info about snapshot.
-     */
-    @Data
-    @Builder
-    public static class SnapshotInfo {
-        /**
-         * Epoch.
-         */
-        final long epoch;
-
-        /**
-         * Id of the snapshot.
-         */
-        final long snapshotId;
-    }
 }

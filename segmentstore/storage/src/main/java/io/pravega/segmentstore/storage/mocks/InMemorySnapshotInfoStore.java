@@ -16,31 +16,27 @@
 
 package io.pravega.segmentstore.storage.mocks;
 
-import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
+import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 public class InMemorySnapshotInfoStore {
 
-    static private final InMemorySnapshotInfoStore SINGLETON = new InMemorySnapshotInfoStore();
+    static private final Map<Integer, SnapshotInfo> DATA = Collections.synchronizedMap(new HashMap<>());
 
-    private final Map<Integer, SystemJournal.SnapshotInfo> data = Collections.synchronizedMap(new HashMap<>());
-
-    public void clear() {
-        data.clear();
+    public static void clear() {
+        DATA.clear();
     }
 
-    public static InMemorySnapshotInfoStore getSingletonInstance() {
-        return SINGLETON;
+    public CompletableFuture<SnapshotInfo> getSnapshotId(int containerId) {
+        return CompletableFuture.completedFuture(DATA.get(containerId));
     }
 
-    public SystemJournal.SnapshotInfo getSnapshotId(int containerId) {
-        return data.get(containerId);
-    }
-
-    public void setSnapshotId(int containerId, SystemJournal.SnapshotInfo checkpoint) {
-        data.put(containerId, checkpoint);
+    public CompletableFuture<Void> setSnapshotId(int containerId, SnapshotInfo checkpoint) {
+        DATA.put(containerId, checkpoint);
+        return CompletableFuture.completedFuture(null);
     }
 }
