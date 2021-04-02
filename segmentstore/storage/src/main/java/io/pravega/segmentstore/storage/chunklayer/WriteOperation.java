@@ -44,7 +44,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_NUM_CHUNKS_ADDED;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_NUM_CHUNKS_ADDED;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_WRITE_BYTES;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_WRITE_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_BYTES;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_INSTANT_TPUT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_LATENCY;
 
 /**
@@ -164,6 +169,17 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         val elapsed = timer.getElapsed();
         SLTS_WRITE_LATENCY.reportSuccessEvent(elapsed);
         SLTS_WRITE_BYTES.add(length);
+        SLTS_NUM_CHUNKS_ADDED.reportSuccessValue(chunksAddedCount.get());
+        if (segmentMetadata.isStorageSystemSegment()) {
+            SLTS_SYSTEM_WRITE_LATENCY.reportSuccessEvent(elapsed);
+            SLTS_SYSTEM_WRITE_BYTES.add(length);
+            SLTS_SYSTEM_NUM_CHUNKS_ADDED.reportSuccessValue(chunksAddedCount.get());
+            chunkedSegmentStorage.reportMetricsForSystemSegment(segmentMetadata);
+        }
+        if (elapsed.toMillis() > 0) {
+            val bytesPerSecond = 1000L * length / elapsed.toMillis();
+            SLTS_WRITE_INSTANT_TPUT.reportSuccessValue(bytesPerSecond);
+        }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
             log.warn("{} write - late op={}, segment={}, offset={}, length={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length, elapsed.toMillis());
