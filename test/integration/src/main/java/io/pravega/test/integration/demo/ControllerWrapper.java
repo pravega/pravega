@@ -45,6 +45,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import lombok.Builder;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -228,16 +229,19 @@ public class ControllerWrapper implements AutoCloseable {
         });
     }
 
+    @SneakyThrows
     public void awaitRunning() {
-        this.controllerServiceMain.awaitServiceStarting().awaitRunning();
+        this.controllerServiceMain.awaitServiceStarting().awaitRunning(30, TimeUnit.SECONDS);
     }
 
+    @SneakyThrows
     public void awaitPaused() {
-        this.controllerServiceMain.awaitServicePausing().awaitTerminated();
+        this.controllerServiceMain.awaitServicePausing().awaitTerminated(30, TimeUnit.SECONDS);
     }
 
+    @SneakyThrows
     public void awaitTerminated() {
-        this.controllerServiceMain.awaitTerminated();
+        this.controllerServiceMain.awaitTerminated(30, TimeUnit.SECONDS);
     }
 
     public void forceClientSessionExpiry() throws Exception {

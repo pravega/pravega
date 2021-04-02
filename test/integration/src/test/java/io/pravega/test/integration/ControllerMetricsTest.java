@@ -118,13 +118,13 @@ public class ControllerMetricsTest extends ThreadPooledTestSuite {
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
-                false,
-                false,
-                controllerPort,
-                serviceHost,
-                servicePort,
-                containerCount,
-                -1);
+                                                  false,
+                                                  false,
+                                                  controllerPort,
+                                                  serviceHost,
+                                                  servicePort,
+                                                  containerCount,
+                                                  -1);
         controllerWrapper.awaitRunning();
     }
 
