@@ -204,35 +204,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         synchronized (lock) {
             long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
             try {
-                // If any of the following operations error out, the fact is just logged.
-                // Some other controller process is responsible for cleaning up the reader group,
-                // its readers and their position objects from checkpoint store.
-                try {
-                    log.debug("Attempting to seal the reader group {} entry from checkpoint store", this.objectId);
-                    checkpointStore.sealReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
-                } catch (CheckpointStoreException e) {
-                    log.warn("Error sealing reader group " + this.objectId, e);
-                }
-
-                // Initiate stop on all event processor cells and await their termination.
-                for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
-                    log.info("Terminating event processor cell: {}", cell);
-                    cell.stopAsync();
-                    try {
-                        cell.awaitTerminated();
-                        log.debug("Termination of event processor cell: {} completed successfully.", cell);
-                    } catch (Exception e) {
-                        log.warn("Failed terminating event processor cell {}.", cell, e);
-                    }
-                }
-
-                // Finally, clean up reader group from checkpoint store.
-                try {
-                    log.debug("Attempting to clean up reader group {} entry from checkpoint store", this.objectId);
-                    checkpointStore.removeReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
-                } catch (CheckpointStoreException e) {
-                    log.warn("Error removing reader group " + this.objectId, e);
-                }
+                cleanUpCheckpointStore();
                 readerGroup.close();
                 if (rebalanceFuture != null) {
                     rebalanceFuture.cancel(true);
@@ -243,6 +215,45 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             }
         }
         log.info("Shut down all event processors in {} complete.", this.toString());
+    }
+
+    private void cleanUpCheckpointStore() {
+        // If any of the following operations error out, the fact is just logged.
+        // Some other controller process is responsible for cleaning up the reader group,
+        // its readers and their position objects from checkpoint store.
+        
+        // Initiate stop on all event processor cells 
+        for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
+            log.info("Terminating event processor cell: {}", cell);
+            cell.stopAsync();
+        }
+        
+        try {
+            log.debug("Attempting to seal the reader group {} entry from checkpoint store", this.objectId);
+            checkpointStore.sealReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
+        } catch (CheckpointStoreException e) {
+            log.warn("Error sealing reader group " + this.objectId, e);
+            return;
+        }
+
+        for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
+            try {
+                cell.awaitTerminated();
+                log.debug("Termination of event processor cell: {} completed successfully.", cell);
+            } catch (Exception e) {
+                log.warn("Failed terminating event processor cell {}.", cell, e);
+                return;
+            }
+        }
+
+        // Finally, clean up reader group from checkpoint store.
+        try {
+            log.debug("Attempting to clean up reader group {} entry from checkpoint store", this.objectId);
+            checkpointStore.removeReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
+        } catch (CheckpointStoreException e) {
+            log.warn("Error removing reader group " + this.objectId, e);
+            return;
+        }
     }
 
     @Override
