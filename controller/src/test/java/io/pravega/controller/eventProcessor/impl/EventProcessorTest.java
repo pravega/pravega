@@ -374,6 +374,7 @@ public class EventProcessorTest {
         EventStreamWriterMock<TestEvent> writer = new EventStreamWriterMock<>();
 
         CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+        checkpointStore.addReaderGroup(PROCESS, readerGroupName);
 
         CheckpointConfig checkpointConfig = CheckpointConfig.builder().type(CheckpointConfig.Type.None).build();
 
@@ -421,6 +422,7 @@ public class EventProcessorTest {
         int[] input = {1, 2, 3, 4, 5};
 
         CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+        checkpointStore.addReaderGroup(PROCESS, readerGroupName);
 
         CheckpointConfig checkpointConfig = CheckpointConfig.builder().type(CheckpointConfig.Type.None).build();
 
@@ -499,6 +501,7 @@ public class EventProcessorTest {
         int expectedSum = input.length * (input.length + 1) / 2;
 
         CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+        checkpointStore.addReaderGroup(PROCESS, readerGroupName);
 
         EventProcessorGroupConfig config = createEventProcessorGroupConfig(initialCount);
 
@@ -541,6 +544,7 @@ public class EventProcessorTest {
         String readerGroupName = "rebalance";
 
         CheckpointStore checkpointStore = spy(CheckpointStoreFactory.createInMemoryStore());
+        checkpointStore.addReaderGroup(PROCESS, readerGroupName);
 
         EventProcessorGroupConfig config = createEventProcessorGroupConfig(2);
         
