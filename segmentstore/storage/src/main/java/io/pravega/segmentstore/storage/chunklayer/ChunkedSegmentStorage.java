@@ -66,6 +66,8 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CREATE_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_LATENCY;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_NUM_CHUNKS;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_SIZE;
 
 /**
  * Implements storage for segments using {@link ChunkStorage} and {@link ChunkMetadataStore}.
@@ -729,6 +731,16 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         for (long offset = firstBlock * config.getIndexBlockSize(); offset < endOffset; offset += config.getIndexBlockSize()) {
             txn.delete(NameUtils.getSegmentReadIndexBlockName(segmentName, offset));
         }
+    }
+
+    /**
+     * Report size related metrics for the given system segment.
+     * @param segmentMetadata Segment metadata.
+     */
+    void reportMetricsForSystemSegment(SegmentMetadata segmentMetadata) {
+        val name = segmentMetadata.getName().substring(segmentMetadata.getName().lastIndexOf('/') + 1).replace('$', '_');
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_SIZE + name, segmentMetadata.getLength() - segmentMetadata.getStartOffset());
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_NUM_CHUNKS + name, segmentMetadata.getChunkCount());
     }
 
 
