@@ -149,7 +149,6 @@ Once in the pod, you can run the Pravega Admin CLI:
     OpenJDK 64-Bit Server VM warning: Option MaxRAMFraction was deprecated in version 10.0 and will likely be removed in a future release.
     Pravega Admin CLI.
     
-    Exception reading input properties file: null
     Initial configuration:
         pravegaservice.container.count=4
         bookkeeper.ledger.path=/pravega/pravega/bookkeeper/ledgers

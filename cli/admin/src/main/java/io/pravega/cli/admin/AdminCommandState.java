@@ -29,7 +29,7 @@ public class AdminCommandState implements AutoCloseable {
     @Getter
     private final ServiceBuilderConfig.Builder configBuilder;
     @Getter
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "password-tools");
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "admin-cli");
 
     /**
      * Creates a new instance of the AdminCommandState class.
@@ -39,7 +39,7 @@ public class AdminCommandState implements AutoCloseable {
     public AdminCommandState() throws IOException {
         this.configBuilder = ServiceBuilderConfig.builder();
         try {
-            this.configBuilder.include(System.getProperty(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, "conf/admin-cli.properties"));
+            this.configBuilder.include(System.getProperty(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, "config/admin-cli.properties"));
         } catch (FileNotFoundException ex) {
             // Nothing to do here.
         }

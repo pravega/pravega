@@ -31,21 +31,21 @@ import lombok.val;
 /**
  * Defines a Hasher for a Table Key.
  */
-abstract class KeyHasher {
-    /**
-     * Size of the Hash, in bytes.
-     */
-    static final int HASH_SIZE_BYTES = Long.BYTES + Long.BYTES; // UUID length.
-
+public abstract class KeyHasher {
     /**
      * Minimum value for any Key Hash, when compared using {@link UUID#compareTo}.
      */
-    static final UUID MIN_HASH = new UUID(TableBucket.CORE_ATTRIBUTE_PREFIX + 1, Long.MIN_VALUE);
+    public static final UUID MIN_HASH = new UUID(TableBucket.CORE_ATTRIBUTE_PREFIX + 1, Long.MIN_VALUE);
 
     /**
      * Maximum value for any Key Hash, when compared using {@link UUID#compareTo}.
      */
-    static final UUID MAX_HASH = new UUID(TableBucket.BACKPOINTER_PREFIX - 1, Long.MAX_VALUE);
+    public static final UUID MAX_HASH = new UUID(TableBucket.BACKPOINTER_PREFIX - 1, Long.MAX_VALUE);
+
+    /**
+     * Size of the Hash, in bytes.
+     */
+    static final int HASH_SIZE_BYTES = Long.BYTES + Long.BYTES; // UUID length.
 
     /**
      * Generates a new Key Hash for the given Key.
@@ -120,7 +120,7 @@ abstract class KeyHasher {
      *
      * @return A new instance of the KeyHasher class.
      */
-    static KeyHasher sha256() {
+    public static KeyHasher sha256() {
         return new Sha256Hasher();
     }
 

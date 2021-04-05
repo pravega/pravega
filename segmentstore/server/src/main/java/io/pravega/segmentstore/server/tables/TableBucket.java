@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.segmentstore.contracts.Attributes;
 import java.util.UUID;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -25,8 +26,8 @@ import lombok.RequiredArgsConstructor;
  * Represents a Table Bucket, which is identified by its unique Hash ({@link #getHash} and which is a collection of one
  * or more Table Entries. The Table Bucket points to the Table Entry with highest offset in the Segment.
  */
-@RequiredArgsConstructor
-class TableBucket {
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+public class TableBucket {
     /**
      * The MSB 64 bits of the Attribute Keys that represent Core Attributes.
      */

@@ -59,7 +59,7 @@ import lombok.val;
  * -- They begin from the {@link TableBucket}'s SegmentOffset and are chained up until there are no more Table Entries left.
  */
 @RequiredArgsConstructor
-class IndexReader {
+public class IndexReader {
     //region Members
 
     @NonNull
@@ -138,7 +138,7 @@ class IndexReader {
      * @param timer     Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the requested Bucket information.
      */
-    CompletableFuture<Map<UUID, TableBucket>> locateBuckets(DirectSegmentAccess segment, Collection<UUID> keyHashes, TimeoutTimer timer) {
+    public CompletableFuture<Map<UUID, TableBucket>> locateBuckets(DirectSegmentAccess segment, Collection<UUID> keyHashes, TimeoutTimer timer) {
         return segment
                 .getAttributes(keyHashes, false, timer.getRemaining())
                 .thenApply(attributes -> attributes.entrySet().stream()
@@ -153,7 +153,7 @@ class IndexReader {
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the backpointer offset, or -1 if no such pointer exists.
      */
-    CompletableFuture<Long> getBackpointerOffset(DirectSegmentAccess segment, long offset, Duration timeout) {
+    public CompletableFuture<Long> getBackpointerOffset(DirectSegmentAccess segment, long offset, Duration timeout) {
         UUID key = getBackpointerAttributeKey(offset);
         return segment.getAttributes(Collections.singleton(key), false, timeout)
                       .thenApply(attributes -> {

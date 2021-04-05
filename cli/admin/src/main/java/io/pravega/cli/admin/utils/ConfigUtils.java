@@ -15,8 +15,8 @@
  */
 package io.pravega.cli.admin.utils;
 
+import com.google.common.base.Strings;
 import io.pravega.cli.admin.AdminCommandState;
-
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.Properties;
@@ -34,15 +34,20 @@ public class ConfigUtils {
     public static void loadProperties(AdminCommandState state) {
         Properties pravegaProperties = new Properties();
         // First, load the properties from file, if any.
-        try (InputStream input = new FileInputStream(System.getProperty(CONFIG_FILE_PROPERTY_NAME))) {
-            pravegaProperties.load(input);
-        } catch (Exception e) {
-            System.err.println("Exception reading input properties file: " + e.getMessage());
-            pravegaProperties.clear();
+        String configFileName = System.getProperty(CONFIG_FILE_PROPERTY_NAME);
+        if (!Strings.isNullOrEmpty(configFileName)) {
+            try (InputStream input = new FileInputStream(configFileName)) {
+                pravegaProperties.load(input);
+            } catch (Exception e) {
+                System.err.println("Exception reading input properties file: " + e.getMessage());
+                pravegaProperties.clear();
+            }
+
+            System.out.println(String.format("Loaded config from file '%s'.", configFileName));
         }
 
         // Second, load properties from command line if any.
-        for (String propertyName: System.getProperties().stringPropertyNames()) {
+        for (String propertyName : System.getProperties().stringPropertyNames()) {
             if (propertyName.startsWith(PRAVEGA_SERVICE_PROPERTY_NAME)
                     || propertyName.startsWith(CLI_PROPERTY_NAME)
                     || propertyName.startsWith(BOOKKEEPER_PROPERTY_NAME)) {

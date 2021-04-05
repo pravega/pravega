@@ -42,7 +42,7 @@ import lombok.val;
  * We can't use VersionedSerializer here because in most cases we need to read only key and not the value. VersionedSerializer
  * requires us to read the whole thing before retrieving anything.
  */
-class EntrySerializer {
+public class EntrySerializer {
     static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
     static final int MAX_KEY_LENGTH = TableStore.MAXIMUM_KEY_LENGTH;
     /**
@@ -71,7 +71,7 @@ class EntrySerializer {
      * @param entry The {@link TableEntry} to serialize.
      * @return The number of bytes required to serialize.
      */
-    int getUpdateLength(@NonNull TableEntry entry) {
+    public int getUpdateLength(@NonNull TableEntry entry) {
         return HEADER_LENGTH + entry.getKey().getKey().getLength() + entry.getValue().getLength();
     }
 
@@ -128,7 +128,7 @@ class EntrySerializer {
      * @param key The {@link TableKey} to serialize for removal.
      * @return The number of bytes required to serialize.
      */
-    int getRemovalLength(@NonNull TableKey key) {
+    public int getRemovalLength(@NonNull TableKey key) {
         return HEADER_LENGTH + key.getKey().getLength();
     }
 
@@ -192,7 +192,7 @@ class EntrySerializer {
      * Defines a serialized Entry's Header.
      */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    static class Header {
+    public static class Header {
         private final byte serializationVersion;
         @Getter
         private final int keyLength;
@@ -210,7 +210,7 @@ class EntrySerializer {
             return HEADER_LENGTH + this.keyLength;
         }
 
-        int getTotalLength() {
+        public int getTotalLength() {
             return HEADER_LENGTH + this.keyLength + Math.max(0, this.valueLength);
         }
 

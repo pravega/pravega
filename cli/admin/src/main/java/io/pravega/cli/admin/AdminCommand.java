@@ -28,6 +28,11 @@ import io.pravega.cli.admin.bookkeeper.BookKeeperDisableCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperEnableCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperListCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerRecoverCommand;
+import io.pravega.cli.admin.cluster.GetClusterNodesCommand;
+import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
+import io.pravega.cli.admin.cluster.ListContainersCommand;
+import io.pravega.cli.admin.config.ConfigListCommand;
+import io.pravega.cli.admin.config.ConfigSetCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeReaderGroupCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeScopeCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeStreamCommand;
@@ -37,11 +42,13 @@ import io.pravega.cli.admin.controller.ControllerListStreamsInScopeCommand;
 import io.pravega.cli.admin.dataRecovery.DurableLogRecoveryCommand;
 import io.pravega.cli.admin.dataRecovery.StorageListSegmentsCommand;
 import io.pravega.cli.admin.password.PasswordFileCreatorCommand;
-import io.pravega.cli.admin.cluster.GetClusterNodesCommand;
-import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
-import io.pravega.cli.admin.cluster.ListContainersCommand;
-import io.pravega.cli.admin.config.ConfigListCommand;
-import io.pravega.cli.admin.config.ConfigSetCommand;
+import io.pravega.cli.admin.storage.GetSegmentAttributesCommand;
+import io.pravega.cli.admin.storage.GetSegmentInfoCommand;
+import io.pravega.cli.admin.storage.GetTableEntryCommand;
+import io.pravega.cli.admin.storage.ListSegmentAttributesCommand;
+import io.pravega.cli.admin.storage.ListTableEntriesIndexCommand;
+import io.pravega.cli.admin.storage.ReadSegmentCommand;
+import io.pravega.cli.admin.storage.ScanTableEntriesCommand;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -164,7 +171,13 @@ public abstract class AdminCommand {
     //region Arguments
 
     protected void ensureArgCount(int expectedCount) {
-        Preconditions.checkArgument(this.commandArgs.getArgs().size() == expectedCount, "Incorrect argument count.");
+        Preconditions.checkArgument(this.commandArgs.getArgs().size() == expectedCount,
+                "Incorrect argument count. Expected %s, actual %s.", expectedCount, this.commandArgs.getArgs().size());
+    }
+
+    protected void ensureArgCount(int minCount, int maxCount) {
+        Preconditions.checkArgument(this.commandArgs.getArgs().size() >= minCount && this.commandArgs.getArgs().size() <= maxCount,
+                "Incorrect argument count. Expected between %s and %s, actual %s.", minCount, maxCount, this.commandArgs.getArgs().size());
     }
 
     protected int getArgCount() {
@@ -175,7 +188,15 @@ public abstract class AdminCommand {
         return getArg(index, Integer::parseInt);
     }
 
-    private <T> T getArg(int index, Function<String, T> converter) {
+    protected long getLongArg(int index) {
+        return getArg(index, Long::parseLong);
+    }
+
+    protected String getArg(int index) {
+        return getArg(index, s -> s);
+    }
+
+    protected <T> T getArg(int index, Function<String, T> converter) {
         String s = null;
         try {
             s = this.commandArgs.getArgs().get(index);
@@ -246,6 +267,13 @@ public abstract class AdminCommand {
                         .put(PasswordFileCreatorCommand::descriptor, PasswordFileCreatorCommand::new)
                         .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)
                         .put(DurableLogRecoveryCommand::descriptor, DurableLogRecoveryCommand::new)
+                        .put(GetSegmentInfoCommand::descriptor, GetSegmentInfoCommand::new)
+                        .put(ReadSegmentCommand::descriptor, ReadSegmentCommand::new)
+                        .put(GetSegmentAttributesCommand::descriptor, GetSegmentAttributesCommand::new)
+                        .put(ListSegmentAttributesCommand::descriptor, ListSegmentAttributesCommand::new)
+                        .put(ListTableEntriesIndexCommand::descriptor, ListTableEntriesIndexCommand::new)
+                        .put(ScanTableEntriesCommand::descriptor, ScanTableEntriesCommand::new)
+                        .put(GetTableEntryCommand::descriptor, GetTableEntryCommand::new)
                         .build());
 
         /**

@@ -42,7 +42,7 @@ import lombok.val;
  * @param <ResultT> Type of the objects returned by an instance of this class.
  */
 @RequiredArgsConstructor
-abstract class TableBucketReader<ResultT> {
+public abstract class TableBucketReader<ResultT> {
     //region Members
 
     protected final EntrySerializer serializer = new EntrySerializer();
@@ -63,7 +63,7 @@ abstract class TableBucketReader<ResultT> {
      * @param executor       An Executor for async operations.
      * @return A new instance of the {@link TableBucketReader} class.
      */
-    static TableBucketReader<TableEntry> entry(@NonNull DirectSegmentAccess segment,
+    public static TableBucketReader<TableEntry> entry(@NonNull DirectSegmentAccess segment,
                                                @NonNull GetBackpointer getBackpointer, @NonNull Executor executor) {
         return new TableBucketReader.Entry(segment, getBackpointer, executor);
     }
@@ -77,7 +77,7 @@ abstract class TableBucketReader<ResultT> {
      * @param executor       An Executor for async operations.
      * @return A new instance of the {@link TableBucketReader} class.
      */
-    static TableBucketReader<TableKey> key(@NonNull DirectSegmentAccess segment,
+    public static TableBucketReader<TableKey> key(@NonNull DirectSegmentAccess segment,
                                            @NonNull GetBackpointer getBackpointer, @NonNull Executor executor) {
         return new TableBucketReader.Key(segment, getBackpointer, executor);
     }
@@ -119,7 +119,7 @@ abstract class TableBucketReader<ResultT> {
      * @param timer        A {@link TimeoutTimer} for the operation.
      * @return A CompletableFuture that, when completed, will indicate the operation completed.
      */
-    CompletableFuture<Void> findAll(long bucketOffset, BiConsumer<ResultT, Long> handler, TimeoutTimer timer) {
+    public CompletableFuture<Void> findAll(long bucketOffset, BiConsumer<ResultT, Long> handler, TimeoutTimer timer) {
         AtomicLong offset = new AtomicLong(bucketOffset);
         return Futures.loop(
                 () -> offset.get() >= 0,
@@ -151,7 +151,7 @@ abstract class TableBucketReader<ResultT> {
      * @return A CompletableFuture that, when completed, will contain the desired result, or null of no such result
      * was found.
      */
-    CompletableFuture<ResultT> find(BufferView soughtKey, long bucketOffset, TimeoutTimer timer) {
+    public CompletableFuture<ResultT> find(BufferView soughtKey, long bucketOffset, TimeoutTimer timer) {
         int maxReadLength = getMaxReadLength();
 
         // Read the Key at the current offset and check it against the sought one.
@@ -328,7 +328,7 @@ abstract class TableBucketReader<ResultT> {
     }
 
     @FunctionalInterface
-    interface GetBackpointer {
+    public interface GetBackpointer {
         CompletableFuture<Long> apply(DirectSegmentAccess segment, long offset, Duration timeout);
     }
 

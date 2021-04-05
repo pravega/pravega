@@ -46,7 +46,7 @@ import lombok.val;
  *
  * @param <ResultT> The type of the result.
  */
-abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler {
+public abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler {
     //region Members
     static final int INITIAL_READ_LENGTH = EntrySerializer.HEADER_LENGTH + EntrySerializer.MAX_KEY_LENGTH;
 
@@ -120,7 +120,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      * @return A {@link DeserializedEntry} that contains all the components of the {@link TableEntry}.
      * @throws SerializationException If an Exception occurred while deserializing the {@link DeserializedEntry}.
      */
-    static DeserializedEntry readEntryComponents(BufferView.Reader input, long segmentOffset, EntrySerializer serializer) throws SerializationException {
+    public static DeserializedEntry readEntryComponents(BufferView.Reader input, long segmentOffset, EntrySerializer serializer) throws SerializationException {
         val h = serializer.readHeader(input);
         long version = getKeyVersion(h, segmentOffset);
         BufferView key = input.readSlice(h.getKeyLength());
@@ -145,7 +145,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     /**
      * Completes the result with the given value.
      */
-    protected void complete(ResultT result) {
+    void complete(ResultT result) {
         this.result.complete(result);
     }
 
@@ -348,7 +348,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
     @Getter
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    static class DeserializedEntry {
+    public static class DeserializedEntry {
         /**
          * The Entry's Header.
          */
