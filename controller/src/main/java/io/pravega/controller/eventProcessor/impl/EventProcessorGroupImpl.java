@@ -228,28 +228,19 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             cell.stopAsync();
         }
         
-        try {
-            log.debug("Attempting to seal the reader group {} entry from checkpoint store", this.objectId);
-            checkpointStore.sealReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
-        } catch (CheckpointStoreException e) {
-            log.warn("Error sealing reader group " + this.objectId, e);
-            return;
-        }
-
         for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
             try {
                 cell.awaitTerminated();
                 log.debug("Termination of event processor cell: {} completed successfully.", cell);
             } catch (Exception e) {
                 log.warn("Failed terminating event processor cell {}.", cell, e);
-                return;
             }
         }
-
+        
         // Finally, clean up reader group from checkpoint store.
         try {
             log.debug("Attempting to clean up reader group {} entry from checkpoint store", this.objectId);
-            checkpointStore.removeReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
+            checkpointStore.removeProcessFromGroup(actorSystem.getProcess(), readerGroup.getGroupName());
         } catch (CheckpointStoreException e) {
             log.warn("Error removing reader group " + this.objectId, e);
             return;
@@ -263,7 +254,8 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         try {
             Map<String, Position> map;
             try {
-                map = checkpointStore.sealReaderGroup(process, readerGroup.getGroupName());
+                log.debug("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
+                map = checkpointStore.removeProcessFromGroup(process, readerGroup.getGroupName());
             } catch (CheckpointStoreException e) {
                 if (e.getType().equals(CheckpointStoreException.Type.NoNode)) {
                     return;
@@ -273,18 +265,10 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             }
 
             for (Map.Entry<String, Position> entry : map.entrySet()) {
-                // 1. Notify reader group about failed readers
+                //Notify reader group about failed readers
                 log.info("{} Notifying readerOffline reader={}, position={}", this.objectId, entry.getKey(), entry.getValue());
                 readerGroup.readerOffline(entry.getKey(), entry.getValue());
-
-                // 2. Clean up reader from checkpoint store
-                log.info("{} removing reader={} from checkpoint store", this.objectId, entry.getKey());
-                checkpointStore.removeReader(process, readerGroup.getGroupName(), entry.getKey());
             }
-
-            // finally, remove reader group from checkpoint store
-            log.debug("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
-            checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());
         } finally {
             LoggerHelpers.traceLeave(log, "notifyProcessFailure", traceId, process);
         }
@@ -380,6 +364,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             log.info("Stopping event processor cell: {}", cell);
             try {
                 cell.stopAsync();
+                checkpointStore.removeReader(cell.getProcess(), readerGroup.getGroupName(), readerId);
                 cell.awaitTerminated();
                 eventProcessorMap.remove(readerId);
                 log.info("Termination of event processor cell: {} completed successfully.", cell);

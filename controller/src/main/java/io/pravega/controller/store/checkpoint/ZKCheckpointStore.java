@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
@@ -149,6 +150,29 @@ class ZKCheckpointStore implements CheckpointStore {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NodeNotEmpty, "ReaderGroup is not empty.");
         }
         removeEmptyNode(path);
+    }
+    
+    @Override
+    public Map<String, Position> removeProcessFromGroup(String process, String readerGroup) throws CheckpointStoreException {
+        String path = getReaderGroupPath(process, readerGroup);
+
+        try {
+            updateReaderGroupData(path, groupData ->
+                    new ReaderGroupData(ReaderGroupData.State.Sealed, groupData.getReaderIds()));
+            Map<String, Position> result = getPositions(process, readerGroup);
+            for (String readerId : result.keySet()) {
+                removeReader(process, readerGroup, readerId);
+            }
+            removeReaderGroup(process, readerGroup);
+            return result;
+        } catch (KeeperException.NoNodeException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException
+                | KeeperException.SessionExpiredException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
+        } catch (Exception e) {
+            throw new CheckpointStoreException(e);
+        }
     }
 
     @Override

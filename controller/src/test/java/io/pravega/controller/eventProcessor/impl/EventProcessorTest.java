@@ -343,7 +343,7 @@ public class EventProcessorTest {
                 new EventStreamWriterMock<>(), system.getProcess(), READER_ID, 0, checkpointStore);
         cell.startAsync();
         cell.awaitTerminated();
-        Assert.assertTrue(true);
+        checkpointStore.removeReader(PROCESS, READER_GROUP, READER_ID);
 
         // Test case 6. Close event processor cell when reader/checkpoint store throw exceptions.
         Mockito.doThrow(new IllegalArgumentException("Failing reader")).when(reader).closeAt(any());
@@ -362,7 +362,6 @@ public class EventProcessorTest {
                 READER_ID, 0, checkpointStore);
         cell.startAsync();
         cell.awaitTerminated();
-        Assert.assertTrue(true);
     }
 
     @Test(timeout = 10000)
@@ -825,6 +824,7 @@ public class EventProcessorTest {
 
         TestEventProcessor actor = (TestEventProcessor) cell.getActor();
         assertEquals(expectedSum, actor.sum);
+        checkpointStore.removeReader(PROCESS, READER_GROUP, readerId);
         assertTrue(checkpointStore.getPositions(PROCESS, READER_GROUP).isEmpty());
     }
 }
