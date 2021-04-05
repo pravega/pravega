@@ -16,6 +16,7 @@
 package io.pravega.shared.metrics;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.Gauge;
@@ -37,48 +38,44 @@ public class MetricRegistryUtils {
     public static Counter getCounter(String metricsName, String... tags) {
         Collection<Counter> counters = Metrics.globalRegistry.find(metricsName).tags(tags).counters();
         int size = counters.size();
+        Preconditions.checkState(size <= 1, "Metric was not unique %s", counters.stream().map(m -> m.getId()).collect(Collectors.toList()));
         if (size == 0) {
             return null;
-        } else if (size == 1) {
-            return counters.iterator().next();
         } else {
-            throw new IllegalStateException("Metric was not unique " + counters.stream().map(m -> m.getId()).collect(Collectors.toList()));
+            return counters.iterator().next();
         }
     }
 
     public static DistributionSummary getMeter(String metricsName, String... tags) {
         Collection<DistributionSummary> summaries = Metrics.globalRegistry.find(metricsName).tags(tags).summaries();
         int size = summaries.size();
+        Preconditions.checkState(size <= 1, "Metric was not unique %s", summaries.stream().map(m -> m.getId()).collect(Collectors.toList()));
         if (size == 0) {
             return null;
-        } else if (size == 1) {
-            return summaries.iterator().next();
         } else {
-            throw new IllegalStateException("Metric was not unique " + summaries.stream().map(m -> m.getId()).collect(Collectors.toList()));
+            return summaries.iterator().next();
         }
     }
 
     public static Gauge getGauge(String metricsName, String... tags) {
         Collection<Gauge> gauges = Metrics.globalRegistry.find(metricsName).tags(tags).gauges();
         int size = gauges.size();
+        Preconditions.checkState(size <= 1, "Metric was not unique %s", gauges.stream().map(m -> m.getId()).collect(Collectors.toList()));
         if (size == 0) {
             return null;
-        } else if (size == 1) {
-            return gauges.iterator().next();
         } else {
-            throw new IllegalStateException("Metric was not unique " + gauges.stream().map(m -> m.getId()).collect(Collectors.toList()));
+            return gauges.iterator().next();
         }
     }
 
     public static Timer getTimer(String metricsName, String... tags) {
         Collection<Timer> timers = Metrics.globalRegistry.find(metricsName).tags(tags).timers();
         int size = timers.size();
+        Preconditions.checkState(size <= 1, "Metric was not unique %s", timers.stream().map(m -> m.getId()).collect(Collectors.toList()));
         if (size == 0) {
             return null;
-        } else if (size == 1) {
-            return timers.iterator().next();
         } else {
-            throw new IllegalStateException("Metric was not unique " + timers.stream().map(m -> m.getId()).collect(Collectors.toList()));
-        }
+            return timers.iterator().next();
+        } 
     }
 }
