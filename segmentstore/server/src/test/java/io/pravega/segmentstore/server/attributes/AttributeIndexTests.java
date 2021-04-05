@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.attributes;
 
@@ -658,7 +664,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         val cacheStatus = idx.getCacheStatus();
         Assert.assertEquals("Not expecting different generations yet.", cacheStatus.getOldestGeneration(), cacheStatus.getNewestGeneration());
         val newGen = cacheStatus.getNewestGeneration() + 1;
-        boolean anythingRemoved = idx.updateGenerations(newGen, newGen);
+        boolean anythingRemoved = idx.updateGenerations(newGen, newGen, false);
         Assert.assertTrue("Expecting something to be evicted.", anythingRemoved);
 
         // Re-check the index and verify at least one Storage Read happened.
@@ -675,6 +681,70 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         intercepted.set(false);
         checkIndex(idx, expectedValues);
         Assert.assertFalse("Not expecting any Storage read.", intercepted.get());
+    }
+
+    /**
+     * Tests the ability to enable or disable the cache based on {@link SegmentAttributeBTreeIndex#updateGenerations}
+     * when it receives different values for the "essentialOnly" arg.
+     */
+    @Test
+    public void testNonEssentialCache() throws Exception {
+        val attributeId = UUID.randomUUID();
+        val config = AttributeIndexConfig
+                .builder()
+                .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, 1024)
+                .build();
+
+        @Cleanup
+        val context = new TestContext(config);
+        populateSegments(context);
+
+        // 1. Populate and verify first index.
+        @Cleanup
+        val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        val expectedValues = new HashMap<UUID, Long>();
+        expectedValues.put(attributeId, 1L);
+
+        // Populate data.
+        idx.update(expectedValues, TIMEOUT).join();
+        checkIndex(idx, expectedValues);
+
+        val cacheStatus = idx.getCacheStatus();
+        val newGen = cacheStatus.getNewestGeneration() + 1;
+        boolean anythingRemoved = idx.updateGenerations(newGen, newGen, false);
+        Assert.assertTrue("Expecting something to be evicted (essential=false).", anythingRemoved);
+
+        val readCount = new AtomicInteger(0);
+        context.storage.readInterceptor = (String streamSegmentName, long offset, int length, SyncStorage wrappedStorage) -> {
+            readCount.incrementAndGet();
+            return CompletableFuture.completedFuture(null);
+        };
+
+        // Re-insert that page into the cache and verify it's being loaded and cached (by reading it twice).
+        checkIndex(idx, expectedValues);
+        checkIndex(idx, expectedValues);
+        Assert.assertEquals("Not expecting caching to be disabled yet.", 1, readCount.get());
+        TestUtils.await(() -> idx.getPendingReadCount() == 0, 5, TIMEOUT.toMillis()); // Let the pending read index clear before proceeding.
+
+        // Set the non-essential-only flag.
+        anythingRemoved = idx.updateGenerations(newGen, newGen, true);
+        Assert.assertFalse("Not expecting anything to be evicted (essential=true).", anythingRemoved);
+        checkIndex(idx, expectedValues);
+        Assert.assertEquals("Not expecting anything to be evicted yet (essential=true).", 1, readCount.get());
+
+        expectedValues.put(attributeId, 2L);
+        idx.update(expectedValues, TIMEOUT).join();
+        Assert.assertEquals("Not expecting any storage reads yet (essential=true).", 1, readCount.get());
+        checkIndex(idx, expectedValues);
+        Assert.assertEquals("Expected a storage read (essential=true).", 2, readCount.get());
+
+        // Disable the non-essential-only flag.
+        anythingRemoved = idx.updateGenerations(newGen, newGen, false);
+        TestUtils.await(() -> idx.getPendingReadCount() == 0, 5, TIMEOUT.toMillis()); // Let the pending read index clear before proceeding.
+        Assert.assertFalse("Not expecting anything to be evicted (essential=false).", anythingRemoved);
+        checkIndex(idx, expectedValues);
+        checkIndex(idx, expectedValues); // Do it twice to check that the cache has been properly re-enabled.
+        Assert.assertEquals("Expected a single storage read (essential=false).", 3, readCount.get());
     }
 
     /**

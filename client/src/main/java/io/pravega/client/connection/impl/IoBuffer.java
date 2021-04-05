@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.connection.impl;
 
@@ -49,9 +55,9 @@ class IoBuffer {
      * Obtain a ByteBuff of size `size` by reading data from the provided input stream or from this buffer if the data is already available.
      */
     public ByteBuf getBuffOfSize(InputStream in, int size) throws IOException {
-        checkArgument(size <= maxBufferSize, "Requested buffer size {} is larger than max allowd {}", size, maxBufferSize);
+        checkArgument(size <= maxBufferSize, "Requested buffer size {} is larger than max allowed {}", size, maxBufferSize);
         if (size == 0) {
-            // Technically this should not need to be special cased per the Javadoc of InputStrem, 
+            // Technically this should not need to be special cased per the Javadoc of InputStrem,
             // but ByteArrayInputStream has a bug that makes this needed.
             return Unpooled.EMPTY_BUFFER;
         }

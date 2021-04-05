@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
@@ -81,6 +87,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -92,6 +99,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+@Slf4j
 public class ReadTest extends LeakDetectorTestSuite {
 
     private static final int TIMEOUT_MILLIS = 60000;
@@ -150,10 +158,9 @@ public class ReadTest extends LeakDetectorTestSuite {
         String segmentName = "testReceivingReadCall";
         int entries = 10;
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-        UUID clientId = UUID.randomUUID();
 
         StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
-
+        // fill segment store with 10 entries; the total data size is 100 bytes.
         fillStoreForSegment(segmentName, data, entries, segmentStore);
         @Cleanup
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
@@ -165,16 +172,19 @@ public class ReadTest extends LeakDetectorTestSuite {
             assertEquals(result.getOffset(), actual.writerIndex());
             assertFalse(result.isEndOfSegment());
             actual.writeBytes(result.getData());
+            // release the ByteBuf and ensure it is deallocated.
+            assertTrue(result.getData().release());
             if (actual.writerIndex() < actual.capacity()) {
-                assertFalse(result.isAtTail());
                 // Prevent entering a tight loop by giving the store a bit of time to process al the appends internally
                 // before trying again.
                 Thread.sleep(10);
             } else {
+                // Verify the last read result has the the atTail flag set to true.
                 assertTrue(result.isAtTail());
+                // mark the channel as finished
+                assertFalse(channel.finish());
             }
         }
-
         ByteBuf expected = Unpooled.buffer(entries * data.length);
         for (int i = 0; i < entries; i++) {
             expected.writeBytes(data);
@@ -183,6 +193,9 @@ public class ReadTest extends LeakDetectorTestSuite {
         expected.writerIndex(expected.capacity()).resetReaderIndex();
         actual.writerIndex(actual.capacity()).resetReaderIndex();
         assertEquals(expected, actual);
+        // Release the ByteBuf and ensure it is deallocated.
+        assertTrue(actual.release());
+        assertTrue(expected.release());
     }
 
     @Test(timeout = 10000)

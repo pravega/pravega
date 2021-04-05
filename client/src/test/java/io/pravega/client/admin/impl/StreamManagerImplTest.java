@@ -1,19 +1,27 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.admin.impl;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.connection.impl.ClientConnection;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.stream.DeleteScopeFailedException;
@@ -103,7 +111,6 @@ public class StreamManagerImplTest {
         final Stream stream = new StreamImpl(defaultScope, streamName);
 
         // Setup Mocks
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         Mockito.doAnswer(new Answer<Void>() {
@@ -129,8 +136,9 @@ public class StreamManagerImplTest {
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                                                            connectionFactory, true);
+        ConnectionPoolImpl pool = new ConnectionPoolImpl(ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
         @Cleanup
-        final StreamManager streamManager = new StreamManagerImpl(mockController, connectionFactory);
+        final StreamManager streamManager = new StreamManagerImpl(mockController, pool);
 
         streamManager.createScope(defaultScope);
         streamManager.createStream(defaultScope, streamName, StreamConfiguration.builder()
@@ -157,7 +165,6 @@ public class StreamManagerImplTest {
         final Stream stream = new StreamImpl(defaultScope, streamName);
 
         // Setup Mocks
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         Mockito.doAnswer(new Answer<Void>() {
@@ -188,9 +195,10 @@ public class StreamManagerImplTest {
         StreamSegments empty = new StreamSegments(new TreeMap<>());
         doReturn(CompletableFuture.completedFuture(empty) ).when(mockController).getCurrentSegments(defaultScope, streamName);
 
+        ConnectionPoolImpl pool = new ConnectionPoolImpl(ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
         // Create a StreamManager
         @Cleanup
-        final StreamManager streamManager = new StreamManagerImpl(mockController, connectionFactory);
+        final StreamManager streamManager = new StreamManagerImpl(mockController, pool);
 
         // Create a scope and stream and seal it.
         streamManager.createScope(defaultScope);
@@ -217,7 +225,6 @@ public class StreamManagerImplTest {
     @Test(timeout = 10000)
     public void testListScopes() throws ConnectionFailedException {
         // Setup Mocks
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         Mockito.doAnswer(new Answer<Void>() {
@@ -243,8 +250,10 @@ public class StreamManagerImplTest {
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                 connectionFactory, true);
+        
+        ConnectionPoolImpl pool = new ConnectionPoolImpl(ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
         @Cleanup
-        final StreamManager streamManager = new StreamManagerImpl(mockController, connectionFactory);
+        final StreamManager streamManager = new StreamManagerImpl(mockController, pool);
 
         String scope = "scope";
         String scope1 = "scope1";
@@ -271,7 +280,6 @@ public class StreamManagerImplTest {
     @Test(timeout = 10000)
     public void testListStreamInScope() throws ConnectionFailedException {
         // Setup Mocks
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         Mockito.doAnswer(new Answer<Void>() {
@@ -297,8 +305,10 @@ public class StreamManagerImplTest {
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                 connectionFactory, true);
+        
+        ConnectionPoolImpl pool = new ConnectionPoolImpl(ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
         @Cleanup
-        final StreamManager streamManager = new StreamManagerImpl(mockController, connectionFactory);
+        final StreamManager streamManager = new StreamManagerImpl(mockController, pool);
 
         String scope = "scope";
         String stream1 = "stream1";
@@ -334,7 +344,6 @@ public class StreamManagerImplTest {
     @Test(timeout = 10000)
     public void testForceDeleteScope() throws ConnectionFailedException, DeleteScopeFailedException {
         // Setup Mocks
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         Mockito.doAnswer(new Answer<Void>() {
@@ -369,9 +378,10 @@ public class StreamManagerImplTest {
         connectionFactory.provideConnection(location, connection);
         MockController mockController = spy(new MockController(location.getEndpoint(), location.getPort(),
                 connectionFactory, true));
-        
+
+        ConnectionPoolImpl pool = new ConnectionPoolImpl(ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
         @Cleanup
-        final StreamManager streamManager = new StreamManagerImpl(mockController, connectionFactory);
+        final StreamManager streamManager = new StreamManagerImpl(mockController, pool);
 
         String scope = "scope";
         String stream1 = "stream1";

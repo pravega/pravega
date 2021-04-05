@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system;
 
@@ -128,10 +134,15 @@ public class OffsetTruncationTest extends AbstractReadWriteTest {
         // Instantiate readers to consume from Stream up to truncatedEvents.
         List<CompletableFuture<Integer>> futures = readEventFutures(clientFactory, READER_GROUP, PARALLELISM, truncatedEvents);
         Futures.allOf(futures).join();
+        // Ensure that we have read all the events required before initiating the checkpoint.
+        assertEquals("Number of events read is not the expected one.", (Integer) truncatedEvents,
+                futures.stream().map(f -> Futures.getAndHandleExceptions(f, RuntimeException::new)).reduce(Integer::sum).get());
 
         // Perform truncation on stream segment.
         Checkpoint cp = readerGroup.initiateCheckpoint("truncationCheckpoint", executor).join();
         StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
+        StreamCut alternativeStreamCut = readerGroup.generateStreamCuts(executor).join().get(Stream.of(SCOPE, STREAM));
+        assertEquals("StreamCuts for reader group differ depending on how they are generated.", streamCut, alternativeStreamCut);
         assertTrue(streamManager.truncateStream(SCOPE, STREAM, streamCut));
 
         // Just after the truncation, read events from the offset defined in truncate call onwards.
@@ -140,7 +151,7 @@ public class OffsetTruncationTest extends AbstractReadWriteTest {
         futures = readEventFutures(clientFactory, newGroupName, PARALLELISM);
         Futures.allOf(futures).join();
         assertEquals("Expected read events: ", totalEvents - truncatedEvents,
-                (int) futures.stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get());
+                (int) futures.stream().map(CompletableFuture::join).reduce(Integer::sum).get());
         log.debug("The stream has been successfully truncated at event {}. Offset truncation test passed.", truncatedEvents);
     }
 }

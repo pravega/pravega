@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
@@ -45,6 +51,7 @@ import io.pravega.segmentstore.server.host.handler.AppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor;
 import io.pravega.segmentstore.server.host.handler.ServerConnectionInboundHandler;
+import io.pravega.segmentstore.server.host.handler.TrackedConnection;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -80,6 +87,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.After;
 import org.junit.Before;
@@ -93,6 +101,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
+@Slf4j
 public class AppendTest extends LeakDetectorTestSuite {
     private ServiceBuilder serviceBuilder;
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
@@ -209,6 +218,7 @@ public class AppendTest extends LeakDetectorTestSuite {
 
     static Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
         channel.writeInbound(request);
+        log.info("Request {} sent to Segment store", request);
         Object encodedReply = channel.readOutbound();
         for (int i = 0; encodedReply == null && i < 50; i++) {
             channel.runPendingTasks();
@@ -216,6 +226,7 @@ public class AppendTest extends LeakDetectorTestSuite {
             encodedReply = channel.readOutbound();
         }
         if (encodedReply == null) {
+            log.error("Error while try waiting for a response from Segment Store");
             throw new IllegalStateException("No reply to request: " + request);
         }
         WireCommand decoded = CommandDecoder.parseCommand((ByteBuf) encodedReply);
@@ -234,7 +245,7 @@ public class AppendTest extends LeakDetectorTestSuite {
                 lsh);
         lsh.setRequestProcessor(AppendProcessor.defaultBuilder()
                                                .store(store)
-                                               .connection(lsh)
+                                               .connection(new TrackedConnection(lsh))
                                                .nextRequestProcessor(new PravegaRequestProcessor(store, mock(TableStore.class), lsh))
                                                .build());
         return channel;
@@ -427,5 +438,5 @@ public class AppendTest extends LeakDetectorTestSuite {
         System.out.println("Max latency: " + (maxLatency.get() / 1000000.0));
         return timer.getElapsedMillis();
     }
-    
+
 }

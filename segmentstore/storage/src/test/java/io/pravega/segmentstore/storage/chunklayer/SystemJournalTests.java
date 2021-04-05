@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.pravega.segmentstore.storage.chunklayer;
@@ -54,7 +60,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     }
 
     protected ChunkMetadataStore getMetadataStore() throws Exception {
-        return new InMemoryMetadataStore(executorService());
+        return new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
     }
 
     protected ChunkStorage getChunkStorage() throws Exception {
@@ -118,6 +124,31 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testCommitInvalidArgs() throws Exception {
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStore = getMetadataStore();
+        int containerId = 42;
+        int maxLength = 8;
+        long epoch = 1;
+        val policy = new SegmentRollingPolicy(maxLength);
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val journal = new SystemJournal(containerId, chunkStorage, metadataStore, config);
+
+        AssertExtensions.assertThrows("commitRecords() should throw",
+                () -> journal.commitRecord(null),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows("commitRecords() should throw",
+                () -> journal.commitRecords(null),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("commitRecords() should throw",
+                () -> journal.commitRecords(new ArrayList<>()),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
     public void testIsSystemSegment() throws Exception {
         @Cleanup
         ChunkStorage chunkStorage = getChunkStorage();
@@ -130,12 +161,46 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
         val journal = new SystemJournal(containerId, chunkStorage, metadataStore, config);
         Assert.assertFalse(journal.isStorageSystemSegment("foo"));
+        Assert.assertFalse(journal.isStorageSystemSegment("_system/foo"));
 
         Assert.assertTrue(journal.isStorageSystemSegment(NameUtils.getStorageMetadataSegmentName(containerId)));
         Assert.assertTrue(journal.isStorageSystemSegment(NameUtils.getAttributeSegmentName(NameUtils.getStorageMetadataSegmentName(containerId))));
         Assert.assertTrue(journal.isStorageSystemSegment(NameUtils.getMetadataSegmentName(containerId)));
         Assert.assertTrue(journal.isStorageSystemSegment(NameUtils.getAttributeSegmentName(NameUtils.getMetadataSegmentName(containerId))));
 
+    }
+
+    @Test
+    public void testSystemSegmentNoConcatAllowed() throws Exception {
+        @Cleanup
+        ChunkStorage chunkStorage = getChunkStorage();
+        @Cleanup
+        ChunkMetadataStore metadataStore = getMetadataStore();
+        int containerId = 42;
+        int maxLength = 8;
+        long epoch = 1;
+        val policy = new SegmentRollingPolicy(maxLength);
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val journal = new SystemJournal(containerId, chunkStorage, metadataStore, config);
+        val systemSegmentName = NameUtils.getAttributeSegmentName(NameUtils.getMetadataSegmentName(containerId));
+        Assert.assertTrue(journal.isStorageSystemSegment(systemSegmentName));
+        // Init
+        long offset = 0;
+
+        // Start container with epoch 1
+        @Cleanup
+        ChunkedSegmentStorage segmentStorage = new ChunkedSegmentStorage(containerId, chunkStorage, metadataStore, executorService(), config);
+
+        segmentStorage.initialize(epoch);
+        segmentStorage.bootstrap();
+        segmentStorage.create("test", null).get();
+
+        AssertExtensions.assertFutureThrows("concat() should throw",
+                segmentStorage.concat(SegmentStorageHandle.writeHandle(systemSegmentName), 0, "test", null),
+                ex -> ex instanceof IllegalStateException);
+        AssertExtensions.assertFutureThrows("concat() should throw",
+                segmentStorage.concat(SegmentStorageHandle.writeHandle("test"), 0, systemSegmentName, null),
+                ex -> ex instanceof IllegalStateException);
     }
 
     /**

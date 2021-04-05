@@ -1,11 +1,17 @@
 <!--
-Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright Pravega Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 -->
 # Watermarking
 
@@ -85,6 +91,7 @@ A Writer reports time corresponding to a position. A position identifies the loc
 last wrote something.
 
 There are three ways for Pravega Writers to report time.
+
 * Explicitly note the time  
 * Note time on transaction commit
 * Automatically note wall clock time
@@ -114,15 +121,16 @@ writer.noteTime(currentTime);
 
 For transactional writes, the commit call can supply the timestamp. The following Writer method passes the time to the
 Controller as part of the commit.
+```java
+void commit(long timestamp) throws TxnFailedException;
+```
 
 For example:
 
 ```java
-void commit(long timestamp) throws TxnFailedException;
-
 Transaction<EventType> txn = writer.beginTxn();
 
-        //... write events to transaction.
+      //... write events to transaction.
 
 txn.commit(txnTimestamp);
 ```
@@ -158,14 +166,15 @@ The following Reader API method requests the current watermark window.
 
 The `TimeWindow` is returned as:
 
-  ```
-    public class TimeWindow {
-        private final long lowerTimeBound;
-        private final long upperTimeBound;
-    }
-  ```
+```java
+public class TimeWindow {
+    private final long lowerTimeBound;
+    private final long upperTimeBound;
+}
+```
 
 where:
+
 * `lowerTimeBound` of the  window is the watermark. The Controller asserts that all readers are done reading all events
 earlier than the watermark.
 *  `upperTimeBound` is an arbitrary assignment that can help applications keep track of a moving window of time.

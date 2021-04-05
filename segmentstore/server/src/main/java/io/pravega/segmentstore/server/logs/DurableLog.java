@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
@@ -319,7 +325,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         // Before we do any real truncation, we need to mini-snapshot the metadata with only those fields that are updated
         // asynchronously for us (i.e., not via normal Log Operations) such as the Storage State. That ensures that this
         // info will be readily available upon recovery without delay.
-        return add(new StorageMetadataCheckpointOperation(), OperationPriority.High, timer.getRemaining())
+        return add(new StorageMetadataCheckpointOperation(), OperationPriority.SystemCritical, timer.getRemaining())
                 .thenComposeAsync(v -> this.durableDataLog.truncate(truncationFrameAddress, timer.getRemaining()), this.executor)
                 .thenRunAsync(() -> this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber), this.executor);
     }
@@ -329,9 +335,9 @@ public class DurableLog extends AbstractService implements OperationLog {
         log.debug("{}: Queuing MetadataCheckpointOperation.", this.traceObjectId);
         MetadataCheckpointOperation op = new MetadataCheckpointOperation();
         return this.operationProcessor
-                .process(op, OperationPriority.Normal)
+                .process(op, OperationPriority.SystemCritical)
                 .thenApply(v -> {
-                    log.info("{}: MetadataCheckpointOperation durably stored.", this.traceObjectId);
+                    log.info("{}: MetadataCheckpointOperation({}) stored.", this.traceObjectId, op.getSequenceNumber());
                     return op.getSequenceNumber();
                 });
     }
@@ -342,9 +348,12 @@ public class DurableLog extends AbstractService implements OperationLog {
         log.debug("{}: Read (MaxCount = {}, Timeout = {}).", this.traceObjectId, maxCount, timeout);
         CompletableFuture<Queue<Operation>> result = this.inMemoryOperationLog.take(maxCount, timeout, this.executor);
         result.thenAccept(r -> {
-            int size = r.size();
+            final int size = r.size();
             this.operationProcessor.getMetrics().operationLogRead(size);
-            log.debug("{}: ReadResult (Count = {}).", this.traceObjectId, size);
+            log.debug("{}: ReadResult (Count = {}, Remaining = {}).", this.traceObjectId, size, this.inMemoryOperationLog.size());
+            if (size > 0) {
+                this.memoryStateUpdater.notifyLogRead();
+            }
         });
         return result;
     }
