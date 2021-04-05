@@ -65,8 +65,6 @@ abstract class MetricProxy<MetricT extends Metric, SelfT extends MetricProxy<Met
      */
     protected abstract SelfT getSelf();
     
-    protected abstract MetricT getNullInstance();
-    
     /**
      * Gets the id of the underlying metric.
      *

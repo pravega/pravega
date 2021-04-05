@@ -47,9 +47,4 @@ class CounterProxy extends MetricProxy<Counter, CounterProxy> implements Counter
     protected CounterProxy getSelf() {
         return this;
     }
-
-    @Override
-    protected Counter getNullInstance() {
-        return NullStatsLogger.NULLCOUNTER;
-    }
 }
