@@ -49,6 +49,7 @@ import io.pravega.cli.admin.storage.ListSegmentAttributesCommand;
 import io.pravega.cli.admin.storage.ListTableEntriesIndexCommand;
 import io.pravega.cli.admin.storage.ReadSegmentCommand;
 import io.pravega.cli.admin.storage.ScanTableEntriesCommand;
+import io.pravega.cli.admin.storage.UpdateSegmentAttributesCommand;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -274,6 +275,7 @@ public abstract class AdminCommand {
                         .put(ListTableEntriesIndexCommand::descriptor, ListTableEntriesIndexCommand::new)
                         .put(ScanTableEntriesCommand::descriptor, ScanTableEntriesCommand::new)
                         .put(GetTableEntryCommand::descriptor, GetTableEntryCommand::new)
+                        .put(UpdateSegmentAttributesCommand::descriptor, UpdateSegmentAttributesCommand::new)
                         .build());
 
         /**

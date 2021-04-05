@@ -15,12 +15,15 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -53,6 +56,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
@@ -147,9 +151,23 @@ public class DebugStorageSegment implements AutoCloseable {
      * @return A CompletableFuture which will contain the result.
      */
     public CompletableFuture<Map<UUID, Long>> getAttributes(@NonNull Collection<UUID> keys) {
-        // No need to close the index. It will be auto-closed when we close this class instance.
         return asDirectSegmentAccess()
                 .thenComposeAsync(s -> s.getAttributes(keys, false, DEFAULT_TIMEOUT), this.executor);
+    }
+
+    /**
+     * Updates a set of Segment Attributes for the Segment.
+     *
+     * @param newValues A map of Attributes to values. If an attribute should be removed, its value can either be {@code null}
+     *                  or {@link Attributes#NULL_ATTRIBUTE_VALUE}.
+     * @return A CompletableFuture that will indicate when the operation completed.
+     */
+    public CompletableFuture<Void> updateAttributes(@NonNull Map<UUID, Long> newValues) {
+        val updates = newValues.entrySet().stream()
+                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue() == null ? Attributes.NULL_ATTRIBUTE_VALUE : e.getValue()))
+                .collect(Collectors.toList());
+        return asDirectSegmentAccess()
+                .thenComposeAsync(s -> s.updateAttributes(updates, DEFAULT_TIMEOUT), this.executor);
     }
 
     /**
@@ -353,6 +371,14 @@ public class DebugStorageSegment implements AutoCloseable {
                     .thenApplyAsync(idx -> idx.iterator(fromId, toId, DEFAULT_TIMEOUT), DebugStorageSegment.this.executor);
         }
 
+        @Override
+        public CompletableFuture<Void> updateAttributes(Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+            val updates = attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
+            return getAttributeIndex()
+                    .thenComposeAsync(idx -> idx.update(updates, timeout), DebugStorageSegment.this.executor)
+                    .thenRun(Runnables.doNothing());
+        }
+
         //region Unsupported Operations
 
         @Override
@@ -362,11 +388,6 @@ public class DebugStorageSegment implements AutoCloseable {
 
         @Override
         public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, long offset, Duration timeout) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public CompletableFuture<Void> updateAttributes(Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             throw new UnsupportedOperationException();
         }
 
