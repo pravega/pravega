@@ -137,7 +137,7 @@ jobs:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
           key: ${{github.run_id}}-${{github.job}}
       - name: Controller Unit tests
-        run: ./gradlew controller:test --parallel ${{env.GRADLE_OPTS}}
+        run: ./gradlew controller:test shared:controller-api:test --parallel ${{env.GRADLE_OPTS}}
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
@@ -235,6 +235,7 @@ jobs:
           -x common:test
           -x test:testcommon:test
           -x controller:test
+          -x shared:controller-api:test
           -x test:integration:test
           -x bindings:test
           -x segmentstore:storage:impl:test
@@ -277,6 +278,8 @@ jobs:
     steps:
       - name: Check Build Status
         run: echo Build, static analysis, unit and integration tests successful.
+      - name: Codecov
+        uses: codecov/codecov-action@v1.0.15
 
   snapshot:
     name: Artifactory Snapshot
