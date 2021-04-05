@@ -391,7 +391,7 @@ public class DebugStorageSegment implements AutoCloseable {
      * Contextual information about a Table Entry.
      */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    @Data
+    @Getter
     public static class TableEntryInfo {
         private final UUID bucketHash;
         private final long bucketOffset;
