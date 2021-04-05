@@ -21,11 +21,6 @@ import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.Callable;
@@ -33,6 +28,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Base implementation of {@link ChunkStorage}.
@@ -718,7 +717,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
     /**
      * Context data used to capture operation runtime information.
      */
-    static class OperationContext {
+    protected static class OperationContext {
         /**
          * End to end latency of the operation.
          */
