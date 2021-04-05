@@ -52,7 +52,10 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 import static io.pravega.common.concurrent.Futures.getThrowingException;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static java.util.concurrent.CompletableFuture.completedFuture;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
 
 /**
  * Unit tests for the Futures class.
@@ -75,22 +78,39 @@ public class FuturesTests extends ThreadPooledTestSuite {
                      e -> e.getMessage().equals("fail") && e.getClass().equals(RuntimeException.class));
     }
     
-    @Test
+    @Test(timeout = 10000)
     public void testGetAndHandleException() throws TimeoutException {
         CompletableFuture<String> future = new CompletableFuture<String>();
         future.complete("success");
         assertEquals("success", getAndHandleExceptions(future, RuntimeException::new));
-        assertEquals("success", getAndHandleExceptions(future, RuntimeException::new, 1000, TimeUnit.MILLISECONDS));
+        assertEquals("success", getAndHandleExceptions(future, RuntimeException::new, 1000, MILLISECONDS));
         CompletableFuture<String> failedFuture  = new CompletableFuture<String>();
         failedFuture.completeExceptionally(new IllegalArgumentException("fail"));
         assertThrows("",
                      () -> getAndHandleExceptions(failedFuture, RuntimeException::new),
                      e -> e.getMessage().equals("java.lang.IllegalArgumentException: fail") && e.getClass().equals(RuntimeException.class));
         assertThrows("",
-                     () -> getAndHandleExceptions(failedFuture, RuntimeException::new, 1000, TimeUnit.MILLISECONDS),
+                     () -> getAndHandleExceptions(failedFuture, RuntimeException::new, 1000, MILLISECONDS),
                      e -> e.getMessage().equals("java.lang.IllegalArgumentException: fail") && e.getClass().equals(RuntimeException.class));
         CompletableFuture<String> incompleteFuture = new CompletableFuture<String>();
-        assertThrows(TimeoutException.class, () -> getAndHandleExceptions(incompleteFuture, RuntimeException::new, 10, TimeUnit.MILLISECONDS));
+        assertThrows(TimeoutException.class, () -> getAndHandleExceptions(incompleteFuture, RuntimeException::new, 10, MILLISECONDS));
+        Thread.currentThread().interrupt();
+        try {
+            getAndHandleExceptions(incompleteFuture, RuntimeException::new);
+            fail();
+            Thread.sleep(1); //Here only to fix compiler error
+        } catch (InterruptedException e) {
+            assertEquals(true, Thread.interrupted());
+        }
+        Thread.currentThread().interrupt();
+        try {
+            getAndHandleExceptions(incompleteFuture, RuntimeException::new, 1000, MILLISECONDS);
+            fail();
+            Thread.sleep(1); //Here only to fix compiler error
+        } catch (InterruptedException e) {
+            assertEquals(true, Thread.interrupted());
+        }
+        assertFalse(Thread.currentThread().isInterrupted());
     }
     
     @Test
