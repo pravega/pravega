@@ -16,6 +16,8 @@ limitations under the License.
 # Pravega Deployment Overview
 
 This guide describes the options for running Pravega for development, testing and in production.
+If you are interested on deploying Pravega in production, we recommend you to have a look to our [Configuration and
+Provisioning Guide](../admin-guide/cluster-dependencies.md).
 
 ## Pravega Modes
 
@@ -53,3 +55,4 @@ There are multiple options provided for running Pravega in different environment
     - [Docker Swarm](docker-swarm.md)
     - [DC/OS](dcos-install.md)
     - [Cloud (AWS)](aws-install.md)
+- [Configuration and Provisioning Guide](../admin-guide/cluster-dependencies.md) for production clusters.
