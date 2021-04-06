@@ -160,7 +160,7 @@ fetch_fluent_logs() {
     fi
     local pravega_log_pod=$(kubectl get pods -n=$NAMESPACE -l "app=$FLUENT_BIT_DEPLOYMENT" -o custom-columns=:.metadata.name --no-headers)
     # Prematurely rotate the logs to receive the most up to date log set.
-#   kubectl exec "$pravega_log_pod" -n=$NAMESPACE -- /etc/config/watch.sh force
+    kubectl exec "$pravega_log_pod" -n=$NAMESPACE -- /etc/config/watch.sh force
 
     log_files=()
     local pods=$@
@@ -353,7 +353,6 @@ reclaim() {
         utilization=\$(((end_kib * 100)/total_kib))
         echo "Reclaimed a total of \$((reclaimed/gigabyte))GiB (\$((reclaimed/megabyte))MiB). Total(MiB): \$((total_kib/kilobyte)) , Used: \$((end_kib/kilobyte)) (\${utilization}%)"
     fi
-    set +
 }
 
 # This function assumes the '-%s' dateformat will be applied. It transforms any files in the '$MOUNT_PATH'
@@ -549,7 +548,7 @@ spec:
     spec:
       containers:
       - name: alpine
-        image: devops-repo.isus.emc.com:8116/nautilus/alpine:latest
+        image: alpine
         workingDir: $MOUNT_PATH
         command: [ '/bin/ash', '-c' ]
         args:
