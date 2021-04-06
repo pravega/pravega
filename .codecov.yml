@@ -13,6 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+codecov:
+  require_ci_to_pass: yes
+  notify:
+    after_n_builds: 5
+    wait_for_ci: yes
+
 coverage:
   status:
     project:

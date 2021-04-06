@@ -278,8 +278,6 @@ jobs:
     steps:
       - name: Check Build Status
         run: echo Build, static analysis, unit and integration tests successful.
-      - name: Codecov
-        uses: codecov/codecov-action@v1.0.15
 
   snapshot:
     name: Artifactory Snapshot
