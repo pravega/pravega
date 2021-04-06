@@ -17,8 +17,6 @@
 
 set -euo pipefail
 
-SCRIPTS=$(dirname $(readlink -f $BASH_SOURCE))
-
 PVC_NAME=pravega-log-sink
 VOLUME_NAME=logs
 HOST_LOGS=host-logs
