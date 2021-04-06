@@ -112,7 +112,7 @@ public class StatsLoggerProxy implements StatsLogger {
             return createProxy.apply(newMetric, keys.getCacheKey(), closeCallback);
         });
     }
-    
+
     private interface ProxyCreator<T1, R> {
         R apply(T1 metricInstance, String proxyName, Consumer<R> closeCallback);
     }

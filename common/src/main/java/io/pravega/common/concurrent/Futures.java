@@ -241,7 +241,7 @@ public final class Futures {
     
     /**
      * Calls get on the provided future, passing a timeout, handling interrupted, and transforming
-     * the executionException into an exception of the type whose constructor is provided.
+     * the {@link ExecutionException} into an exception of the type whose constructor is provided.
      *
      * @param future The future whose result is wanted
      * @param exceptionConstructor This can be any function that either transforms an exception i.e.

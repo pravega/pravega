@@ -57,7 +57,7 @@ import static org.junit.Assert.assertTrue;
 public class EndToEndCBRTest extends AbstractEndToEndTest {
 
     private static final long CLOCK_ADVANCE_INTERVAL = 60 * 1000000000L;
-    
+
     @Test(timeout = 60000)
     public void testReaderGroupAutoRetention() throws Exception {
         String scope = "test";
