@@ -132,7 +132,7 @@ cp_log() {
     local output_file="$(echo $file | sed 's/:/-/g')"
     # If we needed to create a directory for this collection, make sure to clean it up.
     kubectl cp "$pravega_log_pod:$MOUNT_PATH/$file" "$output_file" -n=$NAMESPACE > /dev/null
-    printf "%.64s (%s/%s)\n" "$file" "$(warn $logs_fetched)" "$(debug $total)"
+    printf "%.64s (%s/%s)\n" "$file" "$logs_fetched" "$total"
     tar -rf "$TAR_NAME" "$output_file" 2> /dev/null
     rm "$output_file"
 }
@@ -177,7 +177,7 @@ fetch_fluent_logs() {
         fi
     done <<< $pods
 
-    echo $(info "Found $total logs to fetch.")
+    echo "Found $total logs to fetch."
     pushd "$output" > /dev/null 2>&1
     # Query logs from pravega-log-pod and archive them.
     rm -rf "$TAR_NAME"{.gz,}
