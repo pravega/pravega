@@ -151,14 +151,11 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         log.info("Reading event e1 from {}/{}", SCOPE, STREAM);
         reader.readNextEvent(READ_TIMEOUT);
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
-        Map<Stream, StreamCut> streamCuts = generateStreamCuts(readerGroup);
+        CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(executor);
+        EventRead<String> emptyEvent = reader.readNextEvent(100);
+        Map<Stream, StreamCut> streamCuts = futureCuts.get();
         log.info("{} updating its retention stream-cut to {}", READER_GROUP, streamCuts);
         readerGroup.updateRetentionStreamCut(streamCuts);
-
-        // Check to make sure no truncation happened as the min policy is 30 bytes.
-        AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
-                new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off == 0),
-                5 * 60 * 1000L);
 
         // Write two more events.
         log.info("Writing event e2 to {}/{}", SCOPE, STREAM);
@@ -175,7 +172,9 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         log.info("Reading event e2 from {}/{}", SCOPE, STREAM);
         reader.readNextEvent(READ_TIMEOUT);
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
-        Map<Stream, StreamCut> streamCuts2 = generateStreamCuts(readerGroup);
+        CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup.generateStreamCuts(executor);
+        EventRead<String> emptyEvent2 = reader.readNextEvent(100);
+        Map<Stream, StreamCut> streamCuts2 = futureCuts2.get();
         log.info("{} updating its retention stream-cut to {}", READER_GROUP, streamCuts2);
         readerGroup.updateRetentionStreamCut(streamCuts2);
 
@@ -183,31 +182,5 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(
                 new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 60),
                 5 * 60 * 1000L);
-    }
-
-    private Map<Stream, StreamCut> generateStreamCuts(final ReaderGroup readerGroup) {
-        log.info("Generate StreamCuts");
-        String readerId = "streamCut";
-        CompletableFuture<Map<Stream, StreamCut>> streamCuts = null;
-
-        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
-
-        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
-             EventStreamReader<String> reader = clientFactory.createReader(readerId, READER_GROUP,
-                     new JavaSerializer<String>(), readerConfig)) {
-
-            streamCuts = readerGroup.generateStreamCuts(executor); //create checkpoint
-
-            Exceptions.handleInterrupted(() -> TimeUnit.MILLISECONDS.sleep(GROUP_REFRESH_TIME_MILLIS)); // sleep for group refresh.
-            //read the next event, this causes the reader to update its latest offset.
-            EventRead<String> event = reader.readNextEvent(READ_TIMEOUT);
-            assertTrue("No events expected as all events are read", (event.getEvent() == null) && (!event.isCheckpoint()));
-            Futures.exceptionListener(streamCuts, t -> log.error("StreamCut generation failed", t));
-            assertTrue("Stream cut generation should be completed", Futures.await(streamCuts));
-        } catch (ReinitializationRequiredException e) {
-            log.error("Exception while reading event using readerId: {}", readerId, e);
-            fail("Reinitialization Exception is not expected");
-        }
-        return streamCuts.join();
     }
 }
