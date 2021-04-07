@@ -364,8 +364,8 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             log.info("Stopping event processor cell: {}", cell);
             try {
                 cell.stopAsync();
-                checkpointStore.removeReader(cell.getProcess(), readerGroup.getGroupName(), readerId);
                 cell.awaitTerminated();
+                checkpointStore.removeReader(cell.getProcess(), readerGroup.getGroupName(), readerId);
                 eventProcessorMap.remove(readerId);
                 log.info("Termination of event processor cell: {} completed successfully.", cell);
             } catch (Exception e) {

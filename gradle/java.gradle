@@ -105,7 +105,6 @@ plugins.withId('java') {
         def outputCache = new LinkedList<String>()
 
         beforeTest { descriptor ->
-            logger.lifecycle("\nRunning test: " + descriptor.getClassName() + " > " + descriptor.getDisplayName());
             outputCache.clear()
         }
 
@@ -117,7 +116,7 @@ plugins.withId('java') {
         afterTest { descriptor, result ->
             if (result.resultType == TestResult.ResultType.FAILURE && outputCache.size() > 0) {
                 println()
-                println("Output of ${descriptor.getClassName()}.${descriptor.getDisplayName()} (Last 300 lines):")
+                println("${descriptor.getClassName()}.${descriptor.getDisplayName()} failed. Output (Last 300 lines):")
                 outputCache.each { print(" > $it") }
             }
         }
