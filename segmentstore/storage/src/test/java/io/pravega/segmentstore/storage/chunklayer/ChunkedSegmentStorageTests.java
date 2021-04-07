@@ -98,7 +98,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     public ChunkMetadataStore createMetadataStore() throws Exception {
-        return new InMemoryMetadataStore(executorService());
+        return new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
     }
 
     public TestContext getTestContext() throws Exception {
@@ -2913,7 +2913,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          * Gets {@link ChunkMetadataStore} to use for the tests.
          */
         public ChunkMetadataStore createMetadataStore() throws Exception {
-            return new InMemoryMetadataStore(executor);
+            return new InMemoryMetadataStore(config, executor);
         }
 
         /**

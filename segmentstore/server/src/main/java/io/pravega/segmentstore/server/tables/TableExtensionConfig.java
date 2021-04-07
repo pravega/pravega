@@ -32,7 +32,7 @@ import lombok.Data;
  */
 @Data
 @Builder
-class TableExtensionConfig {
+public class TableExtensionConfig {
     /**
      * The maximum unindexed length ({@link SegmentProperties#getLength() - {@link TableAttributes#INDEX_OFFSET}}) of a
      * Segment for which {@link ContainerKeyIndex} {@code triggerCacheTailIndex} can be invoked.
@@ -88,7 +88,7 @@ class TableExtensionConfig {
      * The default Segment Attributes to set for every new Table Segment. These values will override the corresponding
      * defaults from {@link TableAttributes#DEFAULT_VALUES}.
      */
-    Map<UUID, Long> getDefaultCompactionAttributes() {
+    public Map<UUID, Long> getDefaultCompactionAttributes() {
         return ImmutableMap.of(TableAttributes.MIN_UTILIZATION, getDefaultMinUtilization(),
                 Attributes.ROLLOVER_SIZE, getDefaultRolloverSize());
     }

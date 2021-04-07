@@ -80,7 +80,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
         Timer timer = new Timer();
         long requestId = streamMetadataTasks.getRequestId(null);
         OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
-        log.debug(requestId, "Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(),
+        log.info(requestId, "Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(),
                 event.getStream());
 
         return Futures.toVoid(streamMetadataStore.getSegmentsInEpoch(event.getScope(), event.getStream(), epoch, context, 

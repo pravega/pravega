@@ -92,7 +92,7 @@ public class TxnSweeper implements FailoverSweeper {
                 RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor);
         return hostsOwningTxns.thenComposeAsync(index -> {
             index.removeAll(activeHosts.get());
-            log.info("Failed hosts {} have orphaned tasks", index);
+            log.info("Failed hosts {} have orphaned tasks.", index);
             return Futures.allOf(index.stream().map(this::handleFailedProcess).collect(Collectors.toList()));
         }, executor);
     }

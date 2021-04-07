@@ -666,6 +666,7 @@ public class SegmentHelper implements AutoCloseable {
     @VisibleForTesting
     <T extends Request & WireCommand> void processAndRethrowException(long requestId, T request, Throwable e) {
         Throwable unwrap = Exceptions.unwrap(e);
+        WireCommandFailedException ex = null;
         if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
             log.warn(requestId, "Connection dropped {}", request.getRequestId());
             throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);

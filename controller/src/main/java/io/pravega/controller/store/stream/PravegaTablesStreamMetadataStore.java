@@ -100,21 +100,36 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         this.executor = executor;
     }
 
+    @VisibleForTesting
+    PravegaTablesStreamMetadataStore(CuratorFramework curatorClient, ScheduledExecutorService executor,
+                                     Duration gcPeriod, PravegaTablesStoreHelper helper) {
+        super(new ZKHostIndex(curatorClient, "/hostTxnIndex", executor), new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
+        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
+        this.orderer = new ZkOrderedStore("txnCommitOrderer", zkStoreHelper, executor);
+        this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, zkStoreHelper, this::gcCompletedTxn, gcPeriod);
+        this.completedTxnGC.startAsync();
+        this.completedTxnGC.awaitRunning();
+        this.completedTxnGCRef = new AtomicReference<>(completedTxnGC);
+        this.counter = new ZkInt96Counter(zkStoreHelper);
+        this.storeHelper = helper;
+        this.executor = executor;
+    }
+
     @Override
     public OperationContext createScopeContext(String scopeName, long requestId) {
         PravegaTablesScope scope = newScope(scopeName);
         return new ScopeOperationContext(scope, requestId);
     }
-    
+
     @Override
     public OperationContext createStreamContext(String scopeName, String streamName, long requestId) {
         PravegaTablesScope scope = newScope(scopeName);
-        Stream stream = new PravegaTablesStream(scopeName, streamName, storeHelper, orderer, 
+        Stream stream = new PravegaTablesStream(scopeName, streamName, storeHelper, orderer,
                 completedTxnGCRef.get()::getLatestBatch, scope::getStreamsInScopeTableName, executor);
 
         return new StreamOperationContext(scope, stream, requestId);
     }
-    
+
     @VisibleForTesting 
     CompletableFuture<Void> gcCompletedTxn() {
         List<String> batches = new ArrayList<>();

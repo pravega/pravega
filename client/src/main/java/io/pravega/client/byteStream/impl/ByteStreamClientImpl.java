@@ -72,7 +72,7 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory {
 
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment, AccessOperation.READ);
         SegmentMetadataClient metaClient = metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider);
-        long startOffset = metaClient.getSegmentInfo().getStartingOffset();
+        long startOffset = Futures.getThrowingException(metaClient.getSegmentInfo()).getStartingOffset();
         return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, tokenProvider, startOffset),
                 metaClient);
     }

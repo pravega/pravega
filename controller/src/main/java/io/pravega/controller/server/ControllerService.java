@@ -210,7 +210,7 @@ public class ControllerService {
         try {
             NameUtils.validateReaderGroupName(rgName);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn(requestId, "Create ReaderGroup failed due to invalid name {}", rgName);
+            log.error(requestId, "Create ReaderGroup failed due to invalid name {}", rgName);
             return CompletableFuture.completedFuture(
                     CreateReaderGroupResponse.newBuilder().setStatus(CreateReaderGroupResponse.Status.INVALID_RG_NAME).build());
         }
@@ -333,7 +333,7 @@ public class ControllerService {
         try {
             NameUtils.validateStreamName(stream);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn(requestId, "Create stream failed due to invalid stream name {}", stream);
+            log.error(requestId, "Create stream failed due to invalid stream name {}", stream);
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
@@ -657,7 +657,9 @@ public class ControllerService {
         return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, writerId, timestamp, requestId)
                 .handle((ok, ex) -> {
                     if (ex != null) {
-                        log.warn(requestId, "Transaction commit failed", ex);
+                        log.error(requestId, "Transaction commit failed", ex);
+                        log.error("Transaction commit failed for txn {} on stream {}. Cause: {}", txId.toString(),
+                                NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof RetryableException) {
                             // if its a retryable exception (it could be either write conflict or store exception)
@@ -699,7 +701,8 @@ public class ControllerService {
         return streamTransactionMetadataTasks.abortTxn(scope, stream, txId, null, requestId)
                 .handle((ok, ex) -> {
                     if (ex != null) {
-                        log.warn(requestId, "Transaction abort failed", ex);
+                        log.error(requestId, "Transaction abort failed for txn {} on Stream {}", txId.toString(),
+                                NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof RetryableException) {
                             // if its a retryable exception (it could be either write conflict or store exception)
@@ -769,7 +772,7 @@ public class ControllerService {
         try {
             NameUtils.validateScopeName(scope);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn(requestId, "Create scope failed due to invalid scope name {}", scope);
+            log.error(requestId, "Create scope failed due to invalid scope name {}", scope);
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
                     CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
         }

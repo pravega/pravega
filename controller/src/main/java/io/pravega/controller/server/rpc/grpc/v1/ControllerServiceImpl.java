@@ -143,7 +143,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void getControllerServerList(ServerRequest request, StreamObserver<ServerResponse> responseObserver) {
-        log.info("getControllerServerList called.");
+        log.trace("getControllerServerList called.");
         authenticateExecuteAndProcessResults(() -> "",
                 delegationToken -> controllerService.getControllerServerList()
                                      .thenApply(servers -> ServerResponse.newBuilder().addAllNodeURI(servers).build()),

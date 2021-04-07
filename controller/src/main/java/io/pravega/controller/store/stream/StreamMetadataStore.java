@@ -1542,7 +1542,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return true if stream exists, false otherwise
      */
-    CompletableFuture<Boolean> checkReaderGroupExists(final String scope, final String rgName, OperationContext context, Executor executor);
+    CompletableFuture<Boolean> checkReaderGroupExists(final String scope, final String rgName, OperationContext context,
+                                                      Executor executor);
 
     /**
      * Api to retrieve ReaderGroup id from the metadata.
@@ -1552,5 +1553,6 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return true if stream exists, false otherwise
      */
-    CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName, OperationContext context, Executor executor);
+    CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName, OperationContext context, 
+                                             Executor executor);
 }

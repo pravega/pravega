@@ -63,6 +63,7 @@ import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.AbstractMap;
@@ -112,13 +113,15 @@ public abstract class ScaleRequestHandlerTest {
     public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     protected ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework zkClient;
+    protected StreamMetadataStore streamStore;
+    protected StreamMetadataTasks streamMetadataTasks;
 
     private final String scope = "scope";
     private final String stream = "stream";
-    private StreamMetadataStore streamStore;
+
     private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
-    private StreamMetadataTasks streamMetadataTasks;
+
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
     private TestingServer zkServer;
