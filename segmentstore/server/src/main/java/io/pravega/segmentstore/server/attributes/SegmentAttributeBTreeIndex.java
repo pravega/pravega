@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.attributes;
 
@@ -105,6 +111,8 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
     private int currentCacheGeneration;
     @GuardedBy("cacheEntries")
     private final Map<Long, CacheEntry> cacheEntries;
+    @GuardedBy("cacheEntries")
+    private boolean cacheDisabled;
     @GuardedBy("pendingReads")
     private final Map<Long, PendingRead> pendingReads;
     private final BTreeIndex index;
@@ -148,6 +156,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         this.cacheEntries = new HashMap<>();
         this.pendingReads = new HashMap<>();
         this.closed = new AtomicBoolean();
+        this.cacheDisabled = false;
     }
 
     /**
@@ -247,12 +256,14 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
     }
 
     @Override
-    public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
+    public boolean updateGenerations(int currentGeneration, int oldestGeneration, boolean essentialOnly) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         // Remove those entries that have a generation below the oldest permissible one.
         boolean anyRemoved;
         synchronized (this.cacheEntries) {
+            // All of our data are non-essential as we only cache BTreeIndex pages that are already durable persisted.
+            this.cacheDisabled = essentialOnly;
             this.currentCacheGeneration = currentGeneration;
             ArrayList<CacheEntry> toRemove = new ArrayList<>();
             for (val entry : this.cacheEntries.values()) {
@@ -356,6 +367,13 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
     @VisibleForTesting
     SegmentHandle getAttributeSegmentHandle() {
         return this.handle.get();
+    }
+
+    @VisibleForTesting
+    int getPendingReadCount() {
+        synchronized (this.pendingReads) {
+            return this.pendingReads.size();
+        }
     }
 
     @Override
@@ -714,6 +732,14 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         CacheEntry entry = this.cacheEntries.getOrDefault(entryOffset, null);
         if (entry != null && entry.getSize() == data.getLength()) {
             // Already cached.
+            return;
+        }
+
+        // All our cache entries are considered "non-essential" since they can always be reloaded from Storage. Do not
+        // try to insert/update them into the cache if such traffic is discouraged.
+        if (this.cacheDisabled) {
+            log.debug("{}: Cache update skipped for offset {}, length {}. Non-essential cache disabled.",
+                    this.traceObjectId, entryOffset, data.getLength());
             return;
         }
 

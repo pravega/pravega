@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- * 
+ * Copyright Pravega Authors.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
@@ -43,19 +49,11 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import io.pravega.test.integration.demo.ControllerWrapper;
-import java.net.URI;
+
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
@@ -72,9 +70,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
+
+import org.junit.ClassRule;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -88,78 +85,30 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class WatermarkingTest extends ThreadPooledTestSuite {
 
-    private final int controllerPort = TestUtils.getAvailableListenPort();
-    private final int servicePort = TestUtils.getAvailableListenPort();
-
-    private TestingServer zkTestServer;
-    private ControllerWrapper controllerWrapper;
-    private PravegaConnectionListener server;
-    private ServiceBuilder serviceBuilder;
-    private StreamSegmentStore store;
-    private TableStore tableStore;
-    private AtomicLong timer = new AtomicLong();
+    @ClassRule
+    public static final PravegaResource PRAVEGA = new PravegaResource();
+    private final AtomicLong timer = new AtomicLong();
 
     protected int getThreadPoolSize() {
         return 5;
     }
 
-    @Before
-    public void setup() throws Exception {
-        final String serviceHost = "localhost";
-        final int containerCount = 4;
-
-        // 1. Start ZK
-        zkTestServer = new TestingServerStarter().start();
-
-        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize();
-        store = serviceBuilder.createStreamSegmentService();
-        tableStore = serviceBuilder.createTableStoreService();
-
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
-        server.startListening();
-
-        // 2. Start controller
-        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
-                controllerPort, serviceHost, servicePort, containerCount);
-
-        controllerWrapper.awaitRunning();
-        timer.set(0);
-    }
-
-    @After
-    public void cleanup() throws Exception {
-        if (controllerWrapper != null) {
-            controllerWrapper.close();
-        }
-        if (server != null) {
-            server.close();
-        }
-        if (serviceBuilder != null) {
-            serviceBuilder.close();
-        }
-        if (zkTestServer != null) {
-            zkTestServer.close();
-        }
-    }
-
     @Test(timeout = 120000)
     public void watermarkTest() throws Exception {
-        Controller controller = controllerWrapper.getController();
+        Controller controller = PRAVEGA.getLocalController();
         String scope = "scope";
         String stream = "stream";
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
-
-        URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build();
         @Cleanup
-        StreamManager streamManager = StreamManager.create(controllerUri);
+        StreamManager streamManager = StreamManager.create(clientConfig);
         streamManager.createScope(scope);
         streamManager.createStream(scope, stream, config);
 
         Stream streamObj = Stream.of(scope, stream);
 
         // create 2 writers
-        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
         JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
@@ -201,11 +150,11 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
         writer1Future.join();
         writer2Future.join();
-        
+
         // read events from the stream
         @Cleanup
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory);
-        
+
         Watermark watermark0 = watermarks.take();
         Watermark watermark1 = watermarks.take();
         assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
@@ -221,13 +170,14 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         StreamCut streamCutSecond = new StreamCutImpl(streamObj, positionMap1);
         Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(streamObj, streamCutFirst);
         Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(streamObj, streamCutSecond);
-        
+
         // read from stream cut of first watermark
         String readerGroup = "rg";
         readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
-                                                                                         .startingStreamCuts(firstMarkStreamCut)
-                                                                                         .endingStreamCuts(secondMarkStreamCut)
-                                                                                         .build());
+                .startingStreamCuts(firstMarkStreamCut)
+                .endingStreamCuts(secondMarkStreamCut)
+                .disableAutomaticCheckpoints()
+                .build());
 
         @Cleanup
         final EventStreamReader<Long> reader = clientFactory.createReader("myreader",
@@ -255,34 +205,34 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
             assertTrue(currentTimeWindow.getLowerTimeBound() == null || nextTimeWindow.getLowerTimeBound() >= currentTimeWindow.getLowerTimeBound());
             assertTrue(currentTimeWindow.getUpperTimeBound() == null || nextTimeWindow.getUpperTimeBound() >= currentTimeWindow.getUpperTimeBound());
             currentTimeWindow = nextTimeWindow;
-            
+
             event = reader.readNextEvent(10000L);
             if (event.isCheckpoint()) {
                 event = reader.readNextEvent(10000L);
             }
         }
-        
+
         assertNotNull(currentTimeWindow.getLowerTimeBound());
     }
 
 
     @Test(timeout = 120000)
     public void recreateStreamWatermarkTest() throws Exception {
-        // in each iteration create stream, note times and let watermark be generated. 
-        // then delete stream and move to next iteration and verify that watermarks are generated. 
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build();
+
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(clientConfig);
+
+        // in each iteration create stream, note times and let watermark be generated.
+        // then delete stream and move to next iteration and verify that watermarks are generated.
         for (int i = 0; i < 2; i++) {
             String scope = "scope";
             String stream = "recreate";
-            StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
 
-            URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
-            @Cleanup
-            StreamManager streamManager = StreamManager.create(controllerUri);
             streamManager.createScope(scope);
             streamManager.createStream(scope, stream, config);
-            
             // create writer
-            ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
             @Cleanup
             EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
             JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
@@ -307,7 +257,6 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
             fetchWatermarks(watermarkReader, watermarks, stopFlag);
 
             AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
-
             // stop run and seal and delete stream
             stopFlag.set(true);
             writerFuture.join();
@@ -318,21 +267,21 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 120000)
     public void watermarkTxnTest() throws Exception {
-        Controller controller = controllerWrapper.getController();
+        Controller controller = PRAVEGA.getLocalController();
         String scope = "scopeTx";
         String stream = "streamTx";
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build();
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
 
-        URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
         @Cleanup
-        StreamManager streamManager = StreamManager.create(controllerUri);
+        StreamManager streamManager = StreamManager.create(clientConfig);
         streamManager.createScope(scope);
         streamManager.createStream(scope, stream, config);
 
         Stream streamObj = Stream.of(scope, stream);
 
         // create 2 writers
-        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
         JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
@@ -400,9 +349,9 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         // read from stream cut of first watermark
         String readerGroup = "rgTx";
         readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
-                                                                           .startingStreamCuts(firstMarkStreamCut)
-                                                                           .endingStreamCuts(secondMarkStreamCut)
-                                                                           .build());
+                .startingStreamCuts(firstMarkStreamCut)
+                .endingStreamCuts(secondMarkStreamCut).disableAutomaticCheckpoints()
+                .build());
 
         @Cleanup
         final EventStreamReader<Long> reader = clientFactory.createReader("myreaderTx",
@@ -446,12 +395,10 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         String streamName = "Timeout";
         int numSegments = 1;
 
-        URI controllerUri = URI.create("tcp://localhost:" + controllerPort);
-
-        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build();
 
         @Cleanup
-        StreamManager streamManager = StreamManager.create(controllerUri);
+        StreamManager streamManager = StreamManager.create(clientConfig);
         assertNotNull(streamManager);
 
         streamManager.createScope(scope);
@@ -474,7 +421,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         AtomicBoolean stopFlag = new AtomicBoolean(false);
         fetchWatermarks(watermarkReader, watermarks, stopFlag);
 
-        // create two writers and write two sevent and call note time for each writer. 
+        // create two writers and write two sevent and call note time for each writer.
         @Cleanup
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(streamName,
                 new JavaSerializer<>(),
@@ -491,8 +438,8 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
 
         // writer0 should timeout. writer1 and writer2 should result in two more watermarks with following times:
         // 1: 100L-101L 2: 101-101
-        // then first writer should timeout and be discarded. But second writer should continue to be active as its time 
-        // is higher than first watermark. This should result in a second watermark to be emitted.  
+        // then first writer should timeout and be discarded. But second writer should continue to be active as its time
+        // is higher than first watermark. This should result in a second watermark to be emitted.
         AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() == 2, 100000);
         Watermark watermark1 = watermarks.poll();
         Watermark watermark2 = watermarks.poll();
@@ -509,7 +456,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         writer1.writeEvent("3").get();
         writer1.noteTime(101L);
 
-        // no watermark should be emitted. 
+        // no watermark should be emitted.
         Watermark nullMark = watermarks.poll(10, TimeUnit.SECONDS);
         assertNull(nullMark);
     }
@@ -537,7 +484,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
             currentTime.set(timer.incrementAndGet());
             return writer.writeEvent(count.toString(), currentTime.get())
                     .thenAccept(v -> {
-                        if (count.incrementAndGet() % 10 == 0) {
+                        if (count.incrementAndGet() % 3 == 0) {
                             writer.noteTime(currentTime.get());
                         }
                     });
@@ -570,13 +517,11 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
             Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
             if (marks.hasNext()) {
                 Map.Entry<Revision, Watermark> next = marks.next();
-                log.info("watermark = {}", next.getValue());
-
                 watermarks.add(next.getValue());
                 revision.set(next.getKey());
             }
             return null;
-        }, Duration.ofSeconds(10), executorService()), executorService());
+        }, Duration.ofSeconds(5), executorService()), executorService());
     }
 
 }

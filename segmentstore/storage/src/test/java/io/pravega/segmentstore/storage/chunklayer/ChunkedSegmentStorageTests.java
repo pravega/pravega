@@ -1,16 +1,23 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
 import com.google.common.base.Preconditions;
 import com.google.common.primitives.Longs;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -31,6 +38,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.noop.NoOpChunkStorage;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
@@ -90,7 +98,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
     }
 
     public ChunkMetadataStore createMetadataStore() throws Exception {
-        return new InMemoryMetadataStore(executorService());
+        return new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
     }
 
     public TestContext getTestContext() throws Exception {
@@ -2670,6 +2678,71 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
                 new long[]{3L * Integer.MAX_VALUE + 3L});
     }
 
+    @Test
+    public void testWritesWithFlakyMetadataStore() throws Exception {
+        val primes = new int[] { 2, 3, 5, 7, 11};
+        for (int i = 0; i < primes.length; i++) {
+            for (int j = 0; j < primes.length; j++) {
+                testWritesWithFlakyMetadataStore(primes[i], primes[j]);
+            }
+        }
+    }
+
+    public void testWritesWithFlakyMetadataStore(int failFrequency, int length) throws Exception {
+        String testSegmentName = "foo";
+        @Cleanup
+        TestContext testContext = getTestContext(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .lazyCommitEnabled(false)
+                .build());
+
+        val invocationCount = new AtomicInteger(0);
+        val testMetadataStore = (InMemoryMetadataStore) testContext.metadataStore;
+        testMetadataStore.setMaxEntriesInTxnBuffer(1);
+        testMetadataStore.setWriteCallback(dummy -> {
+            if (invocationCount.incrementAndGet() % failFrequency == 0) {
+                return CompletableFuture.failedFuture(new IntentionalException("Intentional"));
+            }
+            return CompletableFuture.completedFuture(null);
+        });
+
+        val h = testContext.chunkedSegmentStorage.create(testSegmentName, null).get();
+
+        byte[] data = populate(100);
+
+        int currentOffset = 0;
+
+        SegmentMetadata expectedSegmentMetadata = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
+        ChunkMetadata expectedChunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore, expectedSegmentMetadata.getLastChunk());
+
+        testMetadataStore.evictAllEligibleEntriesFromBuffer();
+        testMetadataStore.evictFromCache();
+
+        while (currentOffset < data.length) {
+            try {
+                int toWrite = Math.min(length, data.length - currentOffset);
+                expectedSegmentMetadata = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
+                expectedChunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore, expectedSegmentMetadata.getLastChunk());
+                testContext.chunkedSegmentStorage.write(h, currentOffset, new ByteArrayInputStream(data, currentOffset, toWrite), toWrite, null).get();
+                currentOffset += toWrite;
+            } catch (Exception e) {
+                if (!(Exceptions.unwrap(e) instanceof IntentionalException)) {
+                    throw e;
+                }
+                val actual = TestUtils.getSegmentMetadata(testContext.metadataStore, testSegmentName);
+                val actualChunkMetadata = TestUtils.getChunkMetadata(testContext.metadataStore, expectedSegmentMetadata.getLastChunk());
+                Assert.assertEquals(expectedSegmentMetadata, actual);
+                Assert.assertEquals(expectedChunkMetadata, actualChunkMetadata);
+            } finally {
+                val info = testContext.chunkedSegmentStorage.getStreamSegmentInfo(testSegmentName, null).get();
+                Assert.assertEquals(info.getLength(), currentOffset);
+            }
+        }
+
+        testMetadataStore.setWriteCallback(null);
+
+        checkDataRead(testSegmentName, testContext, 0, data.length, data);
+    }
+
     private void checkDataRead(String testSegmentName, TestContext testContext, long offset, long length) throws InterruptedException, java.util.concurrent.ExecutionException {
         checkDataRead(testSegmentName, testContext, offset, length, null);
     }
@@ -2840,7 +2913,7 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
          * Gets {@link ChunkMetadataStore} to use for the tests.
          */
         public ChunkMetadataStore createMetadataStore() throws Exception {
-            return new InMemoryMetadataStore(executor);
+            return new InMemoryMetadataStore(config, executor);
         }
 
         /**

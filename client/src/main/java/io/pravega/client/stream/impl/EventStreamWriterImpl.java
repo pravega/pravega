@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -27,6 +33,7 @@ import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
+import io.pravega.common.util.ReusableLatch;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,6 +84,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final SegmentSelector selector;
     private final Consumer<Segment> segmentSealedCallBack;
     private final ConcurrentLinkedQueue<Segment> sealedSegmentQueue = new ConcurrentLinkedQueue<>();
+    private final ReusableLatch sealedSegmentQueueEmptyLatch = new ReusableLatch(true);
     private final ExecutorService retransmitPool;
     private final Pinger pinger;
     private final DelegationTokenProvider tokenProvider;
@@ -165,6 +173,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      * message find which new segment it should go to and send it there. 
      */
     private void handleLogSealed(Segment segment) {
+        sealedSegmentQueueEmptyLatch.reset();
         sealedSegmentQueue.add(segment);
         retransmitPool.execute(() -> {
             Retry.indefinitelyWithExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
@@ -205,6 +214,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                              toSeal = sealedSegmentQueue.poll();
                              log.info("Sealing another segment {} ", toSeal);
                          }
+                         sealedSegmentQueueEmptyLatch.release();
                      }
                      return null;
                  });
@@ -250,11 +260,23 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                         // available writers.
                         success = false;
                         log.warn("Flush on segment {} failed due to {}, it will be retried.", writer.getSegmentName(), e.getMessage());
+                        tryWaitForSuccessors();
                         break;
                     }
                 }
             }
         }
+    }
+    
+    /**
+     * This is used by flush to optimistically wait for the `handleLogSealed` work to be completed
+     * to prevent a busy loop while waiting for the segments to be updated following a sealed
+     * segment. Please note there are no guarantees about when this method returns. It can be
+     * thought of as a sleep.
+     */
+    @GuardedBy("writeFlushLock")
+    private void tryWaitForSuccessors() {
+        Exceptions.handleInterrupted(() -> sealedSegmentQueueEmptyLatch.await());
     }
 
     @Override
@@ -274,6 +296,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                         // Segment sealed exception observed during a close. Re-run close on all the available writers.
                         success = false;
                         log.warn("Close failed due to {}, it will be retried.", e.getMessage());
+                        tryWaitForSuccessors();
                     }
                 }
             }
