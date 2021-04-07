@@ -1209,7 +1209,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
             Stream stream = getStream(scopeName, streamName, context);
         return Futures.completeOn(stream.getActiveEpoch(true, context)
-                                        .thenCompose(stream::getSplitMergeCountsTillEpoch), executor);
+                                        .thenCompose(x -> stream.getSplitMergeCountsTillEpoch(x, context)), executor);
     }
 
     OperationContext getOperationContext(OperationContext context) {

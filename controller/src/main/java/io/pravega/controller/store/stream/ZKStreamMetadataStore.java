@@ -23,7 +23,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.BitConverter;
-import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.ZKScope;
 import io.pravega.controller.store.ZKStoreHelper;
@@ -69,7 +68,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     static final String COMPLETED_TX_BATCH_ROOT_PATH = COMPLETED_TX_ROOT_PATH + "/batches";
     static final String COMPLETED_TX_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
 
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SegmentHelper.class));
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ZKStreamMetadataStore.class));
 
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)

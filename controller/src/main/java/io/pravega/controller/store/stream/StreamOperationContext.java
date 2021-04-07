@@ -15,12 +15,20 @@
  */
 package io.pravega.controller.store.stream;
 
-import com.google.common.base.Preconditions;
 import io.pravega.controller.store.Scope;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+@AllArgsConstructor
 class StreamOperationContext implements OperationContext {
     @Getter
+    
+    
+    
+    
+    
+    
+    
     private final Scope scope;
     @Getter
     private final Stream stream;
@@ -28,12 +36,4 @@ class StreamOperationContext implements OperationContext {
     private final long requestId;
     @Getter
     private final long operationStartTime = System.currentTimeMillis();
-
-    StreamOperationContext(Scope scope, Stream stream, long requestId) {
-        Preconditions.checkNotNull(scope, "scope cannot be null");
-        Preconditions.checkNotNull(scope, "stream cannot be null");
-        this.scope = scope;
-        this.stream = stream;
-        this.requestId = requestId;
-    }
 }
