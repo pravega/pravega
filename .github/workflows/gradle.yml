@@ -82,7 +82,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
+          key: ${{github.ref}}
       - name: Compile & Checkstyle
         run: ./gradlew jar compileTest checkstyleMain checkstyleTest --parallel ${{env.GRADLE_OPTS}}
 # Uncomment these two lines if you need ssh access to debug a build.
@@ -104,12 +104,12 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
+          key: ${{github.ref}}
       - name: Test Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.job}}
+          key: ${{github.ref}}-${{github.job}}
       - name: Unit tests
         run: ./gradlew client:test shared:protocol:test shared:security:test common:test test:testcommon:test --parallel ${{env.GRADLE_OPTS}}
       - name: Codecov
@@ -130,12 +130,12 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
+          key: ${{github.ref}}
       - name: Test Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.job}}
+          key: ${{github.ref}}-${{github.job}}
       - name: Controller Unit tests
         run: ./gradlew controller:test shared:controller-api:test --parallel ${{env.GRADLE_OPTS}}
       - name: Codecov
@@ -156,12 +156,12 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
+          key: ${{github.ref}}
       - name: Test Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.job}}
+          key: ${{github.ref}}-${{github.job}}
       - name: Segment Store Unit tests
         run: >
           ./gradlew
@@ -187,12 +187,12 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
+          key: ${{github.ref}}
       - name: Test Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.job}}
+          key: ${{github.ref}}-${{github.job}}
       - name: Segment Store Unit tests
         run: >
           ./gradlew
@@ -217,12 +217,12 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
+          key: ${{github.ref}}
       - name: Test Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.job}}
+          key: ${{github.ref}}-${{github.job}}
       - name: Static analysis tests
         run: >
           ./gradlew rat spotbugsMain spotbugsTest --parallel ${{env.GRADLE_OPTS}}
@@ -261,12 +261,12 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
+          key: ${{github.ref}}
       - name: Test Output Cache
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.job}}
+          key: ${{github.ref}}-${{github.job}}
       - name: Integration Tests
         run: ./gradlew test:integration:test --parallel ${{env.GRADLE_OPTS}}
 
@@ -296,7 +296,7 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
+          key: ${{github.ref}}
       - name: Assemble
         run: ./gradlew assemble --parallel ${{env.GRADLE_OPTS}}
       - name: Publish Shapshot
