@@ -46,7 +46,7 @@ import org.apache.bookkeeper.common.concurrent.FutureUtils;
  * General utilities pertaining to BookKeeper Ledgers.
  */
 @Slf4j
-final class Ledgers {
+public final class Ledgers {
     static final Charset CUSTOM_PROPERTY_CHARSET = Charsets.US_ASCII;
     static final String PROPERTY_APPLICATION = "application";
     static final String PROPERTY_VALUE_APPLICATION = "Pravega";
@@ -139,7 +139,7 @@ final class Ledgers {
      * @return A ReadHandle for the newly opened ledger.
      * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
      */
-    static ReadHandle openRead(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
+    public static ReadHandle openRead(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
             return Exceptions.handleInterruptedCall(
                     () -> FutureUtils.result(bookKeeper
@@ -256,13 +256,13 @@ final class Ledgers {
     }
 
     /**
-     * Gets the {@link #PROPERTY_LOG_ID} value from the given {@link LedgerHandle}, as stored in its custom metadata.
+     * Gets the {@link #PROPERTY_LOG_ID} value from the given {@link Handle}, as stored in its custom metadata.
      *
-     * @param handle The {@link LedgerHandle} to query.
+     * @param handle The {@link Handle} to query.
      * @return The Log Id stored in {@link #PROPERTY_LOG_ID}, or {@link #NO_LOG_ID} if not defined (i.e., due to an upgrade
      * from a version that did not store this information).
      */
-    static int getBookKeeperLogId(Handle handle) {
+    public static int getBookKeeperLogId(Handle handle) {
         String appName = getPropertyValue(PROPERTY_APPLICATION, handle);
         if (appName == null || !appName.equalsIgnoreCase(PROPERTY_VALUE_APPLICATION)) {
             log.warn("Property '{}' on Ledger {} does not match expected value '{}' (actual '{}'). This is OK if this ledger was created prior to Pravega 0.7.1.",

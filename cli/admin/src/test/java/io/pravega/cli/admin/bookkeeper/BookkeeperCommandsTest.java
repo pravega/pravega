@@ -209,6 +209,17 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         state.operationComplete(op, null);
     }
 
+    @Test
+    public void testBookKeeperReconcileCommand() throws Exception {
+        createLedgerInBookkeeperTestCluster(0);
+        Assert.assertFalse(TestUtils.executeCommand("bk reconcile 0", STATE.get()).contains("reconciliation completed"));
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        TestUtils.executeCommand("bk disable 0", STATE.get());
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        String commandResult = TestUtils.executeCommand("bk reconcile 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("reconciliation completed"));
+    }
+
     private void createLedgerInBookkeeperTestCluster(int logId) throws Exception {
         BookKeeperConfig bookKeeperConfig = BookKeeperConfig.builder()
                 .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)

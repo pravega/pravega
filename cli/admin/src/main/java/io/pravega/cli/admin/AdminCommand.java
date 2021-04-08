@@ -22,12 +22,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
-import io.pravega.cli.admin.bookkeeper.BookKeeperCleanupCommand;
-import io.pravega.cli.admin.bookkeeper.BookKeeperDetailsCommand;
-import io.pravega.cli.admin.bookkeeper.BookKeeperDisableCommand;
-import io.pravega.cli.admin.bookkeeper.BookKeeperEnableCommand;
-import io.pravega.cli.admin.bookkeeper.BookKeeperListCommand;
-import io.pravega.cli.admin.bookkeeper.ContainerRecoverCommand;
+import io.pravega.cli.admin.bookkeeper.*;
 import io.pravega.cli.admin.controller.ControllerDescribeReaderGroupCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeScopeCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeStreamCommand;
@@ -233,6 +228,7 @@ public abstract class AdminCommand {
                         .put(BookKeeperDetailsCommand::descriptor, BookKeeperDetailsCommand::new)
                         .put(BookKeeperEnableCommand::descriptor, BookKeeperEnableCommand::new)
                         .put(BookKeeperDisableCommand::descriptor, BookKeeperDisableCommand::new)
+                        .put(BookKeeperLogReconciliationCommand::descriptor, BookKeeperLogReconciliationCommand::new)
                         .put(ContainerRecoverCommand::descriptor, ContainerRecoverCommand::new)
                         .put(ControllerListScopesCommand::descriptor, ControllerListScopesCommand::new)
                         .put(ControllerDescribeScopeCommand::descriptor, ControllerDescribeScopeCommand::new)
