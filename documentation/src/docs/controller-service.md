@@ -9,6 +9,7 @@ You may obtain a copy of the License at
 -->
 <span id="_Toc506543504" class="anchor"><span id="_Toc506545512" class="anchor"></span></span>Pravega Controller Service
 ========================================================================================================================
+
 *  [Introduction](#introduction)
 *  [Architecture](#architecture)
     - [Stream Management](#stream-management)
@@ -21,10 +22,14 @@ You may obtain a copy of the License at
     - [Stream Metadata Store](#stream-metadata-store)
         - [Stream Metadata](#stream-metadata)
         - [Stream Store Caching](#stream-store-caching)
+    - [Key Value Table Metadata Store](#Key-Value-Table-Metadata-Store)
     - [Stream Buckets](#stream-buckets)
-    - [Controller Cluster Listener](#controller-cluster-listener)
     - [Host Store](#host-store)
     - [Background workers](#background-workers)
+	  - [Task Framework](#Task-Framework)
+	  - [Event Processor Framework](#Event-Processor-Framework)
+      - [Periodic Background Job Framework](#Periodic-Background-job-framework)
+      - [Controller Cluster Listener](#Controller-Cluster-Listener)
 * [Roles and Responsibilities](#roles-and-responsibilities)
     - [Stream Operations](#stream-operations)
         - [Stream State](#stream-state)
@@ -43,7 +48,11 @@ You may obtain a copy of the License at
         - [Abort Transaction](#abort-transaction)
         - [Ping Transaction](#ping-transaction)
         - [Transaction Timeout Management](#transaction-timeout-management)
-    - [Segment Container to Host Mapping](#segment-container-to-host-mapping)
+    - [Watermarks](#watermarks)
+    - [KVT Operations](#kvt-operations)
+      - [Create KVTable](#create-kvtable)
+      - [Delete KVTable](#delete-kvtable)
+      - [Readergroup Management](#readergroup-management)
 * [Resources](#resources)
 
 # Introduction
@@ -132,10 +141,22 @@ Controller maintains the metadata about the key value tables and is responsible 
 
 ## Cluster Management
 
-The Controller is responsible for managing the Segment Store cluster. Controller manages the
-lifecycle of Segment Store nodes as they are added to/removed from the
-cluster and performs redistribution of segment containers across
-available Segment Store nodes. 
+Controller is responsible for tracking the service instance nodes for both controller and segment store service and in case of a node failure the work is properly failed over to surviving instances. Controller is responsible for distributing workload across different segment store instances by distributing segment containers to availale segment store nodes.
+
+### Segment Container to Host Mapping
+
+The Controller is also responsible for the assignment of Segment Containers to
+Segment Store nodes. The responsibility of maintaining this mapping
+befalls a single Controller instance that is chosen via a leader
+election using Zookeeper. This leader Controller monitors lifecycle of
+Segment Store nodes as they are added to/removed from the cluster and
+performs redistribution of Segment Containers across available Segment
+Store nodes. This distribution mapping is stored in a dedicated znode called SegmentContainerMapping.
+Each Segment Store watches this znode to receive change notifications and
+if changes to its own assignments are found, it shuts down and relinquishes containers it no
+longer owns and attempts to acquire ownership of containers that are
+assigned to it.
+
 
 # System Diagram
 
@@ -819,26 +840,12 @@ Create KVTable is modeled as a task on the event processor. When a request from 
 Delete KVTable is also modeled as a task on the event processor. When a request from user to delete the KV table is received, a new event is posted into kvt-request-stream and picked asynchronously for processing. As part of delete KV table, the task removes all table segments and all metadata that was created for the KV table. 
 
 ### Readergroup Management
-With 0.9.0 we also introduced a concept of managing reader group configuration on controller. Now controller service participates in readergroup's lifecycle from creation to resets to deletes. Controller stores and manages the readergroup configuration and assigns versioning of readergroup config by introducing a new property called generation. Everytime readergroup is reset with a new configuration, this is recorded with controller and controller runs an asynchronous job to update the subscription status for streams that were added to or removed from the readergroup. 
+With 0.9.0 we also introduced a concept of managing reader group configuration on controller. 
+A Pravega Reader Group is a group of readers that collectively read events from a Stream. A single segment in the Stream is assigned to exactly one reader in the ReaderGroup.
+A Reader Group has a configuration that describes the Streams it reads from and decides its checkpointing related behaviour. Controller service participates in readergroup's lifecycle from creation to resets to deletes where applications record changes to stream configuration with controller. Controller stores and manages the readergroup configuration and assigns versioning of readergroup config by introducing a new property called generation. Everytime readergroup is reset with a new configuration, this is recorded with controller and controller runs an asynchronous job to update the subscription status for streams that were added to or removed from the readergroup.
 To achieve this controller relies on event processor framework and has CreateReaderGroupTask, UpdateReaderGroupTask and DeleteReaderGroupTask which handle the subscription changes.  
 
-##  Cluster Management
-
-Controller is responsible for tracking the service instance nodes for both controller and segment store service and in case of a node failure the work is properly failed over to surviving instances. Controller is responsible for distributing workload across different segment store instances by distributing segment containers to availale segment store nodes.
-
-### Segment Container to Host Mapping
-
-The Controller is also responsible for the assignment of Segment Containers to
-Segment Store nodes. The responsibility of maintaining this mapping
-befalls a single Controller instance that is chosen via a leader
-election using Zookeeper. This leader Controller monitors lifecycle of
-Segment Store nodes as they are added to/removed from the cluster and
-performs redistribution of Segment Containers across available Segment
-Store nodes. This distribution mapping is stored in a dedicated znode called SegmentContainerMapping.
-Each Segment Store watches this znode to receive change notifications and
-if changes to its own assignments are found, it shuts down and relinquishes containers it no
-longer owns and attempts to acquire ownership of containers that are
-assigned to it.
+In addition controller also exposes apis using which readergroups can report their positions to controller. Controller Service tracks positions of these reported positions for multiple reader groups reading from a stream and takes them into consideration while deciding how much data to retain in the stream. 
 
 # Resources
 
