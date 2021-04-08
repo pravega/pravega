@@ -191,7 +191,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 this::deleteSegmentImmediate, this::deleteSegmentDelayed, this::runMetadataCleanup);
         ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
         Preconditions.checkArgument(tableExtension != null, "ContainerTableExtension required for initialization.");
-        return new TableMetadataStore(connector, tableExtension, this.executor);
+        return new TableMetadataStore(connector, tableExtension, tableExtension.getConfig(), this.executor);
     }
 
     /**
