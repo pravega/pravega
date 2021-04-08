@@ -68,7 +68,7 @@ public class BookKeeperLogReconciliationCommand extends BookKeeperCommand {
         while (ledgerRangeIterator.hasNext()) {
             LedgerManager.LedgerRange lr = ledgerRangeIterator.next();
             for (long ledgerId: lr.getLedgers()) {
-                ReadHandle readHandle = Ledgers.openRead(ledgerId, bkClient, BookKeeperConfig.builder().build());
+                ReadHandle readHandle = Ledgers.openRead(ledgerId, bkClient, context.bookKeeperConfig);
                 if (Ledgers.getBookKeeperLogId(readHandle) == logId) {
                     candidateLedgers.add(readHandle);
                 }
