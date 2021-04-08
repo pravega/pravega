@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -60,6 +66,8 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CREATE_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_LATENCY;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_NUM_CHUNKS;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_SIZE;
 
 /**
  * Implements storage for segments using {@link ChunkStorage} and {@link ChunkMetadataStore}.
@@ -721,6 +729,16 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         for (long offset = firstBlock * config.getIndexBlockSize(); offset < endOffset; offset += config.getIndexBlockSize()) {
             txn.delete(NameUtils.getSegmentReadIndexBlockName(segmentName, offset));
         }
+    }
+
+    /**
+     * Report size related metrics for the given system segment.
+     * @param segmentMetadata Segment metadata.
+     */
+    void reportMetricsForSystemSegment(SegmentMetadata segmentMetadata) {
+        val name = segmentMetadata.getName().substring(segmentMetadata.getName().lastIndexOf('/') + 1).replace('$', '_');
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_SIZE + name, segmentMetadata.getLength() - segmentMetadata.getStartOffset());
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_NUM_CHUNKS + name, segmentMetadata.getChunkCount());
     }
 
 

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.eventProcessor.impl;
 
@@ -107,7 +113,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             if (!e.getType().equals(CheckpointStoreException.Type.NodeExists)) {
                 throw e;
             } else {
-                log.warn("reader group {} exists", eventProcessorConfig.getConfig().getReaderGroupName());
+                log.debug("reader group {} exists", eventProcessorConfig.getConfig().getReaderGroupName());
             }
         }
 
@@ -178,8 +184,9 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         try {
             log.info("Attempting to start all event processors in {}", this.toString());
             eventProcessorMap.entrySet().forEach(entry -> entry.getValue().startAsync());
-            log.info("Waiting for all all event processors in {} to start", this.toString());
             eventProcessorMap.entrySet().forEach(entry -> entry.getValue().awaitStartupComplete());
+            log.info("All event processors in {} started successfully.", this.toString());
+
             if (rebalancePeriodMillis > 0 && rebalanceExecutor != null) {
                 rebalanceFuture = rebalanceExecutor.scheduleWithFixedDelay(this::rebalance,
                         rebalancePeriodMillis, rebalancePeriodMillis, TimeUnit.MILLISECONDS);
@@ -193,6 +200,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
     @Override
     protected void shutDown() {
+        log.info("Shutting down all event processors in {}", this.toString());
         synchronized (lock) {
             long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
             try {
@@ -200,7 +208,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 // Some other controller process is responsible for cleaning up the reader group,
                 // its readers and their position objects from checkpoint store.
                 try {
-                    log.info("Attempting to seal the reader group {} entry from checkpoint store", this.objectId);
+                    log.debug("Attempting to seal the reader group {} entry from checkpoint store", this.objectId);
                     checkpointStore.sealReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
                 } catch (CheckpointStoreException e) {
                     log.warn("Error sealing reader group " + this.objectId, e);
@@ -208,11 +216,11 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
                 // Initiate stop on all event processor cells and await their termination.
                 for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
-                    log.info("Stopping event processor cell: {}", cell);
+                    log.info("Terminating event processor cell: {}", cell);
                     cell.stopAsync();
-                    log.info("Awaiting termination of event processor cell: {}", cell);
                     try {
                         cell.awaitTerminated();
+                        log.debug("Termination of event processor cell: {} completed successfully.", cell);
                     } catch (Exception e) {
                         log.warn("Failed terminating event processor cell {}.", cell, e);
                     }
@@ -220,13 +228,12 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
                 // Finally, clean up reader group from checkpoint store.
                 try {
-                    log.info("Attempting to clean up reader group {} entry from checkpoint store", this.objectId);
+                    log.debug("Attempting to clean up reader group {} entry from checkpoint store", this.objectId);
                     checkpointStore.removeReaderGroup(actorSystem.getProcess(), readerGroup.getGroupName());
                 } catch (CheckpointStoreException e) {
                     log.warn("Error removing reader group " + this.objectId, e);
                 }
                 readerGroup.close();
-                log.info("Shutdown of {} complete", this.toString());
                 if (rebalanceFuture != null) {
                     rebalanceFuture.cancel(true);
                 }
@@ -235,6 +242,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
             }
         }
+        log.info("Shut down all event processors in {} complete.", this.toString());
     }
 
     @Override
@@ -264,7 +272,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             }
 
             // finally, remove reader group from checkpoint store
-            log.info("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
+            log.debug("Removing reader group {} from process {}", readerGroup.getGroupName(), process);
             checkpointStore.removeReaderGroup(process, readerGroup.getGroupName());
         } finally {
             LoggerHelpers.traceLeave(log, "notifyProcessFailure", traceId, process);
@@ -330,7 +338,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             }
         } catch (Exception e) {
             Throwable realException = Exceptions.unwrap(e);
-            log.warn("Rebalance failed with exception {} {}", realException.getClass().getSimpleName(), e.getMessage());
+            log.warn("Re-balance failed with exception {} {}", realException.getClass().getSimpleName(), e.getMessage());
         }
     }
 
@@ -361,11 +369,11 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
             log.info("Stopping event processor cell: {}", cell);
             try {
                 cell.stopAsync();
-                log.info("Awaiting termination of event processor cell: {}", cell);
                 cell.awaitTerminated();
                 eventProcessorMap.remove(readerId);
+                log.info("Termination of event processor cell: {} completed successfully.", cell);
             } catch (Exception e) {
-                log.error("Failed terminating event processor cell {}.", cell, e);
+                log.warn("Failed terminating event processor cell {}.", cell, e);
             }
         }
     }

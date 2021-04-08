@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -15,11 +21,6 @@ import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.Callable;
@@ -27,6 +28,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Base implementation of {@link ChunkStorage}.
@@ -712,7 +717,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
     /**
      * Context data used to capture operation runtime information.
      */
-    static class OperationContext {
+    protected static class OperationContext {
         /**
          * End to end latency of the operation.
          */

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -7,6 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.segment.impl;
 
@@ -70,7 +75,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
-        long length = client.fetchCurrentSegmentLength();
+        long length = client.fetchCurrentSegmentLength().join();
         assertEquals(123, length);
     }
     
@@ -99,7 +104,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.TruncateSegment.class));
-        client.truncateSegment(123L);
+        client.truncateSegment(123L).join();
         Mockito.verify(connection).send(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")));
     }
 
@@ -128,7 +133,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.TruncateSegment.class));
-        client.truncateSegment(123L);
+        client.truncateSegment(123L).join();
         Mockito.verify(connection).send(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")));
     }
 
@@ -157,7 +162,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.TruncateSegment.class));
-        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> client.truncateSegment(123L));
+        AssertExtensions.assertThrows(NoSuchSegmentException.class, () -> client.truncateSegment(123L).join());
         Mockito.verify(connection).send(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")));
     }
     
@@ -186,7 +191,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.SealSegment.class));
-        client.sealSegment();
+        client.sealSegment().join();
         Mockito.verify(connection).send(Mockito.eq(new WireCommands.SealSegment(requestId.get(), segment.getScopedName(), "")));
     }  
 
@@ -213,7 +218,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.GetSegmentAttribute.class));
-        long value = client.fetchProperty(SegmentAttribute.RevisionStreamClientMark);
+        long value = client.fetchProperty(SegmentAttribute.RevisionStreamClientMark).join();
         assertEquals(123, value);
     }
 
@@ -239,7 +244,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(any(WireCommands.UpdateSegmentAttribute.class));
-        assertTrue(client.compareAndSetAttribute(SegmentAttribute.RevisionStreamClientMark, -1234, 1234));
+        assertTrue(client.compareAndSetAttribute(SegmentAttribute.RevisionStreamClientMark, -1234, 1234).join());
     }
 
     @Test(timeout = 10000)
@@ -274,7 +279,7 @@ public class SegmentMetadataClientTest {
             }
         }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
 
-        long length = client.fetchCurrentSegmentLength();
+        long length = client.fetchCurrentSegmentLength().join();
         InOrder order = Mockito.inOrder(connection, cf);
         order.verify(cf).establishConnection(eq(endpoint), any(ReplyProcessor.class));
         order.verify(connection).send(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(0), segment.getScopedName(), "")));
@@ -342,7 +347,7 @@ public class SegmentMetadataClientTest {
         @Cleanup
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
         InOrder order = Mockito.inOrder(connection1, connection2, cf);
-        long length = client.fetchCurrentSegmentLength();
+        long length = client.fetchCurrentSegmentLength().join();
         order.verify(cf, Mockito.times(2)).getClientConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any(), Mockito.<CompletableFuture<ClientConnection>>any());
         order.verify(connection1).send(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(0), segment.getScopedName(), "")));
         order.verify(connection1).close();
@@ -412,7 +417,7 @@ public class SegmentMetadataClientTest {
         }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
 
         AssertExtensions.assertThrows("TokenException was not thrown or server stacktrace contained unexpected content.",
-                () -> client.fetchCurrentSegmentLength(),
+                () -> client.fetchCurrentSegmentLength().join(),
                 e -> e instanceof InvalidTokenException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
     }
 
@@ -444,7 +449,7 @@ public class SegmentMetadataClientTest {
         }).when(connection).send(any(WireCommands.GetStreamSegmentInfo.class));
 
         AssertExtensions.assertThrows("TokenException was not thrown or server stacktrace contained unexpected content.",
-                () -> client.fetchCurrentSegmentLength(),
+                () -> client.fetchCurrentSegmentLength().join(),
                 e -> e instanceof InvalidTokenException && e.getMessage().contains("serverStackTrace=server-stacktrace"));
     }
 }

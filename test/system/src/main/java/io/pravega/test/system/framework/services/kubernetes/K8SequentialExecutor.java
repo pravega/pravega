@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
@@ -45,6 +51,7 @@ import static org.apache.commons.lang.RandomStringUtils.randomAlphanumeric;
 public class K8SequentialExecutor implements TestExecutor {
 
     private static final String NAMESPACE = "default"; // KUBERNETES namespace where the tests run.
+    private static final String APP = "pravega-system-tests";
     private static final String SERVICE_ACCOUNT = "test-framework"; //Service Account used by the test pod.
     private static final String TEST_POD_IMAGE = System.getProperty("testPodImage", "openjdk:8u181-jre-alpine");
     private static final String LOG_LEVEL = System.getProperty("logLevel", "DEBUG");
@@ -112,7 +119,7 @@ public class K8SequentialExecutor implements TestExecutor {
     private V1Pod getTestPod(String className, String methodName, String podName) {
         log.info("Running test pod with security enabled :{}, transport enabled: {}", Utils.AUTH_ENABLED, Utils.TLS_AND_AUTH_ENABLED);
         V1Pod pod =  new V1PodBuilder()
-                .withNewMetadata().withName(podName).withNamespace(NAMESPACE).withLabels(ImmutableMap.of("POD_NAME", podName)).endMetadata()
+                .withNewMetadata().withName(podName).withNamespace(NAMESPACE).withLabels(ImmutableMap.of("POD_NAME", podName, "app", APP)).endMetadata()
                 .withNewSpec().withServiceAccountName(SERVICE_ACCOUNT).withAutomountServiceAccountToken(true)
                 .withVolumes(new V1VolumeBuilder().withName("task-pv-storage")
                         .withPersistentVolumeClaim(new V1PersistentVolumeClaimVolumeSourceBuilder().withClaimName("task-pv-claim").build())
