@@ -16,9 +16,7 @@
 package io.pravega.cli.admin.bookkeeper;
 
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
-import io.pravega.segmentstore.storage.impl.bookkeeper.LedgerMetadata;
 import io.pravega.segmentstore.storage.impl.bookkeeper.Ledgers;
 import lombok.Cleanup;
 import lombok.val;
