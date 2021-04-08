@@ -70,7 +70,9 @@ public class PravegaEmulatorResource extends ExternalResource {
                 .restServerPort(TestUtils.getAvailableListenPort())
                 .enableRestServer(restEnabled)
                 .enableAuth(authEnabled)
-                .enableTls(tlsEnabled);
+                .enableTls(tlsEnabled)
+                .enabledAdminGateway(true)
+                .adminGatewayPort(TestUtils.getAvailableListenPort());
 
         // Since the server is being built right here, avoiding delegating these conditions to subclasses via factory
         // methods. This is so that it is easy to see the difference in server configs all in one place. This is also

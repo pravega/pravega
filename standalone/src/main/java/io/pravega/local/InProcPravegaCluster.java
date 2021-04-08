@@ -53,10 +53,8 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.Builder;
-import lombok.Cleanup;
-import lombok.Synchronized;
-import lombok.ToString;
+
+import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
@@ -133,6 +131,9 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String keyPasswordFile;
     private String jksKeyFile;
 
+    private boolean enableAdminGateway;
+    private int adminGatewayPort;
+
     public static final class InProcPravegaClusterBuilder {
 
         // default values
@@ -162,13 +163,14 @@ public class InProcPravegaCluster implements AutoCloseable {
                             && !Strings.isNullOrEmpty(this.keyPasswordFile)),
                     "TLS enabled, but not all parameters set");
 
-            this.isInProcHDFS = this.isInMemStorage ? false : true;
+            this.isInProcHDFS = !this.isInMemStorage;
             return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, enableTlsReload,
                     enableMetrics, enableInfluxDB, metricsReportInterval,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
-                    enableRestServer, userName, passwd, certFile, keyFile, jksTrustFile, passwdFile, secureZK, keyPasswordFile, jksKeyFile);
+                    enableRestServer, userName, passwd, certFile, keyFile, jksTrustFile, passwdFile, secureZK, keyPasswordFile,
+                    jksKeyFile, enableAdminGateway, adminGatewayPort);
         }
     }
 
@@ -302,7 +304,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.STORAGE_LAYOUT, StorageLayoutType.ROLLING_STORAGE)
                         .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
                                 ServiceConfig.StorageType.INMEMORY :
-                                ServiceConfig.StorageType.FILESYSTEM))
+                                ServiceConfig.StorageType.FILESYSTEM)
+                        .with(ServiceConfig.ENABLE_ADMIN_GATEWAY, this.enableAdminGateway)
+                        .with(ServiceConfig.ADMIN_GATEWAY_PORT, this.adminGatewayPort))
                 .include(DurableLogConfig.builder()
                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
