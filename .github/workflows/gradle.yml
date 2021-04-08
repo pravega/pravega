@@ -43,6 +43,9 @@ env:
     **/bin
     **/build
 
+  REPORTS_LOCATIONS: |
+    ./*/build/reports ./*/*/build/reports ./*/*/*/build/reports
+
   # Set 'GRADLE_OPTS' to pass additional custom parameters to each ./gradlew invocation in this workflow.
   # Example '--info' or '--debug'.
   #GRADLE_OPTS: --info
@@ -83,13 +86,14 @@ jobs:
         run: ./gradlew clean ${{env.GRADLE_OPTS}}
       - name: Compile & Checkstyle
         run: ./gradlew jar compileTest checkstyleMain checkstyleTest --parallel ${{env.GRADLE_OPTS}}
-      - name: Reports
+      - name: Tar Reports
+        run: tar -cf reports-${{github.job}}.tar `echo ${{env.REPORTS_LOCATIONS}}`
+      - name: Upload Reports
         uses: actions/upload-artifact@v2
-        if: ${{ success() }}
         with:
-          name: build-reports
+          name: ${{github.job}}-reports
           retention-days: 4
-          path: ./**/build/reports/
+          path: reports-${{github.job}}.tar
 # Uncomment these two lines if you need ssh access to debug a build.
 #      - name: Setup upterm session
 #        uses: lhotari/action-upterm@v1
@@ -117,13 +121,14 @@ jobs:
             ${{github.ref}}
       - name: Unit tests
         run: ./gradlew client:test shared:protocol:test shared:security:test common:test test:testcommon:test --parallel ${{env.GRADLE_OPTS}}
-      - name: Reports
+      - name: Tar Reports
+        run: tar -cf reports-${{github.job}}.tar `echo ${{env.REPORTS_LOCATIONS}}`
+      - name: Upload Reports
         uses: actions/upload-artifact@v2
-        if: ${{ success() }}
         with:
-          name: client-reports
+          name: ${{github.job}}-reports
           retention-days: 4
-          path: ./**/build/reports/
+          path: reports-${{github.job}}.tar
 
   unit_controller:
     name: Controller Unit Tests
@@ -148,13 +153,14 @@ jobs:
             ${{github.ref}}
       - name: Controller Unit tests
         run: ./gradlew controller:test shared:controller-api:test --parallel ${{env.GRADLE_OPTS}}
-      - name: Reports
+      - name: Tar Reports
+        run: tar -cf reports-${{github.job}}.tar `echo ${{env.REPORTS_LOCATIONS}}`
+      - name: Upload Reports
         uses: actions/upload-artifact@v2
-        if: ${{ success() }}
         with:
-          name: controller-reports
+          name: ${{github.job}}-reports
           retention-days: 4
-          path: ./**/build/reports/
+          path: reports-${{github.job}}.tar
 
   unit_segment_store:
     name: Segment Store Unit Tests
@@ -184,13 +190,14 @@ jobs:
           segmentstore:server:host:test
           bindings:test
           --parallel ${{env.GRADLE_OPTS}}
-      - name: Reports
+      - name: Tar Reports
+        run: tar -cf reports-${{github.job}}.tar `echo ${{env.REPORTS_LOCATIONS}}`
+      - name: Upload Reports
         uses: actions/upload-artifact@v2
-        if: ${{ success() }}
         with:
-          name: segmentstore-reports
+          name: ${{github.job}}-reports
           retention-days: 4
-          path: ./**/build/reports/
+          path: reports-${{github.job}}.tar
 
   unit_storage:
     name: Storage Unit Tests
@@ -219,13 +226,14 @@ jobs:
           segmentstore:storage:test
           segmentstore:storage:impl:test
           --parallel ${{env.GRADLE_OPTS}}
-      - name: Reports
+      - name: Tar Reports
+        run: tar -cf reports-${{github.job}}.tar `echo ${{env.REPORTS_LOCATIONS}}`
+      - name: Upload Reports
         uses: actions/upload-artifact@v2
-        if: ${{ success() }}
         with:
-          name: storage-reports
+          name: ${{github.job}}-reports
           retention-days: 4
-          path: ./**/build/reports/
+          path: reports-${{github.job}}.tar
 
   unit_other:
     name: All Other Unit Tests
@@ -268,13 +276,14 @@ jobs:
           -x segmentstore:server:host:test
           -x segmentstore:server:test
           --parallel ${{env.GRADLE_OPTS}}
-      - name: Reports
+      - name: Tar Reports
+        run: tar -cf reports-${{github.job}}.tar `echo ${{env.REPORTS_LOCATIONS}}`
+      - name: Upload Reports
         uses: actions/upload-artifact@v2
-        if: ${{ success() }}
         with:
-          name: other-reports
+          name: ${{github.job}}-reports
           retention-days: 4
-          path: ./**/build/reports/
+          path: reports-${{github.job}}.tar
 
   integration:
     name: Integration Tests
@@ -309,10 +318,18 @@ jobs:
     steps:
       - name: Check Build Status
         run: echo Build, static analysis, unit and integration tests successful.
+      - name: Create directory
+        run: mkdir artifacts
       - name: Download code coverage reports
         uses: actions/download-artifact@v2
+        with:
+          path: artifacts
+      - name: Untar reports
+        run: ( cd artifacts && ls reports-*.tar | xargs -n1 tar --one-top-level -xf )
       - name: Upload to Codecov
         uses: codecov/codecov-action@v1.0.15
+        with:
+          directory: artifacts
 
   snapshot:
     name: Artifactory Snapshot
