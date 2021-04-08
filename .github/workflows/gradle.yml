@@ -81,8 +81,10 @@ jobs:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
           restore-keys: |
-            ${{github.ref}}-${{github.run_id}}
             ${{github.ref}}
+      - name: Clean
+        if: ${{ startsWith(github.ref, 'refs/heads/') }}
+        run: ./gradlew clean ${{env.GRADLE_OPTS}}
       - name: Compile & Checkstyle
         run: ./gradlew jar compileTest checkstyleMain checkstyleTest --parallel ${{env.GRADLE_OPTS}}
 # Uncomment these two lines if you need ssh access to debug a build.
