@@ -36,6 +36,7 @@ env:
     gradle-m2-java-
     gradle-m2
   # We cache the class files, resources and build output. This is generated on the build job and reused in dependent jobs.
+  # If there are subsequent builds this includes test execution.
   BUILD_CACHE_PATH: |
     .gradle
     ./bin
@@ -45,17 +46,7 @@ env:
     **/build
     **/**/build
     **/**/**/build
-  # We cache test execution (including history) and reports (code coverage) per test job. This helps speed up workflow re-runs.
-  TEST_OUTPUT_CACHE_PATH: |
-    **/build/test-results
-    **/**/build/test-results
-    **/**/**/build/test-results
-    **/build/jacoco
-    **/**/build/jacoco
-    **/**/**/build/jacoco
-    **/build/reports
-    **/**/build/reports
-    **/**/**/build/reports
+
   # Set 'GRADLE_OPTS' to pass additional custom parameters to each ./gradlew invocation in this workflow.
   # Example '--info' or '--debug'.
   #GRADLE_OPTS: --info
@@ -113,11 +104,6 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}
-      - name: Test Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.ref}}-${{github.job}}
       - name: Unit tests
         run: ./gradlew client:test shared:protocol:test shared:security:test common:test test:testcommon:test --parallel ${{env.GRADLE_OPTS}}
       - name: Codecov
@@ -141,18 +127,13 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}
-      - name: Test Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.ref}}-${{github.job}}
       - name: Controller Unit tests
         run: ./gradlew controller:test shared:controller-api:test --parallel ${{env.GRADLE_OPTS}}
       - name: Codecov
         uses: codecov/codecov-action@v1.0.15
 
   unit_segment_store:
-    name: Segment Store Service Unit Tests
+    name: Segment Store Unit Tests
     needs: build
     runs-on: ubuntu-20.04
     steps:
@@ -169,11 +150,6 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}
-      - name: Test Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.ref}}-${{github.job}}
       - name: Segment Store Unit tests
         run: >
           ./gradlew
@@ -202,11 +178,6 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}
-      - name: Test Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.ref}}-${{github.job}}
       - name: Segment Store Unit tests
         run: >
           ./gradlew
@@ -234,11 +205,6 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}
-      - name: Test Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.ref}}-${{github.job}}
       - name: Static analysis tests
         run: >
           ./gradlew rat spotbugsMain spotbugsTest --parallel ${{env.GRADLE_OPTS}}
@@ -280,11 +246,6 @@ jobs:
         with:
           path: ${{env.BUILD_CACHE_PATH}}
           key: ${{github.ref}}
-      - name: Test Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.ref}}-${{github.job}}
       - name: Integration Tests
         run: ./gradlew test:integration:test --parallel ${{env.GRADLE_OPTS}}
 
