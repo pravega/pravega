@@ -29,18 +29,24 @@ on:
 # Define a few constants that are shared across all the jobs.
 env:
   GLOBAL_CACHE_PATH: |
-    .gradle
     ~/.gradle
     ~/.m2
   GLOBAL_CACHE_KEY: gradle-m2-java-11
   GLOBAL_CACHE_RESTORE_KEYS: |
     gradle-m2-java-
     gradle-m2
-  # We cache the source code, resources and build output. This is generated on the build job and reused in dependent jobs.
-  BUILD_CACHE_PATH: ./*
+  # We cache the class files, resources and build output. This is generated on the build job and reused in dependent jobs.
+  BUILD_CACHE_PATH: |
+    .gradle
+    ./bin
+    **/bin
+    **/**/bin
+    **/**/**/bin
+    **/build
+    **/**/build
+    **/**/**/build
   # We cache test execution (including history) and reports (code coverage) per test job. This helps speed up workflow re-runs.
   TEST_OUTPUT_CACHE_PATH: |
-    .gradle
     **/build/test-results
     **/**/build/test-results
     **/**/**/build/test-results
@@ -94,6 +100,8 @@ jobs:
     needs: build
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -120,6 +128,8 @@ jobs:
     needs: build
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -146,6 +156,8 @@ jobs:
     needs: build
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -177,6 +189,8 @@ jobs:
     needs: build
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -207,6 +221,8 @@ jobs:
     needs: build
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -251,6 +267,8 @@ jobs:
     needs: build
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -286,6 +304,8 @@ jobs:
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/r0.') || startsWith(github.ref, 'refs/heads/r1.')) }}
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
