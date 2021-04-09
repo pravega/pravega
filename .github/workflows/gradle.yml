@@ -318,18 +318,12 @@ jobs:
     steps:
       - name: Check Build Status
         run: echo Build, static analysis, unit and integration tests successful.
-      - name: Create directory
-        run: mkdir artifacts
       - name: Download code coverage reports
         uses: actions/download-artifact@v2
-        with:
-          path: artifacts
       - name: Untar reports
-        run: ( cd artifacts && ls */reports-*.tzst | xargs -n1 tar --use-compress-program zstd --keep-newer-files -xf )
+        run: ( ls */reports-*.tzst | xargs -n1 tar --use-compress-program zstd --keep-newer-files -xf )
       - name: Upload to Codecov
         uses: codecov/codecov-action@v1.0.15
-        with:
-          directory: artifacts
 
   snapshot:
     name: Artifactory Snapshot

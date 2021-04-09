@@ -18,9 +18,6 @@ codecov:
   notify:
     wait_for_ci: yes
 
-fixes:
-  - "artifacts/::"
-
 coverage:
   status:
     project:
