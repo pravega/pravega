@@ -87,13 +87,13 @@ jobs:
       - name: Compile & Checkstyle
         run: ./gradlew jar compileTest checkstyleMain checkstyleTest --parallel ${{env.GRADLE_OPTS}}
       - name: Tar Reports
-        run: tar -cf reports-${{github.job}}.tar `echo ${{env.REPORTS_LOCATIONS}}`
+        run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
         uses: actions/upload-artifact@v2
         with:
           name: ${{github.job}}-reports
           retention-days: 4
-          path: reports-${{github.job}}.tar
+          path: reports-${{github.job}}.tzst
 # Uncomment these two lines if you need ssh access to debug a build.
 #      - name: Setup upterm session
 #        uses: lhotari/action-upterm@v1
@@ -122,13 +122,13 @@ jobs:
       - name: Unit tests
         run: ./gradlew client:test shared:protocol:test shared:security:test common:test test:testcommon:test --parallel ${{env.GRADLE_OPTS}}
       - name: Tar Reports
-        run: tar -cf reports-${{github.job}}.tar `echo ${{env.REPORTS_LOCATIONS}}`
+        run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
         uses: actions/upload-artifact@v2
         with:
           name: ${{github.job}}-reports
           retention-days: 4
-          path: reports-${{github.job}}.tar
+          path: reports-${{github.job}}.tzst
 
   unit_controller:
     name: Controller Unit Tests
@@ -154,13 +154,13 @@ jobs:
       - name: Controller Unit tests
         run: ./gradlew controller:test shared:controller-api:test --parallel ${{env.GRADLE_OPTS}}
       - name: Tar Reports
-        run: tar -cf reports-${{github.job}}.tar `echo ${{env.REPORTS_LOCATIONS}}`
+        run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
         uses: actions/upload-artifact@v2
         with:
           name: ${{github.job}}-reports
           retention-days: 4
-          path: reports-${{github.job}}.tar
+          path: reports-${{github.job}}.tzst
 
   unit_segment_store:
     name: Segment Store Unit Tests
@@ -191,13 +191,13 @@ jobs:
           bindings:test
           --parallel ${{env.GRADLE_OPTS}}
       - name: Tar Reports
-        run: tar -cf reports-${{github.job}}.tar `echo ${{env.REPORTS_LOCATIONS}}`
+        run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
         uses: actions/upload-artifact@v2
         with:
           name: ${{github.job}}-reports
           retention-days: 4
-          path: reports-${{github.job}}.tar
+          path: reports-${{github.job}}.tzst
 
   unit_storage:
     name: Storage Unit Tests
@@ -227,13 +227,13 @@ jobs:
           segmentstore:storage:impl:test
           --parallel ${{env.GRADLE_OPTS}}
       - name: Tar Reports
-        run: tar -cf reports-${{github.job}}.tar `echo ${{env.REPORTS_LOCATIONS}}`
+        run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
         uses: actions/upload-artifact@v2
         with:
           name: ${{github.job}}-reports
           retention-days: 4
-          path: reports-${{github.job}}.tar
+          path: reports-${{github.job}}.tzst
 
   unit_other:
     name: All Other Unit Tests
@@ -277,13 +277,13 @@ jobs:
           -x segmentstore:server:test
           --parallel ${{env.GRADLE_OPTS}}
       - name: Tar Reports
-        run: tar -cf reports-${{github.job}}.tar `echo ${{env.REPORTS_LOCATIONS}}`
+        run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
         uses: actions/upload-artifact@v2
         with:
           name: ${{github.job}}-reports
           retention-days: 4
-          path: reports-${{github.job}}.tar
+          path: reports-${{github.job}}.tzst
 
   integration:
     name: Integration Tests
@@ -325,7 +325,7 @@ jobs:
         with:
           path: artifacts
       - name: Untar reports
-        run: ( cd artifacts && ls */reports-*.tar | xargs -n1 tar --one-top-level -xf )
+        run: ( cd artifacts && ls */reports-*.tzst | xargs -n1 tar --use-compress-program zstd --one-top-level -xf )
       - name: Upload to Codecov
         uses: codecov/codecov-action@v1.0.15
         with:
