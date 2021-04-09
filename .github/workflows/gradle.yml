@@ -325,7 +325,7 @@ jobs:
         with:
           path: artifacts
       - name: Untar reports
-        run: ( cd artifacts && ls */reports-*.tzst | xargs -n1 tar --use-compress-program zstd --one-top-level -xf )
+        run: ( cd artifacts && ls */reports-*.tzst | xargs -n1 tar --use-compress-program zstd --keep-newer-files -xf )
       - name: Upload to Codecov
         uses: codecov/codecov-action@v1.0.15
         with:
