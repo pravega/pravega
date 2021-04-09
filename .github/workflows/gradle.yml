@@ -318,6 +318,8 @@ jobs:
     steps:
       - name: Check Build Status
         run: echo Build, static analysis, unit and integration tests successful.
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Download code coverage reports
         uses: actions/download-artifact@v2
       - name: Untar reports
