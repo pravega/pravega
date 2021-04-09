@@ -325,7 +325,7 @@ jobs:
         with:
           path: artifacts
       - name: Untar reports
-        run: ( cd artifacts && ls reports-*.tar | xargs -n1 tar --one-top-level -xf )
+        run: ( cd artifacts && ls */reports-*.tar | xargs -n1 tar --one-top-level -xf )
       - name: Upload to Codecov
         uses: codecov/codecov-action@v1.0.15
         with:
