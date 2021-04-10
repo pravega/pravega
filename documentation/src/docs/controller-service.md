@@ -849,9 +849,9 @@ Delete KVTable is also modeled as a task on the event processor. When a request 
 With 0.9.0 we also introduced a concept of managing reader group configuration on controller. 
 A Pravega Reader Group is a group of readers that collectively read events from a Stream. A single segment in the Stream is assigned to exactly one reader in the ReaderGroup.
 A Reader Group has a configuration that describes the Streams it reads from and decides its checkpointing related behaviour. Controller service participates in readergroup's lifecycle from creation to resets to deletes where applications record changes to stream configuration with controller. Controller stores and manages the readergroup configuration and assigns versioning of readergroup config by introducing a new property called generation. Everytime readergroup is reset with a new configuration, this is recorded with controller and controller runs an asynchronous job to update the subscription status for streams that were added to or removed from the readergroup.
-To achieve this controller relies on event processor framework and has CreateReaderGroupTask, UpdateReaderGroupTask and DeleteReaderGroupTask which handle the subscription changes.  
+To achieve this controller has workflows for create, update and delete readergroups which are implemented on event processor framework and are reponsible for handling the subscription changes.  
 
-In addition controller also exposes apis using which readergroups can report their positions to controller. Controller Service tracks positions of these reported positions for multiple reader groups reading from a stream and takes them into consideration while deciding how much data to retain in the stream. 
+In addition controller also exposes apis using which readergroups can report their positions to controller.  The Controller maintains "read" positions for Reader-Groups that express the intention to retain unread data. The controller service computes a common lowest Stream-Cut across multiple such Reader Groups and factors it while truncating the stream.
 
 # Resources
 
