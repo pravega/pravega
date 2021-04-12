@@ -220,6 +220,8 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         System.setIn(new ByteArrayInputStream("yes".getBytes()));
         TestUtils.executeCommand("bk disable 0", STATE.get());
         // Now, let's try the command under the expected conditions.
+        System.setIn(new ByteArrayInputStream("no".getBytes()));
+        TestUtils.executeCommand("bk reconcile 0", STATE.get());
         System.setIn(new ByteArrayInputStream("yes".getBytes()));
         String commandResult = TestUtils.executeCommand("bk reconcile 0", STATE.get());
         Assert.assertTrue(commandResult.contains("reconciliation completed"));
