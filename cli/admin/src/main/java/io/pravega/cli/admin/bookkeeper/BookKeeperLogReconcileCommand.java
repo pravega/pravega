@@ -57,7 +57,7 @@ public class BookKeeperLogReconcileCommand extends BookKeeperCommand {
         val m = log.fetchMetadata();
         outputLogSummary(logId, m);
         if (m == null || m.isEnabled()) {
-            String message = (m == null) ? "BookKeeperLog '%s' does not exist.":
+            String message = (m == null) ? "BookKeeperLog '%s' does not exist." :
                     "BookKeeperLog '%s' is enabled. Please, disable it before executing this command.";
             output(message, logId);
             return;
