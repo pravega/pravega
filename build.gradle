@@ -970,14 +970,7 @@ project('test:system') {
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
-        def excludedTests = System.getProperty('excludeSystemTests')
-        def includedTests = System.getProperty('includeSystemTests')
-        // Let included tests take precedence if both are specified.
-        if (includedTests != null) {
-            includes = includedTests.split(',').collect { getSystemTestClass(it) }
-        } else if (excludedTests != null ) {
-            excludes = excludedTests.split(',').collect { getSystemTestClass(it) }
-        }
+        (includes, excludes) = subsetSystemTests()
 
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDirs = sourceSets.test.output.classesDirs
@@ -1049,17 +1042,10 @@ project('test:system') {
         dependsOn 'copyTestsToK8sCluster', 'runFluentBitInstall' // ensure test artifacts are copied to the cluster.
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
 
-        def excludedTests = System.getProperty('excludeSystemTests')
-        def includedTests = System.getProperty('includeSystemTests')
-        // Let included tests take precedence if both are specified.
-        if (includedTests != null && !includedTests.isEmpty()) {
-            includes = includedTests.split(',').collect { getSystemTestClass(it) }
-        } else if (excludedTests != null && !excludedTests.isEmpty()) {
-            excludes = excludedTests.split(',').collect { getSystemTestClass(it) }
-        }
-
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
+
+        (includes, excludes) = subsetSystemTests()
 
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
         systemProperty "execType", "KUBERNETES"
@@ -1081,7 +1067,7 @@ project('test:system') {
         // tier2Type , default is NFS.
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
         // tier2 configuration, specified as comma separated key values k1=v1,k2=v2
-        systemProperty "tier2config", System.getProperty("tier2config")
+        systemProperty "tier2Config", System.getProperty("tier2Config")
         systemProperty "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
         systemProperty "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
         systemProperty "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
@@ -1255,6 +1241,21 @@ def getSystemTestClass(arg) {
     }
     return str
 }
+
+def subsetSystemTests() {
+    def excludedTests = System.getProperty('excludeSystemTests')
+    def includedTests = System.getProperty('includeSystemTests')
+    def (includes, excludes) = [[], []]
+    // Let included tests take precedence if both are specified.
+    if (includedTests != null && !includedTests.isEmpty()) {
+        includes = includedTests.split(',').collect { getSystemTestClass(it) }
+    } else if (excludedTests != null && !excludedTests.isEmpty()) {
+        excludes = excludedTests.split(',').collect { getSystemTestClass(it) }
+    }
+
+    return [includes, excludes]
+}
+
 
 subprojects {
     task allDeps(type: DependencyReportTask) {}
