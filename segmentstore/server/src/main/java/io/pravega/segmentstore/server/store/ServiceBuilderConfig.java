@@ -74,6 +74,18 @@ public class ServiceBuilderConfig {
                           .rebase(this.properties)
                           .build();
     }
+    
+    /**
+     * Gets a new instance of a Builder for this builder.
+     *
+     * @param constructor A Supplier for a ConfigBuilder for the given Configuration.
+     * @param <T>         The type of the Configuration to instantiate a builder for.
+     * @return The new instance of a ConfigurationBuilder for this builder.
+     */
+    public <T> ConfigBuilder<? extends T> getConfigBuilder(Supplier<? extends ConfigBuilder<? extends T>> constructor) {
+        return constructor.get()
+                          .rebase(this.properties);
+    }
 
     /**
      * Stores the contents of the ServiceBuilderConfig into the given File.
@@ -110,9 +122,9 @@ public class ServiceBuilderConfig {
                 .include(ServiceConfig.builder().with(ServiceConfig.CONTAINER_COUNT, 1))
                 .build();
     }
-
+    
     //endregion
-
+    
     //region Builder
 
     /**

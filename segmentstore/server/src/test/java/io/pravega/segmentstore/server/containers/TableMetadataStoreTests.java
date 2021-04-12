@@ -16,9 +16,12 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.TableStoreMock;
+import io.pravega.segmentstore.server.tables.TableExtensionConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
@@ -33,7 +36,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.SneakyThrows;
+import lombok.val;
+import org.junit.Assert;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.Timeout;
 
 /**
@@ -56,6 +62,15 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
                 ex -> ex instanceof IntentionalException);
     }
 
+    @Test
+    public void testSegmentCompactionAttributes() {
+        @Cleanup
+        TableTestContext context = (TableTestContext) createTestContext();
+        val si = context.metadataStore.getSegmentInfo(NameUtils.getMetadataSegmentName(context.connector.getContainerMetadata().getContainerId()), TIMEOUT).join();
+        Assert.assertEquals(context.config.getDefaultRolloverSize(), (long) si.getAttributes().get(Attributes.ROLLOVER_SIZE));
+        Assert.assertEquals(context.config.getDefaultMinUtilization(), (long) si.getAttributes().get(TableAttributes.MIN_UTILIZATION));
+    }
+
     @Override
     protected TestContext createTestContext(TestConnector connector) {
         TableTestContext context = new TableTestContext(connector);
@@ -68,11 +83,13 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
         @Getter
         final TableMetadataStore metadataStore;
         final AtomicInteger storageReadCount;
+        final TableExtensionConfig config;
 
         TableTestContext(TestConnector connector) {
             super(connector);
             this.tableStore = new TestTableStore(executorService());
-            this.metadataStore = new TableMetadataStore(this.connector, this.tableStore, executorService());
+            this.config = TableExtensionConfig.builder().defaultRolloverSize(12345).defaultMinUtilization(90).build();
+            this.metadataStore = new TableMetadataStore(this.connector, this.tableStore, config, executorService());
             this.storageReadCount = new AtomicInteger(0);
         }
 

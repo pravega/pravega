@@ -34,6 +34,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SerializedClassRunner;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.nio.file.Files;
@@ -46,12 +47,14 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
 
 import static io.pravega.test.common.AssertExtensions.assertSuppliedFutureThrows;
 
 /**
  * Unit tests for FileSystemStorage.
  */
+@RunWith(SerializedClassRunner.class)
 public class FileSystemStorageTest extends IdempotentStorageTestBase {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
