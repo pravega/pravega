@@ -20,16 +20,17 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
@@ -38,7 +39,6 @@ import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricRegistryUtils;
@@ -46,6 +46,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -63,6 +64,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static io.pravega.shared.MetricsTags.readerGroupTags;
 import static io.pravega.shared.MetricsTags.streamTags;
@@ -70,6 +72,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class StreamMetricsTest {
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);

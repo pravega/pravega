@@ -48,6 +48,7 @@ import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -66,6 +67,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
 import org.mockito.Mock;
 
 import static org.junit.Assert.assertEquals;
@@ -76,6 +78,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+@RunWith(SerializedClassRunner.class)
 public class IntermittentCnxnFailureTest {
 
     private static final String SCOPE = "scope";

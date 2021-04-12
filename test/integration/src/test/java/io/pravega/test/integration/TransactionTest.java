@@ -39,27 +39,26 @@ import io.pravega.test.common.LeakDetectorTestSuite;
 import io.pravega.test.common.TestUtils;
 import java.io.Serializable;
 import lombok.Cleanup;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
 public class TransactionTest extends LeakDetectorTestSuite {
-    private ServiceBuilder serviceBuilder;
+    private static final ServiceBuilder SERVICE_BUILDER = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
 
-    @Before
-    public void setup() throws Exception {
-        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.initialize();
+    @BeforeClass
+    public static void setup() throws Exception {
+        SERVICE_BUILDER.initialize();
     }
 
-    @After
-    public void teardown() {
-        this.serviceBuilder.close();
+    @AfterClass
+    public static void teardown() {
+        SERVICE_BUILDER.close();
     }
 
     @Test(timeout = 10000)
@@ -67,19 +66,19 @@ public class TransactionTest extends LeakDetectorTestSuite {
     public void testTransactionalWritesOrderedCorrectly() throws TxnFailedException, ReinitializationRequiredException {
         int readTimeout = 5000;
         String readerName = "reader";
-        String groupName = "group";
+        String groupName = "testTransactionalWritesOrderedCorrectly-group";
         String endpoint = "localhost";
-        String streamName = "abc";
+        String streamName = "testTransactionalWritesOrderedCorrectly";
         int port = TestUtils.getAvailableListenPort();
         String txnEvent = "TXN Event\n";
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -147,16 +146,16 @@ public class TransactionTest extends LeakDetectorTestSuite {
     @SuppressWarnings("deprecation")
     public void testDoubleCommit() throws TxnFailedException {
         String endpoint = "localhost";
-        String streamName = "abc";
+        String streamName = "testDoubleCommit";
         int port = TestUtils.getAvailableListenPort();
         String event = "Event\n";
         String routingKey = "RoutingKey";
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                this.serviceBuilder.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -181,18 +180,18 @@ public class TransactionTest extends LeakDetectorTestSuite {
     @SuppressWarnings("deprecation")
     public void testDrop() throws TxnFailedException, ReinitializationRequiredException {
         String endpoint = "localhost";
-        String groupName = "group";
-        String streamName = "abc";
+        String groupName = "testDrop-group";
+        String streamName = "testDrop";
         int port = TestUtils.getAvailableListenPort();
         String txnEvent = "TXN Event\n";
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                this.serviceBuilder.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -240,12 +239,12 @@ public class TransactionTest extends LeakDetectorTestSuite {
         String scopeName = "scope";
         String streamName = "abc";
         int port = TestUtils.getAvailableListenPort();
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
+        TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor());
+                                                                         SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scopeName, endpoint, port);
