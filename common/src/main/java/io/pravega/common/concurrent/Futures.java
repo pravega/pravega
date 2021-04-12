@@ -189,6 +189,27 @@ public final class Futures {
             throw Exceptions.sneakyThrow(Exceptions.unwrap(e));
         }
     }
+    
+    /**
+     * Similar to {@link CompletableFuture#join()} but with a timeout parameter.
+     * 
+     * @param <ResultT> The result type of the CompletableFuture
+     * @param future The future to join on
+     * @param timeout The time to wait
+     * @param unit the units the above time is given in
+     * @return The result of the future
+     * @throws TimeoutException if the timeout is reached and the future has not yet completed.
+     */
+    public static <ResultT> ResultT join(CompletableFuture<ResultT> future, long timeout, TimeUnit unit)
+            throws TimeoutException {
+        return Exceptions.handleInterruptedCall(() -> {
+            try {
+                return future.get(timeout, unit);
+            } catch (ExecutionException e) {
+                throw new CompletionException(e.getCause());
+            }
+        });
+    }
 
     /**
      * Calls get on the provided future, handling interrupted, and transforming the executionException into an exception
@@ -215,6 +236,43 @@ public final class Futures {
             } else {
                 throw result;
             }
+        }
+    }
+    
+    /**
+     * Calls get on the provided future, passing a timeout, handling interrupted, and transforming
+     * the {@link ExecutionException} into an exception of the type whose constructor is provided.
+     *
+     * @param future The future whose result is wanted
+     * @param exceptionConstructor This can be any function that either transforms an exception i.e.
+     *            Passing RuntimeException::new will wrap the exception in a new RuntimeException.
+     *            If null is returned from the function no exception will be thrown.
+     * @param timeout The time to wait on the future.
+     * @param unit The unit that timeout is specified in.
+     * @param <ResultT> Type of the result.
+     * @param <ExceptionT> Type of the Exception.
+     * @return The result of calling future.get()
+     * @throws ExceptionT If thrown by the future.
+     * @throws TimeoutException If a timeout occurs.
+     */
+    @SneakyThrows(InterruptedException.class)
+    public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
+                                                                                         Function<Throwable, ExceptionT> exceptionConstructor,
+                                                                                         long timeout, TimeUnit unit) throws ExceptionT, TimeoutException {
+        
+        Preconditions.checkNotNull(exceptionConstructor);
+        try {
+            return future.get(timeout, unit);
+        } catch (ExecutionException e) {
+            ExceptionT result = exceptionConstructor.apply(e.getCause());
+            if (result == null) {
+                return null;
+            } else {
+                throw result;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
         }
     }
 

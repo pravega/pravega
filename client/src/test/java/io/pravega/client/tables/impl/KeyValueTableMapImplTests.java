@@ -24,6 +24,7 @@ import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.test.common.AssertExtensions;
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,13 +44,19 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for {@link KeyValueTableMapImpl}.
  */
 public class KeyValueTableMapImplTests extends KeyValueTableTestSetup {
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final KeyValueTableInfo KVT = new KeyValueTableInfo("Scope", "KVT");
+    @Rule
+    public final Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+    
     private MockConnectionFactoryImpl connectionFactory;
     private MockTableSegmentFactory segmentFactory;
     private MockController controller;

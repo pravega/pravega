@@ -21,6 +21,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -75,7 +76,8 @@ public class StreamMetadataTest {
         final String scope2 = "scope2";
         final String streamName2 = "stream2";
 
-        controllerWrapper.getControllerService().createScope(scope1).get();
+        assertEquals(CreateScopeStatus.Status.SUCCESS,
+                     controllerWrapper.getControllerService().createScope(scope1).get().getStatus());
         final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
         final StreamConfiguration config1 = StreamConfiguration.builder()
                                                                .scalingPolicy(scalingPolicy)
