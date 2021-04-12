@@ -16,26 +16,26 @@
 package io.pravega.cli.admin.bookkeeper;
 
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.Ledgers;
 import lombok.Cleanup;
 import lombok.val;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.api.ReadHandle;
+import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.meta.LedgerManager;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class BookKeeperLogReconciliationCommand extends BookKeeperCommand {
+public class BookKeeperLogReconcileCommand extends BookKeeperCommand {
 
     /**
-     * Creates a new instance of the BookKeeperLogReconciliationCommand.
+     * Creates a new instance of the BookKeeperLogReconcileCommand.
      *
      * @param args The arguments for the command.
      */
-    public BookKeeperLogReconciliationCommand(CommandArgs args) {
+    public BookKeeperLogReconcileCommand(CommandArgs args) {
         super(args);
     }
 
@@ -52,15 +52,19 @@ public class BookKeeperLogReconciliationCommand extends BookKeeperCommand {
         // Display a summary of the BookKeeperLog.
         val m = log.fetchMetadata();
         outputLogSummary(logId, m);
-        if (m.isEnabled()) {
-            output("BookKeeperLog '%s' is enabled. Please, disable it before executing this command.", logId);
+        if (m == null || m.isEnabled()) {
+            String message = (m == null) ? "BookKeeperLog '%s' does not exist.":
+                    "BookKeeperLog '%s' is enabled. Please, disable it before executing this command.";
+            output(message, logId);
             return;
         }
 
         // Once the Bookkeeper log is disabled, list all ledgers from this log. This implies to query all the ledgers
         // in Bookkeeper and filter out the ones related to BookkeeperLog id passed by parameter.
+        ClientConfiguration config = new ClientConfiguration()
+                .setMetadataServiceUri( "zk://" + this.getServiceConfig().getZkURL() + context.bookKeeperConfig.getBkLedgerPath());
         @Cleanup
-        BookKeeper bkClient = new BookKeeper(this.getServiceConfig().getZkURL());
+        BookKeeper bkClient = BookKeeper.forConfig(config).build();
         @Cleanup
         LedgerManager manager = bkClient.getLedgerManager();
         LedgerManager.LedgerRangeIterator ledgerRangeIterator = manager.getLedgerRanges(Long.MAX_VALUE);
@@ -73,6 +77,12 @@ public class BookKeeperLogReconciliationCommand extends BookKeeperCommand {
                     candidateLedgers.add(readHandle);
                 }
             }
+        }
+
+        // If there are no candidate ledgers, just return.
+        if (candidateLedgers.isEmpty()) {
+            output("No candidate ledgers to reconcile.");
+            return;
         }
 
         // Confirm with user prior executing the command.
@@ -90,11 +100,7 @@ public class BookKeeperLogReconciliationCommand extends BookKeeperCommand {
         output("BookKeeperLog '%s': ledger reconciliation completed.", logId);
 
         // Closing opened ledgers.
-        for (ReadHandle readHandle: candidateLedgers) {
-            if (!readHandle.isClosed()) {
-                readHandle.close();
-            }
-        }
+        closeBookkeeperReadHandles(candidateLedgers);
     }
 
     public static CommandDescriptor descriptor() {
