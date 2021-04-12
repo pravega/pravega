@@ -20,17 +20,20 @@ import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.influx.InfluxMeterRegistry;
 import io.micrometer.statsd.StatsdMeterRegistry;
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Tests for StatsProvider
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class StatsProviderTest {
     @Test
     public void testStatsProviderStartAndClose() {
