@@ -28,6 +28,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Executes the {@link io.pravega.segmentstore.storage.impl.bookkeeper.DebugLogWrapper#reconcileLedgers(List ledgers)}
+ * method for a specific log id.
+ */
 public class BookKeeperLogReconcileCommand extends BookKeeperCommand {
 
     /**

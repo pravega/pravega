@@ -27,6 +27,9 @@ import org.apache.bookkeeper.meta.LedgerManager;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * List all ledgers in the configured ledgers path for debug purposes.
+ */
 public class BookKeeperListAllLedgersCommand extends BookKeeperCommand {
 
     /**
