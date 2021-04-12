@@ -115,6 +115,9 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
         private final ExtendedS3StorageConfig config;
 
         @Getter
+        private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
+
+        @Getter
         private final ScheduledExecutorService executor;
 
         LocalExtendedS3SimpleStorageFactory(ExtendedS3StorageConfig config, ScheduledExecutorService executor) {
@@ -137,7 +140,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
                     new ExtendedS3ChunkStorage(client, this.config, executorService(), true, false),
                     metadataStore,
                     this.executor,
-                    ChunkedSegmentStorageConfig.DEFAULT_CONFIG);
+                    this.chunkedSegmentStorageConfig);
         }
 
         /**

@@ -116,6 +116,11 @@ public class NonAppendExtendedS3IntegrationTest extends BookKeeperIntegrationTes
         private final ExtendedS3StorageConfig config;
 
         @Getter
+        private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                    .appendEnabled(false)
+                    .build();
+
+        @Getter
         private final ScheduledExecutorService executor;
 
         LocalExtendedS3SimpleStorageFactory(ExtendedS3StorageConfig config, ScheduledExecutorService executor) {
@@ -140,9 +145,7 @@ public class NonAppendExtendedS3IntegrationTest extends BookKeeperIntegrationTes
                     chunkStorage,
                     metadataStore,
                     this.executor,
-                    ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                            .appendEnabled(false)
-                            .build());
+                    this.chunkedSegmentStorageConfig);
             return storage;
         }
 
