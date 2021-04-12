@@ -81,7 +81,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * defaults from {@link TableAttributes#DEFAULT_VALUES}.
      */
     @VisibleForTesting
-    static final Map<UUID, Long> DEFAULT_COMPACTION_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
+    public static final Map<UUID, Long> DEFAULT_COMPACTION_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
             Attributes.ROLLOVER_SIZE, 4L * DEFAULT_MAX_COMPACTION_SIZE);
 
     private final SegmentContainer segmentContainer;
