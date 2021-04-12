@@ -82,6 +82,7 @@ import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -112,7 +113,6 @@ import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST
 @Slf4j
 class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
-    private static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
             .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
     protected final StreamSegmentContainerMetadata metadata;
@@ -225,8 +225,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         if (this.storage instanceof ChunkedSegmentStorage) {
             ChunkedSegmentStorage chunkedStorage = (ChunkedSegmentStorage) this.storage;
             val connector = new SnapshotInfoStore(this.metadata.getContainerId(),
-                    snapshotInfo -> saveStorageSnapshot(snapshotInfo, TIMEOUT),
-                    () -> readStorageSnapshot(TIMEOUT));
+                    snapshotInfo -> saveStorageSnapshot(snapshotInfo, config.getStorageSnapshotTimeout()),
+                    () -> readStorageSnapshot(config.getStorageSnapshotTimeout()));
             // Bootstrap
             return chunkedStorage.bootstrap(connector);
         }
@@ -624,10 +624,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     //endregion
-    public CompletableFuture<SnapshotInfo> readStorageSnapshot(Duration timeout) {
-        val attributeIds = new ArrayList<UUID>();
-        attributeIds.add(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID);
-        attributeIds.add(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH);
+    CompletableFuture<SnapshotInfo> readStorageSnapshot(Duration timeout) {
         val segmentId =   this.metadata.getStreamSegmentId(NameUtils.getMetadataSegmentName(this.metadata.getContainerId()), false);
         if (segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
             val map =  this.metadata.getStreamSegmentMetadata(segmentId).getAttributes();
@@ -645,15 +642,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return CompletableFuture.completedFuture(null);
     }
 
-    @SneakyThrows
-    public CompletableFuture<Void> saveStorageSnapshot(SnapshotInfo checkpoint, Duration timeout) {
+    CompletableFuture<Void> saveStorageSnapshot(SnapshotInfo checkpoint, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        val attributeUpdates = new ArrayList<AttributeUpdate>();
-        attributeUpdates.add(new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID, Replace, checkpoint.getSnapshotId()));
-        attributeUpdates.add(new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH, Replace, checkpoint.getEpoch()));
+        val attributeUpdates = Arrays.asList(
+                new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID, Replace, checkpoint.getSnapshotId()),
+                new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH, Replace, checkpoint.getEpoch()));
         return this.metadataStore.getOrAssignSegmentId(NameUtils.getMetadataSegmentName(this.metadata.getContainerId()), timer.getRemaining(),
                 streamSegmentId -> updateAttributesForSegment(streamSegmentId, attributeUpdates, timer.getRemaining()))
-        .thenRunAsync(() -> log.info("{}: Save SLTS snapshot. {}", this.traceObjectId, checkpoint));
+        .thenRunAsync(() -> log.debug("{}: Save SLTS snapshot. {}", this.traceObjectId, checkpoint));
     }
 
     //region SegmentContainer Implementation

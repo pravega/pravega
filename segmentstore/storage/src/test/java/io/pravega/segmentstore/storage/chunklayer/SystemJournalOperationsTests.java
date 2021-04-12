@@ -16,14 +16,13 @@
 
 package io.pravega.segmentstore.storage.chunklayer;
 
-import com.google.common.base.Function;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
-import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
+import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Builder;
 import lombok.Cleanup;
@@ -50,6 +49,7 @@ import java.util.HashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 
 /**
  * Tests for testing bootstrap functionality with {@link SystemJournal}.
@@ -59,9 +59,7 @@ import java.util.concurrent.Executor;
 public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
     private static final int CONTAINER_ID = 42;
-    private static final int[] PRIMES_1 = {5, 7, 11, 13, 17};
-    private static final int[] PRIMES_2 = {2, 3, 5, 7, 11, 13, 17};
-    private static final int[] PRIMES_3 = {3, 5, 7, 11, 13, 17};
+    private static final int[] PRIMES_1 = {2, 3, 5, 7, 11, 13, 17};
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
@@ -289,7 +287,8 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     public void testSimpleScenarioWithMultipleCombinations() throws Exception {
         for (String method1 : new String[] {"doRead.before", "doRead.after"}) {
             for (String method2 : new String[] {"doWrite.before", "doWrite.after"}) {
-                testWithFlakyChunkStorage(this::testScenario, this::getSimpleScenarioActions, method1, method2, PRIMES_3);
+                System.out.printf("method 1:%s method 2:%s%n", method1, method2);
+                testWithFlakyChunkStorage(this::testScenario, this::getSimpleScenarioActions, method1, method2, PRIMES_1);
             }
         }
     }
@@ -316,29 +315,29 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
     @Test
     public void testScenarioWithFlakySnapshotInfoStoreReadsBefore() throws Exception {
-        testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, "getSnapshotId.before", PRIMES_3);
+        testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, "getSnapshotId.before", PRIMES_1);
     }
 
     @Test
     public void testScenarioWithFlakySnapshotInfoStoreReadsAfter() throws Exception {
-        testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, "getSnapshotId.after", PRIMES_3);
+        testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, "getSnapshotId.after", PRIMES_1);
     }
 
     @Test
     public void testScenarioWithFlakySnapshotInfoStoreWriteBefore() throws Exception {
-        testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, "setSnapshotId.before", PRIMES_3);
+        testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, "setSnapshotId.before", PRIMES_1);
     }
 
     @Test
     public void testScenarioWithFlakySnapshotInfoStoreWriteAfter() throws Exception {
-        testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, "setSnapshotId.after", PRIMES_3);
+        testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, "setSnapshotId.after", PRIMES_1);
     }
 
     @Test
     public void testScenarioWithFlakySnapshotInfoStoreMultiple() throws Exception {
         for (String method1 : new String[] {"getSnapshotId.before", "getSnapshotId.after"}) {
             for (String method2 : new String[] {"setSnapshotId.before", "setSnapshotId.after"}) {
-                testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, method1, method2, PRIMES_3);
+                testScenarioWithFlakySnapshotInfoStore(this::testScenario, this::getSimpleScenarioActions, method1, method2, PRIMES_1);
             }
         }
     }
@@ -448,6 +447,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 .forEach( segment -> segmentBounds.put(segment, new SegmentBounds(0, 0)));
 
         for (int i = 0; i < actions.length; i++) {
+            System.out.printf("Instance %d%n", i);
             @Cleanup
             val instance = new TestInstance(testContext, epoch);
             instance.bootstrap();
@@ -488,6 +488,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     void testWithFlakyChunkStorage(TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod1, String interceptMethod2, int[] primes) throws Exception {
         for (val prime1 : primes) {
             for (val prime2 : primes) {
+                System.out.printf("prime 1:%d prime 2:%d%n", prime1, prime2);
                 FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(executorService());
                 flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
                         .method("doRead.before")
@@ -512,6 +513,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
     void testWithFlakyChunkStorage(TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod, int[] primes) throws Exception {
         for (val prime : primes) {
+            System.out.printf("prime = %d%n", prime);
             FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(executorService());
             flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
                     .method(interceptMethod)
@@ -745,11 +747,11 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                     () -> data.getSnapshotId(testContext.containerId));
             this.snapshotInfoStore = snapshotInfoStore;
             systemJournal = new SystemJournal(testContext.containerId, testContext.chunkStorage,
-                    metadataStore, garbageCollector, () -> testContext.getTime(), testContext.config);
+                    metadataStore, garbageCollector, () -> testContext.getTime(), testContext.config, executorService());
         }
 
         void bootstrap() throws Exception {
-            systemJournal.bootstrap(epoch, snapshotInfoStore).get();
+            systemJournal.bootstrap(epoch, snapshotInfoStore).join();
         }
 
         /**
@@ -762,7 +764,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         /**
          * Append a chunk.
          */
-        void append(String segmentName, String chunkName, int offset, int metadataLength, int storageLength) throws Exception {
+        synchronized void append(String segmentName, String chunkName, int offset, int metadataLength, int storageLength) throws Exception {
             val segmentInfo = testContext.expectedSegments.get(segmentName);
             val list = testContext.expectedChunks.get(segmentName);
 
@@ -787,7 +789,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                             .oldChunkName(oldChunkName)
                             .offset(offset)
                             .segmentName(segmentName)
-                            .build());
+                            .build()).join();
                     done = true;
                 } catch (RuntimeException e) {
                     throw e;
@@ -845,7 +847,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         /**
          * Truncate.
          */
-        void truncate(String segmentName, int offset) throws Exception {
+        synchronized void truncate(String segmentName, int offset) throws Exception {
             val list = testContext.expectedChunks.get(segmentName);
             val segmentInfo = testContext.expectedSegments.get(segmentName);
 
@@ -880,7 +882,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                                 .startOffset(list.get(0).addedAtOffset)
                                 .segmentName(segmentName)
                                 .firstChunkName(list.get(0).name)
-                                .build());
+                                .build()).join();
                         done = true;
                     } catch (RuntimeException e) {
                         throw e;
@@ -922,7 +924,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
          * Validates the metadata against expected results.
          */
         void validate() throws Exception {
-            Assert.assertEquals(0, systemJournal.getCurrentFileIndex());
+            Assert.assertEquals(0, systemJournal.getCurrentFileIndex().get());
             for (val expectedSegmentInfo : testContext.expectedSegments.values()) {
                 // Check segment metadata.
                 val expectedChunkInfoList =  testContext.expectedChunks.get(expectedSegmentInfo.name);

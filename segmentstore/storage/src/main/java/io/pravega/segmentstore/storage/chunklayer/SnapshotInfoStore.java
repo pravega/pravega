@@ -15,12 +15,12 @@
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
-import com.google.common.base.Function;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -29,20 +29,19 @@ import java.util.function.Supplier;
 @Data
 @RequiredArgsConstructor
 public class SnapshotInfoStore {
-    final long containerId;
+    private final long containerId;
     @NonNull
-    final Function<SnapshotInfo, CompletableFuture<Void>> setter;
+    private final Function<SnapshotInfo, CompletableFuture<Void>> setter;
     @NonNull
-    final Supplier<CompletableFuture<SnapshotInfo>> getter;
+    private final Supplier<CompletableFuture<SnapshotInfo>> getter;
 
     /**
      * Read snapshot info.
      *
      * @return A CompletableFuture that, when completed, will contain info about the snapshot.
      * If the operation failed, it will be completed with the appropriate exception.
-     * @throws Exception Exception if any.
      */
-    public CompletableFuture<SnapshotInfo> readSnapshotInfo() throws Exception {
+    public CompletableFuture<SnapshotInfo> readSnapshotInfo() {
         return getter.get();
     }
 
@@ -52,9 +51,8 @@ public class SnapshotInfoStore {
      * @param snapshotInfo snapshotInfo to set
      * @return A CompletableFuture that, when completed, will indicate that the operation completed.
      * If the operation failed, it will be completed with the appropriate exception.
-     * @throws Exception Exception if any.
      */
-    public CompletableFuture<Void> writeSnapshotInfo(SnapshotInfo snapshotInfo) throws Exception {
+    public CompletableFuture<Void> writeSnapshotInfo(SnapshotInfo snapshotInfo) {
         return setter.apply(snapshotInfo);
     }
 }

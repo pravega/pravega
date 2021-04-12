@@ -27,10 +27,10 @@ public class SnapshotInfo {
     /**
      * Epoch.
      */
-    final long epoch;
+    final private long epoch;
 
     /**
      * Id of the snapshot.
      */
-    final long snapshotId;
+    final private long snapshotId;
 }

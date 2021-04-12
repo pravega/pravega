@@ -67,6 +67,12 @@ public class ContainerConfig {
     @Getter
     private final int maxCachedExtendedAttributeCount;
 
+    /**
+     * Default timeout for StorageSnapshot operations.
+     */
+    @Getter
+    private final Duration storageSnapshotTimeout = Duration.ofSeconds(60);
+
     //endregion
 
     //region Constructor

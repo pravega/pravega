@@ -87,7 +87,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Metadata store containing all storage data.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap()}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore)} ()}.
      */
     @Getter
     private final ChunkMetadataStore metadataStore;
@@ -118,7 +118,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Id of the current Container.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap()}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore)} ()}.
      */
     @Getter
     private final int containerId;
@@ -181,7 +181,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                 chunkStorage,
                 metadataStore,
                 garbageCollector,
-                config);
+                config,
+                executor);
         this.closed = new AtomicBoolean(false);
         this.reporter = executor.scheduleAtFixedRate(this::report, 1000, 1000, TimeUnit.MILLISECONDS);
     }
