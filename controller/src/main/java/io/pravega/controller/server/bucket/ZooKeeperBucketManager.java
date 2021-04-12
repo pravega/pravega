@@ -63,7 +63,7 @@ public class ZooKeeperBucketManager extends BucketManager {
                 case CHILD_REMOVED:
                     int bucketId = Integer.parseInt(ZKPaths.getNodeFromPath(event.getData().getPath()));
                     RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(bucketId),
-                            e -> log.warn("{}: exception while attempting to take ownership for bucket {} ", getServiceType(),
+                            e -> log.warn("{}: exception while attempting to take ownership for bucket {}: {}", getServiceType(),
                                     bucketId, e.getMessage()), getExecutor());
                     break;
                 case CONNECTION_LOST:

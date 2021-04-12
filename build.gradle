@@ -273,6 +273,7 @@ project ('shared:metrics') {
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-influx/<micrometerVersion>
         compile project(':common')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(':test:testcommon')
     }
 
     javadoc {
