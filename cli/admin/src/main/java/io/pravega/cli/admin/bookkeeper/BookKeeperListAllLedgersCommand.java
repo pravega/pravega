@@ -62,7 +62,7 @@ public class BookKeeperListAllLedgersCommand extends BookKeeperCommand {
             }
         }
 
-        // Confirm with user prior executing the command.
+        // Output all the ledgers found.
         output("List of ledgers in the system: ");
         for (ReadHandle rh: candidateLedgers) {
             output(rh.toString() + " length: " + rh.getLength() + ", lastEntryConfirmed: " + rh.readLastAddConfirmed() +
