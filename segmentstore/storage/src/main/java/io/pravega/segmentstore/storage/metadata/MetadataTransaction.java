@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.pravega.segmentstore.storage.metadata;
@@ -124,7 +130,7 @@ public class MetadataTransaction implements AutoCloseable {
         this.version = version;
         this.keysToLock = Preconditions.checkNotNull(keysToLock, "keys");
         this.isReadonly = isReadonly;
-        Preconditions.checkState(keysToLock.length > 0, "At least one key must be locked.");
+        Preconditions.checkArgument(keysToLock.length > 0, "At least one key must be locked.");
         data = new ConcurrentHashMap<>();
     }
 
@@ -224,6 +230,7 @@ public class MetadataTransaction implements AutoCloseable {
      * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
     public CompletableFuture<Void> commit(boolean lazyWrite, boolean skipStoreCheck) {
+        Preconditions.checkState(!isReadonly, "Attempt to modify in readonly transaction");
         Preconditions.checkState(!isCommitted, "Transaction is already committed");
         Preconditions.checkState(!isAborted, "Transaction is already aborted");
         return store.commit(this, lazyWrite, skipStoreCheck);

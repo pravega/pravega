@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -1462,19 +1468,19 @@ public abstract class StreamMetadataStoreTest {
 
         streamCut.put(0L, 0L);
         streamCut.put(1L, 10L);
-        assertFalse(store.streamCutStrictlyGreaterThan(scope, stream, streamCut, map1, null, executor).join());
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.Before);
 
         streamCut.put(0L, 10L);
         streamCut.put(1L, 10L);
-        assertTrue(store.streamCutStrictlyGreaterThan(scope, stream, streamCut, map1, null, executor).join());
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.EqualOrAfter);
 
         streamCut.put(0L, 1L);
         streamCut.put(1L, 11L);
-        assertFalse(store.streamCutStrictlyGreaterThan(scope, stream, streamCut, map1, null, executor).join());
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.Overlaps);
 
         streamCut.put(0L, 20L);
         streamCut.put(1L, 20L);
-        assertTrue(store.streamCutStrictlyGreaterThan(scope, stream, streamCut, map1, null, executor).join());
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.EqualOrAfter);
     }
 
     @Test
@@ -1966,10 +1972,9 @@ public abstract class StreamMetadataStoreTest {
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(rgId)
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        rgConfig = ReaderGroupConfig.cloneConfig(rgConfig, rgId, 0L);
         final RGOperationContext rgContext = store.createRGContext(scopeRGTest, rgName);
         store.addReaderGroupToScope(scopeRGTest, rgName, rgConfig.getReaderGroupId()).join();
         store.createReaderGroup(scopeRGTest, rgName, rgConfig, System.currentTimeMillis(), rgContext, executor).join();

@@ -1,7 +1,7 @@
 import org.gradle.internal.jvm.Jvm
 
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,6 +9,11 @@ import org.gradle.internal.jvm.Jvm
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 // Apply the java plugin to add support for Java
 buildscript {
@@ -27,12 +32,13 @@ buildscript {
         classpath group: 'org.hidetake', name: 'gradle-ssh-plugin', version: gradleSshPluginVersion
         classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
         classpath "gradle.plugin.com.github.spotbugs.snom:spotbugs-gradle-plugin:${spotbugsPluginVersion}"
-        classpath "org.ajoberstar:grgit:${gradleGitPluginVersion}"
+        classpath "org.ajoberstar.grgit:grgit-gradle:${gradleGitPluginVersion}"
         classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
     }
 }
 
-if (project.hasProperty("enableMkdocs")) {
+
+if (project.hasProperty("enableMkdocs") && project.property("enableMkdocs").equalsIgnoreCase("true")) {
     apply from: "$rootDir/gradle/mkdocs.gradle"
 }
 
@@ -174,11 +180,11 @@ project('common_server') {
 }
 
 def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-                      exclude group: 'org.slf4j', module: 'slf4j-simple' }
+    exclude group: 'org.slf4j', module: 'slf4j-simple' }
 
 def withoutJaxbAndJjwt = { exclude group: 'javax.xml.bind', module: 'jaxb-api'
-                    exclude group: 'org.glassfish.jaxb', module: 'jaxb-runtime'
-                    exclude group: 'io.jsonwebtoken', module: 'jjwt'}
+    exclude group: 'org.glassfish.jaxb', module: 'jaxb-runtime'
+    exclude group: 'io.jsonwebtoken', module: 'jjwt'}
 
 project('shared:authplugin') {
     dependencies {
@@ -267,6 +273,7 @@ project ('shared:metrics') {
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-influx/<micrometerVersion>
         compile project(':common')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(':test:testcommon')
     }
 
     javadoc {
@@ -913,7 +920,11 @@ project('test:system') {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion, withoutLogger
-        compile project(":client")
+        if (System.getProperty("customClient") != null) {
+            implementation fileTree(System.getProperty("customClient")) { include '*.jar' }
+        } else {
+            compile project(":client")
+        }
         compile project(":test:testcommon")
         compile group: 'junit', name: 'junit', version: junitVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
@@ -999,22 +1010,34 @@ project('test:system') {
         dependsOn 'jar'
 
         environment "tier2Type", System.getProperty("tier2Type", "nfs")
-        environment "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
-        environment "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
-        environment "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
+        environment "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest")
+        environment "bookkeeperOperatorVersion", System.getProperty("bookkeeperOperatorVersion", "latest")
+        environment "zookeeperOperatorVersion", System.getProperty("zookeeperOperatorVersion", "latest")
         // The below properties are used to to specify the pravega published chart and repository to deploy pravega,bookkeeper & zookkeeper operators using helm docker image properties
-        environment "publishedChartName",System.getProperty("publishedChartName", "pravega")
-        environment "helmRepository",System.getProperty("helmRepository", "pravega")
+        environment "publishedChartName", System.getProperty("publishedChartName", "pravega")
+        environment "helmRepository", System.getProperty("helmRepository", "https://charts.pravega.io")
         // To update config map with desired pravega version
-        environment "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
-        environment "desiredBookkeeperCMVersion",System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
+        environment "desiredPravegaCMVersion", System.getProperty("desiredPravegaCMVersion", "0.9.0")
+        environment "desiredBookkeeperCMVersion", System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
         environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
 
         commandLine './kubernetes/setupTestPod.sh'
     }
 
+    task runFluentBitInstall(type: Exec) {
+        environment 'FLUENT_BIT_STORAGE_CLASS', System.getProperty("logStorageClass", "")
+        environment 'FLUENT_BIT_HOST_LOGS_PATH', System.getProperty("k8HostLogPath", "")
+        commandLine './kubernetes/fluentBitSetup.sh', 'install'
+    }
+
+    task fetchSystemTestLogs(type: Exec) {
+        environment 'FLUENT_BIT_EXPORT_PATH', "logs"
+        commandLine './kubernetes/fluentBitSetup.sh', 'fetch-logs'
+        commandLine './kubernetes/fluentBitSetup.sh', 'fetch-system-test-logs'
+    }
+
     task startK8SystemTests(type: Test) {
-        dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
+        dependsOn 'copyTestsToK8sCluster', 'runFluentBitInstall' // ensure test artifacts are copied to the cluster.
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
@@ -1038,21 +1061,21 @@ project('test:system') {
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
         // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
         systemProperty "tier2Config", System.getProperty("tier2Config")
-        systemProperty "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
-        systemProperty "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
-        systemProperty "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
-        systemProperty "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
-        systemProperty "desiredBookkeeperCMVersion",System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
-        systemProperty "publishedChartName",System.getProperty("publishedChartName", "pravega")
-        systemProperty "helmRepository",System.getProperty("helmRepository", "pravega")
+        systemProperty "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest")
+        systemProperty "bookkeeperOperatorVersion", System.getProperty("bookkeeperOperatorVersion", "latest")
+        systemProperty "zookeeperOperatorVersion", System.getProperty("zookeeperOperatorVersion", "latest")
+        systemProperty "desiredPravegaCMVersion", System.getProperty("desiredPravegaCMVersion", "0.9.0")
+        systemProperty "desiredBookkeeperCMVersion", System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
+        systemProperty "publishedChartName", System.getProperty("publishedChartName", "pravega")
+        systemProperty "helmRepository", System.getProperty("helmRepository", "pravega")
 
         // target versions wrt Upgrade for all operators & clusters
-        systemProperty "targetPravegaOperatorVersion",System.getProperty("targetPravegaOperatorVersion", "latest")
-        systemProperty "targetBookkeeperOperatorVersion",System.getProperty("targetBookkeeperOperatorVersion", "latest")
-        systemProperty "targetZookeeperOperatorVersion",System.getProperty("targetZookeeperOperatorVersion", "latest")
-        systemProperty "targetPravegaVersion",System.getProperty("targetPravegaVersion", "latest")
-        systemProperty "targetBookkeeperVersion",System.getProperty("targetBookkeeperVersion", "latest")
-        systemProperty "targetZookeeperVersion",System.getProperty("targetZookeeperVersion", "latest")
+        systemProperty "targetPravegaOperatorVersion", System.getProperty("targetPravegaOperatorVersion", "latest")
+        systemProperty "targetBookkeeperOperatorVersion", System.getProperty("targetBookkeeperOperatorVersion", "latest")
+        systemProperty "targetZookeeperOperatorVersion", System.getProperty("targetZookeeperOperatorVersion", "latest")
+        systemProperty "targetPravegaVersion", System.getProperty("targetPravegaVersion", "latest")
+        systemProperty "targetBookkeeperVersion", System.getProperty("targetBookkeeperVersion", "latest")
+        systemProperty "targetZookeeperVersion", System.getProperty("targetZookeeperVersion", "latest")
         //testPodImage , default is openjdk:8u181-jre-alpine
         systemProperty "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
 
@@ -1064,7 +1087,14 @@ project('test:system') {
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
 
+        if (System.getProperty("configFile") != null) {
+            systemProperty "configs", new File(System.getProperty("configFile")).text
+        }
         maxParallelForks = 1
+
+        if (System.getProperty("failFast", "false") == "true") {
+            failFast = true
+        }
     }
 
     task execShellScript(type: Exec) {

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.mock;
 
@@ -178,7 +184,14 @@ public class MockController implements Controller {
         return createInScope(scope, new StreamImpl(scope, streamName), streamConfig, s -> s.streams,
                 this::getSegmentsForStream, Segment::getScopedName, this::createSegment);
     }
-    
+
+    @Synchronized
+    public CompletableFuture<Boolean> createRGStream(String scope, String rgName) {
+        String rgStream = NameUtils.getStreamForReaderGroup(rgName);
+        StreamConfiguration rgStreamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        return createStreamInternal(scope, rgStream, rgStreamConfig);
+    }
+
     @Synchronized
     List<Segment> getSegmentsForStream(Stream stream) {
         StreamConfiguration config = getStreamConfiguration(stream);
@@ -274,7 +287,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName, final UUID readerGroupId, final long generation) {
+    public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName, final UUID readerGroupId) {
         String key = getScopedReaderGroupName(scope, getStreamForReaderGroup(rgName));
         return deleteFromScope(scope, key, s -> s.readerGroups, this::getSegmentsForReaderGroup, Segment::getScopedName, this::deleteSegment);
     }
@@ -287,7 +300,8 @@ public class MockController implements Controller {
         assert scopeMeta != null : "Scope not created";
         assert scopeMeta.readerGroups.containsKey(key) : "ReaderGroup is not created";
         long newGen = scopeMeta.readerGroups.get(key).getGeneration() + 1;
-        scopeMeta.readerGroups.replace(key, scopeMeta.readerGroups.get(key), config.toBuilder().generation(newGen).build());
+        scopeMeta.readerGroups.replace(key, scopeMeta.readerGroups.get(key),
+                ReaderGroupConfig.cloneConfig(config, config.getReaderGroupId(), newGen));
         return CompletableFuture.completedFuture(newGen);
     }
 

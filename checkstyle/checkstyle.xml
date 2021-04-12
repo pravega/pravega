@@ -9,7 +9,7 @@
 
   <!-- header -->
   <module name="RegexpHeader">
-    <property name="header" value="/\*\*\n * Copyright \(c\) Dell Inc\.\, or its subsidiaries\. All Rights Reserved\."/>
+    <property name="header" value="/\*\*\n * Copyright Pravega Authors\."/>
   </module>
   <module name="SuppressionFilter">
         <property name="file" value="${suppressionsFile}"/>

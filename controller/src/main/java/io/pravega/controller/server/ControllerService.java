@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server;
 
@@ -177,7 +183,7 @@ public class ControllerService {
         try {
             NameUtils.validateReaderGroupName(rgName);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Create ReaderGroup failed due to invalid name {}", rgName);
+            log.error("Create ReaderGroup failed due to invalid name {}", rgName);
             return CompletableFuture.completedFuture(
                     CreateReaderGroupResponse.newBuilder().setStatus(CreateReaderGroupResponse.Status.INVALID_RG_NAME).build());
         }
@@ -207,13 +213,12 @@ public class ControllerService {
         return streamMetadataTasks.getReaderGroupConfig(scope, rgName, null);
     }
 
-    public CompletableFuture<DeleteReaderGroupStatus> deleteReaderGroup(String scope, String rgName, String readerGroupId, final long generation) {
+    public CompletableFuture<DeleteReaderGroupStatus> deleteReaderGroup(String scope, String rgName, String readerGroupId) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");
         Preconditions.checkNotNull(readerGroupId, "ReaderGroup Id is null");
-        Preconditions.checkArgument(generation >= 0 );
         Timer timer = new Timer();
-        return streamMetadataTasks.deleteReaderGroup(scope, rgName, readerGroupId, generation, null)
+        return streamMetadataTasks.deleteReaderGroup(scope, rgName, readerGroupId, null)
                 .thenApplyAsync(status -> {
                     reportDeleteReaderGroupMetrics(scope, rgName, status, timer.getElapsed());
                     return DeleteReaderGroupStatus.newBuilder().setStatus(status).build();
@@ -253,7 +258,7 @@ public class ControllerService {
         try {
             NameUtils.validateStreamName(stream);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Create stream failed due to invalid stream name {}", stream);
+            log.error("Create stream failed due to invalid stream name {}", stream);
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
@@ -497,7 +502,8 @@ public class ControllerService {
         return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, writerId, timestamp, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
-                        log.warn("Transaction commit failed", ex);
+                        log.error("Transaction commit failed for txn {} on stream {}. Cause: {}", txId.toString(),
+                                NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof RetryableException) {
                             // if its a retryable exception (it could be either write conflict or store exception)
@@ -530,7 +536,8 @@ public class ControllerService {
         return streamTransactionMetadataTasks.abortTxn(scope, stream, txId, null, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
-                        log.warn("Transaction abort failed", ex);
+                        log.error("Transaction abort failed for txn {} on Stream {}", txId.toString(),
+                                NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
                         if (unwrap instanceof RetryableException) {
                             // if its a retryable exception (it could be either write conflict or store exception)
@@ -579,7 +586,7 @@ public class ControllerService {
         try {
             NameUtils.validateScopeName(scope);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Create scope failed due to invalid scope name {}", scope);
+            log.error("Create scope failed due to invalid scope name {}", scope);
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
                     CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
         }

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.protocol.netty;
 
@@ -97,6 +103,24 @@ public class ByteBufWrapperTests extends BufferViewTestBase {
         val expectedBuffers = Arrays.asList(buf.nioBuffers());
         val actualBuffers = Lists.newArrayList(bufferView.iterateBuffers());
         AssertExtensions.assertListEquals("", expectedBuffers, actualBuffers, ByteBuffer::equals);
+    }
+
+    @Test
+    public void testAllocatedLength() {
+        val b1 = Unpooled.wrappedBuffer(new byte[100]).slice(10, 20);
+        val b2 = Unpooled.directBuffer(100).slice(10, 20);
+        val b3 = Unpooled.wrappedUnmodifiableBuffer(b1, b2);
+        System.out.println("100 " + b1.capacity() + " " + new ByteBufWrapper(b1).getAllocatedLength());
+        System.out.println("100 " + b2.capacity() + " " + new ByteBufWrapper(b2).getAllocatedLength());
+        System.out.println("200 " + b3.capacity() + " " + new ByteBufWrapper(b3).getAllocatedLength());
+    }
+
+    @Override
+    protected void checkAllocatedSize(BufferView slice, BufferView base) {
+        // We don't have a good way to extract the actual allocated size from a ByteBuf, so we can only verify that the
+        // allocated length is at least what the length of the buffer is.
+        AssertExtensions.assertGreaterThanOrEqual("Expected slice length to be at most the allocated length.",
+                slice.getLength(), slice.getAllocatedLength());
     }
 
     @Override

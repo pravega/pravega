@@ -1,37 +1,40 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.metrics;
 
 import com.google.common.base.Preconditions;
 import io.micrometer.core.instrument.Meter;
 import io.pravega.common.Exceptions;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Base class for a Metric Proxy.
  *
- * @param <T> Type of Metric.
+ * @param <MetricT> Type of Metric.
  */
-@Slf4j
-abstract class MetricProxy<T extends Metric> implements AutoCloseable {
-    private final AtomicReference<T> instance = new AtomicReference<>();
+abstract class MetricProxy<MetricT extends Metric, SelfT extends MetricProxy<MetricT, SelfT>> implements AutoCloseable {
+    private final AtomicReference<MetricT> instance = new AtomicReference<>();
     private final AtomicBoolean closed = new AtomicBoolean();
 
     @Getter
     private final String proxyName;
-    private final Consumer<String> closeCallback;
+    private final Consumer<SelfT> closeCallback;
 
     /**
      * Creates a new instance of the MetricProxy class.
@@ -40,7 +43,7 @@ abstract class MetricProxy<T extends Metric> implements AutoCloseable {
      * @param proxyName     The name of the MetricProxy. This may be different from the name of the Metric's instance.
      * @param closeCallback A Consumer that will be invoked when this Proxy is closed.
      */
-    MetricProxy(T instance, String proxyName, Consumer<String> closeCallback) {
+    MetricProxy(MetricT instance, String proxyName, Consumer<SelfT> closeCallback) {
         this.closeCallback = Preconditions.checkNotNull(closeCallback, "closeCallback");
         this.proxyName = Exceptions.checkNotNullOrEmpty(proxyName, "name");
         updateInstance(instance);
@@ -49,14 +52,19 @@ abstract class MetricProxy<T extends Metric> implements AutoCloseable {
     @Override
     public void close() {
         if (!closed.getAndSet(true)) {
-            T i = this.instance.get();
+            MetricT i = this.instance.get();
             if (i != null) {
                 i.close();
-                this.closeCallback.accept(this.proxyName);
+                this.closeCallback.accept(getSelf());
             }
         }
     }
 
+    /**
+     * All implementations should return 'this'. (Workaround to Java's lack of variance)
+     */
+    protected abstract SelfT getSelf();
+    
     /**
      * Gets the id of the underlying metric.
      *
@@ -69,16 +77,16 @@ abstract class MetricProxy<T extends Metric> implements AutoCloseable {
     /**
      * Updates the underlying Metric instance with the given one, and closes out the previous one.
      *
-     * @param instance The instance to update to.
+     * @param newInstance The instance to update to.
      */
-    void updateInstance(T instance) {
-        T oldInstance = this.instance.getAndSet(Preconditions.checkNotNull(instance, "instance"));
-        if (oldInstance != null && oldInstance != instance) {
+    void updateInstance(MetricT newInstance) {
+        MetricT oldInstance = this.instance.getAndSet(Preconditions.checkNotNull(newInstance, "instance"));
+        if (oldInstance != null && !newInstance.equals(oldInstance)) {
             oldInstance.close();
         }
     }
 
-    protected T getInstance() {
+    protected MetricT getInstance() {
         return this.instance.get();
     }
 }

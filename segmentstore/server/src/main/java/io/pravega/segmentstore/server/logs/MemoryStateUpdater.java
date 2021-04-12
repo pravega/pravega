@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
@@ -24,12 +30,15 @@ import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
+import io.pravega.segmentstore.storage.ThrottlerSourceListenerCollection;
 import io.pravega.segmentstore.storage.cache.CacheFullException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -43,6 +52,7 @@ class MemoryStateUpdater {
     private final ReadIndex readIndex;
     private final AbstractDrainingQueue<Operation> inMemoryOperationLog;
     private final AtomicBoolean recoveryMode;
+    private final ThrottlerSourceListenerCollection readListeners;
 
     //endregion
 
@@ -58,11 +68,32 @@ class MemoryStateUpdater {
         this.inMemoryOperationLog = Preconditions.checkNotNull(inMemoryOperationLog, "inMemoryOperationLog");
         this.readIndex = Preconditions.checkNotNull(readIndex, "readIndex");
         this.recoveryMode = new AtomicBoolean();
+        this.readListeners = new ThrottlerSourceListenerCollection();
     }
 
     //endregion
 
     //region Operations
+
+    /**
+     * Registers a {@link ThrottleSourceListener} that will be notified on every Operation Log read.
+     *
+     * @param listener The {@link ThrottleSourceListener} to register.
+     */
+    void registerReadListener(@NonNull ThrottleSourceListener listener) {
+        this.readListeners.register(listener);
+    }
+
+    /**
+     * Notifies all registered {@link ThrottleSourceListener} that an Operation Log read has been truncated.
+     */
+    void notifyLogRead() {
+        this.readListeners.notifySourceChanged();
+    }
+
+    public int getInMemoryOperationLogSize() {
+        return this.inMemoryOperationLog.size();
+    }
 
     /**
      * Gets the {@link CacheUtilizationProvider} shared across all Segment Containers hosted in this process that can
@@ -93,6 +124,16 @@ class MemoryStateUpdater {
     void exitRecoveryMode(boolean successfulRecovery) throws DataCorruptionException {
         this.readIndex.exitRecoveryMode(successfulRecovery);
         this.recoveryMode.set(false);
+    }
+
+    /**
+     * Performs a cleanup of the {@link ReadIndex} by releasing resources allocated for segments that are no longer active
+     * and trimming to cache to the minimum essential.
+     */
+    void cleanupReadIndex() {
+        Preconditions.checkState(this.recoveryMode.get(), "cleanupReadIndex can only be performed in recovery mode.");
+        this.readIndex.cleanup(null);
+        this.readIndex.trimCache();
     }
 
     /**

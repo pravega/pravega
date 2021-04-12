@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.cli.admin;
 
@@ -20,7 +26,9 @@ import io.pravega.cli.admin.bookkeeper.BookKeeperCleanupCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperDetailsCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperDisableCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperEnableCommand;
+import io.pravega.cli.admin.bookkeeper.BookKeeperListAllLedgersCommand;
 import io.pravega.cli.admin.bookkeeper.BookKeeperListCommand;
+import io.pravega.cli.admin.bookkeeper.BookKeeperLogReconcileCommand;
 import io.pravega.cli.admin.bookkeeper.ContainerRecoverCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeReaderGroupCommand;
 import io.pravega.cli.admin.controller.ControllerDescribeScopeCommand;
@@ -227,6 +235,8 @@ public abstract class AdminCommand {
                         .put(BookKeeperDetailsCommand::descriptor, BookKeeperDetailsCommand::new)
                         .put(BookKeeperEnableCommand::descriptor, BookKeeperEnableCommand::new)
                         .put(BookKeeperDisableCommand::descriptor, BookKeeperDisableCommand::new)
+                        .put(BookKeeperLogReconcileCommand::descriptor, BookKeeperLogReconcileCommand::new)
+                        .put(BookKeeperListAllLedgersCommand::descriptor, BookKeeperListAllLedgersCommand::new)
                         .put(ContainerRecoverCommand::descriptor, ContainerRecoverCommand::new)
                         .put(ControllerListScopesCommand::descriptor, ControllerListScopesCommand::new)
                         .put(ControllerDescribeScopeCommand::descriptor, ControllerDescribeScopeCommand::new)

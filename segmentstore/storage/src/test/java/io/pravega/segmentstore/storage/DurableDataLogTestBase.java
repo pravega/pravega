@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage;
 
@@ -40,7 +46,7 @@ import org.junit.Test;
  * Base class for all tests for implementations of DurableDataLog.
  */
 public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofMillis(60 * 1000);
+    protected static final Duration TIMEOUT = Duration.ofMillis(20 * 1000);
     protected static final int WRITE_MIN_LENGTH = 20;
     protected static final int WRITE_MAX_LENGTH = 200;
     private final Random random = new Random(0);
@@ -52,7 +58,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testAppendSequence() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             // Check Append pre-initialization.
@@ -89,7 +95,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testAppendParallel() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
@@ -118,7 +124,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testRead() throws Exception {
         TreeMap<LogAddress, byte[]> writeData;
         Object context = createSharedContext();
@@ -145,7 +151,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testReadWriteRecovery() throws Exception {
         final int iterationCount = 4;
         Object context = createSharedContext();
@@ -170,7 +176,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testTruncate() throws Exception {
         TreeMap<LogAddress, byte[]> writeData;
         ArrayList<LogAddress> addresses;
@@ -203,7 +209,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testConcurrentIterator() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
@@ -230,7 +236,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testOpenCloseClient() throws Exception {
         // This is a very repetitive test; and we only care about "recovery" from no client; all else is already tested.
         final int writeCount = 10;
@@ -273,7 +279,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testExclusiveWriteLock() throws Exception {
         final long initialEpoch;
         final long secondEpoch;
@@ -314,7 +320,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one occurred.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testEnableDisable() throws Exception {
         Object context = createSharedContext();
         try (DurableDataLog log = createDurableDataLog(context)) {
@@ -391,7 +397,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      * Tests the ability to register a {@link ThrottleSourceListener} and notify it of updates.
      * @throws Exception If an error occurred.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testRegisterQueueStateListener() throws Exception {
         val listener = new TestThrottleSourceListener();
         try (DurableDataLog log = createDurableDataLog()) {

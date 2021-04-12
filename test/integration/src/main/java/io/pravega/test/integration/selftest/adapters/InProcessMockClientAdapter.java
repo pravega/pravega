@@ -1,20 +1,33 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ * Copyright Pravega Authors.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.KeyValueTableFactory;
+import io.pravega.client.admin.KeyValueTableInfo;
+import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.mock.MockStreamManager;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.impl.KeyValueTableFactoryImpl;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -31,14 +44,19 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.test.common.NoOpScheduledExecutor;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -46,7 +64,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.val;
 
 /**
@@ -60,6 +80,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
     private PravegaConnectionListener listener;
     private MockStreamManager streamManager;
     private AutoScaleMonitor autoScaleMonitor;
+    private MockKVTManager kvtManager;
 
     //endregion
 
@@ -91,6 +112,8 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);
         this.streamManager.createScope(SCOPE);
+
+        this.kvtManager = new MockKVTManager(this.streamManager);
         super.startUp();
     }
 
@@ -125,16 +148,27 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
     }
 
     @Override
+    protected KeyValueTableManager getKVTManager() {
+        return this.kvtManager;
+    }
+
+    @Override
+    protected KeyValueTableFactory getKVTFactory() {
+        return this.kvtManager.getClientFactory();
+    }
+
+    @Override
     protected String getControllerUrl() {
         throw new UnsupportedOperationException("getControllerUrl is not supported for Mock implementations.");
     }
 
     @Override
     public boolean isFeatureSupported(Feature feature) {
-        // This uses MockStreamManager, which only supports Create and Append.
+        // This uses MockStreamManager, which only supports Create and Append for Streams.
         // Also the MockStreamSegmentStore does not support any other features as well.
         return feature == Feature.CreateStream
-                || feature == Feature.Append;
+                || feature == Feature.Append
+                || feature == Feature.Tables;
     }
 
     protected StreamSegmentStore getStreamSegmentStore() {
@@ -266,50 +300,162 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
     //endregion
 
-    private static class MockTableStore implements TableStore {
+    private static class MockKVTManager implements KeyValueTableManager {
+        private final MockStreamManager streamManager;
+        @Getter
+        private final KeyValueTableFactory clientFactory;
+
+        public MockKVTManager(MockStreamManager streamManager) {
+            this.streamManager = streamManager;
+            this.clientFactory = new KeyValueTableFactoryImpl(streamManager.getScope(), streamManager.getController(), streamManager.getConnectionPool());
+        }
+
+        @Override
+        public boolean createKeyValueTable(String scopeName, String keyValueTableName, KeyValueTableConfiguration config) {
+            NameUtils.validateUserKeyValueTableName(keyValueTableName);
+            if (config == null) {
+                config = KeyValueTableConfiguration.builder()
+                        .partitionCount(1)
+                        .build();
+            }
+
+            return Futures.getAndHandleExceptions(
+                    this.streamManager.getController().createKeyValueTable(scopeName, keyValueTableName, config),
+                    RuntimeException::new);
+        }
+
+        @Override
+        public boolean deleteKeyValueTable(String scopeName, String keyValueTableName) {
+            return Futures.getAndHandleExceptions(
+                    this.streamManager.getController().deleteKeyValueTable(scopeName, keyValueTableName),
+                    RuntimeException::new);
+        }
+
+        @Override
+        public Iterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
+            throw new UnsupportedOperationException("listKeyValueTables");
+        }
+
+        @Override
+        public void close() {
+            // Nothing to do.
+        }
+    }
+
+    private class MockTableStore implements TableStore {
+        @GuardedBy("segments")
+        private final Map<String, Map<BufferView, BufferView>> segments = new HashMap<>();
+        private final AtomicLong nextVersion = new AtomicLong(0);
+
         @Override
         public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Duration timeout) {
-            throw new UnsupportedOperationException("createTableSegment");
+            return CompletableFuture.runAsync(() -> {
+                synchronized (this.segments) {
+                    if (this.segments.containsKey(segmentName)) {
+                        throw new CompletionException(new StreamSegmentExistsException(segmentName));
+                    } else {
+                        this.segments.put(segmentName, new HashMap<>());
+                    }
+                }
+            }, executor);
         }
 
         @Override
         public CompletableFuture<Void> deleteSegment(String segmentName, boolean mustBeEmpty, Duration timeout) {
-            throw new UnsupportedOperationException("deleteTableSegment");
-        }
-
-        @Override
-        public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
-            throw new UnsupportedOperationException("mergeTableSegments");
-        }
-
-        @Override
-        public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
-            throw new UnsupportedOperationException("sealTableSegment");
+            return CompletableFuture.runAsync(() -> {
+                synchronized (this.segments) {
+                    if (this.segments.remove(segmentName) == null) {
+                        throw new CompletionException(new StreamSegmentNotExistsException(segmentName));
+                    }
+                }
+            }, executor);
         }
 
         @Override
         public CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, Duration timeout) {
-            throw new UnsupportedOperationException("updateTableSegment");
+            return put(segmentName, entries, WireCommands.NULL_TABLE_SEGMENT_OFFSET, timeout);
         }
 
         @Override
         public CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, long tableSegmentOffset, Duration timeout) {
-            throw new UnsupportedOperationException("updateTableSegment");
+            if (tableSegmentOffset != WireCommands.NULL_TABLE_SEGMENT_OFFSET) {
+                throw new UnsupportedOperationException("updateTableSegment(with offset)");
+            }
+
+            return CompletableFuture.supplyAsync(() -> {
+                Map<BufferView, BufferView> segmentData;
+                synchronized (this.segments) {
+                    segmentData = this.segments.getOrDefault(segmentName, null);
+                    if (segmentData == null) {
+                        throw new CompletionException(new StreamSegmentNotExistsException(segmentName));
+                    }
+                }
+
+                // Note: this doesn't do conditional checks. We don't need them here.
+                val result = new ArrayList<Long>(entries.size());
+                val copies = new ArrayList<Map.Entry<BufferView, BufferView>>(entries.size());
+                entries.forEach(e -> {
+                    copies.add(new AbstractMap.SimpleImmutableEntry<>(new ByteArraySegment(e.getKey().getKey().getCopy()), new ByteArraySegment(e.getValue().getCopy())));
+                    result.add(this.nextVersion.getAndIncrement());
+                });
+                synchronized (segmentData) {
+                    copies.forEach(e -> segmentData.put(e.getKey(), e.getValue()));
+                }
+                return result;
+            }, executor);
         }
 
         @Override
         public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, Duration timeout) {
-            throw new UnsupportedOperationException("remove");
+            return remove(segmentName, keys, WireCommands.NULL_TABLE_SEGMENT_OFFSET, timeout);
         }
 
         @Override
         public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, long tableSegmentOffset, Duration timeout) {
-            throw new UnsupportedOperationException("remove");
+            if (tableSegmentOffset != WireCommands.NULL_TABLE_SEGMENT_OFFSET) {
+                throw new UnsupportedOperationException("remove(with offset)");
+            }
+
+            return CompletableFuture.runAsync(() -> {
+                Map<BufferView, BufferView> segmentData;
+                synchronized (this.segments) {
+                    segmentData = this.segments.getOrDefault(segmentName, null);
+                    if (segmentData == null) {
+                        throw new CompletionException(new StreamSegmentNotExistsException(segmentName));
+                    }
+                }
+
+                synchronized (segmentData) {
+                    // Note: this doesn't do conditional checks. We don't need them here.
+                    keys.forEach(k -> segmentData.remove(k.getKey())); // BufferView.equals() checks equality across implementations.
+                }
+            }, executor);
         }
 
         @Override
         public CompletableFuture<List<TableEntry>> get(String segmentName, List<BufferView> keys, Duration timeout) {
-            throw new UnsupportedOperationException("get");
+            return CompletableFuture.supplyAsync(() -> {
+                Map<BufferView, BufferView> segmentData;
+                synchronized (this.segments) {
+                    segmentData = this.segments.getOrDefault(segmentName, null);
+                    if (segmentData == null) {
+                        throw new CompletionException(new StreamSegmentNotExistsException(segmentName));
+                    }
+                }
+
+                val values = new ArrayList<BufferView>(keys.size());
+                synchronized (segmentData) {
+                    // Note: this doesn't do conditional checks. We don't need them here.
+                    keys.forEach(k -> values.add(segmentData.getOrDefault(k, null)));
+                }
+
+                val result = new ArrayList<TableEntry>(keys.size());
+                for (int i = 0; i < keys.size(); i++) {
+                    val v = values.get(i);
+                    result.add(v == null ? null : TableEntry.unversioned(new ByteArraySegment(keys.get(i).getCopy()), new ByteArraySegment(v.getCopy())));
+                }
+                return result;
+            }, executor);
         }
 
         @Override
@@ -324,7 +470,17 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
         @Override
         public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
-            throw new UnsupportedOperationException("entryIterator");
+            throw new UnsupportedOperationException("entryDeltaIterator");
+        }
+
+        @Override
+        public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
+            throw new UnsupportedOperationException("mergeTableSegments");
+        }
+
+        @Override
+        public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
+            throw new UnsupportedOperationException("sealTableSegment");
         }
     }
 }
