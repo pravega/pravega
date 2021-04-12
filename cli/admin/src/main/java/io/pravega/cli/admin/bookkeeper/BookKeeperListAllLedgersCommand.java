@@ -55,22 +55,25 @@ public class BookKeeperListAllLedgersCommand extends BookKeeperCommand {
         LedgerManager manager = bkClient.getLedgerManager();
         LedgerManager.LedgerRangeIterator ledgerRangeIterator = manager.getLedgerRanges(Long.MAX_VALUE);
         List<ReadHandle> candidateLedgers = new ArrayList<>();
-        while (ledgerRangeIterator.hasNext()) {
-            LedgerManager.LedgerRange lr = ledgerRangeIterator.next();
-            for (long ledgerId : lr.getLedgers()) {
-                candidateLedgers.add(Ledgers.openRead(ledgerId, bkClient, context.bookKeeperConfig));
+        try {
+            while (ledgerRangeIterator.hasNext()) {
+                LedgerManager.LedgerRange lr = ledgerRangeIterator.next();
+                for (long ledgerId : lr.getLedgers()) {
+                    candidateLedgers.add(Ledgers.openRead(ledgerId, bkClient, context.bookKeeperConfig));
+                }
             }
-        }
 
-        // Output all the ledgers found.
-        output("List of ledgers in the system: ");
-        for (ReadHandle rh: candidateLedgers) {
-            output(rh.toString() + " length: " + rh.getLength() + ", lastEntryConfirmed: " + rh.readLastAddConfirmed() +
-                    ", ledgerMetadata: " + rh.getLedgerMetadata().toSafeString() + ", bookieLogID: " + Ledgers.getBookKeeperLogId(rh));
+            // Output all the ledgers found.
+            output("List of ledgers in the system: ");
+            for (ReadHandle rh : candidateLedgers) {
+                output("%s, length: %d, lastEntryConfirmed: %d, ledgerMetadata: %s, bookieLogID: %d",
+                        rh.toString(), rh.getLength(), rh.readLastAddConfirmed(), rh.getLedgerMetadata().toSafeString(),
+                        Ledgers.getBookKeeperLogId(rh));
+            }
+        } finally {
+            // Closing opened ledgers.
+            closeBookkeeperReadHandles(candidateLedgers);
         }
-
-        // Closing opened ledgers.
-        closeBookkeeperReadHandles(candidateLedgers);
     }
 
     public static CommandDescriptor descriptor() {

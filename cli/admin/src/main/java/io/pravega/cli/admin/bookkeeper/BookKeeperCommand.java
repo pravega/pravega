@@ -113,7 +113,7 @@ abstract class BookKeeperCommand extends AdminCommand {
             try {
                 readHandle.close();
             } catch (Exception e) {
-                output("Error while attempting to close ledger " + readHandle.getId() + ": " + e.getMessage());
+                output("Error while attempting to close ledger %d: %s", readHandle.getId(), e.getMessage());
             }
         }
     }

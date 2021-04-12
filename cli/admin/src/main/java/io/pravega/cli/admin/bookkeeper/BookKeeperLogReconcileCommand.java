@@ -73,38 +73,40 @@ public class BookKeeperLogReconcileCommand extends BookKeeperCommand {
         LedgerManager manager = bkClient.getLedgerManager();
         LedgerManager.LedgerRangeIterator ledgerRangeIterator = manager.getLedgerRanges(Long.MAX_VALUE);
         List<ReadHandle> candidateLedgers = new ArrayList<>();
-        while (ledgerRangeIterator.hasNext()) {
-            LedgerManager.LedgerRange lr = ledgerRangeIterator.next();
-            for (long ledgerId: lr.getLedgers()) {
-                ReadHandle readHandle = Ledgers.openRead(ledgerId, bkClient, context.bookKeeperConfig);
-                if (Ledgers.getBookKeeperLogId(readHandle) == logId) {
-                    candidateLedgers.add(readHandle);
+        try {
+            while (ledgerRangeIterator.hasNext()) {
+                LedgerManager.LedgerRange lr = ledgerRangeIterator.next();
+                for (long ledgerId : lr.getLedgers()) {
+                    ReadHandle readHandle = Ledgers.openRead(ledgerId, bkClient, context.bookKeeperConfig);
+                    if (Ledgers.getBookKeeperLogId(readHandle) == logId) {
+                        candidateLedgers.add(readHandle);
+                    }
                 }
             }
+
+            // If there are no candidate ledgers, just return.
+            if (candidateLedgers.isEmpty()) {
+                output("No candidate ledgers to reconcile.");
+                return;
+            }
+
+            // Confirm with user prior executing the command.
+            output("Candidate ledgers for reconciliation: %s",
+                    candidateLedgers.stream().map(String::valueOf).collect(Collectors.joining(",")));
+            output("BookKeeperLog '%s' reconciliation is about to be executed.", logId);
+            if (!confirmContinue()) {
+                output("Not reconciling anything at this time.");
+                return;
+            }
+
+            // Executing BookkeeperLog reconciliation.
+            output("BookKeeperLog '%s': starting ledger reconciliation.", logId);
+            log.reconcileLedgers(candidateLedgers);
+            output("BookKeeperLog '%s': ledger reconciliation completed.", logId);
+        } finally {
+            // Closing opened ledgers.
+            closeBookkeeperReadHandles(candidateLedgers);
         }
-
-        // If there are no candidate ledgers, just return.
-        if (candidateLedgers.isEmpty()) {
-            output("No candidate ledgers to reconcile.");
-            return;
-        }
-
-        // Confirm with user prior executing the command.
-        output("Candidate ledgers for reconciliation: " +
-                candidateLedgers.stream().map(String::valueOf).collect(Collectors.joining(",")));
-        output("BookKeeperLog '%s' reconciliation is about to be executed.", logId);
-        if (!confirmContinue()) {
-            output("Not reconciling anything at this time.");
-            return;
-        }
-
-        // Executing BookkeeperLog reconciliation.
-        output("BookKeeperLog '%s': starting ledger reconciliation.", logId);
-        log.reconcileLedgers(candidateLedgers);
-        output("BookKeeperLog '%s': ledger reconciliation completed.", logId);
-
-        // Closing opened ledgers.
-        closeBookkeeperReadHandles(candidateLedgers);
     }
 
     public static CommandDescriptor descriptor() {
