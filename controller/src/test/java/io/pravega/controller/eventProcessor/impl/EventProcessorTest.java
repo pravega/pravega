@@ -343,7 +343,7 @@ public class EventProcessorTest {
                 new EventStreamWriterMock<>(), system.getProcess(), READER_ID, 0, checkpointStore);
         cell.startAsync();
         cell.awaitTerminated();
-        Assert.assertTrue(true);
+        checkpointStore.removeReader(PROCESS, READER_GROUP, READER_ID);
 
         // Test case 6. Close event processor cell when reader/checkpoint store throw exceptions.
         Mockito.doThrow(new IllegalArgumentException("Failing reader")).when(reader).closeAt(any());
@@ -362,7 +362,6 @@ public class EventProcessorTest {
                 READER_ID, 0, checkpointStore);
         cell.startAsync();
         cell.awaitTerminated();
-        Assert.assertTrue(true);
     }
 
     @Test(timeout = 10000)
@@ -374,6 +373,7 @@ public class EventProcessorTest {
         EventStreamWriterMock<TestEvent> writer = new EventStreamWriterMock<>();
 
         CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+        checkpointStore.addReaderGroup(PROCESS, readerGroupName);
 
         CheckpointConfig checkpointConfig = CheckpointConfig.builder().type(CheckpointConfig.Type.None).build();
 
@@ -421,6 +421,7 @@ public class EventProcessorTest {
         int[] input = {1, 2, 3, 4, 5};
 
         CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+        checkpointStore.addReaderGroup(PROCESS, readerGroupName);
 
         CheckpointConfig checkpointConfig = CheckpointConfig.builder().type(CheckpointConfig.Type.None).build();
 
@@ -499,6 +500,7 @@ public class EventProcessorTest {
         int expectedSum = input.length * (input.length + 1) / 2;
 
         CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+        checkpointStore.addReaderGroup(PROCESS, readerGroupName);
 
         EventProcessorGroupConfig config = createEventProcessorGroupConfig(initialCount);
 
@@ -541,6 +543,7 @@ public class EventProcessorTest {
         String readerGroupName = "rebalance";
 
         CheckpointStore checkpointStore = spy(CheckpointStoreFactory.createInMemoryStore());
+        checkpointStore.addReaderGroup(PROCESS, readerGroupName);
 
         EventProcessorGroupConfig config = createEventProcessorGroupConfig(2);
         
@@ -821,6 +824,7 @@ public class EventProcessorTest {
 
         TestEventProcessor actor = (TestEventProcessor) cell.getActor();
         assertEquals(expectedSum, actor.sum);
+        checkpointStore.removeReader(PROCESS, READER_GROUP, readerId);
         assertTrue(checkpointStore.getPositions(PROCESS, READER_GROUP).isEmpty());
     }
 }

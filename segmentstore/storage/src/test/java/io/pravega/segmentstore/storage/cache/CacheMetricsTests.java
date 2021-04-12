@@ -19,10 +19,12 @@ import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -30,6 +32,7 @@ import static org.junit.Assert.assertNull;
 /**
  * Unit tests for the {@link CacheMetrics} class.
  */
+@RunWith(SerializedClassRunner.class)
 public class CacheMetricsTests {
     @Before
     public void setUp() {

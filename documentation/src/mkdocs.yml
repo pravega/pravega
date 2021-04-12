@@ -102,7 +102,11 @@ nav:
     - 'DC/OS': 'deployment/dcos-install.md'
     - 'AWS': 'deployment/aws-install.md'
   - Admin Guide:
-    - 'Admin CLI': 'https://github.com/pravega/pravega/blob/master/cli/admin/README.md'
+    - 'Cluster Dependencies': 'admin-guide/cluster-dependencies.md'
+    - 'LTS Right-Sizing': 'admin-guide/lts-sizing.md'
+    - 'Durable Log Configuration': 'admin-guide/durable-log-config.md'
+    - 'Number of Segment Containers': 'admin-guide/num-containers.md'
+    - 'Segment Store Memory': 'admin-guide/segmentstore-memory.md'
     - 'Security':
       - 'Overview': 'security/pravega-security-authorization-authentication.md'
       - 'Authentication/Authorization Plugin': 'auth/auth-plugin.md'
@@ -112,6 +116,7 @@ nav:
       - 'Standalone Mode': 'security/securing-standalone-mode-cluster.md'
       - 'Distributed Mode': 'security/securing-distributed-mode-cluster.md'
       - 'TLS Artifacts': 'security/generating-tls-artifacts.md'
+    - 'Admin CLI': 'https://github.com/pravega/pravega/blob/master/cli/admin/README.md'
   - Contributing:
     - 'Coding guildelines': 'contributing.md'
     - 'Pravega Roadmap': 'roadmap.md'

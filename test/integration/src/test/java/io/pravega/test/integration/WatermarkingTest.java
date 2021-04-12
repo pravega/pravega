@@ -97,7 +97,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
     public void watermarkTest() throws Exception {
         Controller controller = PRAVEGA.getLocalController();
         String scope = "scope";
-        String stream = "stream";
+        String stream = "watermarkTest";
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build();
         @Cleanup
@@ -172,7 +172,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(streamObj, streamCutSecond);
 
         // read from stream cut of first watermark
-        String readerGroup = "rg";
+        String readerGroup = "watermarkTest-group";
         readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
                 .startingStreamCuts(firstMarkStreamCut)
                 .endingStreamCuts(secondMarkStreamCut)
@@ -228,7 +228,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         // then delete stream and move to next iteration and verify that watermarks are generated.
         for (int i = 0; i < 2; i++) {
             String scope = "scope";
-            String stream = "recreate";
+            String stream = "recreateStreamWatermarkTest";
 
             streamManager.createScope(scope);
             streamManager.createStream(scope, stream, config);
@@ -269,7 +269,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
     public void watermarkTxnTest() throws Exception {
         Controller controller = PRAVEGA.getLocalController();
         String scope = "scopeTx";
-        String stream = "streamTx";
+        String stream = "watermarkTxnTest";
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build();
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(5)).build();
 
@@ -347,7 +347,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
         Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(streamObj, streamCutSecond);
 
         // read from stream cut of first watermark
-        String readerGroup = "rgTx";
+        String readerGroup = "watermarkTxnTest-group";
         readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
                 .startingStreamCuts(firstMarkStreamCut)
                 .endingStreamCuts(secondMarkStreamCut).disableAutomaticCheckpoints()
@@ -392,7 +392,7 @@ public class WatermarkingTest extends ThreadPooledTestSuite {
     @Test(timeout = 60000)
     public void progressingWatermarkWithWriterTimeouts() throws Exception {
         String scope = "Timeout";
-        String streamName = "Timeout";
+        String streamName = "progressingWatermarkWithWriterTimeouts";
         int numSegments = 1;
 
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build();
