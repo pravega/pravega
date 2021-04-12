@@ -35,7 +35,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKNotEnoughBookiesException;
 import org.apache.bookkeeper.client.BKException.BKUnexpectedConditionException;
-import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.api.Handle;
 import org.apache.bookkeeper.client.api.ReadHandle;
