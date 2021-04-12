@@ -42,7 +42,6 @@ import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.test.common.InlineExecutor;
-import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,8 +63,6 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
-    private final JavaSerializer<String> serializer = new JavaSerializer<>();
-
     @Override
     protected int getThreadPoolSize() {
         return 1;
@@ -75,33 +72,36 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     @Test(timeout = 30000)
     public void testReaderOffline() throws Exception {
         StreamConfiguration config = getStreamConfig();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream("test", "test", config).get();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        String scopeName = "test";
+        String streamName = "testReaderOffline";
+        controller.createScope(scopeName).get();
+        controller.createStream(scopeName, streamName, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                                                                                    .controllerURI(URI.create("tcp://" + serviceHost))
+                                                                                    .controllerURI(PRAVEGA.getControllerURI())
                                                                                     .build());
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, controller, connectionFactory);
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
-        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                 .stream("test/test").build());
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scopeName, controller, clientFactory);
+        String groupName = "testReaderOffline-group";
+        groupManager.createReaderGroup(groupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                                                 .stream(scopeName + "/" + streamName).build());
 
-        final ReaderGroup readerGroup = groupManager.getReaderGroup("group");
+        final ReaderGroup readerGroup = groupManager.getReaderGroup(groupName);
 
         // create a reader
         @Cleanup
-        EventStreamReader<String> reader1 = clientFactory.createReader("reader1", "group", new JavaSerializer<>(),
+        EventStreamReader<String> reader1 = clientFactory.createReader("reader1", groupName, new JavaSerializer<>(),
                                                                        ReaderConfig.builder().build());
 
         EventRead<String> eventRead = reader1.readNextEvent(100);
         assertNull("Event read should be null since no events are written", eventRead.getEvent());
 
         @Cleanup
-        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", "group", new JavaSerializer<>(),
+        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", groupName, new JavaSerializer<>(),
                                                                        ReaderConfig.builder().build());
 
         //make reader1 offline
@@ -109,7 +109,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
         // write events into the stream.
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                                                                            EventWriterConfig.builder().build());
         writer.writeEvent("0", "data1").get();
         writer.writeEvent("0", "data2").get();
@@ -121,12 +121,13 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     @Test(timeout = 30000)
     public void testDeleteReaderGroup() throws Exception {
         StreamConfiguration config = getStreamConfig();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream("test", "test", config).get();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        String streamName = "testDeleteReaderGroup";
+        controller.createScope("test").get();
+        controller.createStream("test", streamName, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                                                                                    .controllerURI(URI.create("tcp://" + serviceHost))
+                                                                                    .controllerURI(PRAVEGA.getControllerURI())
                                                                                     .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
@@ -134,14 +135,15 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
         // Create a ReaderGroup
-        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                 .stream("test/test").build());
+        String groupName = "testDeleteReaderGroup-group";
+        groupManager.createReaderGroup(groupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                                                 .stream("test/" + streamName).build());
         // Create a Reader
-        EventStreamReader<String> reader = clientFactory.createReader("reader1", "group", serializer, ReaderConfig.builder().build());
+        EventStreamReader<String> reader = clientFactory.createReader("reader1", groupName, serializer, ReaderConfig.builder().build());
 
         // Write events into the stream.
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter("test", serializer, EventWriterConfig.builder().build());
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer, EventWriterConfig.builder().build());
         writer.writeEvent("0", "data1").get();
 
         EventRead<String> eventRead = reader.readNextEvent(10000);
@@ -151,27 +153,28 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         reader.close();
 
         //delete the readerGroup.
-        groupManager.deleteReaderGroup("group");
+        groupManager.deleteReaderGroup(groupName);
 
         // create a new readerGroup with the same name.
-        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                 .stream("test/test").build());
+        groupManager.createReaderGroup(groupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                                                 .stream("test/" + streamName).build());
 
-        reader = clientFactory.createReader("reader1", "group", new JavaSerializer<>(),
+        reader = clientFactory.createReader("reader1", groupName, new JavaSerializer<>(),
                                                                        ReaderConfig.builder().build());
         eventRead = reader.readNextEvent(10000);
         assertEquals("data1", eventRead.getEvent());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testCreateSubscriberReaderGroup() throws InterruptedException, ExecutionException {
         StreamConfiguration config = getStreamConfig();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream("test", "test", config).get();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        String streamName = "testCreateSubscriberReaderGroup";
+        controller.createScope("test").get();
+        controller.createStream("test", streamName, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(URI.create("tcp://" + serviceHost))
+                .controllerURI(PRAVEGA.getControllerURI())
                 .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
@@ -180,23 +183,25 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
 
         // Create a ReaderGroup
-        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                .stream("test/test")
+        String groupName = "testCreateSubscriberReaderGroup-group";
+        groupManager.createReaderGroup(groupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                                                .stream("test/" + streamName)
                                                                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT).build());
 
-        List<String> subs = controller.listSubscribers("test", "test").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("test/group"));
+        List<String> subs = controller.listSubscribers("test", streamName).get();
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("test/" + groupName));
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testResetSubscriberToNonSubscriberReaderGroup() throws InterruptedException, ExecutionException {
         StreamConfiguration config = getStreamConfig();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream("test", "test", config).get();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        String streamName = "testResetSubscriberToNonSubscriberReaderGroup";
+        controller.createScope("test").get();
+        controller.createStream("test", streamName, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(URI.create("tcp://" + serviceHost))
+                .controllerURI(PRAVEGA.getControllerURI())
                 .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
@@ -205,28 +210,30 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
 
         // Create a ReaderGroup
-        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream("test/test").retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT).build());
+        String group = "testResetSubscriberToNonSubscriberReaderGroup-group";
+        groupManager.createReaderGroup(group, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/" + streamName).retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT).build());
 
-        List<String> subs = controller.listSubscribers("test", "test").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("test/group"));
+        List<String> subs = controller.listSubscribers("test", streamName).get();
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("test/" + group));
 
-        ReaderGroup subGroup = groupManager.getReaderGroup("group");
-        subGroup.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/test").build());
+        ReaderGroup subGroup = groupManager.getReaderGroup(group);
+        subGroup.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/" + streamName).build());
 
-        subs = controller.listSubscribers("test", "test").get();
-        assertFalse("Subscriber list contains required reader group", subs.contains("test/group"));
+        subs = controller.listSubscribers("test", streamName).get();
+        assertFalse("Subscriber list contains required reader group", subs.contains("test/" + group));
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testResetNonSubscriberToSubscriberReaderGroup() throws InterruptedException, ExecutionException {
         StreamConfiguration config = getStreamConfig();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream("test", "test", config).get();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        String streamName = "testResetNonSubscriberToSubscriberReaderGroup";
+        controller.createScope("test").get();
+        controller.createStream("test", streamName, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(URI.create("tcp://" + serviceHost))
+                .controllerURI(PRAVEGA.getControllerURI())
                 .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
@@ -234,31 +241,32 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
 
+        String group = "testResetNonSubscriberToSubscriberReaderGroup-group";
         // Create a ReaderGroup
-        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream("test/test").build());
+        groupManager.createReaderGroup(group, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/" + streamName).build());
 
-        List<String> subs = controller.listSubscribers("test", "test").get();
-        assertFalse("Subscriber list contains required reader group", subs.contains("test/group"));
+        List<String> subs = controller.listSubscribers("test", streamName).get();
+        assertFalse("Subscriber list contains required reader group", subs.contains("test/" + group));
 
-        ReaderGroup subGroup = groupManager.getReaderGroup("group");
-        subGroup.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/test")
+        ReaderGroup subGroup = groupManager.getReaderGroup(group);
+        subGroup.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/" + streamName)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT).build());
 
-        subs = controller.listSubscribers("test", "test").get();
-        assertTrue("Subscriber list does not contain required reader group", subs.contains("test/group"));
+        subs = controller.listSubscribers("test", streamName).get();
+        assertTrue("Subscriber list does not contain required reader group", subs.contains("test/" + group));
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testLaggingResetReaderGroup() throws Exception {
         StreamConfiguration config = getStreamConfig();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream("test", "test", config).get();
-        controller.createStream("test", "test2", config).get();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        controller.createScope("test").get();
+        controller.createStream("test", "testLaggingResetReaderGroup", config).get();
+        controller.createStream("test", "testLaggingResetReaderGroup2", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(URI.create("tcp://" + serviceHost))
+                .controllerURI(PRAVEGA.getControllerURI())
                 .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
@@ -268,61 +276,62 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
         UUID rgId = UUID.randomUUID();
         ReaderGroupConfig rgConf = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream("test/test").retentionType(ReaderGroupConfig.StreamDataRetention.NONE).build();
+                .stream("test/testLaggingResetReaderGroup").retentionType(ReaderGroupConfig.StreamDataRetention.NONE).build();
         rgConf = ReaderGroupConfig.cloneConfig(rgConf, rgId, 0L);
 
         // Create a ReaderGroup
-        groupManager.createReaderGroup("group", rgConf);
+        groupManager.createReaderGroup("testLaggingResetReaderGroup-group", rgConf);
 
         ReaderGroupConfig updateConf = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream("test/test2").retentionType(ReaderGroupConfig.StreamDataRetention.NONE).build();
+                .stream("test/testLaggingResetReaderGroup2").retentionType(ReaderGroupConfig.StreamDataRetention.NONE).build();
         updateConf = ReaderGroupConfig.cloneConfig(updateConf, rgId, 0L);
 
         // Update from the controller end
-        controller.updateReaderGroup("test", "group", updateConf).join();
-        ReaderGroup group = groupManager.getReaderGroup("group");
+        controller.updateReaderGroup("test", "testLaggingResetReaderGroup-group", updateConf).join();
+        ReaderGroup group = groupManager.getReaderGroup("testLaggingResetReaderGroup-group");
         // Reset from client end
-        group.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/test").build());
+        group.resetReaderGroup(ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/testLaggingResetReaderGroup").build());
     }
 
     @Test(timeout = 30000)
     public void testMultiScopeReaderGroup() throws Exception {
-        LocalController controller = (LocalController) controllerWrapper.getController();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
 
         // Config of two streams with same name and different scopes.
         String defaultScope = "test";
         String scopeA = "scopeA";
         String scopeB = "scopeB";
-        String streamName = "test";
+        String streamName = "testMultiScopeReaderGroup";
 
         // Create Scopes
-        controllerWrapper.getControllerService().createScope(defaultScope).get();
-        controllerWrapper.getControllerService().createScope(scopeA).get();
-        controllerWrapper.getControllerService().createScope(scopeB).get();
+        controller.createScope(defaultScope).join();
+        controller.createScope(scopeA).join();
+        controller.createScope(scopeB).join();
 
         // Create Streams.
-        controller.createStream(scopeA, streamName, getStreamConfig()).get();
-        controller.createStream(scopeB, streamName, getStreamConfig()).get();
+        controller.createStream(scopeA, streamName, getStreamConfig()).join();
+        controller.createStream(scopeB, streamName, getStreamConfig()).join();
 
         // Create ReaderGroup and reader.
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                                                                                    .controllerURI(URI.create("tcp://" + serviceHost))
+                                                                                    .controllerURI(PRAVEGA.getControllerURI())
                                                                                     .build());
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(streamName, controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(defaultScope, controller, connectionFactory);
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(defaultScope, controller, clientFactory);
-        groupManager.createReaderGroup("group", ReaderGroupConfig.builder()
+        String groupName = "testMultiScopeReaderGroup-group";
+        groupManager.createReaderGroup(groupName, ReaderGroupConfig.builder()
                                                                  .disableAutomaticCheckpoints()
                                                                  .stream(Stream.of(scopeA, streamName))
                                                                  .stream(Stream.of(scopeB, streamName))
                                                                  .build());
 
-        ReaderGroup readerGroup = groupManager.getReaderGroup("group");
+        ReaderGroup readerGroup = groupManager.getReaderGroup(groupName);
         @Cleanup
-        EventStreamReader<String> reader1 = clientFactory.createReader("reader1", "group", new JavaSerializer<>(),
+        EventStreamReader<String> reader1 = clientFactory.createReader("reader1", groupName, new JavaSerializer<>(),
                                                                        ReaderConfig.builder().build());
 
         // Read empty stream.
@@ -347,16 +356,18 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
     @Test(timeout = 30000)
     public void testGenerateStreamCuts() throws Exception {
-        final Stream stream = Stream.of(SCOPE, STREAM);
-        final String group = "group";
+        String streamName = "testGenerateStreamCuts";
+        final Stream stream = Stream.of(SCOPE, streamName);
+        final String group = "testGenerateStreamCuts-group";
 
         createScope(SCOPE);
-        createStream(SCOPE, STREAM, ScalingPolicy.fixed(1));
+        createStream(SCOPE, streamName, ScalingPolicy.fixed(1));
 
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory
+            .withScope(SCOPE, ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
                                                                            EventWriterConfig.builder().build());
         //Prep the stream with data.
         //1.Write events with event size of 30
@@ -366,7 +377,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(4)).join();
 
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, PRAVEGA.getControllerURI());
         groupManager.createReaderGroup(group, ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(1000)
                 .stream(stream)
@@ -389,7 +400,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertTrue(Futures.await(sc)); // wait until the streamCut is obtained.
 
         //expected segment 0 offset is 30L.
-        Map<Segment, Long> expectedOffsetMap = ImmutableMap.of(getSegment(0, 0), 30L);
+        Map<Segment, Long> expectedOffsetMap = ImmutableMap.of(getSegment(streamName, 0, 0), 30L);
         Map<Stream, StreamCut> scMap = sc.join();
 
         assertEquals("StreamCut for a single stream expected", 1, scMap.size());
@@ -398,19 +409,20 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
     @Test(timeout = 30000)
     public void testReaderOfflineWithSilentCheckpoint() throws Exception {
-        final Stream stream = Stream.of(SCOPE, STREAM);
-        final String group = "group";
+        String streamName = "testReaderOfflineWithSilentCheckpoint";
+        final Stream stream = Stream.of(SCOPE, streamName);
+        final String group = "testReaderOfflineWithSilentCheckpoint-group";
 
         @Cleanup("shutdown")
         InlineExecutor backgroundExecutor = new InlineExecutor();
 
         createScope(SCOPE);
-        createStream(SCOPE, STREAM, ScalingPolicy.fixed(1));
+        createStream(SCOPE, streamName, ScalingPolicy.fixed(1));
 
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
                                                                            EventWriterConfig.builder().build());
         //Prep the stream with data.
         //1.Write events with event size of 30
@@ -420,7 +432,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(4)).join();
 
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, PRAVEGA.getControllerURI());
         groupManager.createReaderGroup(group, ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(1000)
                 .stream(stream)
@@ -452,7 +464,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         data = reader.readNextEvent(15000);
         assertTrue("StreamCut generation should complete successfully", Futures.await(sc));
         //expected segment 0 offset is 60L, since 2 events are read.
-        Map<Segment, Long> expectedOffsetMap = ImmutableMap.of(getSegment(0, 0), 60L);
+        Map<Segment, Long> expectedOffsetMap = ImmutableMap.of(getSegment(streamName, 0, 0), 60L);
         Map<Stream, StreamCut> scMap = sc.join();
         assertEquals("StreamCut for a single stream expected", 1, scMap.size());
         assertEquals("StreamCut pointing ot offset 30L expected", new StreamCutImpl(stream, expectedOffsetMap),
@@ -469,16 +481,17 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
     @Test(timeout = 40000)
     public void testGenerateStreamCutsWithScaling() throws Exception {
-        final Stream stream = Stream.of(SCOPE, STREAM);
-        final String group = "group";
+        String streamName = "testGenerateStreamCutsWithScaling";
+        final Stream stream = Stream.of(SCOPE, streamName);
+        final String group = "testGenerateStreamCutsWithScaling-group";
 
         createScope(SCOPE);
-        createStream(SCOPE, STREAM, ScalingPolicy.fixed(2));
+        createStream(SCOPE, streamName, ScalingPolicy.fixed(2));
 
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, serializer,
                                                                            EventWriterConfig.builder().build());
         //Prep the stream with data.
         //1.Write 2 events with event size of 30 to Segment 0.
@@ -493,7 +506,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         newKeyRanges.put(0.0, 0.25);
         newKeyRanges.put(0.25, 0.5);
         newKeyRanges.put(0.5, 1.0);
-        scaleStream(STREAM, newKeyRanges);
+        scaleStream(streamName, newKeyRanges);
 
         //4. Write events to segment 2
         writer.writeEvent(keyGenerator.apply("0.1"), getEventData.apply(2));
@@ -503,7 +516,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         writer.writeEvent(keyGenerator.apply("0.9"), getEventData.apply(1));
 
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, PRAVEGA.getControllerURI());
         groupManager.createReaderGroup(group, ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(200)
                 .stream(stream)
@@ -567,9 +580,9 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertTrue(Futures.await(sc)); // wait until the streamCut is obtained.
 
         Set<Segment> expectedSegments = ImmutableSet.<Segment>builder()
-                .add(getSegment(4, 1)) // 1 event read from segment 1
-                .add(getSegment(2, 1)) // 1 event read from segment 2 or 3.
-                .add(getSegment(3, 1))
+                .add(getSegment(streamName, 4, 1)) // 1 event read from segment 1
+                .add(getSegment(streamName, 2, 1)) // 1 event read from segment 2 or 3.
+                .add(getSegment(streamName, 3, 1))
                 .build();
         Map<Stream, StreamCut> scMap = sc.join();
         assertEquals("StreamCut for a single stream expected", 1, scMap.size());
@@ -584,7 +597,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
     private void writeTestEvent(String scope, String streamName, int eventId) {
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
 

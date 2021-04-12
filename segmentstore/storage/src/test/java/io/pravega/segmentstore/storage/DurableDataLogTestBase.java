@@ -46,7 +46,7 @@ import org.junit.Test;
  * Base class for all tests for implementations of DurableDataLog.
  */
 public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofMillis(60 * 1000);
+    protected static final Duration TIMEOUT = Duration.ofMillis(20 * 1000);
     protected static final int WRITE_MIN_LENGTH = 20;
     protected static final int WRITE_MAX_LENGTH = 200;
     private final Random random = new Random(0);
@@ -58,7 +58,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testAppendSequence() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             // Check Append pre-initialization.
@@ -95,7 +95,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testAppendParallel() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
@@ -124,7 +124,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testRead() throws Exception {
         TreeMap<LogAddress, byte[]> writeData;
         Object context = createSharedContext();
@@ -151,7 +151,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testReadWriteRecovery() throws Exception {
         final int iterationCount = 4;
         Object context = createSharedContext();
@@ -176,7 +176,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testTruncate() throws Exception {
         TreeMap<LogAddress, byte[]> writeData;
         ArrayList<LogAddress> addresses;
@@ -209,7 +209,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testConcurrentIterator() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
@@ -236,7 +236,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testOpenCloseClient() throws Exception {
         // This is a very repetitive test; and we only care about "recovery" from no client; all else is already tested.
         final int writeCount = 10;
@@ -279,7 +279,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testExclusiveWriteLock() throws Exception {
         final long initialEpoch;
         final long secondEpoch;
@@ -320,7 +320,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one occurred.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testEnableDisable() throws Exception {
         Object context = createSharedContext();
         try (DurableDataLog log = createDurableDataLog(context)) {
@@ -397,7 +397,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      * Tests the ability to register a {@link ThrottleSourceListener} and notify it of updates.
      * @throws Exception If an error occurred.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testRegisterQueueStateListener() throws Exception {
         val listener = new TestThrottleSourceListener();
         try (DurableDataLog log = createDurableDataLog()) {

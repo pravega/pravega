@@ -56,6 +56,7 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -75,7 +76,9 @@ import lombok.Setter;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -102,13 +105,15 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class PravegaRequestProcessorTest {
 
     private static final int MAX_KEY_LENGTH = 100;
     private static final int MAX_VALUE_LENGTH = 100;
     private final long requestId = 1L;
 
-    static {
+    @BeforeClass
+    public static void setupClass() {
         MetricsProvider.initialize(MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build());
         MetricsProvider.getMetricsProvider().startWithoutExporting();
     }
@@ -127,12 +132,12 @@ public class PravegaRequestProcessorTest {
         }
 
         @Override
-        public boolean hasNext() {
+        public synchronized boolean hasNext() {
             return !results.isEmpty();
         }
 
         @Override
-        public ReadResultEntry next() {
+        public synchronized ReadResultEntry next() {
             Assert.assertTrue("Expected copy-on-read enabled for all segment reads.", isCopyOnRead());
             ReadResultEntry result = results.remove(0);
             currentOffset = result.getStreamSegmentOffset();
@@ -140,7 +145,7 @@ public class PravegaRequestProcessorTest {
         }
 
         @Override
-        public int getConsumedLength() {
+        public synchronized int getConsumedLength() {
             return (int) (currentOffset - getStreamSegmentStartOffset());
         }
     }
