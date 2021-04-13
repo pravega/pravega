@@ -43,7 +43,7 @@ public class JwtBodyTest {
 
         assertEquals("subject", jwtBody.getSubject());
         assertEquals("segmentstore", jwtBody.getAudience());
-        assertEquals(new Long(1569837384), jwtBody.getIssuedAtTime());
-        assertEquals(new Long(1569837434), jwtBody.getExpirationTime());
+        assertEquals(Long.valueOf(1569837384), jwtBody.getIssuedAtTime());
+        assertEquals(Long.valueOf(1569837434), jwtBody.getExpirationTime());
     }
 }

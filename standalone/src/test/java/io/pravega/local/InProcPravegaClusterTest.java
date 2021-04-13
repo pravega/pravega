@@ -15,9 +15,11 @@
  */
 package io.pravega.local;
 
+import io.pravega.test.common.SerializedClassRunner;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
 
@@ -26,6 +28,7 @@ import static io.pravega.local.PravegaSanityTests.testWriteAndReadAnEvent;
  * with appropriate configuration for itself as well as for sub-classes.
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class InProcPravegaClusterTest {
 
     @ClassRule
