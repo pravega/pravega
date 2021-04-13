@@ -172,7 +172,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
             String s = NameUtils.getStorageMetadataSegmentName(this.metadata.getContainerId());
 
-            val metadataStore = new TableBasedMetadataStore(s, tableExtension, simpleFactory.getExecutor());
+            val metadataStore = new TableBasedMetadataStore(s, tableExtension, simpleFactory.getChunkedSegmentStorageConfig(), simpleFactory.getExecutor());
 
             return simpleFactory.createStorageAdapter(this.metadata.getContainerId(), metadataStore);
         } else {

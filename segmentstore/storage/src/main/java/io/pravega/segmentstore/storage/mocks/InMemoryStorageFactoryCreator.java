@@ -14,6 +14,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.StorageFactoryInfo;
 import io.pravega.segmentstore.storage.StorageLayoutType;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import lombok.val;
 
 import java.util.concurrent.ScheduledExecutorService;
@@ -23,7 +24,7 @@ public class InMemoryStorageFactoryCreator implements StorageFactoryCreator {
     @Override
     public StorageFactory createFactory(StorageFactoryInfo storageFactoryInfo, ConfigSetup setup, ScheduledExecutorService executor) {
         if (storageFactoryInfo.getStorageLayoutType().equals(StorageLayoutType.CHUNKED_STORAGE)) {
-            val factory = new InMemorySimpleStorageFactory(executor, true);
+            val factory = new InMemorySimpleStorageFactory(setup.getConfig(ChunkedSegmentStorageConfig::builder), executor, true);
             return factory;
         } else {
             InMemoryStorageFactory factory = new InMemoryStorageFactory(executor);

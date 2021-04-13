@@ -124,7 +124,7 @@ public class MetadataTransaction implements AutoCloseable {
         this.version = version;
         this.keysToLock = Preconditions.checkNotNull(keysToLock, "keys");
         this.isReadonly = isReadonly;
-        Preconditions.checkState(keysToLock.length > 0, "At least one key must be locked.");
+        Preconditions.checkArgument(keysToLock.length > 0, "At least one key must be locked.");
         data = new ConcurrentHashMap<>();
     }
 
@@ -224,6 +224,7 @@ public class MetadataTransaction implements AutoCloseable {
      * {@link StorageMetadataException} Exception related to storage metadata operations.
      */
     public CompletableFuture<Void> commit(boolean lazyWrite, boolean skipStoreCheck) {
+        Preconditions.checkState(!isReadonly, "Attempt to modify in readonly transaction");
         Preconditions.checkState(!isCommitted, "Transaction is already committed");
         Preconditions.checkState(!isAborted, "Transaction is already aborted");
         return store.commit(this, lazyWrite, skipStoreCheck);

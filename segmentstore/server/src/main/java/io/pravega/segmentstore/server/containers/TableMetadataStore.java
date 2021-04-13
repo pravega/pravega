@@ -28,10 +28,12 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -79,7 +81,9 @@ class TableMetadataStore extends MetadataStore {
         // Invoke submitAssignment(), which will ensure that the Metadata Segment is mapped in memory and pinned.
         // If this is the first time we initialize the TableMetadataStore for this SegmentContainer, a new id will be
         // assigned to it.
-        val attributes = TableAttributes.DEFAULT_VALUES
+        val attributes = new HashMap<>(TableAttributes.DEFAULT_VALUES);
+        attributes.putAll(ContainerTableExtensionImpl.DEFAULT_COMPACTION_ATTRIBUTES); // Make sure we enable rollover for this segment.
+        val attributeUpdates = attributes
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
@@ -88,7 +92,7 @@ class TableMetadataStore extends MetadataStore {
         // prevent the good functioning of the Segment Store). It is OK if "modify" operations on this segment are
         // throttled as that would not prevent the Segment Store from making forward progress.
         val segmentType = SegmentType.builder().tableSegment().system().internal().build();
-        return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, segmentType, attributes), true, timeout)
+        return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, segmentType, attributeUpdates), true, timeout)
                 .thenAccept(segmentId -> {
                     this.initialized.set(true);
                     log.info("{}: Metadata Segment pinned. Name = '{}', Id = '{}'", this.traceObjectId, this.metadataSegmentName, segmentId);

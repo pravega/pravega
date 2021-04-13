@@ -66,7 +66,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -902,9 +901,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> streamCutStrictlyGreaterThan(String scope, String streamName, Map<Long, Long> streamCut1,
-                                                                   Map<Long, Long> streamCut2, OperationContext context, Executor executor) {
-        return Futures.completeOn(getStream(scope, streamName, context).isStreamCutStrictlyGreaterThan(streamCut1, streamCut2), executor);
+    public CompletableFuture<StreamCutComparison> compareStreamCut(String scope, String streamName, Map<Long, Long> streamCut1,
+                                                       Map<Long, Long> streamCut2, OperationContext context, Executor executor) {
+        return Futures.completeOn(getStream(scope, streamName, context).compareStreamCuts(streamCut1, streamCut2), executor);
     }
 
     @Override
@@ -1036,16 +1035,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     //endregion
 
     private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, OperationContext context, Executor executor) {
-        return getScaleMetadata(scopeName, streamName, 0, Long.MAX_VALUE, context, executor).thenApply(scaleMetadataList -> {
-            AtomicLong totalNumSplits = new AtomicLong(0L);
-            AtomicLong totalNumMerges = new AtomicLong(0L);
-            scaleMetadataList.forEach(x -> {
-                totalNumMerges.addAndGet(x.getMerges());
-                totalNumSplits.addAndGet(x.getSplits());
-            });
-
-            return new SimpleEntry<>(totalNumSplits.get(), totalNumMerges.get());
-        });
+        Stream stream = getStream(scopeName, streamName, context);
+        return Futures.completeOn(stream.getActiveEpoch(true).thenCompose(lastEpoch -> stream.getSplitMergeCountsTillEpoch(lastEpoch)), executor);
     }
 
     /**

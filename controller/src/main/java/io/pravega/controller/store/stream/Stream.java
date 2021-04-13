@@ -685,15 +685,16 @@ interface Stream {
     CompletableFuture<Integer> getSegmentSealedEpoch(long segmentId);
 
     /**
-     * Method to compare streamcuts to check if streamcut1 is strictly ahead of streamcut2. 
-     * Strictly means if the two streamcuts are overlapping for any range, then this method will reply in negative. 
+     * Compares two Stream cuts and returns StreamCutComparison:
+     * A streamcut is considered greater than other if for all key ranges the segment/offset in one streamcut is ahead of 
+     * second streamcut. 
      * 
      * @param cut1 streamcut to check
      * @param cut2 streamcut to check against. 
      *
-     * @return CompletableFuture which, upon completion, will indicate if the streamcut1 is strictly ahead of streamcut2.
+     * @return CompletableFuture which, upon completion, will contain comparison result of streamcut1 and streamcut2.
      */
-    CompletableFuture<Boolean> isStreamCutStrictlyGreaterThan(Map<Long, Long> cut1, Map<Long, Long> cut2);
+    CompletableFuture<StreamCutComparison> compareStreamCuts(Map<Long, Long> cut1, Map<Long, Long> cut2);
 
     /**
      * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.
@@ -703,4 +704,13 @@ interface Stream {
      * is strictly before the supplied streamcut. 
      */
     CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long, Long> streamCut, RetentionSet retentionSet);
+
+    /**
+     * Finds the cumulative number of splits and merges in this Stream till this epoch.
+     *
+     * @param epochRecord EpochRecord till which to compute splits/merges.
+     * @return A completable future which when completed will return an Entry<Key, Value>,
+     * where 'Key' is number of splits and 'Value' is number of merges in the Stream till this epoch.
+     */
+    CompletableFuture<SimpleEntry<Long, Long>> getSplitMergeCountsTillEpoch(EpochRecord epochRecord);
 }

@@ -70,7 +70,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         @Cleanup
-        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         @Cleanup
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         @Cleanup
@@ -214,7 +214,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         SegmentRollingPolicy policy = new SegmentRollingPolicy(2); // Force rollover after every 2 byte.
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
         @Cleanup
-        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         spyMetadataStore.setMaxEntriesInTxnBuffer(0);
         @Cleanup
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
@@ -305,7 +305,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
 
         @Cleanup
-        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         @Cleanup
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
@@ -341,7 +341,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
                 .garbageCollectionDelay(Duration.ZERO)
                 .build();
         @Cleanup
-        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         @Cleanup
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
@@ -375,7 +375,7 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
                 .garbageCollectionDelay(Duration.ZERO)
                 .build();
         @Cleanup
-        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(executorService()));
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService()));
         @Cleanup
         BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
         ((NoOpChunkStorage) spyChunkStorage).setShouldSupportConcat(false);
@@ -398,5 +398,23 @@ public class ChunkedSegmentStorageMockTests extends ThreadPooledTestSuite {
         Assert.assertEquals(5, chunkedSegmentStorage.getGarbageCollector().getGarbageChunks().size());
         chunkedSegmentStorage.getGarbageCollector().deleteGarbage(false, 100).get();
         verify(spyChunkStorage, times(5)).doDelete(any());
+    }
+
+    @Test
+    public void testReport() {
+        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
+
+        @Cleanup
+        BaseMetadataStore spyMetadataStore = spy(new InMemoryMetadataStore(config, executorService()));
+        @Cleanup
+        BaseChunkStorage spyChunkStorage = spy(new NoOpChunkStorage(executorService()));
+        @Cleanup
+        ChunkedSegmentStorage chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, spyChunkStorage, spyMetadataStore, executorService(), config);
+        chunkedSegmentStorage.initialize(1);
+
+        chunkedSegmentStorage.report();
+
+        // Not possible to mock any other reporter except metadata store.
+        verify(spyMetadataStore).report();
     }
 }

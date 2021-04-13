@@ -33,6 +33,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> MAX_INDEXED_SEGMENTS = Property.named("readindex.segments.max", 1024);
     public static final Property<Integer> MAX_INDEXED_CHUNKS_PER_SEGMENTS = Property.named("readindex.chunksPerSegment.max", 1024);
     public static final Property<Integer> MAX_INDEXED_CHUNKS = Property.named("readindex.chunks.max", 16 * 1024);
+    public static final Property<Long> READ_INDEX_BLOCK_SIZE = Property.named("readindex.block.size", 1024 * 1024L);
     public static final Property<Boolean> APPENDS_ENABLED = Property.named("appends.enable", true);
     public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", true);
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
@@ -41,8 +42,10 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> GARBAGE_COLLECTION_DELAY = Property.named("garbage.collection.delay.seconds", 60);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_CONCURRENCY = Property.named("garbage.collection.concurrency.max", 10);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_QUEUE_SIZE = Property.named("garbage.collection.queue.size.max", 16 * 1024);
-    public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.seconds", 60);
-    public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPS = Property.named("garbage.collection.attempts.max", 3);
+    public static final Property<Integer> GARBAGE_COLLECTION_SLEEP = Property.named("garbage.collection.sleep.millis", 10);
+    public static final Property<Integer> GARBAGE_COLLECTION_MAX_ATTEMPTS = Property.named("garbage.collection.attempts.max", 3);
+    public static final Property<Integer> MAX_METADATA_ENTRIES_IN_BUFFER = Property.named("metadata.buffer.size.max", 1024);
+    public static final Property<Integer> MAX_METADATA_ENTRIES_IN_CACHE = Property.named("metadata.cache.size.max", 5000);
 
 
     /**
@@ -63,8 +66,11 @@ public class ChunkedSegmentStorageConfig {
             .garbageCollectionDelay(Duration.ofSeconds(60))
             .garbageCollectionMaxConcurrency(10)
             .garbageCollectionMaxQueueSize(16 * 1024)
-            .garbageCollectionSleep(Duration.ofSeconds(60))
+            .garbageCollectionSleep(Duration.ofMillis(10))
             .garbageCollectionMaxAttempts(3)
+            .indexBlockSize(1024 * 1024)
+            .maxEntriesInCache(5000)
+            .maxEntriesInTxnBuffer(1024)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -112,6 +118,12 @@ public class ChunkedSegmentStorageConfig {
      */
     @Getter
     final private int maxIndexedChunks;
+
+    /**
+     * The fixed block size used for creating block index entries.
+     */
+    @Getter
+    final private long indexBlockSize;
 
     /**
      * Whether the append functionality is enabled or disabled.
@@ -170,6 +182,18 @@ public class ChunkedSegmentStorageConfig {
     final private int garbageCollectionMaxAttempts;
 
     /**
+     * Maximum number of metadata entries to keep in recent transaction buffer.
+     */
+    @Getter
+    final private int maxEntriesInTxnBuffer;
+
+    /**
+     * Maximum number of metadata entries to keep in recent transaction buffer.
+     */
+    @Getter
+    final private int maxEntriesInCache;
+
+    /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
@@ -191,8 +215,11 @@ public class ChunkedSegmentStorageConfig {
         this.garbageCollectionDelay = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_DELAY));
         this.garbageCollectionMaxConcurrency = properties.getInt(GARBAGE_COLLECTION_MAX_CONCURRENCY);
         this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
-        this.garbageCollectionSleep = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_SLEEP));
-        this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPS);
+        this.garbageCollectionSleep = Duration.ofMillis(properties.getInt(GARBAGE_COLLECTION_SLEEP));
+        this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPTS);
+        this.indexBlockSize = properties.getLong(READ_INDEX_BLOCK_SIZE);
+        this.maxEntriesInTxnBuffer = properties.getInt(MAX_METADATA_ENTRIES_IN_BUFFER);
+        this.maxEntriesInCache = properties.getInt(MAX_METADATA_ENTRIES_IN_CACHE);
     }
 
     /**

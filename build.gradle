@@ -411,9 +411,6 @@ project ('bindings') {
 
         //For Extended S3
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
-        testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.5'
-        testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
-        testCompile group: 'org.apache.jclouds.provider', name: 'google-cloud-storage', version: '2.1.1'
 
         // These were previously brought in as transitive dependencies of HDFS, although they were required for running
         // ExtendedS3SimpleStorageTests. But since the HDFS 3.x upgrade, these transitive dependencies are excluded,
@@ -1067,7 +1064,14 @@ project('test:system') {
         systemProperty "tlsEnabled", System.getProperty("tlsEnabled", "false")
         systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
 
+        if (System.getProperty("configFile") != null) {
+            systemProperty "configs", new File(System.getProperty("configFile")).text
+        }
         maxParallelForks = 1
+
+        if (System.getProperty("failFast", "false") == "true") {
+            failFast = true
+        }
     }
 
     task execShellScript(type: Exec) {
