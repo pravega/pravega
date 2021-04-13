@@ -33,6 +33,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
+import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -117,8 +118,9 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
     }
 
     @Override
-    public List<ChannelHandler> createEncodingStack() {
+    public List<ChannelHandler> createEncodingStack(String connectionName) {
         List<ChannelHandler> stack = new ArrayList<>();
+        stack.add(new ExceptionLoggingHandler(connectionName));
         stack.add(new CommandEncoder(null, NO_OP_METRIC_NOTIFIER));
         stack.add(new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4));
         stack.add(new CommandDecoder());

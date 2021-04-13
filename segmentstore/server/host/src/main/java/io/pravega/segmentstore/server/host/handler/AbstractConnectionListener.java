@@ -41,7 +41,6 @@ import io.pravega.common.io.filesystem.FileModificationPollingMonitor;
 import io.pravega.segmentstore.server.host.security.TLSConfigChangeEventConsumer;
 import io.pravega.segmentstore.server.host.security.TLSConfigChangeFileConsumer;
 import io.pravega.segmentstore.server.host.security.TLSHelper;
-import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -89,7 +88,7 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
         this.connectionTracker = new ConnectionTracker();
     }
 
-    public abstract List<ChannelHandler> createEncodingStack();
+    public abstract List<ChannelHandler> createEncodingStack(String connectionName);
 
     public abstract RequestProcessor createRequestProcessor(TrackedConnection trackedConnection);
 
@@ -128,15 +127,11 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
                             p.addLast(TLSHelper.TLS_HANDLER_NAME, sslHandler);
                         }
 
+                        // Configure the class-specific encoder stack and request processors.
                         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
-                        List<ChannelHandler> encodingStack = createEncodingStack();
-                        encodingStack.add(0, new ExceptionLoggingHandler(ch.remoteAddress().toString()));
-                        encodingStack.add(lsh);
-                        for (ChannelHandler c: encodingStack) {
-                            p.addLast(c);
-                        }
-                        TrackedConnection c = new TrackedConnection(lsh, connectionTracker);
-                        lsh.setRequestProcessor(createRequestProcessor(c));
+                        createEncodingStack(ch.remoteAddress().toString()).forEach(p::addLast);
+                        lsh.setRequestProcessor(createRequestProcessor(new TrackedConnection(lsh, connectionTracker)));
+                        p.addLast(lsh);
                     }
                 });
 
@@ -198,6 +193,7 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
                 serverChannel.closeFuture().sync();
             }
         });
+
         // Shut down all event loops to terminate all threads.
         if (bossGroup != null) {
             bossGroup.shutdownGracefully();

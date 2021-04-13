@@ -44,10 +44,25 @@ import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
 import io.pravega.cli.admin.cluster.ListContainersCommand;
 import io.pravega.cli.admin.config.ConfigListCommand;
 import io.pravega.cli.admin.config.ConfigSetCommand;
+import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
+import io.pravega.cli.admin.utils.AdminHostControllerStore;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.common.Exceptions;
+import io.pravega.common.cluster.Host;
+import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.store.client.StoreClientFactory;
+import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.host.HostMonitorConfig;
+import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import java.io.PrintStream;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -58,6 +73,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import io.pravega.shared.security.auth.DefaultCredentials;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
@@ -250,6 +266,7 @@ public abstract class AdminCommand {
                         .put(PasswordFileCreatorCommand::descriptor, PasswordFileCreatorCommand::new)
                         .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)
                         .put(DurableLogRecoveryCommand::descriptor, DurableLogRecoveryCommand::new)
+                        .put(GetSegmentInfoCommand::descriptor, GetSegmentInfoCommand::new)
                         .build());
 
         /**
@@ -343,6 +360,29 @@ public abstract class AdminCommand {
     @SneakyThrows
     private String objectToJSON(Object object) {
         return new ObjectMapper().writeValueAsString(object);
+    }
+
+    @VisibleForTesting
+    public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient, boolean forceHost, Host forceHostEndpoint) {
+        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
+                .hostMonitorEnabled(true)
+                .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
+                .containerCount(getServiceConfig().getContainerCount())
+                .build();
+        HostControllerStore hostStore = new AdminHostControllerStore(HostStoreFactory.createStore(hostMonitorConfig,
+                StoreClientFactory.createZKStoreClient(zkClient)), forceHost, forceHostEndpoint, getServiceConfig().getAdminGatewayPort());
+        ClientConfig clientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()))
+                .validateHostName(getCLIControllerConfig().isAuthEnabled())
+                .credentials(new DefaultCredentials(getCLIControllerConfig().getPassword(), getCLIControllerConfig().getUserName()))
+                .build();
+        ConnectionPool pool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
+    }
+
+    @VisibleForTesting
+    public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
+        return instantiateSegmentHelper(zkClient, false, null);
     }
 
     //endregion

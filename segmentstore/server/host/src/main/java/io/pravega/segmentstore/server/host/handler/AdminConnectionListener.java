@@ -21,11 +21,13 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
-import io.pravega.shared.protocol.netty.*;
+import io.pravega.shared.protocol.netty.CommandDecoder;
+import io.pravega.shared.protocol.netty.CommandEncoder;
+import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import io.pravega.shared.protocol.netty.RequestProcessor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
@@ -70,8 +72,9 @@ public class AdminConnectionListener extends AbstractConnectionListener {
     }
 
     @Override
-    public List<ChannelHandler> createEncodingStack() {
+    public List<ChannelHandler> createEncodingStack(String connectionName) {
         List<ChannelHandler> stack = new ArrayList<>();
+        stack.add(new ExceptionLoggingHandler(connectionName));
         stack.add(new CommandEncoder(null, NO_OP_METRIC_NOTIFIER));
         stack.add(new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4));
         stack.add(new CommandDecoder());

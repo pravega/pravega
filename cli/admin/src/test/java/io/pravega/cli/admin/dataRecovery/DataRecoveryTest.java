@@ -85,16 +85,14 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @Slf4j
 public class DataRecoveryTest extends ThreadPooledTestSuite {
-    private static final Duration TIMEOUT = Duration.ofMillis(30 * 1000);
-    private static final int NUM_EVENTS = 10;
-    private static final String EVENT = "12345";
+
     private static final String SCOPE = "testScope";
     // Setup utility.
-    private static final Duration READ_TIMEOUT = Duration.ofMillis(1000);
     private static final AtomicReference<AdminCommandState> STATE = new AtomicReference<>();
 
     @Rule
     public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
+    private static final Duration TIMEOUT = Duration.ofMillis(30 * 1000);
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
@@ -152,10 +150,10 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
         String streamName = "testDataRecoveryCommand";
 
-        createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName);
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
         try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
             // Write events to the streams.
-            writeEvents(streamName, clientRunner.getClientFactory());
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
         pravegaRunner.shutDownControllerRunner(); // Shut down the controller
 
@@ -195,7 +193,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Create the client with new controller.
         try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
             // Try reading all events to verify that the recovery was successful.
-            readAllEvents(streamName, clientRunner.getClientFactory(), clientRunner.getReaderGroupManager(), "RG", "R");
+            TestUtils.readAllEvents(SCOPE, streamName, clientRunner.getClientFactory(), clientRunner.getReaderGroupManager(), "RG", "R");
             log.info("Read all events again to verify that segments were recovered.");
         }
         Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
@@ -214,10 +212,10 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
         String streamName = "testListSegmentsCommand";
 
-        createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName);
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
         try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
             // Write events to the streams.
-            writeEvents(streamName, clientRunner.getClientFactory());
+            TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
         pravegaRunner.shutDownControllerRunner(); // Shut down the controller
 
@@ -248,56 +246,6 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         long lines = Files.lines(path).count();
         AssertExtensions.assertGreaterThan("There should be at least one segment.", 1, lines);
         Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
-    }
-
-    // Creates the given scope and stream using the given controller instance.
-    private void createScopeStream(Controller controller, String scopeName, String streamName) {
-        ClientConfig clientConfig = ClientConfig.builder().build();
-        try (ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
-             StreamManager streamManager = new StreamManagerImpl(controller, cp)) {
-            //create scope
-            Boolean createScopeStatus = streamManager.createScope(scopeName);
-            log.info("Create scope status {}", createScopeStatus);
-            //create stream
-            Boolean createStreamStatus = streamManager.createStream(scopeName, streamName, config);
-            log.info("Create stream status {}", createStreamStatus);
-        }
-    }
-
-    // write events to the given stream
-    private void writeEvents(String streamName, ClientFactoryImpl clientFactory) {
-        @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
-                new UTF8StringSerializer(),
-                EventWriterConfig.builder().build());
-        for (int i = 0; i < NUM_EVENTS;) {
-            writer.writeEvent("", EVENT).join();
-            i++;
-        }
-        writer.flush();
-        writer.close();
-    }
-
-    // read all events from the given stream
-    private void readAllEvents(String streamName, ClientFactoryImpl clientFactory, ReaderGroupManager readerGroupManager,
-                               String readerGroupName, String readerName) {
-        readerGroupManager.createReaderGroup(readerGroupName,
-                ReaderGroupConfig
-                        .builder()
-                        .stream(Stream.of(SCOPE, streamName))
-                        .build());
-        @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader(readerName,
-                readerGroupName,
-                new UTF8StringSerializer(),
-                ReaderConfig.builder().build());
-
-        for (int q = 0; q < NUM_EVENTS;) {
-            String eventRead = reader.readNextEvent(READ_TIMEOUT.toMillis()).getEvent();
-            Assert.assertEquals("Event written and read back don't match", EVENT, eventRead);
-            q++;
-        }
-        reader.close();
     }
 
     /**

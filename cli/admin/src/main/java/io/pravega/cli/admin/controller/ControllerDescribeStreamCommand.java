@@ -128,21 +128,4 @@ public class ControllerDescribeStreamCommand extends ControllerCommand {
                 new ArgDescriptor("scope-name", "Name of the Scope where the Stream belongs to."),
                 new ArgDescriptor("stream-name", "Name of the Stream to describe."));
     }
-
-    @VisibleForTesting
-    protected SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
-        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
-                                                                   .hostMonitorEnabled(true)
-                                                                   .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
-                                                                   .containerCount(getServiceConfig().getContainerCount())
-                                                                   .build();
-        HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, StoreClientFactory.createZKStoreClient(zkClient));
-        ClientConfig clientConfig = ClientConfig.builder()
-                                                .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()))
-                                                .validateHostName(getCLIControllerConfig().isAuthEnabled())
-                                                .credentials(new DefaultCredentials(getCLIControllerConfig().getPassword(), getCLIControllerConfig().getUserName()))
-                                                .build();
-        ConnectionPool pool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
-        return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
-    }
 }
