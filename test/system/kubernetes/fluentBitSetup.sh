@@ -698,27 +698,24 @@ case $CMD in
         ;;
     fetch-logs)
         dest="$FLUENT_BIT_EXPORT_PATH"
-        pods=$(kubectl get pods -n=$NAMESPACE -o custom-columns=:.metadata.name --no-headers)
+        pods=$(kubectl get pods -n=$NAMESPACE -o custom-columns=:.metadata.namespace,:.metadata.name --no-headers)
         fetch_fluent_logs "$dest" "$pods"
         ;;
     fetch-system-test-logs)
         dest="$FLUENT_BIT_EXPORT_PATH"
-        pods=$(kubectl get pods -l 'app=pravega-system-tests' -n=$NAMESPACE -o custom-columns=:.metadata.name --no-headers)
+        pods=$(kubectl get pods -l 'app=pravega-system-tests' -n=$NAMESPACE -o custom-columns=:.metadata.namespace,:.metadata.name --no-headers)
         fetch_fluent_logs "$dest" "$pods"
         ;;
     validate)
         validate_watcher
         ;;
-    info)
-        info
-        ;;
     help|--help)
-        help
+        info
         ;;
     *)
         set +u
         echo -e "'$CMD' is an invalid command.\n"
-        help
+        info
         set -u
         exit
         ;;
