@@ -491,21 +491,22 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * Closes all the OpsStatLogger objects and cleans up the instance.
+     * Resets the OpsStatLogger objects to their initial state..
      */
     public static synchronized void reset() {
-        if (INSTANCE.get() != null) {
-            INSTANCE.get().createStreamLatency.close();
-            INSTANCE.get().deleteStreamLatency.close();
-            INSTANCE.get().sealStreamLatency.close();
-            INSTANCE.get().updateStreamLatency.close();
-            INSTANCE.get().truncateStreamLatency.close();
-            INSTANCE.get().addReaderGroupLatency.close();
-            INSTANCE.get().deleteReaderGroupLatency.close();
-            INSTANCE.get().updateSubscriberLatency.close();
-            INSTANCE.get().createScopeLatency.close();
-            INSTANCE.get().deleteScopeLatency.close();
-            INSTANCE.set(null);
+        StreamMetrics old = INSTANCE.get();
+        if (old != null) {
+            old.createStreamLatency.close();
+            old.deleteStreamLatency.close();
+            old.sealStreamLatency.close();
+            old.updateStreamLatency.close();
+            old.truncateStreamLatency.close();
+            old.addReaderGroupLatency.close();
+            old.deleteReaderGroupLatency.close();
+            old.updateSubscriberLatency.close();
+            old.createScopeLatency.close();
+            old.deleteScopeLatency.close();
         }
+        INSTANCE.set(new StreamMetrics());
     }
 }

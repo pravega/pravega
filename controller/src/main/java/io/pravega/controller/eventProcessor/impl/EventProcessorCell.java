@@ -59,6 +59,7 @@ class EventProcessorCell<T extends ControllerEvent> {
     private final EventStreamReader<T> reader;
     private final EventStreamWriter<T> selfWriter;
     private final CheckpointStore checkpointStore;
+    @Getter(AccessLevel.PACKAGE)
     private final String process;
     private final String readerGroupName;
     @Getter(AccessLevel.PACKAGE)
@@ -141,14 +142,6 @@ class EventProcessorCell<T extends ControllerEvent> {
                     reader.closeAt(getCheckpoint());
                 } catch (Exception e) {
                     log.info("Exception while closing EventProcessorCell reader from checkpointStore: {}.", e.getMessage());
-                }
-
-                // Next, clean up the reader and its position from checkpoint store
-                log.info("Cleaning up checkpoint store for {}", objectId);
-                try {
-                    checkpointStore.removeReader(process, readerGroupName, readerId);
-                } catch (Exception e) {
-                    log.info("Exception while removing reader from checkpointStore: {}.", e.getMessage());
                 }
             }
         }

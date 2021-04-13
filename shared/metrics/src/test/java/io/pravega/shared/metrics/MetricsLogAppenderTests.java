@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.MetricsTags;
+import io.pravega.test.common.SerializedClassRunner;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
@@ -31,20 +32,22 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
 import org.slf4j.Marker;
 
 /**
  * Unit tests for the {@link MetricsLogAppender} class.
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class MetricsLogAppenderTests {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10);
