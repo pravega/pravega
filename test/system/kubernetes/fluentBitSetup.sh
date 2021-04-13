@@ -601,7 +601,7 @@ install() {
         echo "Detected existing installation. Exiting."
         exit 0
     fi
-
+    helm repo add fluent https://fluent.github.io/helm-charts
     # The claim used to persist the logs. Required for all installations.
     cat << EOF | kubectl apply --wait -n=$NAMESPACE -f -
 kind: PersistentVolumeClaim

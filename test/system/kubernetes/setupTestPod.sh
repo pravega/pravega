@@ -77,7 +77,6 @@ kubectl cluster-info  # any error here will cause the script to terminate.
 #Step  : Adding Charts repo to helm
 echo "Adding Charts repo to helm"
 helm repo add $publishedChartName $helmRepository
-helm repo add fluent https://fluent.github.io/helm-charts
 helm repo update
 
 #Step 6: Creating ZK-OP
