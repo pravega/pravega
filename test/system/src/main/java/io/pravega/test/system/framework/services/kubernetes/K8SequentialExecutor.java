@@ -50,6 +50,7 @@ import static org.apache.commons.lang.RandomStringUtils.randomAlphanumeric;
 @Slf4j
 public class K8SequentialExecutor implements TestExecutor {
 
+    private static final String APP = "pravega-system-tests";
     private static final String NAMESPACE = "default"; // KUBERNETES namespace where the tests run.
     private static final String SERVICE_ACCOUNT = System.getProperty("testServiceAccount", "test-framework"); //Service Account used by the test pod.
     private static final String CLUSTER_ROLE_BINDING = System.getProperty("testClusterRoleBinding", "cluster-admin-testFramework");
@@ -122,7 +123,7 @@ public class K8SequentialExecutor implements TestExecutor {
     private V1Pod getTestPod(String className, String methodName, String podName) {
         log.info("Running test pod with security enabled :{}, transport enabled: {}", Utils.AUTH_ENABLED, Utils.TLS_AND_AUTH_ENABLED);
         V1Pod pod =  new V1PodBuilder()
-                .withNewMetadata().withName(podName).withNamespace(NAMESPACE).withLabels(ImmutableMap.of("POD_NAME", podName, "app", "pravega-system-tests")).endMetadata()
+                .withNewMetadata().withName(podName).withNamespace(NAMESPACE).withLabels(ImmutableMap.of("POD_NAME", podName, "app", APP)).endMetadata()
                 .withNewSpec().withServiceAccountName(SERVICE_ACCOUNT).withAutomountServiceAccountToken(true)
                 .withVolumes(new V1VolumeBuilder().withName("task-pv-storage")
                         .withPersistentVolumeClaim(new V1PersistentVolumeClaimVolumeSourceBuilder().withClaimName("task-pv-claim").build())
