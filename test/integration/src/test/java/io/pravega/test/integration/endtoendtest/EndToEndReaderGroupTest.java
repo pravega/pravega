@@ -260,17 +260,10 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     @Test(timeout = 30000)
     public void testLaggingResetReaderGroup() throws Exception {
         StreamConfiguration config = getStreamConfig();
-<<<<<<< HEAD
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test", 0L).get();
-        controller.createStream("test", "test", config).get();
-        controller.createStream("test", "test2", config).get();
-=======
         LocalController controller = (LocalController) PRAVEGA.getLocalController();
         controller.createScope("test").get();
         controller.createStream("test", "testLaggingResetReaderGroup", config).get();
         controller.createStream("test", "testLaggingResetReaderGroup2", config).get();
->>>>>>> master
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                 .controllerURI(PRAVEGA.getControllerURI())
@@ -311,15 +304,9 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         String streamName = "testMultiScopeReaderGroup";
 
         // Create Scopes
-<<<<<<< HEAD
-        controllerWrapper.getControllerService().createScope(defaultScope, 0L).get();
-        controllerWrapper.getControllerService().createScope(scopeA, 0L).get();
-        controllerWrapper.getControllerService().createScope(scopeB, 0L).get();
-=======
         controller.createScope(defaultScope).join();
         controller.createScope(scopeA).join();
         controller.createScope(scopeB).join();
->>>>>>> master
 
         // Create Streams.
         controller.createStream(scopeA, streamName, getStreamConfig()).join();
