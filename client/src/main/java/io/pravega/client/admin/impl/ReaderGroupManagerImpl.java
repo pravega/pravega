@@ -29,6 +29,7 @@ import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.impl.AbstractClientFactoryImpl;
@@ -36,7 +37,6 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.SegmentWithRange;
-import io.pravega.client.stream.impl.ReaderGroupNotFoundException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
@@ -95,6 +95,9 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
             config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
         }
         ReaderGroupConfig controllerConfig = getThrowingException(controller.createReaderGroup(scope, groupName, config));
+        if (!controllerConfig.equals(config)) {
+            log.warn("ReaderGroup {} already exists, using the older ReaderGroup configuration {}", groupName, controllerConfig);
+        }
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
@@ -144,8 +147,14 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
-        return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new ReaderGroupStateInitSerializer(), new ReaderGroupStateUpdatesSerializer(),
-                                   clientFactory, controller, clientFactory.getConnectionPool());
+
+        try {
+            ReaderGroupImpl readerGroup = new ReaderGroupImpl(scope, groupName, synchronizerConfig, new ReaderGroupStateInitSerializer(), new ReaderGroupStateUpdatesSerializer(),
+                                                              clientFactory, controller, clientFactory.getConnectionPool());
+            return readerGroup;
+        } catch (InvalidStreamException e) {
+            throw new ReaderGroupNotFoundException(groupName, e);
+        }
     }
 
     @Override

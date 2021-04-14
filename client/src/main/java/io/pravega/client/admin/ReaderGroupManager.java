@@ -21,6 +21,7 @@ import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Serializer;
 import lombok.val;
 
@@ -88,6 +89,7 @@ public interface ReaderGroupManager extends AutoCloseable {
      * 
      * @param groupName The name of the group
      * @return Reader group with the given name
+     * @throws ReaderGroupNotFoundException If the reader group does not exist.
      */
     ReaderGroup getReaderGroup(String groupName);
     
