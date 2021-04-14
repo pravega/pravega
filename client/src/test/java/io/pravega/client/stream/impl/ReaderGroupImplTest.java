@@ -517,7 +517,7 @@ public class ReaderGroupImplTest {
             if (actual == null) {
                 return false;
             }
-            return actual.equals(expected)&& actual.getGeneration() == expected.getGeneration()
+            return actual.equals(expected) && actual.getGeneration() == expected.getGeneration()
                     && actual.getReaderGroupId().equals(expected.getReaderGroupId());
         }
     }
