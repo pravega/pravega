@@ -20,6 +20,7 @@ import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.ServiceHaltException;
 import io.pravega.segmentstore.server.logs.DataFrameRecord;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
@@ -188,9 +189,9 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         CommandArgs args = new CommandArgs(Collections.singletonList("0"), STATE.get());
         ContainerRecoverCommand command = new ContainerRecoverCommand(args);
         // Test unwrap exception options.
-        command.unwrapDataCorruptionException(new DataCorruptionException("test"));
-        command.unwrapDataCorruptionException(new DataCorruptionException("test", "test"));
-        command.unwrapDataCorruptionException(new DataCorruptionException("test", Arrays.asList("test", "test")));
+        command.unwrapServiceHaltException(new ServiceHaltException("test"));
+        command.unwrapServiceHaltException(new ServiceHaltException("test", "test"));
+        command.unwrapServiceHaltException(new ServiceHaltException("test", Arrays.asList("test", "test")));
         // Check that exception is thrown if ZK is not available.
         this.zkUtil.stopCluster();
         AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("container recover 0", STATE.get()));
