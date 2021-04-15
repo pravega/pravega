@@ -29,14 +29,6 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.shared.NameUtils;
-import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
@@ -54,6 +46,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static com.google.common.base.Strings.emptyToNull;
 import static com.google.common.base.Strings.nullToEmpty;
@@ -433,7 +432,7 @@ public class SystemJournal {
      */
     private CompletableFuture<Void> generateSnapshotIfRequired() {
         // Generate a snapshot when threshold for either time or number batches is reached.
-        if (recordsSinceSnapshot.get() > config.getMaxJournalRecordsPerSnapshot() ||
+        if (recordsSinceSnapshot.get() > config.getMaxJournalUpdatesPerSnapshot() ||
                 currentTimeSupplier.get() - lastSavedSnapshotTime.get() > config.getJournalSnapshotInfoUpdateFrequency().toMillis()) {
             // Write a snapshot.
             val txn = metadataStore.beginTransaction(true, getSystemSegments());

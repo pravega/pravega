@@ -86,6 +86,7 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
                 .withStorageFactory(setup -> useChunkedSegmentStorage ?
                         new HDFSSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                                 .journalSnapshotInfoUpdateFrequency(Duration.ofMillis(10))
+                                .maxJournalUpdatesPerSnapshot(5)
                                 .selfCheckEnabled(true)
                                 .build(),
                                 setup.getConfig(HDFSStorageConfig::builder),

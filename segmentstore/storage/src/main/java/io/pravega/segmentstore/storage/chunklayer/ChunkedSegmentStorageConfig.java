@@ -53,8 +53,8 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> MAX_METADATA_ENTRIES_IN_BUFFER = Property.named("metadata.buffer.size.max", 1024);
     public static final Property<Integer> MAX_METADATA_ENTRIES_IN_CACHE = Property.named("metadata.cache.size.max", 5000);
 
-    public static final Property<Integer> JOURNAL_SNAPSHOT_INFO_UPDATE_FREQUENCY = Property.named("journal.snapshot.update.frequency.minutes", 5);
-    public static final Property<Integer> MAX_JOURNAL_RECORDS_PER_SNAPSHOT = Property.named("journal.snapshot.records.max", 100);
+    public static final Property<Integer> JOURNAL_SNAPSHOT_UPDATE_FREQUENCY = Property.named("journal.snapshot.update.frequency.minutes", 5);
+    public static final Property<Integer> MAX_PER_SNAPSHOT_UPDATE_COUNT = Property.named("journal.snapshot.update.count.max", 100);
     public static final Property<Integer> MAX_JOURNAL_READ_ATTEMPTS = Property.named("journal.snapshot.attempts.read.max", 100);
     public static final Property<Integer> MAX_JOURNAL_WRITE_ATTEMPTS = Property.named("journal.snapshot.attempts.write.max", 10);
     public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", true);
@@ -83,7 +83,7 @@ public class ChunkedSegmentStorageConfig {
             .maxEntriesInCache(5000)
             .maxEntriesInTxnBuffer(1024)
             .journalSnapshotInfoUpdateFrequency(Duration.ofMinutes(5))
-            .maxJournalRecordsPerSnapshot(100)
+            .maxJournalUpdatesPerSnapshot(100)
             .maxJournalReadAttempts(100)
             .maxJournalWriteAttempts(10)
             .selfCheckEnabled(true)
@@ -219,7 +219,7 @@ public class ChunkedSegmentStorageConfig {
      * Number of journal writes since last snapshot after which new snapshot is taken.
      */
     @Getter
-    final private int maxJournalRecordsPerSnapshot;
+    final private int maxJournalUpdatesPerSnapshot;
 
     /**
      * Max number of times snapshot read is retried.
@@ -263,8 +263,8 @@ public class ChunkedSegmentStorageConfig {
         this.garbageCollectionMaxQueueSize = properties.getInt(GARBAGE_COLLECTION_MAX_QUEUE_SIZE);
         this.garbageCollectionSleep = Duration.ofMillis(properties.getInt(GARBAGE_COLLECTION_SLEEP));
         this.garbageCollectionMaxAttempts = properties.getInt(GARBAGE_COLLECTION_MAX_ATTEMPTS);
-        this.journalSnapshotInfoUpdateFrequency = Duration.ofMinutes(properties.getInt(JOURNAL_SNAPSHOT_INFO_UPDATE_FREQUENCY));
-        this.maxJournalRecordsPerSnapshot =  properties.getInt(MAX_JOURNAL_RECORDS_PER_SNAPSHOT);
+        this.journalSnapshotInfoUpdateFrequency = Duration.ofMinutes(properties.getInt(JOURNAL_SNAPSHOT_UPDATE_FREQUENCY));
+        this.maxJournalUpdatesPerSnapshot =  properties.getInt(MAX_PER_SNAPSHOT_UPDATE_COUNT);
         this.maxJournalReadAttempts = properties.getInt(MAX_JOURNAL_READ_ATTEMPTS);
         this.maxJournalWriteAttempts = properties.getInt(MAX_JOURNAL_WRITE_ATTEMPTS);
         this.selfCheckEnabled = properties.getBoolean(SELF_CHECK_ENABLED);
