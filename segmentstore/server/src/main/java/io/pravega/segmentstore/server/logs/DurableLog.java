@@ -228,10 +228,10 @@ public class DurableLog extends AbstractService implements OperationLog {
             log.error("{} Recovery FAILED.", this.traceObjectId, ex);
             Throwable cause = Exceptions.unwrap(ex);
             if (cause instanceof ServiceHaltException || cause instanceof DataLogCorruptedException) {
-                // ServiceHaltException during recovery means we will be unable to execute the recovery successfully
-                // regardless how many times we try. We need to disable the log so that future instances of this class
-                // will not attempt to do so indefinitely (which could wipe away useful debugging information before
-                // someone can manually fix the problem).
+                // ServiceHaltException (also covers DataCorruptionException) during recovery means we will be unable to
+                // execute the recovery successfully regardless how many times we try. We need to disable the log so that
+                // future instances of this class will not attempt to do so indefinitely (which could wipe away useful
+                // debugging information before someone can manually fix the problem).
                 try {
                     this.durableDataLog.disable();
                     log.info("{} Log disabled due to {} during recovery.", this.traceObjectId, cause.getClass().getSimpleName());

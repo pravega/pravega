@@ -443,7 +443,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * Determines whether the given Throwable is a fatal exception from which we cannot recover.
      */
     private static boolean isFatalException(Throwable ex) {
-        return ex instanceof ServiceHaltException
+        return ex instanceof ServiceHaltException       // Covers DataCorruptionException
                 || ex instanceof DataLogWriterNotPrimaryException
                 || ex instanceof ObjectClosedException
                 || ex instanceof CacheFullException;

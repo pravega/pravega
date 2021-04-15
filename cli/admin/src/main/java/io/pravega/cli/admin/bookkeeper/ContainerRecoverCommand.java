@@ -77,6 +77,7 @@ public class ContainerRecoverCommand extends ContainerCommand {
             ex.printStackTrace(getOut());
             Throwable cause = Exceptions.unwrap(ex);
             if (cause instanceof ServiceHaltException) {
+                // Covers DataCorruptionException
                 unwrapServiceHaltException((ServiceHaltException) cause);
             }
         }

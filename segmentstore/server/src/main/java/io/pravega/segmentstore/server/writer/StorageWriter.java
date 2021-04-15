@@ -309,6 +309,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                     try {
                         aggregator.add(op);
                     } catch (ServiceHaltException ex) {
+                        // Covers DataCorruptionException
                         // Re-throw.
                         throw new CompletionException(ex);
                     } catch (Exception ex) {
@@ -471,7 +472,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private boolean isCriticalError(Throwable ex) {
         ex = Exceptions.unwrap(ex);
         return Exceptions.mustRethrow(ex)
-                || ex instanceof ServiceHaltException     // Service Halt - stop processing to prevent more damage.
+                || ex instanceof ServiceHaltException     // Service halt or Data corruption - stop processing to prevent more damage.
                 || ex instanceof StorageNotPrimaryException  // Fenced out - another instance took over.
                 || ex instanceof DataLogWriterNotPrimaryException;  // Fenced out at the DurableLog level.
     }
