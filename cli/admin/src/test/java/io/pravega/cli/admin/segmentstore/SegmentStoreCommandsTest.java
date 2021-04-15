@@ -24,11 +24,13 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.segmentstore.contracts.Attributes;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.UUID;
 
 public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
 
@@ -58,11 +60,21 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore read-segment not/exists/0 0 1 localhost", STATE.get());
         Assert.assertTrue(commandResult.contains("Error"));
-        Assert.assertNotNull(GetSegmentInfoCommand.descriptor());
+        Assert.assertNotNull(ReadSegmentRangeCommand.descriptor());
     }
 
     @Test
     public void testGetSegmentAttributeCommand() throws Exception {
-        // TODO: Maybe we need listing attributes first
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getattribute", StreamConfiguration.builder().build());
+        String commandResult = TestUtils.executeCommand("segmentstore get-segment-attribute segmentstore/getattribute/0.#epoch.0 "
+                + new UUID(Attributes.CORE_ATTRIBUTE_ID_PREFIX, 0).toString() + " localhost", STATE.get());
+        Assert.assertFalse(commandResult.contains("Error"));
+        commandResult = TestUtils.executeCommand("segmentstore get-segment-attribute _system/_abortStream/0.#epoch.0 "
+                + new UUID(Attributes.CORE_ATTRIBUTE_ID_PREFIX, 0).toString() + " localhost", STATE.get());
+        Assert.assertFalse(commandResult.contains("Error"));
+        commandResult = TestUtils.executeCommand("segmentstore get-segment-attribute not/exists/0 "
+                + new UUID(Attributes.CORE_ATTRIBUTE_ID_PREFIX, 0).toString() + " localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("Error"));
+        Assert.assertNotNull(GetSegmentAttributeCommand.descriptor());
     }
 }
