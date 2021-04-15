@@ -120,8 +120,7 @@ public class ReaderGroupManagerImplTest {
         ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
         when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
                 .thenReturn(CompletableFuture.completedFuture(expectedConfig));
-        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
-                                                   any(SynchronizerConfig.class))).thenReturn(synchronizer);
+
         // Create a ReaderGroup
         ReaderGroupConfig newConfig = ReaderGroupConfig.builder()
                                                        .stream(createStream("s1"), createStreamCut("s1", 2))
