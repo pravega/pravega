@@ -364,17 +364,6 @@ public final class NameUtils {
     }
 
     /**
-     * Gets file name prefix of SystemJournal checkpoint for given container instance.
-     * @param containerId The Id of the Container.
-     * @param epoch Epoch of the container instance.
-     * @param checkpointId Current index for journal file.
-     * @return File name of SystemJournal for given container instance
-     */
-    public static String getSystemJournalCheckpointFileNamePrefix(int containerId, long epoch, long checkpointId) {
-        return String.format(SYSJOURNAL_CHECKPOINT_NAME_PREFIX, epoch, containerId, checkpointId);
-    }
-
-    /**
      * Method to compute 64 bit segment id which takes segment number and epoch and composes it as
      * `msb = epoch` `lsb = segmentNumber`.
      * Primary id identifies the segment container mapping and primary + secondary uniquely identifies a segment

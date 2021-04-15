@@ -102,7 +102,6 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import static io.pravega.segmentstore.contracts.AttributeUpdateType.Replace;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH;
 import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID;
 
@@ -643,8 +642,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     CompletableFuture<Void> saveStorageSnapshot(SnapshotInfo checkpoint, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         val attributeUpdates = Arrays.asList(
-                new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID, Replace, checkpoint.getSnapshotId()),
-                new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH, Replace, checkpoint.getEpoch()));
+                new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID, AttributeUpdateType.Replace, checkpoint.getSnapshotId()),
+                new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH, AttributeUpdateType.Replace, checkpoint.getEpoch()));
         return this.metadataStore.getOrAssignSegmentId(NameUtils.getMetadataSegmentName(this.metadata.getContainerId()), timer.getRemaining(),
                 streamSegmentId -> updateAttributesForSegment(streamSegmentId, attributeUpdates, timer.getRemaining()))
         .thenRunAsync(() -> log.debug("{}: Save SLTS snapshot. {}", this.traceObjectId, checkpoint));

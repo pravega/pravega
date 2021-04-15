@@ -199,9 +199,10 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
         // Now bootstrap
         log.debug("{} STORAGE BOOT: Started.", logPrefix);
+        Timer t = new Timer();
         return this.systemJournal.bootstrap(epoch, snapshotInfoStore)
                 .thenRun(() -> garbageCollector.initialize())
-                .thenRun(() -> log.debug("{} STORAGE BOOT: Ended.", logPrefix));
+                .thenRun(() -> log.debug("{} STORAGE BOOT: Ended. Total time = {} ms.", logPrefix, t.getElapsedMillis()));
     }
 
     @Override

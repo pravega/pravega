@@ -203,7 +203,7 @@ public class SystemJournal {
      * @param chunkStorage        ChunkStorage instance to use for writing all logs.
      * @param metadataStore       ChunkMetadataStore for owner container.
      * @param garbageCollector    GarbageCollection instance.
-     * @param currentTimeSupplier Function that supplies current time.
+     * @param currentTimeSupplier Function that supplies current time in milliseconds.
      * @param config              Configuration options for this ChunkedSegmentStorage instance.
      * @param executor            Executor to use.
      */
