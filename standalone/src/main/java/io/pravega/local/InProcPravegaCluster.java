@@ -136,12 +136,14 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private boolean enableAdminGateway;
     private int adminGatewayPort;
+    private boolean replyWithStackTraceOnError;
 
     public static final class InProcPravegaClusterBuilder {
 
         // default values
         private int containerCount = 4;
         private boolean enableRestServer = true;
+        private boolean ReplyWithStackTraceOnError = true;
 
         public InProcPravegaCluster build() {
             //Check for valid combinations of flags
@@ -173,7 +175,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
                     enableRestServer, userName, passwd, certFile, keyFile, jksTrustFile, passwdFile, secureZK, keyPasswordFile,
-                    jksKeyFile, enableAdminGateway, adminGatewayPort);
+                    jksKeyFile, enableAdminGateway, adminGatewayPort, replyWithStackTraceOnError);
         }
     }
 
@@ -309,7 +311,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                                 ServiceConfig.StorageType.INMEMORY :
                                 ServiceConfig.StorageType.FILESYSTEM)
                         .with(ServiceConfig.ENABLE_ADMIN_GATEWAY, this.enableAdminGateway)
-                        .with(ServiceConfig.ADMIN_GATEWAY_PORT, this.adminGatewayPort))
+                        .with(ServiceConfig.ADMIN_GATEWAY_PORT, this.adminGatewayPort)
+                        .with(ServiceConfig.REPLY_WITH_STACK_TRACE_ON_ERROR, this.replyWithStackTraceOnError))
                 .include(DurableLogConfig.builder()
                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)

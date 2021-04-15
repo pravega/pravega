@@ -21,6 +21,7 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
+import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
@@ -63,7 +64,7 @@ public class AdminConnectionListener extends AbstractConnectionListener {
         super(enableTls, enableTlsReload, host, port, certFile, keyFile);
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
-        this.tokenVerifier = tokenVerifier;
+        this.tokenVerifier = (tokenVerifier != null) ? tokenVerifier : new PassingTokenVerifier();
     }
 
     @Override

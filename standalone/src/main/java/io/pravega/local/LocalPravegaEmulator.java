@@ -87,6 +87,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .metricsReportInterval(metricsReportInterval)
                     .enableAdminGateway(enabledAdminGateway)
                     .adminGatewayPort(adminGatewayPort)
+                    .replyWithStackTraceOnError(true)
                     .build();
             this.inProcPravegaCluster.setControllerPorts(new int[]{controllerPort});
             this.inProcPravegaCluster.setSegmentStorePorts(new int[]{segmentStorePort});
