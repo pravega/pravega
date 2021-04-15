@@ -231,4 +231,9 @@ public class Utils {
         String tlsEnabled = Utils.getConfig("tlsEnabled", "false");
         return Boolean.valueOf(tlsEnabled);
     }
+
+    public static boolean isSkipLogDownloadEnabled() {
+        String config = getConfig("skipLogDownload", "false");
+        return config.trim().equalsIgnoreCase("true") ? true : false;
+    }
 }

@@ -30,7 +30,7 @@ import org.junit.Test;
  */
 public class SingleThreadEndToEndTest {
 
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testReadWrite() throws Exception {
         @Cleanup("stopAllServices")
         SetupUtils setupUtils = new SetupUtils();

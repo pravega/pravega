@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.client.api.BookKeeper;
+import org.apache.bookkeeper.client.DefaultEnsemblePlacementPolicy;
 import org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.net.CommonConfigurationKeys;
@@ -189,6 +190,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
             config.setEnforceMinNumRacksPerWriteQuorum(this.config.isEnforceMinNumRacksPerWriteQuorum());
             config.setMinNumRacksPerWriteQuorum(this.config.getMinNumRacksPerWriteQuorum());
             config.setProperty(CommonConfigurationKeys.NET_TOPOLOGY_SCRIPT_FILE_NAME_KEY, this.config.getNetworkTopologyFileName());
+        } else {
+            config = config.setEnsemblePlacementPolicy(DefaultEnsemblePlacementPolicy.class);
         }
 
         return BookKeeper.newBuilder(config)

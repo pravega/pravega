@@ -34,6 +34,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -55,6 +56,7 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -71,10 +73,12 @@ import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -101,13 +105,15 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class PravegaRequestProcessorTest {
 
     private static final int MAX_KEY_LENGTH = 100;
     private static final int MAX_VALUE_LENGTH = 100;
     private final long requestId = 1L;
 
-    static {
+    @BeforeClass
+    public static void setupClass() {
         MetricsProvider.initialize(MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build());
         MetricsProvider.getMetricsProvider().startWithoutExporting();
     }
@@ -126,12 +132,12 @@ public class PravegaRequestProcessorTest {
         }
 
         @Override
-        public boolean hasNext() {
+        public synchronized boolean hasNext() {
             return !results.isEmpty();
         }
 
         @Override
-        public ReadResultEntry next() {
+        public synchronized ReadResultEntry next() {
             Assert.assertTrue("Expected copy-on-read enabled for all segment reads.", isCopyOnRead());
             ReadResultEntry result = results.remove(0);
             currentOffset = result.getStreamSegmentOffset();
@@ -139,7 +145,7 @@ public class PravegaRequestProcessorTest {
         }
 
         @Override
-        public int getConsumedLength() {
+        public synchronized int getConsumedLength() {
             return (int) (currentOffset - getStreamSegmentStartOffset());
         }
     }
@@ -194,6 +200,23 @@ public class PravegaRequestProcessorTest {
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         entry2.complete(new ByteArraySegment(data));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+        
+        TestReadResultEntry entry3 = new TestReadResultEntry(ReadResultEntryType.Future, 2, readLength);
+
+        List<ReadResultEntry> results2 = new ArrayList<>();
+        results2.add(entry3);
+        CompletableFuture<ReadResult> readResult2 = new CompletableFuture<>();
+        readResult2.complete(new TestReadResult(2, readLength, results2));
+        when(store.read(streamSegmentName, 2, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult2);
+
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+        entry3.complete(new ByteArraySegment(data));
+        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 2, readLength, "", requestId));
+        verify(store).read(streamSegmentName, 2, readLength, PravegaRequestProcessor.TIMEOUT);
+        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 2, true, false, Unpooled.wrappedBuffer(data), requestId));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -284,6 +307,60 @@ public class PravegaRequestProcessorTest {
         verifyNoMoreInteractions(store);
     }
 
+    @Test(timeout = 20000)
+    public void testReadFutureTruncated() {
+        // Set up PravegaRequestProcessor instance to execute read segment request against
+        String streamSegmentName = "scope/stream/testReadSegment";
+        int readLength = 1000;
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
+
+        TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.Future, 0, readLength);
+
+        List<ReadResultEntry> results = new ArrayList<>();
+        results.add(entry1);
+        CompletableFuture<ReadResult> readResult = CompletableFuture.completedFuture(new TestReadResult(0, readLength, results));
+        when(store.read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult);
+
+        // Execute and Verify readSegment calling stack in connection and store is executed as design.
+        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
+        verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
+        
+        entry1.fail(new StreamSegmentTruncatedException(100)); 
+        verify(connection).send(new WireCommands.SegmentIsTruncated(requestId, streamSegmentName, 100, "", 0));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+    }    
+    
+    @Test(timeout = 20000)
+    public void testReadFutureError() {
+        // Set up PravegaRequestProcessor instance to execute read segment request against
+        String streamSegmentName = "scope/stream/testReadSegment";
+        int readLength = 1000;
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
+
+        TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.Future, 0, readLength);
+
+        List<ReadResultEntry> results = new ArrayList<>();
+        results.add(entry1);
+        CompletableFuture<ReadResult> readResult = CompletableFuture.completedFuture(new TestReadResult(0, readLength, results));
+        when(store.read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult);
+
+        // Execute and Verify readSegment calling stack in connection and store is executed as design.
+        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
+        verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
+        
+        entry1.fail(new RuntimeException());
+        verify(connection, Mockito.atLeastOnce()).close();
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+    }    
+    
     @Test(timeout = 20000)
     public void testCreateSegment() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
