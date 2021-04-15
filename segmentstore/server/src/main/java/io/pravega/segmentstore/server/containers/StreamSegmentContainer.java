@@ -223,15 +223,22 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         if (this.storage instanceof ChunkedSegmentStorage) {
             ChunkedSegmentStorage chunkedStorage = (ChunkedSegmentStorage) this.storage;
-            val connector = new SnapshotInfoStore(this.metadata.getContainerId(),
-                    snapshotInfo -> saveStorageSnapshot(snapshotInfo, config.getStorageSnapshotTimeout()),
-                    () -> readStorageSnapshot(config.getStorageSnapshotTimeout()));
+            val snapshotInfoStore = getStorageSnapshotInfoStore();
             // Bootstrap
-            return chunkedStorage.bootstrap(connector);
+            return chunkedStorage.bootstrap(snapshotInfoStore);
         }
         return CompletableFuture.completedFuture(null);
     }
 
+    /**
+     * Returns instance of {@link SnapshotInfoStore} implemented by this instance.
+     * @return instance of {@link SnapshotInfoStore}.
+     */
+    SnapshotInfoStore getStorageSnapshotInfoStore() {
+        return new SnapshotInfoStore(this.metadata.getContainerId(),
+                snapshotInfo -> saveStorageSnapshot(snapshotInfo, config.getStorageSnapshotTimeout()),
+                () -> readStorageSnapshot(config.getStorageSnapshotTimeout()));
+    }
 
     //endregion
 
@@ -621,7 +628,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     //endregion
-    CompletableFuture<SnapshotInfo> readStorageSnapshot(Duration timeout) {
+    private CompletableFuture<SnapshotInfo> readStorageSnapshot(Duration timeout) {
         val segmentId =   this.metadata.getStreamSegmentId(NameUtils.getMetadataSegmentName(this.metadata.getContainerId()), false);
         if (segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
             val map =  this.metadata.getStreamSegmentMetadata(segmentId).getAttributes();
@@ -639,7 +646,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return CompletableFuture.completedFuture(null);
     }
 
-    CompletableFuture<Void> saveStorageSnapshot(SnapshotInfo checkpoint, Duration timeout) {
+    private CompletableFuture<Void> saveStorageSnapshot(SnapshotInfo checkpoint, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         val attributeUpdates = Arrays.asList(
                 new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID, AttributeUpdateType.Replace, checkpoint.getSnapshotId()),

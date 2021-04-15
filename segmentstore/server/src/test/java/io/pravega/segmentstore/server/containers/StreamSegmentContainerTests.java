@@ -1952,41 +1952,43 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
         container.startAsync().awaitRunning();
-        Assert.assertNull(container.readStorageSnapshot(TIMEOUT).get());
-        container.saveStorageSnapshot(SnapshotInfo.builder()
+        val snapshotInfoStore = container.getStorageSnapshotInfoStore();
+        Assert.assertNotNull(snapshotInfoStore);
+        Assert.assertNull(snapshotInfoStore.readSnapshotInfo().get());
+        snapshotInfoStore.writeSnapshotInfo(SnapshotInfo.builder()
                 .snapshotId(1)
                 .epoch(2)
-                .build(), TIMEOUT).get();
+                .build()).get();
         for (int i = 0; i < 3; i++) {
-            val v = container.readStorageSnapshot(TIMEOUT).get();
+            val v = snapshotInfoStore.readSnapshotInfo().get();
             Assert.assertNotNull(v);
             Assert.assertEquals(1, v.getSnapshotId());
             Assert.assertEquals(2, v.getEpoch());
         }
 
         for (int i = 0; i < 3; i++) {
-            container.saveStorageSnapshot(SnapshotInfo.builder()
+            snapshotInfoStore.writeSnapshotInfo(SnapshotInfo.builder()
                     .snapshotId(i)
                     .epoch(2)
-                    .build(), TIMEOUT).get();
-            val v = container.readStorageSnapshot(TIMEOUT).get();
+                    .build()).get();
+            val v = snapshotInfoStore.readSnapshotInfo().get();
             Assert.assertNotNull(v);
             Assert.assertEquals(i, v.getSnapshotId());
             Assert.assertEquals(2, v.getEpoch());
         }
 
-        container.saveStorageSnapshot(SnapshotInfo.builder()
+        snapshotInfoStore.writeSnapshotInfo(SnapshotInfo.builder()
                 .snapshotId(1)
                 .epoch(0)
-                .build(), TIMEOUT).get();
-        Assert.assertNull(container.readStorageSnapshot(TIMEOUT).get());
+                .build()).get();
+        Assert.assertNull(snapshotInfoStore.readSnapshotInfo().get());
 
         for (int i = 1; i < 4; i++) {
-            container.saveStorageSnapshot(SnapshotInfo.builder()
+            snapshotInfoStore.writeSnapshotInfo(SnapshotInfo.builder()
                     .snapshotId(1)
                     .epoch(i)
-                    .build(), TIMEOUT).get();
-            val v = container.readStorageSnapshot(TIMEOUT).get();
+                    .build()).get();
+            val v = snapshotInfoStore.readSnapshotInfo().get();
             Assert.assertNotNull(v);
             Assert.assertEquals(1, v.getSnapshotId());
             Assert.assertEquals(i, v.getEpoch());

@@ -121,11 +121,6 @@ public final class NameUtils {
     private static final String SYSJOURNAL_SNAPSHOT_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.snapshot%d";
 
     /**
-     * Format for Container System checkpoint file name.
-     */
-    private static final String SYSJOURNAL_CHECKPOINT_NAME_PREFIX = "_system/containers/_sysjournal.epoch%d.container%d.checkpoint%d";
-
-    /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
      */
     private static final int TRANSACTION_PART_LENGTH = Long.BYTES * 8 / 4;
