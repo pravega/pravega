@@ -45,6 +45,7 @@ import io.pravega.cli.admin.cluster.ListContainersCommand;
 import io.pravega.cli.admin.config.ConfigListCommand;
 import io.pravega.cli.admin.config.ConfigSetCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
+import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
 import io.pravega.cli.admin.utils.AdminHostControllerStore;
 import io.pravega.client.ClientConfig;
@@ -267,6 +268,7 @@ public abstract class AdminCommand {
                         .put(StorageListSegmentsCommand::descriptor, StorageListSegmentsCommand::new)
                         .put(DurableLogRecoveryCommand::descriptor, DurableLogRecoveryCommand::new)
                         .put(GetSegmentInfoCommand::descriptor, GetSegmentInfoCommand::new)
+                        .put(ReadSegmentRangeCommand::descriptor, ReadSegmentRangeCommand::new)
                         .build());
 
         /**

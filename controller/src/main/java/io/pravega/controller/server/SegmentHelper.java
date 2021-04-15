@@ -91,6 +91,7 @@ public class SegmentHelper implements AutoCloseable {
                     WireCommands.SegmentIsTruncated.class))
             .put(WireCommands.MergeSegments.class, ImmutableSet.of(WireCommands.SegmentsMerged.class,
                     WireCommands.NoSuchSegment.class))
+            .put(WireCommands.ReadSegment.class, ImmutableSet.of(WireCommands.SegmentRead.class))
             .put(WireCommands.UpdateTableEntries.class, ImmutableSet.of(WireCommands.TableEntriesUpdated.class))
             .put(WireCommands.RemoveTableKeys.class, ImmutableSet.of(WireCommands.TableKeysRemoved.class,
                     WireCommands.TableKeyDoesNotExist.class))
@@ -101,6 +102,7 @@ public class SegmentHelper implements AutoCloseable {
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_FAILING_REPLIES =
             ImmutableMap.<Class<? extends Request>, Set<Class<? extends Reply>>>builder()
+            .put(WireCommands.ReadSegment.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .put(WireCommands.UpdateTableEntries.class, ImmutableSet.of(WireCommands.TableKeyDoesNotExist.class, 
                     WireCommands.TableKeyBadVersion.class, WireCommands.NoSuchSegment.class))
             .put(WireCommands.RemoveTableKeys.class, ImmutableSet.of(WireCommands.TableKeyBadVersion.class, WireCommands.NoSuchSegment.class))
@@ -111,7 +113,7 @@ public class SegmentHelper implements AutoCloseable {
             .build();
 
     private final HostControllerStore hostStore;
-    private final ConnectionPool connectionPool;
+    protected final ConnectionPool connectionPool;
     private final ScheduledExecutorService executorService;
     private final AtomicReference<Duration> timeout;
 
@@ -579,6 +581,23 @@ public class SegmentHelper implements AutoCloseable {
                 });
     }
 
+    public CompletableFuture<WireCommands.SegmentRead> readSegment(String qualifiedName, int offset, int length,
+                                                                        PravegaNodeUri uri, String delegationToken) {
+        final WireCommandType type = WireCommandType.READ_SEGMENT;
+        RawClient connection = new RawClient(uri, connectionPool);
+        final long requestId = connection.getFlow().asLong();
+
+        WireCommands.ReadSegment request = new WireCommands.ReadSegment(qualifiedName, offset, length, delegationToken,
+                requestId);
+
+        return sendRequest(connection, requestId, request)
+                .thenApply(r -> {
+                    handleReply(requestId, r, connection, qualifiedName, WireCommands.ReadSegment.class, type);
+                    assert r instanceof WireCommands.SegmentRead;
+                    return (WireCommands.SegmentRead) r;
+                });
+    }
+
     private WireCommands.TableKey convertToWireCommand(final TableSegmentKey k) {
         WireCommands.TableKey key;
         if (k.getVersion() == null) {
@@ -627,7 +646,7 @@ public class SegmentHelper implements AutoCloseable {
         }
     }
 
-    private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long requestId, T request) {
+    protected <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long requestId, T request) {
         CompletableFuture<Reply> future = Futures.futureWithTimeout(() -> connection.sendRequest(requestId, request), timeout.get(), "request", executorService);
         return future.exceptionally(e -> {
             processAndRethrowException(requestId, request, e);
@@ -671,7 +690,7 @@ public class SegmentHelper implements AutoCloseable {
      * @return true if reply is in the expected reply set for the given requestType or throw exception.
      */
     @SneakyThrows(ConnectionFailedException.class)
-    private void handleReply(long callerRequestId, 
+    protected void handleReply(long callerRequestId,
                              Reply reply,
                              RawClient client,
                              String qualifiedStreamSegmentName,

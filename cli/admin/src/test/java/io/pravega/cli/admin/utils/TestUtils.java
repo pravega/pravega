@@ -198,7 +198,7 @@ public final class TestUtils {
                 new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
         for (int i = 0; i < NUM_EVENTS;) {
-            writer.writeEvent("", EVENT).join();
+            writer.writeEvent(EVENT).join();
             i++;
         }
         writer.flush();

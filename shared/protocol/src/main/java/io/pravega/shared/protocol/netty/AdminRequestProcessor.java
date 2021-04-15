@@ -19,4 +19,5 @@ package io.pravega.shared.protocol.netty;
  * Interface that defines all the specific administration operations via the Admin CLI against the Pravega Admin Gateway.
  */
 public interface AdminRequestProcessor extends RequestProcessor {
+
 }
