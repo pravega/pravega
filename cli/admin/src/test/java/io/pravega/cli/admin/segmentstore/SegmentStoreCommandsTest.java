@@ -26,12 +26,12 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
     @Test
     public void testGetSegmentInfoCommand() throws Exception {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getinfo", StreamConfiguration.builder().build());
-        String commandResult = TestUtils.executeCommand("segmentstore get-segment-info segmentstore getinfo 0 localhost", STATE.get());
-        Assert.assertTrue(commandResult.contains("STREAM_SEGMENT_INFO"));
-        commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system _abortStream 0 localhost", STATE.get());
-        Assert.assertTrue(commandResult.contains("STREAM_SEGMENT_INFO"));
-        commandResult = TestUtils.executeCommand("segmentstore get-segment-info not exists 0 localhost", STATE.get());
-        Assert.assertTrue(commandResult.contains("Error"));
+        String commandResult = TestUtils.executeCommand("segmentstore get-segment-info segmentstore/getinfo/0.#epoch.0 localhost", STATE.get());
+        Assert.assertFalse(commandResult.contains("Failed"));
+        commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_abortStream/0.#epoch.0 localhost", STATE.get());
+        Assert.assertFalse(commandResult.contains("Failed"));
+        commandResult = TestUtils.executeCommand("segmentstore get-segment-info not/exists/0 localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("Failed"));
         Assert.assertNotNull(GetSegmentInfoCommand.descriptor());
     }
 }

@@ -42,12 +42,7 @@ import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.util.Config;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.Reply;
-import io.pravega.shared.protocol.netty.Request;
-import io.pravega.shared.protocol.netty.WireCommand;
-import io.pravega.shared.protocol.netty.WireCommandType;
-import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.*;
 
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -324,9 +319,13 @@ public class SegmentHelper implements AutoCloseable {
                                                                             String delegationToken) {
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
+        return getSegmentInfo(qualifiedName, ModelHelper.encode(uri), delegationToken);
+    }
 
+    public CompletableFuture<WireCommands.StreamSegmentInfo> getSegmentInfo(String qualifiedName, PravegaNodeUri uri,
+                                                                            String delegationToken) {
         final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
+        RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         WireCommands.GetStreamSegmentInfo request = new WireCommands.GetStreamSegmentInfo(requestId,

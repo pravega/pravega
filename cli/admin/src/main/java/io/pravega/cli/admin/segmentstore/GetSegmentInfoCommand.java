@@ -15,13 +15,18 @@
  */
 package io.pravega.cli.admin.segmentstore;
 
+import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -40,17 +45,16 @@ public class GetSegmentInfoCommand extends SegmentStoreCommand {
 
     @Override
     public void execute() {
-        ensureArgCount(4);
+        ensureArgCount(2);
 
-        final String scopeName = getCommandArgs().getArgs().get(0);
-        final String streamName = getCommandArgs().getArgs().get(1);
-        final int segmentId = getIntArg(2);
-        final String segmentStoreHost = getCommandArgs().getArgs().get(3);
+        final String fullyQualifiedSegmentName = getCommandArgs().getArgs().get(0);
+        final String segmentStoreHost = getCommandArgs().getArgs().get(1);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient, true, new Host(segmentStoreHost, getServiceConfig().getAdminGatewayPort(), ""));
-        CompletableFuture<WireCommands.StreamSegmentInfo> reply = segmentHelper.getSegmentInfo(scopeName, streamName, segmentId, "");
+        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
+        CompletableFuture<WireCommands.StreamSegmentInfo> reply = segmentHelper.getSegmentInfo(fullyQualifiedSegmentName,
+                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
         try {
             output("StreamSegmentInfo: %s", reply.join().toString());
         } catch (Exception e) {
@@ -60,9 +64,22 @@ public class GetSegmentInfoCommand extends SegmentStoreCommand {
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "get-segment-info", "Get the details of a given Segment.",
-                new ArgDescriptor("scope-name", "Name of the Scope where the Segment belongs to."),
-                new ArgDescriptor("stream-name", "Name of the Stream where the Segment belongs to."),
-                new ArgDescriptor("segment-id", "Id of the Segment to get information from."),
-                new ArgDescriptor("segmentstore-host", "Host for the Segment Store storing this Segment."));
+                new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to get info from (e.g., scope/stream/0.#epoch.0)."),
+                new ArgDescriptor("segmentstore-endpoint", "Name of the Segment Store we want to send this request."));
+    }
+
+    public static void main(String[] args) throws IOException {
+        AdminCommandState adminCommandState = new AdminCommandState();
+        Properties pravegaProperties = new Properties();
+        pravegaProperties.setProperty("cli.controller.rest.uri", "localhost:9091");
+        pravegaProperties.setProperty("cli.controller.grpc.uri", "localhost:9090");
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:4000");
+        pravegaProperties.setProperty("pravegaservice.container.count", "4");
+        pravegaProperties.setProperty("pravegaservice.admin.gateway.port", "9999");
+        adminCommandState.getConfigBuilder().include(pravegaProperties);
+        CommandArgs commandArgs = new CommandArgs(Arrays.asList("_system/_abortStream/0.#epoch.0", "localhost"), adminCommandState);
+        GetSegmentInfoCommand command = new GetSegmentInfoCommand(commandArgs);
+
+        command.execute();
     }
 }
