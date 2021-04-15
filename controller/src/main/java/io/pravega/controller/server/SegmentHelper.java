@@ -42,7 +42,6 @@ import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.util.Config;
-import io.pravega.shared.protocol.netty.*;
 
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -56,6 +55,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
+
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.Reply;
+import io.pravega.shared.protocol.netty.Request;
+import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.netty.WireCommandType;
+import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -92,6 +99,7 @@ public class SegmentHelper implements AutoCloseable {
             .put(WireCommands.MergeSegments.class, ImmutableSet.of(WireCommands.SegmentsMerged.class,
                     WireCommands.NoSuchSegment.class))
             .put(WireCommands.ReadSegment.class, ImmutableSet.of(WireCommands.SegmentRead.class))
+            .put(WireCommands.GetSegmentAttribute.class, ImmutableSet.of(WireCommands.SegmentAttribute.class))
             .put(WireCommands.UpdateTableEntries.class, ImmutableSet.of(WireCommands.TableEntriesUpdated.class))
             .put(WireCommands.RemoveTableKeys.class, ImmutableSet.of(WireCommands.TableKeysRemoved.class,
                     WireCommands.TableKeyDoesNotExist.class))
@@ -595,6 +603,23 @@ public class SegmentHelper implements AutoCloseable {
                     handleReply(requestId, r, connection, qualifiedName, WireCommands.ReadSegment.class, type);
                     assert r instanceof WireCommands.SegmentRead;
                     return (WireCommands.SegmentRead) r;
+                });
+    }
+
+    public CompletableFuture<WireCommands.SegmentAttribute> getSegmentAttribute(String qualifiedName, UUID attributeId,
+                                                                   PravegaNodeUri uri, String delegationToken) {
+        final WireCommandType type = WireCommandType.READ_SEGMENT;
+        RawClient connection = new RawClient(uri, connectionPool);
+        final long requestId = connection.getFlow().asLong();
+
+        WireCommands.GetSegmentAttribute request = new WireCommands.GetSegmentAttribute(requestId, qualifiedName, attributeId,
+                delegationToken);
+
+        return sendRequest(connection, requestId, request)
+                .thenApply(r -> {
+                    handleReply(requestId, r, connection, qualifiedName, WireCommands.GetSegmentAttribute.class, type);
+                    assert r instanceof WireCommands.SegmentAttribute;
+                    return (WireCommands.SegmentAttribute) r;
                 });
     }
 

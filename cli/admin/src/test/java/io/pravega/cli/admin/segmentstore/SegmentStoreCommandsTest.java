@@ -60,4 +60,9 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         Assert.assertTrue(commandResult.contains("Error"));
         Assert.assertNotNull(GetSegmentInfoCommand.descriptor());
     }
+
+    @Test
+    public void testGetSegmentAttributeCommand() throws Exception {
+        // TODO: Maybe we need listing attributes first
+    }
 }
