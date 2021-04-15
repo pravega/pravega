@@ -100,7 +100,7 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
      * properties are matched for verification after the restoration.
      * @throws Exception If an exception occurred.
      */
-    @Test
+    @Test(timeout = 120000)
     public void testDataRecovery() throws Exception {
         testSegmentRestoration();
     }
