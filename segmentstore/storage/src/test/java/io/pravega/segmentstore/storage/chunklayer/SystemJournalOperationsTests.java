@@ -60,6 +60,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
     private static final int CONTAINER_ID = 42;
     private static final int[] PRIMES_1 = {2, 3, 5, 7};
+    private static final int THREAD_POOL_SIZE = 10;
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
@@ -73,6 +74,11 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     @After
     public void after() throws Exception {
         super.after();
+    }
+
+    @Override
+    protected int getThreadPoolSize() {
+        return THREAD_POOL_SIZE;
     }
 
     protected ChunkMetadataStore createMetadataStore() {
@@ -827,7 +833,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 txn.create(newChunk);
                 txn.markPinned(newChunk);
                 txn.update(segment);
-                txn.commit();
+                txn.commit().join();
             }
 
             // Add new chunk ro expected chunks list.
@@ -910,7 +916,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                     segment.setChunkCount(list.size());
                     segment.checkInvariants();
                     txn.update(segment);
-                    txn.commit();
+                    txn.commit().join();
                 }
                 // Finally delete chunks.
                 for (val chunkToDelete : deletedList) {
