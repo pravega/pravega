@@ -1117,7 +1117,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
         final long requestId;
         final String segment;
-        final boolean sorted;
+        final boolean sortedDeprecated; // Deprecated. Leaving here to prevent wire format changes.
         @ToString.Exclude
         final String delegationToken;
 
@@ -1131,7 +1131,7 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
-            out.writeBoolean(sorted);
+            out.writeBoolean(sortedDeprecated);
         }
 
         public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {

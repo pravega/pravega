@@ -38,10 +38,6 @@ public class SegmentType {
      * General Table Segment with no special roles.
      */
     public static final SegmentType TABLE_SEGMENT_HASH = SegmentType.builder().tableSegment().build();
-    /**
-     * General Sorted Table Segment with no special roles.
-     */
-    public static final SegmentType TABLE_SEGMENT_SORTED = SegmentType.builder().sortedTableSegment().build();
 
     //endregion
 
@@ -57,8 +53,6 @@ public class SegmentType {
     static final long FORMAT_BASIC = 0b0000_0000L;
     @VisibleForTesting
     static final long FORMAT_TABLE_SEGMENT = 0b0000_0001L;
-    @VisibleForTesting
-    static final long FORMAT_SORTED_TABLE_SEGMENT = 0b0000_0010L | FORMAT_TABLE_SEGMENT;
     @VisibleForTesting
     static final long ROLE_INTERNAL = 0b0001_0000L;
     @VisibleForTesting
@@ -106,15 +100,6 @@ public class SegmentType {
     }
 
     /**
-     * Whether this {@link SegmentType} refers to a Sorted Table Segment (which implies {@link #isTableSegment()}.
-     *
-     * @return True if Sorted Table Segment, false otherwise.
-     */
-    public boolean isSortedTableSegment() {
-        return (this.flags & FORMAT_SORTED_TABLE_SEGMENT) == FORMAT_SORTED_TABLE_SEGMENT;
-    }
-
-    /**
      * Whether this {@link SegmentType} refers to a Segment (regardless of Format) that is for exclusive internal access.
      * If so, external requests may be denied on such Segments.
      *
@@ -151,9 +136,7 @@ public class SegmentType {
     public String toString() {
         StringBuilder result = new StringBuilder();
         result.append(String.format("[%s]: Base", this.flags));
-        if (isSortedTableSegment()) {
-            result.append(", Table Segment (Sorted)");
-        } else if (isTableSegment()) {
+        if (isTableSegment()) {
             result.append(", Table Segment");
         }
 
@@ -195,9 +178,6 @@ public class SegmentType {
         Builder builder = new Builder(type);
         if (segmentAttributes.containsKey(TableAttributes.INDEX_OFFSET)) {
             builder.tableSegment();
-            if (segmentAttributes.getOrDefault(TableAttributes.SORTED, Attributes.BOOLEAN_FALSE) == Attributes.BOOLEAN_TRUE) {
-                builder.sortedTableSegment();
-            }
         }
 
         return builder.build();
@@ -247,11 +227,6 @@ public class SegmentType {
 
         public Builder tableSegment() {
             this.flags |= FORMAT_TABLE_SEGMENT;
-            return this;
-        }
-
-        public Builder sortedTableSegment() {
-            this.flags |= FORMAT_SORTED_TABLE_SEGMENT;
             return this;
         }
 

@@ -450,7 +450,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i) + "_Table";
             tableSegmentNames.add(segmentName);
-            val type = SegmentType.builder(getSegmentType(segmentName)).sortedTableSegment().build();
+            val type = SegmentType.builder(getSegmentType(segmentName)).tableSegment().build();
             opFutures.add(tableStore.createSegment(segmentName, type, TIMEOUT));
         }
 

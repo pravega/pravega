@@ -68,7 +68,6 @@ public class InMemoryTableStore implements TableStore {
         Preconditions.checkArgument(segmentType.isTableSegment(), "Expected SegmentType.isSortedSegment.");
         Preconditions.checkArgument(segmentType.isSystem(), "Expected SegmentType.isSystem.");
         Preconditions.checkArgument(segmentType.isCritical(), "Expected SegmentType.isCritical.");
-        Preconditions.checkArgument(!segmentType.isSortedTableSegment(), "Sorted Table Segments not supported in this mock.");
         return CompletableFuture.runAsync(() -> {
             synchronized (this.tables) {
                 if (this.tables.containsKey(segmentName)) {
