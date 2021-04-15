@@ -86,7 +86,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     }
 
     @Override
-    public void createReaderGroup(String groupName, ReaderGroupConfig config) {
+    public boolean createReaderGroup(String groupName, ReaderGroupConfig config) {
         log.info("Creating reader group: {} for streams: {} with configuration: {}", groupName,
                 Arrays.toString(config.getStartingStreamCuts().keySet().toArray()), config);
         NameUtils.validateReaderGroupName(groupName);
@@ -96,13 +96,16 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         }
         ReaderGroupConfig controllerConfig = getThrowingException(controller.createReaderGroup(scope, groupName, config));
         if (!controllerConfig.equals(config)) {
-            log.warn("ReaderGroup {} already exists, using the older ReaderGroup configuration {}", groupName, controllerConfig);
+            log.warn("ReaderGroup {} already exists, with ReaderGroup configuration {}", groupName, controllerConfig);
+            return false;
+        } else {
+            @Cleanup
+            StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                                                                                                     new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+            Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, controllerConfig);
+            synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
+            return true;
         }
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
-                                              new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
-        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, controllerConfig);
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(controllerConfig, segments, getEndSegmentsForStreams(controllerConfig), false));
     }
 
     @Override
@@ -149,9 +152,8 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
 
         try {
-            ReaderGroupImpl readerGroup = new ReaderGroupImpl(scope, groupName, synchronizerConfig, new ReaderGroupStateInitSerializer(), new ReaderGroupStateUpdatesSerializer(),
-                                                              clientFactory, controller, clientFactory.getConnectionPool());
-            return readerGroup;
+            return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new ReaderGroupStateInitSerializer(), new ReaderGroupStateUpdatesSerializer(),
+                                       clientFactory, controller, clientFactory.getConnectionPool());
         } catch (InvalidStreamException e) {
             throw new ReaderGroupNotFoundException(groupName, e);
         }

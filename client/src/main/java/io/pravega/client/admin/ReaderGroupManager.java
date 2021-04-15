@@ -72,8 +72,9 @@ public interface ReaderGroupManager extends AutoCloseable {
      * may block.
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
+     * @return True if ReaderGroup is created.
      */
-    void createReaderGroup(String groupName, ReaderGroupConfig config);
+    boolean createReaderGroup(String groupName, ReaderGroupConfig config);
     
     /**
      * Deletes a reader group, removing any state associated with it. There should be no reader left

@@ -53,8 +53,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
@@ -124,14 +126,14 @@ public class ReaderGroupManagerImplTest {
         ReaderGroupConfig newConfig = ReaderGroupConfig.builder()
                                                        .stream(createStream("s1"), createStreamCut("s1", 2))
                                                        .build();
-        readerGroupManager.createReaderGroup(GROUP_NAME, newConfig);
-
-        verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class),
+        boolean result = readerGroupManager.createReaderGroup(GROUP_NAME, newConfig);
+        assertFalse(result);
+        verify(clientFactory, never()).createStateSynchronizer(anyString(), any(Serializer.class),
                                                                 any(Serializer.class), any(SynchronizerConfig.class));
         Map<SegmentWithRange, Long> segments = ImmutableMap.<SegmentWithRange, Long>builder()
                                                            .put(new SegmentWithRange(new Segment(SCOPE, "s2", 0), 0.0, 1.0), 10L).build();
         ReaderGroupState.ReaderGroupStateInit initState = new ReaderGroupState.ReaderGroupStateInit(expectedConfig, segments, new HashMap<>(), false);
-        verify(synchronizer, times(1)).initialize(initState);
+        verify(synchronizer, never()).initialize(initState);
     }
 
     @Test(expected = ReaderGroupNotFoundException.class)
