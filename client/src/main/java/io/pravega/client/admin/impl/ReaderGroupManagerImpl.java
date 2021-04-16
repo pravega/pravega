@@ -96,8 +96,11 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         }
         ReaderGroupConfig controllerConfig = getThrowingException(controller.createReaderGroup(scope, groupName, config));
         if (!controllerConfig.equals(config)) {
-            log.warn("ReaderGroup {} already exists, with ReaderGroup configuration {}", groupName, controllerConfig);
+            log.warn("ReaderGroup {} already exists with pre-existing configuration {}", groupName, controllerConfig);
             return false;
+        } else if (controllerConfig.getGeneration() > 0 ) {
+            log.info("ReaderGroup {} already exists", groupName);
+            return true;
         } else {
             @Cleanup
             StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),

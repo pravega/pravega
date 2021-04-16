@@ -39,8 +39,10 @@ import io.pravega.shared.NameUtils;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -54,6 +56,7 @@ import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -62,10 +65,15 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
+@SuppressWarnings("unchecked")
 public class ReaderGroupManagerImplTest {
     private static final String SCOPE = "scope";
     private static final String GROUP_NAME = "readerGroup";
+    @Rule
+    public final Timeout globalTimeout = Timeout.seconds(30);
+
     private ReaderGroupManagerImpl readerGroupManager;
+
     @Mock
     private ClientFactoryImpl clientFactory;
     @Mock
@@ -91,7 +99,6 @@ public class ReaderGroupManagerImplTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void testCreateReaderGroup() {
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
@@ -104,14 +111,14 @@ public class ReaderGroupManagerImplTest {
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                 any(SynchronizerConfig.class))).thenReturn(synchronizer);
         // Create a ReaderGroup
-        readerGroupManager.createReaderGroup(GROUP_NAME, config);
+        boolean created = readerGroupManager.createReaderGroup(GROUP_NAME, config);
+        assertTrue(created);
         verify(clientFactory, times(1)).createStateSynchronizer(anyString(), any(Serializer.class),
                 any(Serializer.class), any(SynchronizerConfig.class));
         verify(synchronizer, times(1)).initialize(any(InitialUpdate.class));
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void testCreateReaderGroupWithNewConfig() {
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                                                                                                .put(createStream("s2"), createStreamCut("s2", 0)).build())
@@ -145,7 +152,24 @@ public class ReaderGroupManagerImplTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
+    public void testCreateReaderGroupWithSameConfig() {
+        ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
+                                                                                               .put(createStream("s1"), createStreamCut("s1", 2))
+                                                                                               .put(createStream("s2"), createStreamCut("s2", 3)).build())
+                                                    .retentionType(ReaderGroupConfig.StreamDataRetention.MANUAL_RELEASE_AT_USER_STREAMCUT)
+                                                    .build();
+        ReaderGroupConfig expectedConfig = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 1L);
+        when(controller.createReaderGroup(anyString(), anyString(), any(ReaderGroupConfig.class)))
+                .thenReturn(CompletableFuture.completedFuture(expectedConfig));
+        // Create a ReaderGroup
+        boolean created = readerGroupManager.createReaderGroup(GROUP_NAME, config);
+        assertTrue(created);
+        verify(clientFactory, never()).createStateSynchronizer(anyString(), any(Serializer.class),
+                                                                any(Serializer.class), any(SynchronizerConfig.class));
+        verify(synchronizer, never()).initialize(any(InitialUpdate.class));
+    }
+
+    @Test
     public void testDeleteReaderGroup() {
         final UUID rgId = UUID.randomUUID();
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
@@ -165,7 +189,6 @@ public class ReaderGroupManagerImplTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void testDeleteReaderGroupRGStreamDeleted() {
         ReaderGroupConfig config = ReaderGroupConfig.builder().startFromStreamCuts(ImmutableMap.<Stream, StreamCut>builder()
                 .put(createStream("s1"), createStreamCut("s1", 2))
