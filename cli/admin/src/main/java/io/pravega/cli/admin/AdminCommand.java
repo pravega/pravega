@@ -47,6 +47,7 @@ import io.pravega.cli.admin.config.ConfigSetCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
 import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
+import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
 import io.pravega.cli.admin.utils.AdminHostControllerStore;
 import io.pravega.client.ClientConfig;
@@ -195,6 +196,10 @@ public abstract class AdminCommand {
         return getArg(index, Integer::parseInt);
     }
 
+    protected long getLongArg(int index) {
+        return getArg(index, Long::parseLong);
+    }
+
     private <T> T getArg(int index, Function<String, T> converter) {
         String s = null;
         try {
@@ -271,6 +276,7 @@ public abstract class AdminCommand {
                         .put(GetSegmentInfoCommand::descriptor, GetSegmentInfoCommand::new)
                         .put(ReadSegmentRangeCommand::descriptor, ReadSegmentRangeCommand::new)
                         .put(GetSegmentAttributeCommand::descriptor, GetSegmentAttributeCommand::new)
+                        .put(UpdateSegmentAttributeCommand::descriptor, UpdateSegmentAttributeCommand::new)
                         .build());
 
         /**

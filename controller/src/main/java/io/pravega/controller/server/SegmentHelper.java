@@ -100,6 +100,7 @@ public class SegmentHelper implements AutoCloseable {
                     WireCommands.NoSuchSegment.class))
             .put(WireCommands.ReadSegment.class, ImmutableSet.of(WireCommands.SegmentRead.class))
             .put(WireCommands.GetSegmentAttribute.class, ImmutableSet.of(WireCommands.SegmentAttribute.class))
+            .put(WireCommands.UpdateSegmentAttribute.class, ImmutableSet.of(WireCommands.SegmentAttributeUpdated.class))
             .put(WireCommands.UpdateTableEntries.class, ImmutableSet.of(WireCommands.TableEntriesUpdated.class))
             .put(WireCommands.RemoveTableKeys.class, ImmutableSet.of(WireCommands.TableKeysRemoved.class,
                     WireCommands.TableKeyDoesNotExist.class))
@@ -112,6 +113,7 @@ public class SegmentHelper implements AutoCloseable {
             ImmutableMap.<Class<? extends Request>, Set<Class<? extends Reply>>>builder()
             .put(WireCommands.ReadSegment.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .put(WireCommands.GetSegmentAttribute.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
+            .put(WireCommands.UpdateSegmentAttribute.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .put(WireCommands.UpdateTableEntries.class, ImmutableSet.of(WireCommands.TableKeyDoesNotExist.class, 
                     WireCommands.TableKeyBadVersion.class, WireCommands.NoSuchSegment.class))
             .put(WireCommands.RemoveTableKeys.class, ImmutableSet.of(WireCommands.TableKeyBadVersion.class, WireCommands.NoSuchSegment.class))
@@ -609,7 +611,7 @@ public class SegmentHelper implements AutoCloseable {
 
     public CompletableFuture<WireCommands.SegmentAttribute> getSegmentAttribute(String qualifiedName, UUID attributeId,
                                                                    PravegaNodeUri uri, String delegationToken) {
-        final WireCommandType type = WireCommandType.READ_SEGMENT;
+        final WireCommandType type = WireCommandType.GET_SEGMENT_ATTRIBUTE;
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
@@ -621,6 +623,24 @@ public class SegmentHelper implements AutoCloseable {
                     handleReply(requestId, r, connection, qualifiedName, WireCommands.GetSegmentAttribute.class, type);
                     assert r instanceof WireCommands.SegmentAttribute;
                     return (WireCommands.SegmentAttribute) r;
+                });
+    }
+
+    public CompletableFuture<WireCommands.SegmentAttributeUpdated> updateSegmentAttribute(String qualifiedName, UUID attributeId,
+                                                                                long newValue, long existingValue, PravegaNodeUri uri,
+                                                                                String delegationToken) {
+        final WireCommandType type = WireCommandType.UPDATE_SEGMENT_ATTRIBUTE;
+        RawClient connection = new RawClient(uri, connectionPool);
+        final long requestId = connection.getFlow().asLong();
+
+        WireCommands.UpdateSegmentAttribute request = new WireCommands.UpdateSegmentAttribute(requestId, qualifiedName, attributeId,
+                newValue, existingValue, delegationToken);
+
+        return sendRequest(connection, requestId, request)
+                .thenApply(r -> {
+                    handleReply(requestId, r, connection, qualifiedName, WireCommands.UpdateSegmentAttribute.class, type);
+                    assert r instanceof WireCommands.SegmentAttributeUpdated;
+                    return (WireCommands.SegmentAttributeUpdated) r;
                 });
     }
 
