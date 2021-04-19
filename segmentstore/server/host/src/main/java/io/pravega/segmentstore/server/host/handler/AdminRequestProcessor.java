@@ -35,7 +35,7 @@ import lombok.extern.slf4j.Slf4j;
  * on data, so it should be used carefully. By default, the Pravega request processor is disabled.
  */
 @Slf4j
-public class AdminRequestProcessorImpl extends FailingRequestProcessor implements RequestProcessor {
+public class AdminRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
 
     //region Members
 
@@ -46,8 +46,8 @@ public class AdminRequestProcessorImpl extends FailingRequestProcessor implement
 
     //region Constructor
 
-    public AdminRequestProcessorImpl(@NonNull StreamSegmentStore segmentStore, @NonNull TableStore tableStore,
-                                     @NonNull TrackedConnection connection, @NonNull DelegationTokenVerifier tokenVerifier) {
+    public AdminRequestProcessor(@NonNull StreamSegmentStore segmentStore, @NonNull TableStore tableStore,
+                                 @NonNull TrackedConnection connection, @NonNull DelegationTokenVerifier tokenVerifier) {
         this.connection = connection;
         this.pravegaRequestProcessor = new PravegaRequestProcessor(segmentStore, tableStore, connection,
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), tokenVerifier, false);

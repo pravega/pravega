@@ -88,8 +88,23 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
         this.connectionTracker = new ConnectionTracker();
     }
 
+    /**
+     * Any subclass extending this class should provide a list of {@link ChannelHandler} objects to encode/decode
+     * incoming messages.
+     *
+     * @param connectionName Incoming connection IP for information purposes.
+     *
+     * @return Sorted list of encoders/decoders to process requests.
+     */
     public abstract List<ChannelHandler> createEncodingStack(String connectionName);
 
+    /**
+     * Any subclass extending this class should provide a {@link RequestProcessor} object to handle incoming requests.
+     *
+     * @param trackedConnection {@link TrackedConnection} to be used by the {@link RequestProcessor}.
+     *
+     * @return A {@link RequestProcessor} object to handle incoming messages.
+     */
     public abstract RequestProcessor createRequestProcessor(TrackedConnection trackedConnection);
 
     /**

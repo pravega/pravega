@@ -69,7 +69,7 @@ public class AdminConnectionListener extends AbstractConnectionListener {
 
     @Override
     public RequestProcessor createRequestProcessor(TrackedConnection c) {
-        return new AdminRequestProcessorImpl(store, tableStore, c, tokenVerifier);
+        return new AdminRequestProcessor(store, tableStore, c, tokenVerifier);
     }
 
     @Override

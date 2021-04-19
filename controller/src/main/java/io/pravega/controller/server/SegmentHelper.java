@@ -692,7 +692,7 @@ public class SegmentHelper implements AutoCloseable {
         }
     }
 
-    protected <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long requestId, T request) {
+    private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long requestId, T request) {
         CompletableFuture<Reply> future = Futures.futureWithTimeout(() -> connection.sendRequest(requestId, request), timeout.get(), "request", executorService);
         return future.exceptionally(e -> {
             processAndRethrowException(requestId, request, e);
