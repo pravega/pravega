@@ -28,6 +28,7 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
+import io.pravega.segmentstore.storage.metadata.StorageMetadata;
 import io.pravega.shared.NameUtils;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -37,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -46,11 +48,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -253,6 +257,33 @@ public class SystemJournal {
     }
 
     /**
+     * Holds state for boot strap operation.
+     */
+    @RequiredArgsConstructor
+    private static class BootstrapState {
+        /**
+         * Keep track of offsets at which chunks were added to the system segments.
+         */
+        final private Map<String, Long> chunkStartOffsets = new HashMap<>();
+
+        /**
+         * Keep track of offsets at which system segments were truncated.
+         * We don't need to apply each truncate operation, only need to apply the final truncate offset.
+         */
+        final private Map<String, Long> finalTruncateOffsets = new HashMap<>();
+
+        /**
+         * Final first chunk start offsets for all segments.
+         */
+        final private Map<String, Long> finalFirstChunkStartsAtOffsets = new HashMap<>();
+
+        /**
+         * Keep track of already processed records.
+         */
+        final private HashSet<SystemJournalRecord> visitedRecords = new HashSet<>();
+    }
+
+    /**
      * Bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
      * @param epoch             Epoch of the current container instance.
@@ -267,26 +298,17 @@ public class SystemJournal {
         // Start a transaction
         val txn = metadataStore.beginTransaction(false, getSystemSegments());
 
-        // Keep track of offsets at which chunks were added to the system segments.
-        val chunkStartOffsets = new HashMap<String, Long>();
-
-        // Keep track of offsets at which system segments were truncated.
-        // We don't need to apply each truncate operation, only need to apply the final truncate offset.
-        val finalTruncateOffsets = new HashMap<String, Long>();
-        val finalFirstChunkStartsAtOffsets = new HashMap<String, Long>();
-
-        // Keep track of already processed records.
-        val visitedRecords = new HashSet<SystemJournalRecord>();
+        val state = new BootstrapState();
         val snapshotSaved = new AtomicBoolean();
 
         // Step 1: Create metadata records for system segments from latest snapshot.
         return findLatestSnapshot()
                 .thenComposeAsync(snapshot ->
-                                applySystemSnapshotRecord(txn, chunkStartOffsets, snapshot),
-                        executor)
+                   applySystemSnapshotRecord(txn, state, snapshot),
+                executor)
                 .thenComposeAsync(latestSnapshot -> {
                     // Step 2: For each epoch, find the corresponding system journal files, process them and apply operations recorded.
-                    return applySystemLogOperations(txn, latestSnapshot, chunkStartOffsets, finalTruncateOffsets, finalFirstChunkStartsAtOffsets, visitedRecords);
+                    return applySystemLogOperations(txn, state, latestSnapshot);
                 }, executor)
                 .thenComposeAsync(v -> {
                     // Step 3: Adjust the length of the last chunk.
@@ -298,7 +320,7 @@ public class SystemJournal {
                 }, executor)
                 .thenComposeAsync(v -> {
                     // Step 4: Apply the truncate offsets.
-                    return applyFinalTruncateOffsets(txn, finalTruncateOffsets, finalFirstChunkStartsAtOffsets);
+                    return applyFinalTruncateOffsets(txn, state);
                 }, executor)
                 .thenComposeAsync(v -> {
                     // Step 5: Validate and save a snapshot.
@@ -313,7 +335,7 @@ public class SystemJournal {
                             }, executor);
                 }, executor)
                 .thenAcceptAsync(v -> {
-                    // Step 6: Check invariants.
+                    // Step 6: Check invariants. These should never fail.
                     Preconditions.checkState(currentFileIndex.get() == 0, "currentFileIndex must be zero");
                     Preconditions.checkState(systemJournalOffset.get() == 0, "systemJournalOffset must be zero");
                     Preconditions.checkState(newChunkRequired.get(), "newChunkRequired must be true");
@@ -336,9 +358,8 @@ public class SystemJournal {
             val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, snapshotId);
             return chunkStorage.exists(snapshotFileName)
                     .thenAcceptAsync(exists -> Preconditions.checkState(exists, "Snapshot file must exist"), executor);
-        } else {
-            return CompletableFuture.completedFuture(null);
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     /**
@@ -495,42 +516,15 @@ public class SystemJournal {
     private CompletableFuture<SystemSnapshotRecord> findLatestSnapshot() {
         // Step 1: Read snapshot info.
         return snapshotInfoStore.readSnapshotInfo()
-                .thenComposeAsync(persisted -> {
-                    if (null != persisted) {
+                .thenComposeAsync(snapshotInfo -> {
+                    if (null != snapshotInfo) {
+                        val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, snapshotInfo.getEpoch(), snapshotInfo.getSnapshotId());
                         // Step 2: Validate.
-                        val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, persisted.getEpoch(), persisted.getSnapshotId());
-                        CompletableFuture<Void> validationFuture;
-                        if (getConfig().isSelfCheckEnabled()) {
-                            validationFuture = chunkStorage.exists(snapshotFileName)
-                                    .thenAcceptAsync(exists -> Preconditions.checkState(exists, "File pointed by SnapshotInfo must exist"), executor);
-                        } else {
-                            validationFuture = CompletableFuture.completedFuture(null);
-                        }
-
-                        // Step 3: Read contents.
-                        return validationFuture
-                                .thenComposeAsync(v ->
-                                    getContents(snapshotFileName)
-                                        .thenApplyAsync(snapshotContents -> {
-                                            // Step 4: Deserialize and return.
-                                            try {
-                                                val systemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(snapshotContents);
-                                                log.info("SystemJournal[{}] Done finding snapshots. Snapshot found and parsed. {}", containerId, persisted);
-                                                return systemSnapshot;
-                                            } catch (Exception e) {
-                                                val ex = Exceptions.unwrap(e);
-                                                if (ex instanceof EOFException) {
-                                                    log.warn("SystemJournal[{}] Incomplete snapshot found, skipping {}.", containerId, persisted, e);
-                                                } else if (ex instanceof ChunkNotFoundException) {
-                                                    log.warn("SystemJournal[{}] Missing snapshot, skipping {}.", containerId, persisted, e);
-                                                } else {
-                                                    log.error("SystemJournal[{}] Error with snapshot, skipping {}.", containerId, persisted, e);
-                                                    throw new CompletionException(e);
-                                                }
-                                            }
-                                            return null;
-                                        }, executor),
-                                executor);
+                        return checkSnapshotExists(snapshotFileName)
+                                // Step 3: Read contents.
+                                .thenComposeAsync(v -> getContents(snapshotFileName), executor)
+                                // Step 4: Deserialize and return.
+                                .thenApplyAsync(contents -> readSnapshotRecord(snapshotInfo, contents), executor);
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
@@ -538,9 +532,45 @@ public class SystemJournal {
     }
 
     /**
+     * Check whether snapshot file exists.
+     */
+    private CompletableFuture<Void> checkSnapshotExists(String snapshotFileName) {
+        if (getConfig().isSelfCheckEnabled()) {
+            return chunkStorage.exists(snapshotFileName)
+                    .thenAcceptAsync(exists -> Preconditions.checkState(exists, "File pointed by SnapshotInfo must exist"), executor);
+        } else {
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    /**
+     * Read {@link SystemSnapshotRecord} from given byte array.
+     */
+    private SystemSnapshotRecord readSnapshotRecord(SnapshotInfo snapshotInfo, byte[] snapshotContents) {
+        try {
+            val systemSnapshot = SYSTEM_SNAPSHOT_SERIALIZER.deserialize(snapshotContents);
+            log.info("SystemJournal[{}] Done finding snapshots. Snapshot found and parsed. {}", containerId, snapshotInfo);
+            return systemSnapshot;
+        } catch (Exception e) {
+            val ex = Exceptions.unwrap(e);
+            if (ex instanceof EOFException) {
+                log.warn("SystemJournal[{}] Incomplete snapshot found, skipping {}.", containerId, snapshotInfo, e);
+            } else if (ex instanceof ChunkNotFoundException) {
+                log.warn("SystemJournal[{}] Missing snapshot, skipping {}.", containerId, snapshotInfo, e);
+            } else {
+                log.error("SystemJournal[{}] Error with snapshot, skipping {}.", containerId, snapshotInfo, e);
+                throw new CompletionException(e);
+            }
+        }
+        return null;
+    }
+
+    /**
      * Recreates in-memory state from the given snapshot record.
      */
-    private CompletableFuture<SystemSnapshotRecord> applySystemSnapshotRecord(MetadataTransaction txn, HashMap<String, Long> chunkStartOffsets, SystemSnapshotRecord systemSnapshot) {
+    private CompletableFuture<SystemSnapshotRecord> applySystemSnapshotRecord(MetadataTransaction txn,
+                                                                              BootstrapState state,
+                                                                              SystemSnapshotRecord systemSnapshot) {
         if (null != systemSnapshot) {
             log.debug("SystemJournal[{}] Processing system log snapshot {}.", containerId, systemSnapshot);
             // Initialize the segments and their chunks.
@@ -565,7 +595,7 @@ public class SystemJournal {
                     // make sure that the record is marked pinned.
                     txn.markPinned(metadata);
 
-                    chunkStartOffsets.put(metadata.getName(), offset);
+                    state.chunkStartOffsets.put(metadata.getName(), offset);
                     offset += metadata.getLength();
                 }
             }
@@ -600,37 +630,39 @@ public class SystemJournal {
     private CompletableFuture<Void> validateSystemSnapshotExistsInTxn(MetadataTransaction txn, SystemSnapshotRecord systemSnapshot) {
         if (null == systemSnapshot) {
             return CompletableFuture.completedFuture(null);
-        } else {
-            // For each segment in snapshot
-            return Futures.loop(
-                    systemSnapshot.getSegmentSnapshotRecords(),
-                    segmentSnapshot ->
-                        txn.get(segmentSnapshot.segmentMetadata.getKey())
-                            .thenApplyAsync(metadata -> {
-                                Preconditions.checkState(null != metadata);
-                                return metadata;
-                            }, executor)
-                            .thenComposeAsync(v ->
-                                // For each chunk in the segment
-                                Futures.loop(
-                                        segmentSnapshot.getChunkMetadataCollection(),
-                                        m -> txn.get(m.getKey())
-                                                .thenApplyAsync(metadata -> {
-                                                    Preconditions.checkState(null != metadata);
-                                                    return true;
-                                                }, executor),
-                                        executor),
-                            executor)
-                            .thenComposeAsync(vv -> validateSegmentRecordInTxn(txn, segmentSnapshot.segmentMetadata.getKey()), executor)
-                            .thenApplyAsync(v -> true, executor),
-                    executor);
         }
+
+        // For each segment in snapshot
+        return Futures.loop(
+                systemSnapshot.getSegmentSnapshotRecords(),
+                segmentSnapshot ->
+                    txn.get(segmentSnapshot.segmentMetadata.getKey())
+                        .thenApplyAsync(this::checkMetadata, executor)
+                        .thenComposeAsync(v -> validateChunksInSegmentSnapshot(txn, segmentSnapshot), executor)
+                        .thenComposeAsync(vv -> validateSegment(txn, segmentSnapshot.segmentMetadata.getKey()), executor)
+                        .thenApplyAsync(v -> true, executor),
+                executor);
+    }
+
+    private StorageMetadata checkMetadata(StorageMetadata metadata) {
+        Preconditions.checkState(null != metadata);
+        return metadata;
+    }
+
+    private CompletableFuture<Void> validateChunksInSegmentSnapshot(MetadataTransaction txn, SegmentSnapshotRecord segmentSnapshot) {
+        // For each chunk in the segment
+        return Futures.loop(
+                segmentSnapshot.getChunkMetadataCollection(),
+                m -> txn.get(m.getKey())
+                        .thenApplyAsync(this::checkMetadata, executor)
+                        .thenApplyAsync(v -> true, executor),
+                executor);
     }
 
     /**
      * Validate that all information for given segment in given snapshot exists in transaction.
      */
-    private CompletableFuture<Void> validateSegmentRecordInTxn(MetadataTransaction txn, String segmentName) {
+    private CompletableFuture<Void> validateSegment(MetadataTransaction txn, String segmentName) {
         return txn.get(segmentName)
                 .thenComposeAsync(m -> {
                     val segmentMetadata = (SegmentMetadata) m;
@@ -639,11 +671,10 @@ public class SystemJournal {
                     return Futures.loop(
                             () -> chunkName.get() != null,
                             () -> txn.get(chunkName.get())
-                                    .thenApplyAsync(mm -> {
+                                    .thenApplyAsync(this::checkMetadata, executor)
+                                    .thenAcceptAsync(mm -> {
                                         val chunkMetadata = (ChunkMetadata) mm;
-                                        Preconditions.checkState(null != chunkMetadata);
                                         chunkName.set(chunkMetadata.getNextChunk());
-                                        return null;
                                     }, executor),
                             executor);
                 }, executor);
@@ -684,7 +715,7 @@ public class SystemJournal {
     /**
      * Read contents from file.
      */
-    private CompletableFuture<byte[]> getContents(String snapshotFile) {
+    private CompletableFuture<byte[]> getContents(String chunkPath) {
         val isReadDone = new AtomicBoolean();
         val attempt = new AtomicInteger();
         val lastException = new AtomicReference<Throwable>();
@@ -692,33 +723,14 @@ public class SystemJournal {
         // Try config.getMaxJournalReadAttempts() times.
         return Futures.loop(
                 () -> attempt.get() < config.getMaxJournalReadAttempts() && !isReadDone.get(),
-                () -> chunkStorage.getInfo(snapshotFile)
-                        .thenComposeAsync(info -> {
-                            val h = ChunkHandle.readHandle(snapshotFile);
-                            // Allocate buffer to read into.
-                            retValue.set(new byte[Math.toIntExact(info.getLength())]);
-
-                            val fromOffset = new AtomicLong();
-                            val remaining = new AtomicInteger(retValue.get().length);
-
-                            // Continue until there is still data remaining to be read.
-                            return Futures.loop(
-                                        () -> remaining.get() > 0,
-                                        () -> chunkStorage.read(h, fromOffset.get(), remaining.get(), retValue.get(), Math.toIntExact(fromOffset.get())),
-                                        bytesRead -> {
-                                            remaining.addAndGet(-bytesRead);
-                                            fromOffset.addAndGet(bytesRead);
-                                        },
-                                        executor)
-                                    .thenAcceptAsync(v -> isReadDone.set(true), executor);
-
-                        }, executor)
+                () -> readFully(chunkPath, retValue)
+                        .thenAcceptAsync(v -> isReadDone.set(true), executor)
                         .handleAsync((v, e) -> {
                             attempt.incrementAndGet();
                             if (e != null) {
                                 // record the exception
                                 lastException.set(e);
-                                log.warn("SystemJournal[{}] Error while reading journal {}.", containerId, snapshotFile, lastException);
+                                log.warn("SystemJournal[{}] Error while reading journal {}.", containerId, chunkPath, lastException);
                                 return null;
                             } else {
                                 // no exception, return the value.
@@ -737,14 +749,38 @@ public class SystemJournal {
     }
 
     /**
+     * Read given chunk in its entirety.
+     */
+    private CompletableFuture<Void> readFully(String chunkPath, AtomicReference<byte[]> retValue) {
+        return chunkStorage.getInfo(chunkPath)
+                .thenComposeAsync(info -> {
+                    val h = ChunkHandle.readHandle(chunkPath);
+                    // Allocate buffer to read into.
+                    retValue.set(new byte[Math.toIntExact(info.getLength())]);
+
+                    val fromOffset = new AtomicLong();
+                    val remaining = new AtomicInteger(retValue.get().length);
+
+                    // Continue until there is still data remaining to be read.
+                    return Futures.loop(
+                            () -> remaining.get() > 0,
+                            () -> chunkStorage.read(h, fromOffset.get(), remaining.get(), retValue.get(), Math.toIntExact(fromOffset.get())),
+                            bytesRead -> {
+                                Preconditions.checkState( 0 != bytesRead, "bytesRead must not be 0");
+                                remaining.addAndGet(-bytesRead);
+                                fromOffset.addAndGet(bytesRead);
+                            },
+                            executor);
+
+                }, executor);
+    }
+
+    /**
      * Process all systemLog entries to recreate the state of metadata storage system segments.
      */
     private CompletableFuture<Void> applySystemLogOperations(MetadataTransaction txn,
-                                                             SystemSnapshotRecord systemSnapshotRecord,
-                                                             HashMap<String, Long> chunkStartOffsets,
-                                                             HashMap<String, Long> finalTruncateOffsets,
-                                                             HashMap<String, Long> finalFirstChunkStartsAtOffsets,
-                                                             HashSet<SystemJournalRecord> visitedRecords) {
+                                                             BootstrapState state,
+                                                             SystemSnapshotRecord systemSnapshotRecord) {
 
         val epochToStartScanning = new AtomicLong();
         val fileIndexToRecover = new AtomicInteger(1);
@@ -765,55 +801,24 @@ public class SystemJournal {
                     }
 
                     // Process one file at a time.
-                    val isFileDone = new AtomicBoolean();
+                    val isScanDone = new AtomicBoolean();
                     return Futures.loop(
-                            () -> !isFileDone.get(),
+                            () -> !isScanDone.get(),
                             () -> {
                                 val systemLogName = getSystemJournalChunkName(containerId, epochToRecover.get(), fileIndexToRecover.get());
                                 return chunkStorage.exists(systemLogName)
                                         .thenComposeAsync(exists -> {
                                             if (!exists) {
                                                 // File does not exist. We have reached end of our scanning.
-                                                isFileDone.set(true);
+                                                isScanDone.set(true);
                                                 return CompletableFuture.completedFuture(null);
                                             } else {
                                                 // Read contents.
                                                 return getContents(systemLogName)
-                                                        .thenComposeAsync(contents -> {
-                                                            val input = new ByteArrayInputStream(contents);
-
-                                                            // Apply record batches from the file.
-                                                            // Loop is exited with eventual EOFException.
-                                                            val isBatchDone = new AtomicBoolean();
-                                                            return Futures.loop(
-                                                                    () -> !isBatchDone.get(),
-                                                                    () -> {
-                                                                        try {
-                                                                            val batch = BATCH_SERIALIZER.deserialize(input);
-
-                                                                            if (null != batch.getSystemJournalRecords()) {
-                                                                                return Futures.loop(
-                                                                                            batch.getSystemJournalRecords(),
-                                                                                            record -> applyRecord(txn, chunkStartOffsets, finalTruncateOffsets, finalFirstChunkStartsAtOffsets, visitedRecords, record)
-                                                                                                        .thenApply( r -> true),
-                                                                                            executor);
-
-                                                                            }
-                                                                        } catch (EOFException e) {
-                                                                            log.debug("SystemJournal[{}] Done processing file {}.", containerId, systemLogName);
-                                                                            isBatchDone.set(true);
-                                                                        } catch (Exception e) {
-                                                                            log.error("SystemJournal[{}] Error file {}.", containerId, systemLogName, e);
-                                                                            throw new CompletionException(e);
-                                                                        }
-                                                                        return CompletableFuture.completedFuture(null);
-                                                                    },
-                                                                    executor
-                                                            ).thenAcceptAsync(v -> {
-                                                                // Move to next file.
-                                                                fileIndexToRecover.incrementAndGet();
-                                                            }, executor);
-                                                        }, executor);
+                                                        // Apply record batches from the file.
+                                                        .thenComposeAsync(contents ->  processJournalContents(txn, state, systemLogName, new ByteArrayInputStream(contents)), executor)
+                                                        // Move to next file.
+                                                        .thenAcceptAsync(v -> fileIndexToRecover.incrementAndGet(), executor);
                                             }
                                         }, executor);
                             },
@@ -823,24 +828,50 @@ public class SystemJournal {
                 executor);
     }
 
+    private CompletableFuture<Void> processJournalContents(MetadataTransaction txn, BootstrapState state, String systemLogName, ByteArrayInputStream input) {
+        // Loop is exited with eventual EOFException.
+        val isBatchDone = new AtomicBoolean();
+
+        return Futures.loop(
+                () -> !isBatchDone.get(),
+                () -> {
+                    try {
+                        val batch = BATCH_SERIALIZER.deserialize(input);
+
+                        return Futures.loop(
+                                batch.getSystemJournalRecords(),
+                                record -> applyRecord(txn, state, record)
+                                        .thenApply(r -> true),
+                                executor);
+                    } catch (EOFException e) {
+                        log.debug("SystemJournal[{}] Done processing file {}.", containerId, systemLogName);
+                        isBatchDone.set(true);
+                    } catch (Exception e) {
+                        log.error("SystemJournal[{}] Error file {}.", containerId, systemLogName, e);
+                        throw new CompletionException(e);
+                    }
+                    return CompletableFuture.completedFuture(null);
+                },
+                executor
+        );
+    }
+
     /**
      * Apply given {@link SystemJournalRecord}
      */
     private CompletableFuture<Void> applyRecord(MetadataTransaction txn,
-                                                HashMap<String, Long> chunkStartOffsets,
-                                                HashMap<String, Long> finalTruncateOffsets,
-                                                HashMap<String, Long> finalFirstChunkStartsAtOffsets,
-                                                HashSet<SystemJournalRecord> visitedRecords, SystemJournalRecord record) {
+                                                BootstrapState state,
+                                                SystemJournalRecord record) {
         log.debug("SystemJournal[{}] Processing system log record ={}.", epoch, record);
-        if (visitedRecords.contains(record)) {
+        if (state.visitedRecords.contains(record)) {
             return CompletableFuture.completedFuture(null);
         }
-        visitedRecords.add(record);
+        state.visitedRecords.add(record);
 
         // ChunkAddedRecord.
         if (record instanceof ChunkAddedRecord) {
             val chunkAddedRecord = (ChunkAddedRecord) record;
-            return applyChunkAddition(txn, chunkStartOffsets,
+            return applyChunkAddition(txn, state.chunkStartOffsets,
                     chunkAddedRecord.getSegmentName(),
                     nullToEmpty(chunkAddedRecord.getOldChunkName()),
                     chunkAddedRecord.getNewChunkName(),
@@ -850,8 +881,8 @@ public class SystemJournal {
         // TruncationRecord.
         if (record instanceof TruncationRecord) {
             val truncationRecord = (TruncationRecord) record;
-            finalTruncateOffsets.put(truncationRecord.getSegmentName(), truncationRecord.getOffset());
-            finalFirstChunkStartsAtOffsets.put(truncationRecord.getSegmentName(), truncationRecord.getStartOffset());
+            state.finalTruncateOffsets.put(truncationRecord.getSegmentName(), truncationRecord.getOffset());
+            state.finalFirstChunkStartsAtOffsets.put(truncationRecord.getSegmentName(), truncationRecord.getStartOffset());
             return CompletableFuture.completedFuture(null);
         }
 
@@ -894,9 +925,7 @@ public class SystemJournal {
                             return segmentMetadata;
                         });
                     }, executor)
-                    .thenAcceptAsync(segmentMetadata -> {
-                        txn.update(segmentMetadata);
-                    }, executor);
+                    .thenAcceptAsync(segmentMetadata -> txn.update(segmentMetadata), executor);
             futures.add(f);
         }
         return Futures.allOf(futures);
@@ -905,12 +934,13 @@ public class SystemJournal {
     /**
      * Apply last effective truncate offsets.
      */
-    private CompletableFuture<Void> applyFinalTruncateOffsets(MetadataTransaction txn, HashMap<String, Long> finalTruncateOffsets, HashMap<String, Long> finalFirstChunkStartsAtOffsets) {
+    private CompletableFuture<Void> applyFinalTruncateOffsets(MetadataTransaction txn,
+                                                              BootstrapState state) {
         val futures = new ArrayList<CompletableFuture<Void>>();
         for (String systemSegment : systemSegments) {
-            if (finalTruncateOffsets.containsKey(systemSegment)) {
-                val truncateAt = finalTruncateOffsets.get(systemSegment);
-                val firstChunkStartsAt = finalFirstChunkStartsAtOffsets.get(systemSegment);
+            if (state.finalTruncateOffsets.containsKey(systemSegment)) {
+                val truncateAt = state.finalTruncateOffsets.get(systemSegment);
+                val firstChunkStartsAt = state.finalFirstChunkStartsAtOffsets.get(systemSegment);
                 futures.add(applyTruncate(txn, systemSegment, truncateAt, firstChunkStartsAt));
             }
         }
@@ -920,7 +950,7 @@ public class SystemJournal {
     /**
      * Apply chunk addition.
      */
-    private CompletableFuture<Void> applyChunkAddition(MetadataTransaction txn, HashMap<String, Long> chunkStartOffsets, String segmentName, String oldChunkName, String newChunkName, long offset) {
+    private CompletableFuture<Void> applyChunkAddition(MetadataTransaction txn, Map<String, Long> chunkStartOffsets, String segmentName, String oldChunkName, String newChunkName, long offset) {
         Preconditions.checkState(null != oldChunkName, "oldChunkName must not be null");
         Preconditions.checkState(null != newChunkName && !newChunkName.isEmpty(), "newChunkName must not be null or empty");
 
@@ -928,7 +958,7 @@ public class SystemJournal {
                 .thenComposeAsync(m -> {
                     val segmentMetadata = (SegmentMetadata) m;
                     segmentMetadata.checkInvariants();
-                    validateSegmentRecordInTxn(txn, segmentName);
+                    validateSegment(txn, segmentName);
                     // set length.
                     segmentMetadata.setLength(offset);
 
@@ -952,7 +982,7 @@ public class SystemJournal {
                                     // In case the old segment store was still writing some zombie chunks when ownership changed
                                     // then new offset may invalidate tail part of chunk list.
                                     // Note that chunk with oldChunkName is still valid, it is the chunks after this that become invalid.
-                                    val toDelete = new AtomicReference<String>(oldChunk.getNextChunk());
+                                    val toDelete = new AtomicReference<>(oldChunk.getNextChunk());
 
                                     return Futures.loop(
                                             () -> toDelete.get() != null,
@@ -988,7 +1018,7 @@ public class SystemJournal {
                         // Save the segment metadata.
                         txn.update(segmentMetadata);
                         if (config.isSelfCheckEnabled()) {
-                            return validateSegmentRecordInTxn(txn, segmentName);
+                            return validateSegment(txn, segmentName);
                         } else {
                             return CompletableFuture.completedFuture(null);
                         }
@@ -1123,9 +1153,7 @@ public class SystemJournal {
     }
 
     /**
-     *
-     * @param systemSnapshot
-     * @return
+     * Writes {@link SystemSnapshotRecord}.
      */
     private CompletableFuture<Boolean> writeSystemSnapshotRecord(SystemSnapshotRecord systemSnapshot) {
         // Write snapshot
@@ -1317,7 +1345,7 @@ public class SystemJournal {
         public static class SystemJournalRecordBatchSerializer
                 extends VersionedSerializer.WithBuilder<SystemJournalRecordBatch, SystemJournalRecordBatchBuilder> {
             private static final SystemJournalRecord.SystemJournalRecordSerializer SERIALIZER = new SystemJournalRecord.SystemJournalRecordSerializer();
-            private static final RevisionDataOutput.ElementSerializer<SystemJournalRecord> ELEMENT_SERIALIZER = (dataOutput, element) -> SERIALIZER.serialize(dataOutput, element);
+            private static final RevisionDataOutput.ElementSerializer<SystemJournalRecord> ELEMENT_SERIALIZER = SERIALIZER::serialize;
             private static final RevisionDataInput.ElementDeserializer<SystemJournalRecord> ELEMENT_DESERIALIZER = dataInput -> SERIALIZER.deserialize(dataInput.getBaseStream());
 
             @Override
@@ -1514,7 +1542,7 @@ public class SystemJournal {
 
             private static final SegmentMetadata.StorageMetadataSerializer SEGMENT_METADATA_SERIALIZER = new SegmentMetadata.StorageMetadataSerializer();
             private static final ChunkMetadata.StorageMetadataSerializer CHUNK_METADATA_SERIALIZER = new ChunkMetadata.StorageMetadataSerializer();
-            private static final RevisionDataOutput.ElementSerializer<ChunkMetadata> ELEMENT_SERIALIZER = (dataOutput, element) -> CHUNK_METADATA_SERIALIZER.serialize(dataOutput, element);
+            private static final RevisionDataOutput.ElementSerializer<ChunkMetadata> ELEMENT_SERIALIZER = CHUNK_METADATA_SERIALIZER::serialize;
             private static final RevisionDataInput.ElementDeserializer<ChunkMetadata> ELEMENT_DESERIALIZER = dataInput -> (ChunkMetadata) CHUNK_METADATA_SERIALIZER.deserialize(dataInput.getBaseStream());
 
             @Override
@@ -1578,7 +1606,7 @@ public class SystemJournal {
          */
         public static class Serializer extends VersionedSerializer.WithBuilder<SystemSnapshotRecord, SystemSnapshotRecord.SystemSnapshotRecordBuilder> {
             private static final SegmentSnapshotRecord.Serializer CHUNK_METADATA_SERIALIZER = new SegmentSnapshotRecord.Serializer();
-            private static final RevisionDataOutput.ElementSerializer<SegmentSnapshotRecord> ELEMENT_SERIALIZER = (dataOutput, element) -> CHUNK_METADATA_SERIALIZER.serialize(dataOutput, element);
+            private static final RevisionDataOutput.ElementSerializer<SegmentSnapshotRecord> ELEMENT_SERIALIZER = CHUNK_METADATA_SERIALIZER::serialize;
             private static final RevisionDataInput.ElementDeserializer<SegmentSnapshotRecord> ELEMENT_DESERIALIZER = dataInput -> (SegmentSnapshotRecord) CHUNK_METADATA_SERIALIZER.deserialize(dataInput.getBaseStream());
 
             @Override

@@ -293,7 +293,6 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     public void testSimpleScenarioWithMultipleCombinations() throws Exception {
         for (String method1 : new String[] {"doRead.before", "doRead.after"}) {
             for (String method2 : new String[] {"doWrite.before", "doWrite.after"}) {
-                System.out.printf("method 1:%s method 2:%s%n", method1, method2);
                 testWithFlakyChunkStorage(this::testScenario, this::getSimpleScenarioActions, method1, method2, PRIMES_1);
             }
         }
@@ -453,7 +452,6 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 .forEach( segment -> segmentBounds.put(segment, new SegmentBounds(0, 0)));
 
         for (int i = 0; i < actions.length; i++) {
-            System.out.printf("Instance %d%n", i);
             @Cleanup
             val instance = new TestInstance(testContext, epoch);
             instance.bootstrap();
@@ -494,7 +492,6 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     void testWithFlakyChunkStorage(TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod1, String interceptMethod2, int[] primes) throws Exception {
         for (val prime1 : primes) {
             for (val prime2 : primes) {
-                System.out.printf("prime 1:%d prime 2:%d%n", prime1, prime2);
                 FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(executorService());
                 flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
                         .method("doRead.before")
@@ -519,7 +516,6 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
     void testWithFlakyChunkStorage(TestMethod test, TestScenarioProvider scenarioProvider, String interceptMethod, int[] primes) throws Exception {
         for (val prime : primes) {
-            System.out.printf("prime = %d%n", prime);
             FlakyChunkStorage flakyChunkStorage = new FlakyChunkStorage(executorService());
             flakyChunkStorage.interceptor.flakyPredicates.add(FlakinessPredicate.builder()
                     .method(interceptMethod)
