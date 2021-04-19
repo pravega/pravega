@@ -57,7 +57,7 @@ import java.util.function.Function;
  * without actually creating {@link ChunkedSegmentStorage} instances.
  */
 public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int CONTAINER_ID = 42;
     private static final int[] PRIMES_1 = {2, 3, 5, 7};
     private static final int THREAD_POOL_SIZE = 10;
