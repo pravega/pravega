@@ -18,6 +18,10 @@ package io.pravega.segmentstore.server;
 import io.pravega.segmentstore.contracts.StreamingException;
 import lombok.Getter;
 
+/**
+ * Exception that is thrown whenever we detect an unrecoverable state.
+ * Usually, after this is thrown, our only resolution will be to shut down the Segment Container, DurableLog and StorageWriter.
+ */
 public class ServiceHaltException extends StreamingException {
     /**
      *

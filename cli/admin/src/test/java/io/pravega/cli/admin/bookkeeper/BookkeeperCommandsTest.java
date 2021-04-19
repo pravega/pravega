@@ -192,6 +192,8 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         command.unwrapServiceHaltException(new ServiceHaltException("test"));
         command.unwrapServiceHaltException(new ServiceHaltException("test", "test"));
         command.unwrapServiceHaltException(new ServiceHaltException("test", Arrays.asList("test", "test")));
+        command.unwrapServiceHaltException(new ServiceHaltException("test", null));
+        command.unwrapServiceHaltException(new ServiceHaltException("test", null, false, false));
         // Check that exception is thrown if ZK is not available.
         this.zkUtil.stopCluster();
         AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("container recover 0", STATE.get()));

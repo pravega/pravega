@@ -144,7 +144,7 @@ class MemoryStateUpdater {
      * @param callback   A Consumer that will be invoked on EVERY {@link Operation} in the operations iterator, in the
      *                   order returned from the iterator, regardless of whether the operation was processed or not.
      * @throws ServiceHaltException    If a serious, non-recoverable state was detected, such as unable to create a
-     *      *                          CachedStreamSegmentAppendOperation.
+     *                                 CachedStreamSegmentAppendOperation.
      * @throws CacheFullException      If any operation in the given iterator contains data that needs to be added to the
      *                                 {@link ReadIndex} but it could not be done due to the cache being full and unable
      *                                 to evict anything to make room for more.
