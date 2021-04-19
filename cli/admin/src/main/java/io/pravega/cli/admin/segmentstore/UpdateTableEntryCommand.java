@@ -15,11 +15,8 @@
  */
 package io.pravega.cli.admin.segmentstore;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.client.tables.impl.TableSegmentEntry;
-import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;

@@ -44,10 +44,7 @@ import io.pravega.cli.admin.cluster.GetSegmentStoreByContainerCommand;
 import io.pravega.cli.admin.cluster.ListContainersCommand;
 import io.pravega.cli.admin.config.ConfigListCommand;
 import io.pravega.cli.admin.config.ConfigSetCommand;
-import io.pravega.cli.admin.segmentstore.GetSegmentAttributeCommand;
-import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
-import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
-import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
+import io.pravega.cli.admin.segmentstore.*;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
 import io.pravega.cli.admin.utils.AdminHostControllerStore;
 import io.pravega.client.ClientConfig;
@@ -277,6 +274,9 @@ public abstract class AdminCommand {
                         .put(ReadSegmentRangeCommand::descriptor, ReadSegmentRangeCommand::new)
                         .put(GetSegmentAttributeCommand::descriptor, GetSegmentAttributeCommand::new)
                         .put(UpdateSegmentAttributeCommand::descriptor, UpdateSegmentAttributeCommand::new)
+                        .put(GetTableEntryCommand::descriptor, GetTableEntryCommand::new)
+                        .put(UpdateTableEntryCommand::descriptor, UpdateTableEntryCommand::new)
+                        .put(ListTableEntriesCommand::descriptor, ListTableEntriesCommand::new)
                         .build());
 
         /**

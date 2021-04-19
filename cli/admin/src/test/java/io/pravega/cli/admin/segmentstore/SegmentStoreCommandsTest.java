@@ -19,12 +19,20 @@ import io.pravega.cli.admin.AbstractAdminCommandTest;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.KeyValueTableFactory;
+import io.pravega.client.admin.KeyValueTableManager;
+import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.client.tables.KeyValueTable;
+import io.pravega.client.tables.KeyValueTableClientConfiguration;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -118,4 +126,42 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         Assert.assertTrue(commandResult.contains("Error"));
         Assert.assertNotNull(UpdateSegmentAttributeCommand.descriptor());
     }
+
+    @Test
+    public void testGetTableEntryCommand() throws Exception {
+        final String scope = "segmentstore";
+        final String table = "gettableentry";
+
+        @Cleanup
+        StreamManager streamManager = StreamManager.create(SETUP_UTILS.getControllerUri());
+        streamManager.createScope("segmentstore");
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(SETUP_UTILS.getControllerUri()).build();
+        @Cleanup
+        KeyValueTableFactory factory = KeyValueTableFactory.withScope(scope, clientConfig);
+        @Cleanup
+        KeyValueTableManager manager = KeyValueTableManager.create(clientConfig);
+        Assert.assertTrue(manager.createKeyValueTable(scope, table, KeyValueTableConfiguration.builder().partitionCount(1).build()));
+
+        // First, add some data to the table.
+        KeyValueTable<String, String> kvt = factory.forKeyValueTable(table, new UTF8StringSerializer(), new UTF8StringSerializer(),
+                KeyValueTableClientConfiguration.builder().build());
+        kvt.put("family", "a", "1");
+
+        // Try to get this data from the table.
+        String commandResult = TestUtils.executeCommand("segmentstore get-table-entry segmentstore/gettableentry_kvtable/0.#epoch.0"
+                + " a localhost", STATE.get());
+
+        System.err.println("######################## " + commandResult);
+    }
+
+    @Test
+    public void testUpdateTableEntryCommand() {
+
+    }
+
+    @Test
+    public void testListTableEntriesCommand() {
+
+    }
+
 }

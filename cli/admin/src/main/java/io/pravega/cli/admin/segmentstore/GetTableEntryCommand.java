@@ -27,14 +27,14 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-public class GetTableEntryByKeyCommand extends SegmentStoreCommand {
+public class GetTableEntryCommand extends SegmentStoreCommand {
 
     /**
-     * Creates a new instance of the GetTableEntryByKeyCommand.
+     * Creates a new instance of the GetTableEntryCommand.
      *
      * @param args The arguments for the command.
      */
-    public GetTableEntryByKeyCommand(CommandArgs args) {
+    public GetTableEntryCommand(CommandArgs args) {
         super(args);
     }
 
