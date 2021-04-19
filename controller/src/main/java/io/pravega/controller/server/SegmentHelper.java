@@ -419,7 +419,14 @@ public class SegmentHelper implements AutoCloseable {
                                                                               final List<TableSegmentEntry> entries,
                                                                               String delegationToken,
                                                                               final long clientRequestId) {
-        final Controller.NodeUri uri = getTableUri(tableName);
+        return updateTableEntries(tableName, ModelHelper.encode(getTableUri(tableName)), entries, delegationToken, clientRequestId);
+    }
+
+    public CompletableFuture<List<TableSegmentKeyVersion>> updateTableEntries(final String tableName,
+                                                                              final PravegaNodeUri uri,
+                                                                              final List<TableSegmentEntry> entries,
+                                                                              String delegationToken,
+                                                                              final long clientRequestId) {
         final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries = entries.stream().map(te -> {
             final WireCommands.TableKey key = convertToWireCommand(te.getKey());
@@ -427,7 +434,7 @@ public class SegmentHelper implements AutoCloseable {
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }).collect(Collectors.toList());
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
+        RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
         WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, tableName, delegationToken,
                 new WireCommands.TableEntries(wireCommandEntries), WireCommands.NULL_TABLE_SEGMENT_OFFSET);
@@ -491,14 +498,18 @@ public class SegmentHelper implements AutoCloseable {
                                                                 final List<TableSegmentKey> keys,
                                                                 String delegationToken,
                                                                 final long clientRequestId) {
-        final Controller.NodeUri uri = getTableUri(tableName);
+        return readTable(tableName, ModelHelper.encode(getTableUri(tableName)), keys, delegationToken, clientRequestId);
+    }
+
+    public CompletableFuture<List<TableSegmentEntry>> readTable(final String tableName, final PravegaNodeUri uri,
+                                                                final List<TableSegmentKey> keys, String delegationToken,
+                                                                final long clientRequestId) {
         final WireCommandType type = WireCommandType.READ_TABLE;
         // the version is always NO_VERSION as read returns the latest version of value.
-        List<WireCommands.TableKey> keyList = keys.stream().map(k -> {
-            return new WireCommands.TableKey(k.getKey(), k.getVersion().getSegmentVersion());
-        }).collect(Collectors.toList());
+        List<WireCommands.TableKey> keyList = keys.stream().map(k ->
+                new WireCommands.TableKey(k.getKey(), k.getVersion().getSegmentVersion())).collect(Collectors.toList());
 
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
+        RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, tableName, delegationToken, keyList);
@@ -565,10 +576,19 @@ public class SegmentHelper implements AutoCloseable {
                                                                                final IteratorStateImpl state,
                                                                                final String delegationToken,
                                                                                final long clientRequestId) {
+        return readTableEntries(tableName, ModelHelper.encode(getTableUri(tableName)), suggestedEntryCount, state,
+                delegationToken, clientRequestId);
+    }
 
-        final Controller.NodeUri uri = getTableUri(tableName);
+    public CompletableFuture<IteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
+                                                                               final PravegaNodeUri uri,
+                                                                               final int suggestedEntryCount,
+                                                                               final IteratorStateImpl state,
+                                                                               final String delegationToken,
+                                                                               final long clientRequestId) {
+
         final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
-        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
+        RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
         final IteratorStateImpl token = (state == null) ? IteratorStateImpl.EMPTY : state;
