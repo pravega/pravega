@@ -57,7 +57,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> MAX_PER_SNAPSHOT_UPDATE_COUNT = Property.named("journal.snapshot.update.count.max", 100);
     public static final Property<Integer> MAX_JOURNAL_READ_ATTEMPTS = Property.named("journal.snapshot.attempts.read.max", 100);
     public static final Property<Integer> MAX_JOURNAL_WRITE_ATTEMPTS = Property.named("journal.snapshot.attempts.write.max", 10);
-    public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", true);
+    public static final Property<Boolean> SELF_CHECK_ENABLED = Property.named("self.check.enable", false);
 
     /**
      * Default configuration for {@link ChunkedSegmentStorage}.
@@ -86,7 +86,7 @@ public class ChunkedSegmentStorageConfig {
             .maxJournalUpdatesPerSnapshot(100)
             .maxJournalReadAttempts(100)
             .maxJournalWriteAttempts(10)
-            .selfCheckEnabled(true)
+            .selfCheckEnabled(false)
             .build();
 
     static final String COMPONENT_CODE = "storage";

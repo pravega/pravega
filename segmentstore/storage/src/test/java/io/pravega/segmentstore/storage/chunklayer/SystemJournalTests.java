@@ -75,6 +75,12 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         return new InMemoryChunkStorage(executorService());
     }
 
+    private ChunkedSegmentStorageConfig.ChunkedSegmentStorageConfigBuilder getDefaultConfigBuilder(SegmentRollingPolicy policy) {
+        return ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .selfCheckEnabled(true)
+                .defaultRollingPolicy(policy);
+    }
+
     protected String[] getSystemSegments(String systemSegmentName) {
         return new String[]{systemSegmentName};
     }
@@ -95,7 +101,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         int maxLength = 8;
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
 
         // Init
         SystemJournal journal = new SystemJournal(containerId, chunkStorage, metadataStore, garbageCollector, config, executorService());
@@ -121,7 +127,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         int maxLength = 8;
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
 
         @Cleanup
         val garbageCollector = new GarbageCollector(containerId,
@@ -162,7 +168,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
         val policy = new SegmentRollingPolicy(maxLength);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
         val journal = new SystemJournal(containerId, chunkStorage, metadataStore, garbageCollector, config, executorService());
 
         AssertExtensions.assertThrows("commitRecords() should throw",
@@ -193,7 +199,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         int maxLength = 8;
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
         val journal = new SystemJournal(containerId, chunkStorage, metadataStore, garbageCollector, config, executorService());
         Assert.assertFalse(journal.isStorageSystemSegment("foo"));
         Assert.assertFalse(journal.isStorageSystemSegment("_system/foo"));
@@ -227,7 +233,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
                 ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
                 executorService());
         val policy = new SegmentRollingPolicy(maxLength);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
         val journal = new SystemJournal(containerId, chunkStorage, metadataStore, garbageCollector, config, executorService());
         val systemSegmentName = NameUtils.getAttributeSegmentName(NameUtils.getMetadataSegmentName(containerId));
         Assert.assertTrue(journal.isStorageSystemSegment(systemSegmentName));
@@ -271,7 +277,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         int maxLength = 8;
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
 
         val data = new InMemorySnapshotInfoStore();
         val snapshotInfoStore = new SnapshotInfoStore(containerId,
@@ -341,7 +347,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(8);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
         val data = new InMemorySnapshotInfoStore();
         val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
@@ -415,7 +421,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(4);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
         val data = new InMemorySnapshotInfoStore();
         val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
@@ -496,7 +502,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 0;
         val policy = new SegmentRollingPolicy(100);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
         val data = new InMemorySnapshotInfoStore();
         val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
@@ -614,7 +620,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 0;
         val policy = new SegmentRollingPolicy(1024);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
         val data = new InMemorySnapshotInfoStore();
         val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
@@ -771,7 +777,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(maxLength);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
         val data = new InMemorySnapshotInfoStore();
         val snapshotInfoStore = new SnapshotInfoStore(containerId,
                 snapshotId -> data.setSnapshotId(containerId, snapshotId),
@@ -848,7 +854,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(8);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
 
         long offset = 0;
 
@@ -929,7 +935,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(2);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
 
         // Inital set of additions
         SystemJournal systemJournalBefore = new SystemJournal(containerId, chunkStorage, metadataStoreBeforeCrash, garbageCollector1, config, executorService());
@@ -1009,7 +1015,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(2);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
 
         // Inital set of additions
         SystemJournal systemJournalBefore = new SystemJournal(containerId, chunkStorage, metadataStoreBeforeCrash, garbageCollector1, config, executorService());
@@ -1093,7 +1099,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         String systemSegmentName = SystemJournal.getChunkStorageSystemSegments(containerId)[0];
         long epoch = 1;
         val policy = new SegmentRollingPolicy(2);
-        val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder().defaultRollingPolicy(policy).build();
+        val config = getDefaultConfigBuilder(policy).build();
 
         // Step 1: Initial set of additions
         SystemJournal systemJournalBefore = new SystemJournal(containerId, chunkStorage, metadataStoreBeforeCrash, garbageCollector1, config, executorService());
@@ -1184,6 +1190,8 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         TestUtils.checkSegmentBounds(metadataStoreAfterCrash3, systemSegmentName, 20, 20);
     }
+
+
 
     /**
      * Check system segment layout.

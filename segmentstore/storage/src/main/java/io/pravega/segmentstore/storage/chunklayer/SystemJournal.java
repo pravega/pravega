@@ -281,6 +281,16 @@ public class SystemJournal {
          * Keep track of already processed records.
          */
         final private HashSet<SystemJournalRecord> visitedRecords = new HashSet<>();
+
+        /**
+         * Number of journals processed.
+         */
+        final private AtomicInteger filesProcessedCount = new AtomicInteger();
+
+        /**
+         * Number of records processed.
+         */
+        final private AtomicInteger recordsProcessedCount = new AtomicInteger();
     }
 
     /**
@@ -335,18 +345,26 @@ public class SystemJournal {
                 }, executor)
                 .thenAcceptAsync(v -> {
                     // Step 6: Check invariants. These should never fail.
-                    Preconditions.checkState(currentFileIndex.get() == 0, "currentFileIndex must be zero");
-                    Preconditions.checkState(systemJournalOffset.get() == 0, "systemJournalOffset must be zero");
-                    Preconditions.checkState(newChunkRequired.get(), "newChunkRequired must be true");
-                    if (snapshotSaved.get()) {
-                        Preconditions.checkState(lastSavedSystemSnapshot.get() != null, "lastSavedSystemSnapshot must be initialized");
+                    if (config.isSelfCheckEnabled()) {
+                        Preconditions.checkState(currentFileIndex.get() == 0, "currentFileIndex must be zero");
+                        Preconditions.checkState(systemJournalOffset.get() == 0, "systemJournalOffset must be zero");
+                        Preconditions.checkState(newChunkRequired.get(), "newChunkRequired must be true");
+                        if (snapshotSaved.get()) {
+                            Preconditions.checkState(lastSavedSystemSnapshot.get() != null, "lastSavedSystemSnapshot must be initialized");
+                        }
                     }
                 }, executor)
                 .thenComposeAsync(v -> {
                     // Step 7: Finally commit all data.
                     return txn.commit(true, true);
                 }, executor)
-                .whenCompleteAsync((v, e) -> txn.close(), executor);
+                .whenCompleteAsync((v, e) -> {
+                    txn.close();
+                    log.info("SystemJournal[{}] BOOT complete - applied {} records in {} journals.",
+                            containerId,
+                            state.recordsProcessedCount.get(),
+                            state.filesProcessedCount.get());
+                }, executor);
     }
 
     /**
@@ -756,6 +774,10 @@ public class SystemJournal {
                     val h = ChunkHandle.readHandle(chunkPath);
                     // Allocate buffer to read into.
                     retValue.set(new byte[Math.toIntExact(info.getLength())]);
+                    if (info.getLength() == 0) {
+                        log.warn("SystemJournal[{}] journal {} is empty.", containerId, chunkPath);
+                        return CompletableFuture.completedFuture(null);
+                    }
 
                     val fromOffset = new AtomicLong();
                     val remaining = new AtomicInteger(retValue.get().length);
@@ -770,7 +792,6 @@ public class SystemJournal {
                                 fromOffset.addAndGet(bytesRead);
                             },
                             executor);
-
                 }, executor);
     }
 
@@ -817,7 +838,10 @@ public class SystemJournal {
                                                         // Apply record batches from the file.
                                                         .thenComposeAsync(contents ->  processJournalContents(txn, state, systemLogName, new ByteArrayInputStream(contents)), executor)
                                                         // Move to next file.
-                                                        .thenAcceptAsync(v -> fileIndexToRecover.incrementAndGet(), executor);
+                                                        .thenAcceptAsync(v -> {
+                                                            fileIndexToRecover.incrementAndGet();
+                                                            state.filesProcessedCount.incrementAndGet();
+                                                        }, executor);
                                             }
                                         }, executor);
                             },
@@ -866,6 +890,7 @@ public class SystemJournal {
             return CompletableFuture.completedFuture(null);
         }
         state.visitedRecords.add(record);
+        state.recordsProcessedCount.incrementAndGet();
 
         // ChunkAddedRecord.
         if (record instanceof ChunkAddedRecord) {
