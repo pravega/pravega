@@ -325,6 +325,8 @@ jobs:
         run: echo Build, static analysis, unit and integration tests successful.
       - name: Checkout
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
       - name: Download code coverage reports
         uses: actions/download-artifact@v2
       - name: Untar reports
@@ -341,6 +343,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
