@@ -288,9 +288,8 @@ public class SystemJournal {
      *
      * @param epoch             Epoch of the current container instance.
      * @param snapshotInfoStore {@link SnapshotInfoStore} that stores {@link SnapshotInfo}.
-     * @throws Exception Exception in case of any error.
      */
-    public CompletableFuture<Void> bootstrap(long epoch, SnapshotInfoStore snapshotInfoStore) throws Exception {
+    public CompletableFuture<Void> bootstrap(long epoch, SnapshotInfoStore snapshotInfoStore) {
         this.epoch = epoch;
         this.snapshotInfoStore = Preconditions.checkNotNull(snapshotInfoStore, "snapshotInfoStore");
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
@@ -411,7 +410,7 @@ public class SystemJournal {
                 () -> !done.get() && attempt.get() < config.getMaxJournalWriteAttempts(),
                 () -> writeToJournal(bytes)
                         .thenAcceptAsync(v -> {
-                            log.debug("SystemJournal[{}] Logging system log records - file={}, batch={}.",
+                            log.trace("SystemJournal[{}] Logging system log records - file={}, batch={}.",
                                     containerId, currentHandle.get().getChunkName(), batch);
                             recordsSinceSnapshot.incrementAndGet();
                             done.set(true);
@@ -572,7 +571,7 @@ public class SystemJournal {
                                                                               BootstrapState state,
                                                                               SystemSnapshotRecord systemSnapshot) {
         if (null != systemSnapshot) {
-            log.debug("SystemJournal[{}] Processing system log snapshot {}.", containerId, systemSnapshot);
+            log.trace("SystemJournal[{}] Processing system log snapshot {}.", containerId, systemSnapshot);
             // Initialize the segments and their chunks.
             for (SegmentSnapshotRecord segmentSnapshot : systemSnapshot.segmentSnapshotRecords) {
                 // Update segment data.
@@ -862,7 +861,7 @@ public class SystemJournal {
     private CompletableFuture<Void> applyRecord(MetadataTransaction txn,
                                                 BootstrapState state,
                                                 SystemJournalRecord record) {
-        log.debug("SystemJournal[{}] Processing system log record ={}.", epoch, record);
+        log.trace("SystemJournal[{}] Processing system log record ={}.", epoch, record);
         if (state.visitedRecords.contains(record)) {
             return CompletableFuture.completedFuture(null);
         }

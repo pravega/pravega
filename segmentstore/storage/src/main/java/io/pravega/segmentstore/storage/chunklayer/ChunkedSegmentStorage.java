@@ -191,9 +191,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * Initializes the ChunkedSegmentStorage and bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
      * @param snapshotInfoStore Store that saves {@link SnapshotInfo}.
-     * @throws Exception In case of any errors.
      */
-    public CompletableFuture<Void> bootstrap(SnapshotInfoStore snapshotInfoStore) throws Exception {
+    public CompletableFuture<Void> bootstrap(SnapshotInfoStore snapshotInfoStore) {
 
         this.logPrefix = String.format("ChunkedSegmentStorage[%d]", containerId);
 
