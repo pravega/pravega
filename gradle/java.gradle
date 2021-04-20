@@ -113,11 +113,11 @@ plugins.withId('java') {
             while (outputCache.size() > 300) outputCache.remove()
         }
 
-	afterTest { descriptor, result ->
+	    afterTest { descriptor, result ->
             if (result.resultType == TestResult.ResultType.FAILURE && outputCache.size() > 0) {
                 println()
-		def red = new String((char) 27) + "[31m"
-		def black = new String((char) 27) + "[0m"
+		        def red = new String((char) 27) + "[31m"
+		        def black = new String((char) 27) + "[0m"
                 println("${red}${descriptor.getClassName()}.${descriptor.getDisplayName()} FAILED. Output (Last 300 lines):${black}")
                 outputCache.each { print(" > $it") }
             }
