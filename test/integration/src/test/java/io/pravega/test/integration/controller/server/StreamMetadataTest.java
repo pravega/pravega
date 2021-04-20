@@ -77,7 +77,7 @@ public class StreamMetadataTest {
         final String streamName2 = "stream2";
 
         assertEquals(CreateScopeStatus.Status.SUCCESS,
-                     controllerWrapper.getControllerService().createScope(scope1).get().getStatus());
+                     controllerWrapper.getControllerService().createScope(scope1, 0L).get().getStatus());
         final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
         final StreamConfiguration config1 = StreamConfiguration.builder()
                                                                .scalingPolicy(scalingPolicy)
