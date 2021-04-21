@@ -109,6 +109,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
@@ -147,7 +149,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private final TableSegmentStatsRecorder tableStatsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
-    protected final TrackedConnection connection;
+    @Getter(AccessLevel.PROTECTED)
+    private final TrackedConnection connection;
 
     //endregion
 

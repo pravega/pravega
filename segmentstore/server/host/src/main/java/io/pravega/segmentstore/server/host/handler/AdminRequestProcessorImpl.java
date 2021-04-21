@@ -49,18 +49,18 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
 
     @Override
     public void hello(WireCommands.Hello hello) {
-        log.info("Received hello from connection: {}", connection);
-        connection.send(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
+        log.info("Received hello from connection: {}", getConnection());
+        getConnection().send(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
         if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
-            log.warn("Incompatible wire protocol versions {} from connection {}", hello, connection);
-            connection.close();
+            log.warn("Incompatible wire protocol versions {} from connection {}", hello, getConnection());
+            getConnection().close();
         }
     }
 
     @Override
     public void keepAlive(WireCommands.KeepAlive keepAlive) {
-        log.info("Received a keepAlive from connection: {}", connection);
-        connection.send(keepAlive);
+        log.info("Received a keepAlive from connection: {}", getConnection());
+        getConnection().send(keepAlive);
     }
 
     //endregion
