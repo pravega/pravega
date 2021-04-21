@@ -28,8 +28,6 @@ import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.segmentstore.server.ServiceHaltException;
-import io.pravega.segmentstore.server.logs.DebugRecoveryProcessor;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
@@ -49,7 +47,6 @@ import org.apache.curator.retry.RetryOneTime;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -127,44 +124,6 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         String commandResult = TestUtils.executeCommand("controller describe-readergroup _system commitStreamReaders", cliConfig());
         Assert.assertTrue(commandResult.contains("commitStreamReaders"));
         Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
-    }
-
-    @Test
-    @SneakyThrows
-    public void testExecuteMethod() {
-        String scope = "testScope";
-        String testStream = "testStream";
-
-        String commandResult = executeCommand("controller describe-stream " + scope + " " + testStream, cliConfig());
-        Assert.assertTrue(commandResult.contains("stream_config"));
-        Assert.assertTrue(commandResult.contains("stream_state"));
-        Assert.assertTrue(commandResult.contains("segment_count"));
-        Assert.assertTrue(commandResult.contains("is_sealed"));
-        Assert.assertTrue(commandResult.contains("active_epoch"));
-        Assert.assertTrue(commandResult.contains("truncation_record"));
-        Assert.assertTrue(commandResult.contains("scaling_info"));
-
-        // Exercise actual instantiateSegmentHelper
-        CommandArgs commandArgs = new CommandArgs(Arrays.asList(scope, testStream), cliConfig());
-        ControllerDescribeStreamCommand command = new ControllerDescribeStreamCommand(commandArgs);
-        @Cleanup
-        CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient(CLUSTER.zookeeperConnectString(),
-                new RetryOneTime(5000));
-        curatorFramework.start();
-        @Cleanup
-        SegmentHelper sh = command.instantiateSegmentHelper(curatorFramework);
-        Assert.assertNotNull(sh);
-
-        DebugRecoveryProcessor debugRecoveryProcessor = Mockito.mock(DebugRecoveryProcessor.class);
-        Mockito.when(debugRecoveryProcessor.performRecovery()).thenThrow(new ServiceHaltException("test"));
-        // Try the Zookeeper backend, which is expected to fail and be handled by the command.
-        Properties properties = new Properties();
-        properties.setProperty("cli.store.metadata.backend", CLIControllerConfig.MetadataBackends.ZOOKEEPER.name());
-        cliConfig().getConfigBuilder().include(properties);
-        commandArgs = new CommandArgs(Arrays.asList(scope, testStream), cliConfig());
-        new ControllerDescribeStreamCommand(commandArgs).execute();
-        properties.setProperty("cli.store.metadata.backend", CLIControllerConfig.MetadataBackends.SEGMENTSTORE.name());
-        cliConfig().getConfigBuilder().include(properties);
     }
 
     @Test
