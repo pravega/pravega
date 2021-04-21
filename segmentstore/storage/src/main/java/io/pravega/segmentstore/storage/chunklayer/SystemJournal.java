@@ -632,12 +632,12 @@ public class SystemJournal {
                 txn.markPinned(segmentMetadata);
             }
         }
-        log.debug("SystemJournal[{}] Done applying snapshots.", containerId);
 
         // Validate
         return checkInvariants(systemSnapshot)
                 .thenComposeAsync(v ->
                         validateSystemSnapshotExistsInTxn(txn, systemSnapshot), executor)
+                .thenRun(() -> log.debug("SystemJournal[{}] Done applying snapshots.", containerId))
                 .thenApplyAsync(v -> systemSnapshot, executor);
     }
 
