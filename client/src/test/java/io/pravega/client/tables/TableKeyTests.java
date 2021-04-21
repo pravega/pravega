@@ -15,6 +15,7 @@
  */
 package io.pravega.client.tables;
 
+import java.nio.ByteBuffer;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -25,13 +26,16 @@ import org.junit.Test;
 public class TableKeyTests {
     @Test
     public void testConstructor() {
-        String keyContents = "KeyContents";
-        val ne = TableKey.notExists(keyContents);
-        Assert.assertSame(keyContents, ne.getKey());
+        val pk = ByteBuffer.wrap("PrimaryKey".getBytes());
+        val sk = ByteBuffer.wrap("SecondaryKey".getBytes());
+        val ne = TableKey.notExists(pk, sk);
+        Assert.assertSame(pk, ne.getPrimaryKey());
+        Assert.assertSame(sk, ne.getSecondaryKey());
         Assert.assertSame(Version.NOT_EXISTS, ne.getVersion());
 
-        val uv = TableKey.unversioned(keyContents);
-        Assert.assertSame(keyContents, uv.getKey());
+        val uv = TableKey.unversioned(pk, sk);
+        Assert.assertSame(pk, uv.getPrimaryKey());
+        Assert.assertSame(sk, uv.getSecondaryKey());
         Assert.assertSame(Version.NO_VERSION, uv.getVersion());
     }
 }

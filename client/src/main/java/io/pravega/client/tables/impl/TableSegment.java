@@ -166,18 +166,18 @@ public interface TableSegment extends AutoCloseable {
     /**
      * Creates a new Iterator over all the Keys in the Table Segment.
      *
-     * @param args A {@link IteratorArgs} that can be used to configure the iterator.
+     * @param args A {@link SegmentIteratorArgs} that can be used to configure the iterator.
      * @return An {@link AsyncIterator} that can be used to iterate over all the Keys in this Table Segment.
      */
-    AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(IteratorArgs args);
+    AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(SegmentIteratorArgs args);
 
     /**
      * Creates a new Iterator over all the Entries in the Table Segment.
      *
-     * @param args A {@link IteratorArgs} that can be used to configure the iterator.
+     * @param args A {@link SegmentIteratorArgs} that can be used to configure the iterator.
      * @return An {@link AsyncIterator} that can be used to iterate over all the Entries in this Table Segment.
      */
-    AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(IteratorArgs args);
+    AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(SegmentIteratorArgs args);
 
     /**
      * Gets a value indicating the internal Id of the Table Segment, as assigned by the Controller.

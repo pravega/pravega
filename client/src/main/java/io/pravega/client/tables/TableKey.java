@@ -15,6 +15,7 @@
  */
 package io.pravega.client.tables;
 
+import java.nio.ByteBuffer;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -23,71 +24,116 @@ import lombok.ToString;
 
 /**
  * A {@link KeyValueTable} Key with a {@link Version}.
- *
- * @param <KeyT> Type of the Key.
  */
 @Getter
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @ToString
-public class TableKey<KeyT> {
+public class TableKey {
     /**
-     * The Key.
+     * The Primary Key.
      *
-     * @param key The Key.
-     * @return The Key.
+     * @param primaryKey Primary Key..
+     * @return Primary Key.
      */
     @NonNull
-    private final KeyT key;
+    private final ByteBuffer primaryKey;
 
     /**
-     * The Version. If null, any updates for this Key will be unconditional. See {@link KeyValueTable} for details on
-     * conditional updates.
+     * The Secondary Key (Optional).
+     *
+     * @param version Secondary Key.
+     * @return Secondary Key.
+     */
+    private final ByteBuffer secondaryKey;
+
+    /**
+     * The {@link Version}. If null, any updates for this Key will be unconditional. See {@link KeyValueTable} for
+     * details on conditional updates.
      *
      * @param version Version associated with the key.
      * @return Version associated with the key.
      */
+    @NonNull
     private final Version version;
 
     /**
-     * Creates a new {@link TableKey} with no specific version. When used with {@link KeyValueTable#removeAll}, this
-     * {@link TableKey} will be treated as an unconditional removal.
+     * Gets a value indicating whether this {@link TableKey} has a specified {@link Version}.
      *
-     * @param key    The Key.
-     * @param <KeyT> Key Type.
-     * @return An unversioned {@link TableKey} (version set to {@link Version#NO_VERSION}).
+     * If versioned, then the following methods on {@link KeyValueTable} will be conditioned on this {@link TableKey}
+     * matching the server-side version with that provided in this instance:
+     * - {@link KeyValueTable#remove(TableKey)}
+     * - {@link KeyValueTable#removeAll(Iterable)}
+     *
+     * @return True if versioned, false otherwise.
      */
-    public static <KeyT> TableKey<KeyT> unversioned(KeyT key) {
-        return versioned(key, Version.NO_VERSION);
+    public boolean isVersioned() {
+        return this.version.equals(Version.NO_VERSION);
     }
 
     /**
-     * Creates a new {@link TableKey} with a version that indicates the key must not exist. When used with
-     * {@link KeyValueTable#removeAll}, this {@link TableKey} will be treated conditional removal.
-     * <p>
-     * By itself, this is not a useful scenario (removing a key conditioned on it not existing in the first place doesn't
-     * make much sense). However, when used in combination with other removals ({@link KeyValueTable#removeAll} accepts
-     * multiple {@link TableKey}s), this can be used to condition the entire batch on a particular {@link TableKey}'s
-     * inexistence (i.e., only perform these removals iff a certain {@link TableKey} is not present).
+     * Creates a new {@link TableKey} made of only a Primary Key, with no specific version.
      *
-     * @param key    The Key.
-     * @param <KeyT> Key Type
-     * @return A {@link TableKey} with a version set to {@link Version#NOT_EXISTS}.
+     * @param primaryKey The Primary Key.
+     * @return An unversioned {@link TableKey} made of only a Primary Key (version set to {@link Version#NO_VERSION}).
      */
-    public static <KeyT> TableKey<KeyT> notExists(KeyT key) {
-        return versioned(key, Version.NOT_EXISTS);
+    public static TableKey unversioned(ByteBuffer primaryKey) {
+        return unversioned(primaryKey, null);
     }
 
     /**
-     * Creates a new {@link TableKey} with a specific version. When used with {@link KeyValueTable#removeAll}, this
-     * {@link TableKey} will be treated as a conditional removal, conditioned on the Key existing and having the specified
-     * version.
+     * Creates a new {@link TableKey} made of a Primary Key and Secondary Key, with no specific version.
      *
-     * @param key     The Key.
-     * @param version The Version.
-     * @param <KeyT>  Key Type.
-     * @return A {@link TableKey}.
+     * @param primaryKey   The Primary Key.
+     * @param secondaryKey The Secondary Key.
+     * @return An unversioned {@link TableKey} made of a Primary Key and Secondary Key (version set to
+     * {@link Version#NO_VERSION}).
      */
-    public static <KeyT> TableKey<KeyT> versioned(KeyT key, Version version) {
-        return new TableKey<>(key, version);
+    public static TableKey unversioned(ByteBuffer primaryKey, ByteBuffer secondaryKey) {
+        return versioned(primaryKey, secondaryKey, Version.NO_VERSION);
+    }
+
+    /**
+     * Creates a new {@link TableKey} made of only a Primary Key with a version that indicates the key must not exist.
+     *
+     * @param primaryKey The Primary Key.
+     * @return A {@link TableKey} made of a Primary Key with a version set to {@link Version#NOT_EXISTS}.
+     */
+    public static TableKey notExists(ByteBuffer primaryKey) {
+        return notExists(primaryKey, null);
+    }
+
+    /**
+     * Creates a new {@link TableKey} made of a Primary Key and Secondary Key, with a version that indicates the key
+     * must not exist.
+     *
+     * @param primaryKey   The Primary Key.
+     * @param secondaryKey The Secondary Key.
+     * @return A {@link TableKey} made of a Primary Key and Secondary Key with a version set to {@link Version#NOT_EXISTS}.
+     */
+    public static TableKey notExists(ByteBuffer primaryKey, ByteBuffer secondaryKey) {
+        return versioned(primaryKey, secondaryKey, Version.NOT_EXISTS);
+    }
+
+    /**
+     * Creates a new {@link TableKey} made of only a Primary Key, with a specific version.
+     *
+     * @param primaryKey The Primary Key.
+     * @param version    The {@link Version}.
+     * @return A {@link TableKey} made of a Primary Key with the specified version.
+     */
+    public static TableKey versioned(ByteBuffer primaryKey, Version version) {
+        return versioned(primaryKey, null, version);
+    }
+
+    /**
+     * Creates a new {@link TableKey} made of a Primary Key and Secondary Key, with a specific version.
+     *
+     * @param primaryKey   The Primary Key.
+     * @param secondaryKey The Secondary Key.
+     * @param version      The {@link Version}.
+     * @return A {@link TableKey} made of a Primary Key and Secondary key with the specified version.
+     */
+    public static TableKey versioned(ByteBuffer primaryKey, ByteBuffer secondaryKey, Version version) {
+        return new TableKey(primaryKey, secondaryKey, version);
     }
 }

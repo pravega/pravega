@@ -25,7 +25,12 @@ import org.junit.Test;
 public class KeyValueTableConfigurationTest {
     @Test
     public void testBuilder() {
-        val c = KeyValueTableConfiguration.builder().partitionCount(4).build();
+        val c = KeyValueTableConfiguration.builder()
+                .partitionCount(4)
+                .primaryKeyLength(8)
+                .secondaryKeyLength(6).build();
         Assert.assertEquals(4, c.getPartitionCount());
+        Assert.assertEquals(8, c.getPrimaryKeyLength());
+        Assert.assertEquals(6, c.getSecondaryKeyLength());
     }
 }

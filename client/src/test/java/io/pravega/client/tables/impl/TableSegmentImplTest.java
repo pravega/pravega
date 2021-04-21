@@ -265,7 +265,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
                 this::entryEquals);
     }
 
-    private <T> void testIterator(Function<IteratorArgs, AsyncIterator<IteratorItem<T>>> newIterator,
+    private <T> void testIterator(Function<SegmentIteratorArgs, AsyncIterator<IteratorItem<T>>> newIterator,
                                   Supplier<ByteBuf> getLastRequestContinuationToken,
                                   Supplier<ByteBuf> getLastRequestPrefix,
                                   Function<TableSegmentEntry, T> getItemFromEntry,
@@ -289,7 +289,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         Function<ByteBuffer, Integer> parseContinuationToken = token -> Integer.parseInt(new String(token.array()));
 
         // Check regular iteration.
-        val iterator = newIterator.apply(IteratorArgs.builder()
+        val iterator = newIterator.apply(SegmentIteratorArgs.builder()
                                                      .maxItemsAtOnce(suggestedKeyCount)
                                                      .keyPrefixFilter(Unpooled.wrappedBuffer(prefixFilter))
                                                      .build());
@@ -325,7 +325,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
 
         // Check new iterator with pre-existing state.
         final ByteBuf resumeToken = generateContinuationToken.apply(2);
-        val resumeIterator = newIterator.apply(IteratorArgs.builder()
+        val resumeIterator = newIterator.apply(SegmentIteratorArgs.builder()
                 .maxItemsAtOnce(suggestedKeyCount)
                 .state(IteratorStateImpl.fromBytes(resumeToken))
                 .build());
@@ -379,7 +379,7 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
                     });
 
             // Iterators. It is sufficient to test one of them,
-            testConnectionFailure(ts -> ts.entryIterator(IteratorArgs.builder().maxItemsAtOnce(1).build()).getNext(), fr,
+            testConnectionFailure(ts -> ts.entryIterator(SegmentIteratorArgs.builder().maxItemsAtOnce(1).build()).getNext(), fr,
                     requestId -> new WireCommands.TableEntriesRead(requestId, SEGMENT.getScopedName(), toWireEntries(entries, null), Unpooled.wrappedBuffer(new byte[1])),
                     result -> AssertExtensions.assertListEquals("", entries, result.getItems(), this::entryEquals));
         }

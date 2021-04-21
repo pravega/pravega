@@ -22,7 +22,6 @@ import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableFactoryImpl;
@@ -52,19 +51,12 @@ public interface KeyValueTableFactory extends AutoCloseable {
      * Creates a new {@link KeyValueTable} that provides access to a Pravega Key-Value Table.
      *
      * @param keyValueTableName   Name of the {@link KeyValueTable}.
-     * @param keySerializer       A {@link Serializer} for {@link KeyValueTable} Keys. Refer to the {@link KeyValueTable}
-     *                            Javadoc for constraints relating to the size of the serialization.
-     * @param valueSerializer     A {@link Serializer} for {@link KeyValueTable} Values. Refer to the {@link KeyValueTable}
-     *                            Javadoc for constraints relating to the size of the serialization.
      * @param clientConfiguration A {@link KeyValueTableClientConfiguration} to use for configuring the
      *                            {@link KeyValueTable} client.
-     * @param <KeyT>              Key Type.
-     * @param <ValueT>            Value Type.
      * @return A {@link KeyValueTable} that provides access to the requested Key-Value Table.
      */
-    <KeyT, ValueT> KeyValueTable<KeyT, ValueT> forKeyValueTable(
-            @NonNull String keyValueTableName, @NonNull Serializer<KeyT> keySerializer,
-            @NonNull Serializer<ValueT> valueSerializer, @NonNull KeyValueTableClientConfiguration clientConfiguration);
+    KeyValueTable forKeyValueTable(
+            @NonNull String keyValueTableName, @NonNull KeyValueTableClientConfiguration clientConfiguration);
 
     /**
      * Closes the {@link KeyValueTableFactory}. This will close any connections created through it.

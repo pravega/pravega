@@ -20,9 +20,9 @@ import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.shared.security.auth.AccessOperation;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -41,13 +41,12 @@ public class KeyValueTableFactoryImpl implements KeyValueTableFactory {
     private final ConnectionPool connectionPool;
 
     @Override
-    public <KeyT, ValueT> KeyValueTable<KeyT, ValueT> forKeyValueTable(
-            @NonNull String keyValueTableName, @NonNull Serializer<KeyT> keySerializer,
-            @NonNull Serializer<ValueT> valueSerializer, @NonNull KeyValueTableClientConfiguration clientConfiguration) {
+    public KeyValueTable forKeyValueTable(@NonNull String keyValueTableName, @NonNull KeyValueTableClientConfiguration clientConfiguration) {
         val kvt = new KeyValueTableInfo(this.scope, keyValueTableName);
         val provider = DelegationTokenProviderFactory.create(this.controller, kvt.getScope(), kvt.getKeyValueTableName(), AccessOperation.READ_WRITE);
         val tsf = new TableSegmentFactoryImpl(this.controller, this.connectionPool, clientConfiguration, provider);
-        return new KeyValueTableImpl<>(kvt, tsf, this.controller, keySerializer, valueSerializer);
+        val defaultConfig = KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(0).secondaryKeyLength(0).build(); // TODO: remove this once supported in the Controller
+        return new KeyValueTableImpl(kvt, defaultConfig, tsf, this.controller);
     }
 
     @Override

@@ -36,4 +36,25 @@ public class KeyValueTableConfiguration implements Serializable {
      * @return The number of Partitions for a Key-Value Table.
      */
     private final int partitionCount;
+
+    /**
+     * The number of bytes for the Primary Key. This value cannot be changed after the Key-Value Table has been created.
+     *
+     * @param primaryKeyLength The number of bytes for the Primary Key.
+     * @return The number of bytes for the Primary Key.
+     */
+    private final int primaryKeyLength;
+
+    /**
+     * The number of bytes for the Secondary Key. This value cannot be changed after the Key-Value Table has been created.
+     *
+     * @param secondaryKeyLength The number of bytes for the Secondary Key.
+     * @return The number of bytes for the Primary Key.
+     */
+    private final int secondaryKeyLength;
+
+    @Override
+    public String toString() {
+        return String.format("Partitions = %s, KeyLength = %s:%s", this.partitionCount, this.primaryKeyLength, this.secondaryKeyLength);
+    }
 }

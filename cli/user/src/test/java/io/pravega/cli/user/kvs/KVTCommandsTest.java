@@ -21,17 +21,16 @@ import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.integration.demo.ClusterWrapper;
+import java.util.Collections;
 import lombok.SneakyThrows;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.util.Collections;
-
+import static io.pravega.cli.user.TestUtils.createCLIConfig;
 import static io.pravega.cli.user.TestUtils.createPravegaCluster;
 import static io.pravega.cli.user.TestUtils.getCLIControllerUri;
-import static io.pravega.cli.user.TestUtils.createCLIConfig;
 
 public class KVTCommandsTest extends SecureKVTCommandsTest {
     private static final ClusterWrapper CLUSTER = createPravegaCluster(false, false);
@@ -81,6 +80,7 @@ public class KVTCommandsTest extends SecureKVTCommandsTest {
         Assert.assertTrue(commandResult.contains("Updated"));
         Assert.assertNotNull(KeyValueTableCommand.PutAll.descriptor());
 
+        /* TODO fix in https://github.com/pravega/pravega/issues/5941
         commandResult = TestUtils.executeCommand("kvt put-range " + table + " key-family-1 1 2", cliConfig());
         Assert.assertTrue(commandResult.contains("Bulk-updated"));
         Assert.assertNotNull(KeyValueTableCommand.PutRange.descriptor());
@@ -93,6 +93,7 @@ public class KVTCommandsTest extends SecureKVTCommandsTest {
         commandResult = TestUtils.executeCommand("kvt list-entries " + table + " key-family-1", cliConfig());
         Assert.assertTrue(commandResult.contains("value1"));
         Assert.assertNotNull(KeyValueTableCommand.ListEntries.descriptor());
+        */
 
         // Exercise Get command.
         commandResult = TestUtils.executeCommand("kvt get " + table + " key-family-1 \"{[key1, key2]}\"", cliConfig());

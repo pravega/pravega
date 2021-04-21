@@ -19,15 +19,17 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.TableEntry;
+import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.val;
@@ -38,25 +40,23 @@ import org.junit.Before;
  * Base class that sets up any test suite that tests {@link KeyValueTable}. There are no tests defined in this class.
  */
 abstract class KeyValueTableTestSetup extends LeakDetectorTestSuite {
-    protected static final String NULL_KEY_FAMILY = "[NULL]"; // Used for HashMap keys.
-    protected static final Serializer<Integer> KEY_SERIALIZER = new IntegerSerializer();
+    protected static final Serializer<Long> PK_SERIALIZER = new LongSerializer();
+    protected static final Serializer<Integer> SK_SERIALIZER = new IntegerSerializer(); // TODO add tests for optional SecondaryKey
     protected static final Serializer<String> VALUE_SERIALIZER = new UTF8StringSerializer();
     protected static final int DEFAULT_SEGMENT_COUNT = 4;
-    protected static final int DEFAULT_KEY_FAMILY_COUNT = 100;
-    protected static final int DEFAULT_KEYS_PER_KEY_FAMILY = 10;
+    protected static final int DEFAULT_PRIMARY_KEY_COUNT = 100;
+    protected static final int DEFAULT_SECONDARY_KEY_COUNT = 10; // Per Primary Key
     @Getter(AccessLevel.PROTECTED)
-    private List<String> keyFamilies;
+    private List<ByteBuffer> primaryKeys;
 
     @Before
     public void setup() throws Exception {
-        int count = getKeyFamilyCount();
-        this.keyFamilies = new ArrayList<>();
-        this.keyFamilies.add(null); // No key family.
-        for (int i = 0; i < count; i++) {
-            this.keyFamilies.add(String.format("KF[%d]", i));
-        }
-
-        this.keyFamilies = Collections.unmodifiableList(this.keyFamilies);
+        int count = getPrimaryKeyCount();
+        val rnd = new Random(0);
+        this.primaryKeys = IntStream.range(0, count)
+                .mapToLong(i -> rnd.nextLong())
+                .mapToObj(PK_SERIALIZER::serialize)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -64,153 +64,148 @@ abstract class KeyValueTableTestSetup extends LeakDetectorTestSuite {
         return 3;
     }
 
-    protected abstract KeyValueTable<Integer, String> createKeyValueTable();
+    protected abstract KeyValueTable createKeyValueTable();
 
-    protected abstract <K, V> KeyValueTable<K, V> createKeyValueTable(Serializer<K> keySerializer, Serializer<V> valueSerializer);
+    protected int getPrimaryKeyLength() {
+        return Long.BYTES;
+    }
 
-    protected int getKeyFamilyCount() {
-        return DEFAULT_KEY_FAMILY_COUNT;
+    protected int getSecondaryKeyLength() {
+        return Integer.BYTES;
+    }
+
+    protected int getPrimaryKeyCount() {
+        return DEFAULT_PRIMARY_KEY_COUNT;
     }
 
     protected int getSegmentCount() {
         return DEFAULT_SEGMENT_COUNT;
     }
 
-    protected int getKeysPerKeyFamily() {
-        return DEFAULT_KEYS_PER_KEY_FAMILY;
+    protected int getSecondaryKeyCount() {
+        return DEFAULT_SECONDARY_KEY_COUNT;
     }
 
-    private int getKeysWithoutKeyFamily() {
-        return Math.min(TableSegment.MAXIMUM_BATCH_KEY_COUNT, getKeyFamilyCount() * getKeysPerKeyFamily());
-    }
-
-    protected void forEveryKey(BiConsumer<String, Integer> handler) {
-        for (val keyFamily : getKeyFamilies()) {
-            int keyCount = keyFamily == null ? getKeysWithoutKeyFamily() : getKeysPerKeyFamily();
-            for (int keyId = 0; keyId < keyCount; keyId++) {
-                handler.accept(keyFamily, keyId);
+    protected void forEveryKey(BiConsumer<ByteBuffer, ByteBuffer> handler) {
+        int secondaryCount = getSecondaryKeyCount();
+        for (val pk : getPrimaryKeys()) {
+            for (int skId = 0; skId < secondaryCount; skId++) {
+                handler.accept(pk.duplicate(), SK_SERIALIZER.serialize(skId));
             }
         }
     }
 
-    protected void forEveryKeyFamily(BiConsumer<String, List<Integer>> handler) {
-        forEveryKeyFamily(true, handler);
-    }
-
-    protected void forEveryKeyFamily(boolean includeNullKeyFamily, BiConsumer<String, List<Integer>> handler) {
-        for (val keyFamily : getKeyFamilies()) {
-            if (keyFamily == null && !includeNullKeyFamily) {
-                continue;
-            }
-            int keyCount = keyFamily == null ? getKeysWithoutKeyFamily() : getKeysPerKeyFamily();
-            val keyIds = new ArrayList<Integer>();
-            for (int keyId = 0; keyId < keyCount; keyId++) {
-                keyIds.add(keyId);
-            }
-            handler.accept(keyFamily, keyIds);
+    protected void forEveryPrimaryKey(BiConsumer<ByteBuffer, List<ByteBuffer>> handler) {
+        int secondaryCount = getSecondaryKeyCount();
+        for (val pk : getPrimaryKeys()) {
+            val sks = IntStream.range(0, secondaryCount).mapToObj(SK_SERIALIZER::serialize).collect(Collectors.toList());
+            handler.accept(pk, sks);
         }
     }
 
-    protected void checkValues(int iteration, Versions versions, KeyValueTable<Integer, String> keyValueTable) {
+    protected void checkValues(int iteration, Versions versions, KeyValueTable keyValueTable) {
         // Check individually.
-        forEveryKey((keyFamily, keyId) -> {
-            val hint = String.format("(KF=%s, Key=%s)", keyFamily, keyId);
-            val key = getKey(keyId);
-            val expectedValue = getValue(keyId, iteration);
-            val expectedVersion = versions.get(keyFamily, keyId);
+        forEveryKey((pk, sk) -> {
+            val keyId = getUniqueKeyId(pk, sk);
+            val expectedValue = getValue(pk, sk, iteration);
+            val expectedVersion = versions.get(keyId);
 
-            val actualEntry = keyValueTable.get(keyFamily, key).join();
-            checkValue(key, expectedValue, expectedVersion, actualEntry, hint);
+            val requestKey = TableKey.unversioned(pk, sk);
+            val actualEntry = keyValueTable.get(requestKey).join();
+            checkValue(requestKey, expectedValue, expectedVersion, actualEntry, keyId);
         });
 
         // Check using getAll.
-        forEveryKeyFamily((keyFamily, keyIds) -> {
-            val hint = String.format("(KF=%s)", keyFamily);
-            val keys = keyIds.stream().map(this::getKey).collect(Collectors.toList());
-            val expectedVersions = keyIds.stream().map(keyId -> versions.get(keyFamily, keyId)).collect(Collectors.toList());
-            val expectedValues = keyIds.stream().map(keyId -> getValue(keyId, iteration)).collect(Collectors.toList());
-            val result = keyValueTable.getAll(keyFamily, keys).join();
+        forEveryPrimaryKey((pk, secondaryKeys) -> {
+            val expectedVersions = secondaryKeys.stream()
+                    .map(sk -> versions.get(getUniqueKeyId(pk, sk)))
+                    .collect(Collectors.toList());
+            val expectedValues = secondaryKeys.stream()
+                    .map(sk -> getValue(pk, sk, iteration))
+                    .collect(Collectors.toList());
+            val requestKeys = secondaryKeys.stream().map(sk -> TableKey.unversioned(pk, sk)).collect(Collectors.toList());
+            val result = keyValueTable.getAll(requestKeys).join();
 
-            Assert.assertEquals("Unexpected result size" + hint, keys.size(), result.size());
-            for (int i = 0; i < keys.size(); i++) {
-                checkValue(keys.get(i), expectedValues.get(i), expectedVersions.get(i), result.get(i), hint);
+            val hint = getUniqueKeyId(pk);
+            Assert.assertEquals("Unexpected result size" + hint, requestKeys.size(), result.size());
+            for (int i = 0; i < requestKeys.size(); i++) {
+                checkValue(requestKeys.get(i), expectedValues.get(i), expectedVersions.get(i), result.get(i), hint);
             }
         });
     }
 
-    protected void checkValue(Integer key, String expectedValue, Version expectedVersion, TableEntry<Integer, String> actualEntry, String hint) {
+    protected void checkValue(TableKey key, ByteBuffer expectedValue, Version expectedVersion, TableEntry actualEntry, Object hint) {
         if (expectedVersion == null) {
             // Key was removed or never inserted.
             Assert.assertNull("Not expecting a value for removed key" + hint, actualEntry);
         } else {
             // Key exists.
-            Assert.assertEquals("Unexpected key" + hint, key, actualEntry.getKey().getKey());
+            Assert.assertEquals("Unexpected Primary Key" + hint, key.getPrimaryKey(), actualEntry.getKey().getPrimaryKey());
+            Assert.assertEquals("Unexpected Secondary Key" + hint, key.getSecondaryKey(), actualEntry.getKey().getSecondaryKey());
             Assert.assertEquals("Unexpected version" + hint, expectedVersion, actualEntry.getKey().getVersion());
             Assert.assertEquals("Unexpected value" + hint, expectedValue, actualEntry.getValue());
         }
     }
 
-    protected int getKey(int keyId) {
-        return keyId;
+    protected String getUniqueKeyId(ByteBuffer pk, ByteBuffer sk) {
+        return String.format("(PK=%s, SK=%s)", PK_SERIALIZER.deserialize(pk),
+                sk == null || sk.remaining() == 0 ? "[null]" : SK_SERIALIZER.deserialize(sk));
     }
 
-    protected String getValue(int keyId, int iteration) {
-        return String.format("%s_%s", keyId, iteration);
+    protected String getUniqueKeyId(ByteBuffer pk) {
+        return String.format("(PK=%s)", PK_SERIALIZER.deserialize(pk));
     }
 
-    protected int getKeyFromValue(String value) {
-        int pos = value.indexOf("_");
-        return Integer.parseInt(value.substring(0, pos));
+    protected ByteBuffer getValue(ByteBuffer pk, ByteBuffer sk, int iteration) {
+        val result = ByteBuffer.allocate(pk.remaining() + sk.remaining() + Integer.BYTES);
+        result.put(pk.duplicate());
+        result.put(sk.duplicate());
+        result.putInt(iteration);
+        return result.asReadOnlyBuffer();
     }
 
     protected static class Versions {
         @Getter(AccessLevel.PACKAGE)
-        private final HashMap<String, HashMap<Integer, VersionImpl>> versions = new HashMap<>();
+        private final Map<String, VersionImpl> versions = new ConcurrentHashMap<>();
 
-        void add(String keyFamily, int keyId, Version kv) {
-            keyFamily = adjustKeyFamily(keyFamily);
-            val familyVersions = this.versions.computeIfAbsent(keyFamily, kf -> new HashMap<>());
-            familyVersions.put(keyId, kv.asImpl());
+        void add(String keyId, Version kv) {
+            this.versions.put(keyId, kv.asImpl());
         }
 
-        void remove(String keyFamily, int keyId) {
-            keyFamily = adjustKeyFamily(keyFamily);
-            val familyVersions = this.versions.getOrDefault(keyFamily, null);
-            if (familyVersions != null) {
-                familyVersions.remove(keyId);
-                if (familyVersions.isEmpty()) {
-                    this.versions.remove(keyFamily);
-                }
-            }
+        void remove(String keyId) {
+            this.versions.remove(keyId);
         }
 
-        VersionImpl get(String keyFamily, int keyId) {
-            keyFamily = adjustKeyFamily(keyFamily);
-            val familyVersions = this.versions.getOrDefault(keyFamily, null);
-            if (familyVersions != null) {
-                return familyVersions.getOrDefault(keyId, null);
-            }
-            return null;
+        VersionImpl get(String keyId) {
+            return this.versions.getOrDefault(keyId, null);
         }
 
         boolean isEmpty() {
             return this.versions.isEmpty();
-        }
-
-        private String adjustKeyFamily(String keyFamily) {
-            return keyFamily == null ? NULL_KEY_FAMILY : keyFamily;
         }
     }
 
     private static class IntegerSerializer implements Serializer<Integer> {
         @Override
         public ByteBuffer serialize(Integer value) {
-            return ByteBuffer.allocate(Integer.BYTES).putInt(0, value);
+            return ByteBuffer.allocate(Integer.BYTES).putInt(0, value).asReadOnlyBuffer();
         }
 
         @Override
         public Integer deserialize(ByteBuffer serializedValue) {
-            return serializedValue.getInt();
+            return serializedValue.duplicate().getInt();
+        }
+    }
+
+    private static class LongSerializer implements Serializer<Long> {
+        @Override
+        public ByteBuffer serialize(Long value) {
+            return ByteBuffer.allocate(Long.BYTES).putLong(0, value).asReadOnlyBuffer();
+        }
+
+        @Override
+        public Long deserialize(ByteBuffer serializedValue) {
+            return serializedValue.duplicate().getLong();
         }
     }
 }

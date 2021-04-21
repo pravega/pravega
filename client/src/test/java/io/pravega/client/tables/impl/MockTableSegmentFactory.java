@@ -31,7 +31,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -55,6 +56,7 @@ class MockTableSegmentFactory implements TableSegmentFactory {
     @GuardedBy("segments")
     private final HashMap<Segment, TableSegment> segments = new HashMap<>();
     private final int segmentCount;
+    private final int keyLength;
     private final ScheduledExecutorService executorService;
 
     @Override
@@ -62,7 +64,7 @@ class MockTableSegmentFactory implements TableSegmentFactory {
         AssertExtensions.assertLessThan("Too many segments requested.", this.segmentCount, segment.getSegmentId());
         synchronized (this.segments) {
             Assert.assertNull("Segment requested multiple times.", this.segments.get(segment));
-            TableSegment ts = new MockTableSegment(segment, this::segmentClosed, this.executorService);
+            TableSegment ts = new MockTableSegment(segment, this.keyLength, this::segmentClosed, this.executorService);
             this.segments.put(segment, ts);
             return ts;
         }
@@ -86,11 +88,12 @@ class MockTableSegmentFactory implements TableSegmentFactory {
     @RequiredArgsConstructor
     private static class MockTableSegment implements TableSegment {
         private final Segment segment;
+        private final int keyLength;
         private final Consumer<Segment> onClose;
         private final ScheduledExecutorService executorService;
         private final AtomicLong nextVersion = new AtomicLong();
         @GuardedBy("data")
-        private final Map<ByteBuf, EntryValue> data = new HashMap<>();
+        private final SortedMap<ByteBuf, EntryValue> data = new TreeMap<>();
         @GuardedBy("data")
         private boolean closed = false;
 
@@ -151,6 +154,7 @@ class MockTableSegmentFactory implements TableSegmentFactory {
                     AtomicInteger serializationLength = new AtomicInteger();
                     keys.forEachRemaining(k -> {
                         checkVersion(k);
+                        checkLengths(k);
                         serializationLength.addAndGet(k.getKey().readableBytes());
                         toRemove.add(k.getKey());
                     });
@@ -182,21 +186,21 @@ class MockTableSegmentFactory implements TableSegmentFactory {
         }
 
         @Override
-        public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(IteratorArgs args) {
+        public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(SegmentIteratorArgs args) {
             return getIterator(args, (key, value, ver) -> TableSegmentKey.versioned(key, ver));
         }
 
         @Override
-        public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(IteratorArgs args) {
+        public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(SegmentIteratorArgs args) {
             return getIterator(args, TableSegmentEntry::versioned);
         }
 
-        private <T> AsyncIterator<IteratorItem<T>> getIterator(IteratorArgs args, IteratorConverter<T> converter) {
+        private <T> AsyncIterator<IteratorItem<T>> getIterator(SegmentIteratorArgs args, IteratorConverter<T> converter) {
             // The real Table Segment allows iterating while updating. Since we use HashMap, we don't have that luxury,
             // but we can take a snapshot now and iterate through that. This doesn't necessarily break the Table Segment
             // contract as it makes no guarantees about whether (or when) concurrent updates will make it into an ongoing
             // iteration.
-            List<T> iteratorItems = getFilteredEntries(args.getKeyPrefixFilter(), converter);
+            List<T> iteratorItems = convertEntries(converter);
             val position = new AtomicInteger(0);
             if (args.getState() != null) {
                 position.set(args.getState().toBytes().getInt());
@@ -214,22 +218,12 @@ class MockTableSegmentFactory implements TableSegmentFactory {
             }, this.executorService);
         }
 
-        private <T> List<T> getFilteredEntries(ByteBuf prefix, IteratorConverter<T> converter) {
-            Assert.assertNotNull("Key Family iterations require a prefix.", prefix);
-            AssertExtensions.assertGreaterThan("Key Family iterations require a prefix.",
-                    KeyFamilySerializer.PREFIX_LENGTH, prefix.readableBytes());
+        private <T> List<T> convertEntries(IteratorConverter<T> converter) {
             synchronized (this.data) {
                 return this.data.entrySet().stream()
-                        .filter(e -> startsWith(e.getKey(), prefix))
                         .map(e -> converter.apply(e.getKey().copy(), e.getValue().value.copy(), e.getValue().version))
                         .collect(Collectors.toList());
             }
-        }
-
-        private boolean startsWith(ByteBuf key, ByteBuf prefix) {
-
-            return key.readableBytes() >= prefix.readableBytes()
-                    && key.slice(0, prefix.readableBytes()).equals(prefix.duplicate());
         }
 
         @GuardedBy("data")
@@ -253,8 +247,13 @@ class MockTableSegmentFactory implements TableSegmentFactory {
         }
 
         private void checkLengths(TableSegmentEntry e) {
-            Preconditions.checkArgument(e.getKey().getKey().readableBytes() <= TableSegment.MAXIMUM_KEY_LENGTH, "Key too long.");
+            checkLengths(e.getKey());
             Preconditions.checkArgument(e.getValue().readableBytes() <= TableSegment.MAXIMUM_VALUE_LENGTH, "Value too long.");
+        }
+
+        private void checkLengths(TableSegmentKey k) {
+            Preconditions.checkArgument(k.getKey().readableBytes() == this.keyLength, "Key Length mismatch. Expected %s, found %s.",
+                    this.keyLength, k.getKey().readableBytes());
         }
 
         private void checkBatchSize(int count, int serializationLength) {

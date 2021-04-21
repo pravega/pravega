@@ -22,7 +22,6 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -44,9 +43,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -207,17 +205,11 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     }
 
     @Override
-    protected KeyValueTable<Integer, String> createKeyValueTable() {
-        return createKeyValueTable(KEY_SERIALIZER, VALUE_SERIALIZER);
-    }
-
-    @Override
-    protected <K, V> KeyValueTable<K, V> createKeyValueTable(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
+    protected KeyValueTable createKeyValueTable() {
         val kvt = newKeyValueTableName();
         boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join();
         Assert.assertTrue(created);
-        return this.keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), keySerializer, valueSerializer,
-                KeyValueTableClientConfiguration.builder().build());
+        return this.keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KeyValueTableClientConfiguration.builder().build());
     }
 
     private KeyValueTableInfo newKeyValueTableName() {

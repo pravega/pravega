@@ -16,7 +16,6 @@
 package io.pravega.client.tables.impl;
 
 import io.pravega.client.admin.KeyValueTableInfo;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.tables.KeyValueTable;
@@ -41,7 +40,8 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
     private MockConnectionFactoryImpl connectionFactory;
     private MockTableSegmentFactory segmentFactory;
     private MockController controller;
-    private KeyValueTable<Integer, String> keyValueTable;
+    private KeyValueTable keyValueTable;
+    private KeyValueTableConfiguration config;
 
     @Override
     protected int getThreadPoolSize() {
@@ -49,13 +49,8 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
     }
 
     @Override
-    protected KeyValueTable<Integer, String> createKeyValueTable() {
+    protected KeyValueTable createKeyValueTable() {
         return this.keyValueTable;
-    }
-
-    @Override
-    protected <K, V> KeyValueTable<K, V> createKeyValueTable(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
-        return new KeyValueTableImpl<>(KVT, this.segmentFactory, this.controller, keySerializer, valueSerializer);
     }
 
     @Before
@@ -66,9 +61,15 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
         boolean isScopeCreated = this.controller.createScope(KVT.getScope()).get().booleanValue();
         Assert.assertTrue(isScopeCreated);
         this.controller.createKeyValueTable(KVT.getScope(), KVT.getKeyValueTableName(),
-                KeyValueTableConfiguration.builder().partitionCount(getSegmentCount()).build());
-        this.segmentFactory = new MockTableSegmentFactory(getSegmentCount(), executorService());
-        this.keyValueTable = createKeyValueTable(KEY_SERIALIZER, VALUE_SERIALIZER);
+                KeyValueTableConfiguration.builder().partitionCount(getSegmentCount()).primaryKeyLength(getPrimaryKeyLength()).secondaryKeyLength(getSecondaryKeyLength()).build());
+        int segmentKeyLength = getPrimaryKeyLength() + getSecondaryKeyLength();
+        this.segmentFactory = new MockTableSegmentFactory(getSegmentCount(), segmentKeyLength, executorService());
+        this.config = KeyValueTableConfiguration.builder()
+                .partitionCount(getSegmentCount())
+                .primaryKeyLength(getPrimaryKeyLength())
+                .secondaryKeyLength(getSecondaryKeyLength())
+                .build();
+        this.keyValueTable = new KeyValueTableImpl(KVT, this.config, this.segmentFactory, this.controller);
     }
 
     @After
@@ -86,9 +87,9 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
         @Cleanup
         val kvt = createKeyValueTable();
         val iteration = new AtomicInteger(0);
-        forEveryKeyFamily(false, (keyFamily, keyIds) -> {
-            val entry = TableEntry.notExists(getKey(0), getValue(0, iteration.get()));
-            kvt.replaceAll(keyFamily, Collections.singletonList(entry)).join();
+        forEveryPrimaryKey((pk, secondaryKeys) -> {
+            val entry = TableEntry.notExists(pk, secondaryKeys.get(0), getValue(pk, secondaryKeys.get(0), iteration.get()));
+            kvt.putAll(Collections.singletonList(entry)).join();
         });
 
         Assert.assertEquals("Unexpected number of open segments before closing.", getSegmentCount(), this.segmentFactory.getOpenSegmentCount());

@@ -27,7 +27,7 @@ import lombok.Data;
  */
 @Data
 @Builder
-class IteratorArgs {
+class SegmentIteratorArgs {
     /**
      * Optional. If specified, all items returned by {@link AsyncIterator#getNext()} will have {@link TableSegmentKey}s
      * that begin with the specified prefix.
