@@ -88,7 +88,7 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         Assert.assertNotEquals(0L, oldValue);
         // Update the Segment to a value of 0.
         commandResult = TestUtils.executeCommand("segmentstore update-segment-attribute segmentstore/updateattribute/0.#epoch.0 "
-                + new UUID(Attributes.CORE_ATTRIBUTE_ID_PREFIX, 0).toString() + " 0 " + oldValue +" localhost", STATE.get());
+                + new UUID(Attributes.CORE_ATTRIBUTE_ID_PREFIX, 0).toString() + " 0 " + oldValue + " localhost", STATE.get());
         Assert.assertFalse(commandResult.contains("Error"));
         // Check that the value has been updated.
         commandResult = TestUtils.executeCommand("segmentstore get-segment-attribute segmentstore/updateattribute/0.#epoch.0 "
@@ -104,7 +104,7 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         Assert.assertNotEquals(0L, oldValue);
         // Update the Segment to a value of 0.
         commandResult = TestUtils.executeCommand("segmentstore update-segment-attribute _system/_abortStream/0.#epoch.0 "
-                + new UUID(Attributes.CORE_ATTRIBUTE_ID_PREFIX, 0).toString() + " 0 " + oldValue +" localhost", STATE.get());
+                + new UUID(Attributes.CORE_ATTRIBUTE_ID_PREFIX, 0).toString() + " 0 " + oldValue + " localhost", STATE.get());
         Assert.assertFalse(commandResult.contains("Error"));
         // Check that the value has been updated.
         commandResult = TestUtils.executeCommand("segmentstore get-segment-attribute _system/_abortStream/0.#epoch.0 "

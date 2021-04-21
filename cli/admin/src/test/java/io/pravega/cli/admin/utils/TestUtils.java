@@ -27,7 +27,13 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.stream.*;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.common.cluster.Host;
@@ -48,7 +54,12 @@ import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 
 /**
  * Class to contain convenient utilities for writing test cases.
@@ -78,7 +89,7 @@ public final class TestUtils {
             cmd.setOut(ps);
             cmd.execute();
         }
-        return new String(baos.toByteArray(), StandardCharsets.UTF_8);
+        return baos.toString(StandardCharsets.UTF_8);
     }
 
     /**
@@ -164,6 +175,10 @@ public final class TestUtils {
 
     /**
      * This method creates a dummy Host-Container mapping, given that it is not created in Pravega standalone.
+     *
+     * @param zkConnectString   Connection endpoint for Zookeeper.
+     * @param hostIp            Name of the host to connect to.
+     * @param hostPort          Port of the host to connect to.
      */
     public static void createDummyHostContainerAssignment(String zkConnectString, String hostIp, int hostPort) {
         @Cleanup
@@ -177,7 +192,14 @@ public final class TestUtils {
         zkHostStore.updateHostContainersMap(dummyHostContainerAssignment);
     }
 
-    // Creates the given scope and stream using the given controller instance.
+    /**
+     * Creates the given scope and stream using the given controller instance.
+     *
+     * @param controller    Controller instance to use to create the Scope and Stream.
+     * @param scopeName     Name of the Scope.
+     * @param streamName    Name of the Stream.
+     * @param streamConfig  Configuration for the Stream to be created.
+     */
     public static void createScopeStream(Controller controller, String scopeName, String streamName, StreamConfiguration streamConfig) {
         ClientConfig clientConfig = ClientConfig.builder().build();
         try (ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
@@ -191,21 +213,33 @@ public final class TestUtils {
         }
     }
 
-    // write events to the given stream
+    /**
+     * Write events to the given stream.
+     *
+     * @param streamName     Name of the Stream.
+     * @param clientFactory  Client factory to create writers.
+     */
     public static void writeEvents(String streamName, ClientFactoryImpl clientFactory) {
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                 new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
-        for (int i = 0; i < NUM_EVENTS;) {
+        for (int i = 0; i < NUM_EVENTS; i++) {
             writer.writeEvent(EVENT).join();
-            i++;
         }
         writer.flush();
-        writer.close();
     }
 
-    // read all events from the given stream
+    /**
+     * Read all events from the given stream.
+     *
+     * @param scope               Scope of the targeted Stream.
+     * @param streamName          Name of the Stream.
+     * @param clientFactory       ClientFactory to instantiate readers.
+     * @param readerGroupManager  ReaderGroupManager to create the ReaderGroup.
+     * @param readerGroupName     Name of the ReadeGroup to be created.
+     * @param readerName          Name of the Reader to instantiate.
+     */
     public static void readAllEvents(String scope, String streamName, ClientFactoryImpl clientFactory, ReaderGroupManager readerGroupManager,
                                String readerGroupName, String readerName) {
         readerGroupManager.createReaderGroup(readerGroupName,
@@ -219,11 +253,9 @@ public final class TestUtils {
                 new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
 
-        for (int q = 0; q < NUM_EVENTS;) {
+        for (int q = 0; q < NUM_EVENTS; q++) {
             String eventRead = reader.readNextEvent(READ_TIMEOUT.toMillis()).getEvent();
             Assert.assertEquals("Event written and read back don't match", EVENT, eventRead);
-            q++;
         }
-        reader.close();
     }
 }

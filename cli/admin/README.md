@@ -194,5 +194,35 @@ The following required config values can be found in the logs:
 
 Once the config file is updated, the Pravega Admin CLI will be able to connect to your Pravega cluster and run commands.
 
+## Adding `segmentstore` Admin Commands
+
+The Pravega Admin CLI now provides a set of debug and repair commands (prefixed with `segmentstore`).
+These commands are a low level interface for an administrator/developer to interact directly with Segments. This
+is useful in the cases where data has been lost/corrupted, and the system requires manual intervention to recover.
+In a nutshell, `segmentstore` commands send `WireCommands` (i.e., Pravega network protocol messages) to a service
+listening in Segment Store instances, namely the Pravega Admin Gateway. The main goal behind this new client-server
+communication channel is to allow us bypassing some constraints applied to regular Pravega clients (e.g., interact
+with `_system` segments, directly send request to specific Segment Stores), as well as to extend the administration
+commands without impacting regular clients. 
+
+Next, we describe the points to take into account if a new `segmentstore` admin command needs to de developed from scratch:
+
+- Add the command in `WireCommands.java`: As the goal is to add a new administration command, the first extension point
+if the definition of available Pravega protocol commands. Note that adding one command in that definitions does not
+break the protocol for regular clients and servers. By convention, we suggest adding new admin commands in `WireCommands`
+using ids in the negative range, as they are mostly available (i.e., from -126 up to -3), given that regular commands
+mostly use positive ids.
+  
+- The first set of available `segmentstore` commands are existing commands. To handle request and replies, we use an
+existing module that already does the job (`SegmentHelper`) for such common requests. When thinking about new, admin-specific
+commands, we need to extend this functionality without impacting the existing code. To this end, a possibility can be to
+create an `AdminSegmentHelper` (or similar) that extends from `SegmentHelper` to reuse most of the common logic to manage
+`WireCommand` messages. In this class, we can implement the handling of new types of requests and replies that are 
+specific for the Pravega Admin CLI.
+  
+- The last step would be to add each new `segmentstore` command as a separate class in the package where the existing
+commands are already placed.
+
+
 ## Support
 If you find any issue or you have any suggestion, please report an issue to [this repository](https://github.com/pravega/pravega/issues).

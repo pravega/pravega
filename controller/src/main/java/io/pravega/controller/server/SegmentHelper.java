@@ -124,7 +124,7 @@ public class SegmentHelper implements AutoCloseable {
             .build();
 
     private final HostControllerStore hostStore;
-    protected final ConnectionPool connectionPool;
+    private final ConnectionPool connectionPool;
     private final ScheduledExecutorService executorService;
     private final AtomicReference<Duration> timeout;
 
@@ -749,14 +749,16 @@ public class SegmentHelper implements AutoCloseable {
     /**
      * This method handle reply returned from RawClient.sendRequest.
      *
+     * @param callerRequestId     request id issues by the client
      * @param reply               actual reply received
      * @param client              RawClient for sending request
      * @param qualifiedStreamSegmentName StreamSegmentName
      * @param requestType         request which reply need to be transformed
+     * @param type                WireCommand for this request
      * @return true if reply is in the expected reply set for the given requestType or throw exception.
      */
     @SneakyThrows(ConnectionFailedException.class)
-    protected void handleReply(long callerRequestId,
+    private void handleReply(long callerRequestId,
                              Reply reply,
                              RawClient client,
                              String qualifiedStreamSegmentName,

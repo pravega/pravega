@@ -143,7 +143,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         // default values
         private int containerCount = 4;
         private boolean enableRestServer = true;
-        private boolean ReplyWithStackTraceOnError = true;
+        private boolean replyWithStackTraceOnError = true;
 
         public InProcPravegaCluster build() {
             //Check for valid combinations of flags

@@ -17,7 +17,6 @@ package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.client.connection.impl.ConnectionPool;
 
 /**
  * Base class for all the Segment Store related commands.

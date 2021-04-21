@@ -15,35 +15,22 @@
  */
 package io.pravega.cli.admin.controller;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
-import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.store.client.StoreClientFactory;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostMonitorConfig;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.util.Config;
-import java.net.URI;
+import lombok.Cleanup;
+import org.apache.curator.framework.CuratorFramework;
+
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-
-import lombok.Cleanup;
-import org.apache.curator.framework.CuratorFramework;
 
 /**
  * Gets a description of different characteristics related to a Stream (e.g., configuration, state, active txn).
