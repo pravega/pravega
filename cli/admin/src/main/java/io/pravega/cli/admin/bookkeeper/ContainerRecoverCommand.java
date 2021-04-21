@@ -19,7 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.common.Exceptions;
-import io.pravega.segmentstore.server.ServiceHaltException;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.logs.DataFrame;
 import io.pravega.segmentstore.server.logs.DataFrameRecord;
 import io.pravega.segmentstore.server.logs.DebugRecoveryProcessor;
@@ -77,16 +77,15 @@ public class ContainerRecoverCommand extends ContainerCommand {
                     recoveryState.dataFrameCount, recoveryState.operationCount);
             ex.printStackTrace(getOut());
             Throwable cause = Exceptions.unwrap(ex);
-            if (cause instanceof ServiceHaltException) {
-                // Covers DataCorruptionException
-                unwrapServiceHaltException((ServiceHaltException) cause);
+            if (cause instanceof DataCorruptionException) {
+                unwrapDataCorruptionException((DataCorruptionException) cause);
             }
         }
     }
 
     @VisibleForTesting
-    void unwrapServiceHaltException(ServiceHaltException ex) {
-        Object[] context = ex.getAdditionalData();
+    void unwrapDataCorruptionException(DataCorruptionException dce) {
+        Object[] context = dce.getAdditionalData();
         if (context == null || context.length == 0) {
             return;
         }
