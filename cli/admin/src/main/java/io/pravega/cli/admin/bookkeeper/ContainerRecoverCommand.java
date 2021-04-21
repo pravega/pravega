@@ -44,7 +44,6 @@ public class ContainerRecoverCommand extends ContainerCommand {
         super(args);
     }
 
-    @VisibleForTesting
     @Override
     public void execute() throws Exception {
         ensureArgCount(1);
