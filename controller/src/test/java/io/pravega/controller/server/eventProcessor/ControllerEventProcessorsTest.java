@@ -55,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Test;
@@ -84,7 +85,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testHandleOrphaned() {
+    public void testHandleOrphaned() throws CheckpointStoreException {
         Controller localController = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
@@ -98,9 +99,11 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
         EventProcessorGroup<ControllerEvent> processor = getProcessor();
+        EventProcessorGroup<ControllerEvent> mockProcessor = spy(processor);
 
+        doThrow(new CheckpointStoreException("host not found")).when(mockProcessor).notifyProcessFailure("host3");
         try {
-            when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(processor);
+            when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(mockProcessor);
         } catch (CheckpointStoreException e) {
             e.printStackTrace();
         }
@@ -114,6 +117,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
         assertTrue(Futures.await(processors.handleFailedProcess("host1")));
+        AssertExtensions.assertFutureThrows("host not found", processors.handleFailedProcess("host3"),e-> e instanceof CheckpointStoreException);
         processors.shutDown();
     }
     
