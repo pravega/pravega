@@ -202,15 +202,15 @@ public final class TestUtils {
      */
     public static void createScopeStream(Controller controller, String scopeName, String streamName, StreamConfiguration streamConfig) {
         ClientConfig clientConfig = ClientConfig.builder().build();
-        try (ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
-             StreamManager streamManager = new StreamManagerImpl(controller, cp)) {
-            //create scope
-            Boolean createScopeStatus = streamManager.createScope(scopeName);
-            log.info("Create scope status {}", createScopeStatus);
-            //create stream
-            Boolean createStreamStatus = streamManager.createStream(scopeName, streamName, streamConfig);
-            log.info("Create stream status {}", createStreamStatus);
-        }
+        @Cleanup
+        ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        StreamManager streamManager = new StreamManagerImpl(controller, cp);
+        //create scope
+        Boolean createScopeStatus = streamManager.createScope(scopeName);
+        log.info("Create scope status {}", createScopeStatus);
+        //create stream
+        Boolean createStreamStatus = streamManager.createStream(scopeName, streamName, streamConfig);
+        log.info("Create stream status {}", createStreamStatus);
     }
 
     /**
