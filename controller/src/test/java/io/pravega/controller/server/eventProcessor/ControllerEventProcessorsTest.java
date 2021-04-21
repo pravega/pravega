@@ -117,7 +117,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
         assertTrue(Futures.await(processors.handleFailedProcess("host1")));
-        AssertExtensions.assertFutureThrows("host not found", processors.handleFailedProcess("host3"),e-> e instanceof CheckpointStoreException);
+        AssertExtensions.assertFutureThrows("host not found", processors.handleFailedProcess("host3"), e -> e instanceof CheckpointStoreException);
         processors.shutDown();
     }
     
