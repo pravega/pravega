@@ -220,9 +220,11 @@ create an `AdminSegmentHelper` (or similar) that extends from `SegmentHelper` to
 `WireCommand` messages. In this class, we can implement the handling of new types of requests and replies that are 
 specific for the Pravega Admin CLI.
   
+- We also need to add a new method to process the new `WireCommand` in the `AdminRequestProcessor` interface and provide
+the appropriate implementation in `AdminRequestProcessorImpl`.
+  
 - The last step would be to add each new `segmentstore` command as a separate class in the package where the existing
 commands are already placed.
-
 
 ## Support
 If you find any issue or you have any suggestion, please report an issue to [this repository](https://github.com/pravega/pravega/issues).

@@ -143,11 +143,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore segmentStore;
     private final TableStore tableStore;
-    private final TrackedConnection connection;
     private final SegmentStatsRecorder statsRecorder;
     private final TableSegmentStatsRecorder tableStatsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
+    protected final TrackedConnection connection;
 
     //endregion
 

@@ -40,6 +40,18 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         Assert.assertFalse(commandResult.contains("Failed"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_abortStream/0.#epoch.0 localhost", STATE.get());
         Assert.assertFalse(commandResult.contains("Failed"));
+        commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_requeststream/0.#epoch.0 localhost", STATE.get());
+        Assert.assertFalse(commandResult.contains("Failed"));
+        commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_RGcommitStreamReaders/0.#epoch.0 localhost", STATE.get());
+        Assert.assertFalse(commandResult.contains("Failed"));
+        commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_RGscaleGroup/0.#epoch.0 localhost", STATE.get());
+        Assert.assertFalse(commandResult.contains("Failed"));
+        commandResult = TestUtils.executeCommand("segmentstore get-segment-info segmentstore/_MARKreadsegment/0.#epoch.0 localhost", STATE.get());
+        Assert.assertFalse(commandResult.contains("Failed"));
+        commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_RGkvtStreamReaders/0.#epoch.0 localhost", STATE.get());
+        Assert.assertFalse(commandResult.contains("Failed"));
+        commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_RGabortStreamReaders/0.#epoch.0 localhost", STATE.get());
+        Assert.assertFalse(commandResult.contains("Failed"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info not/exists/0 localhost", STATE.get());
         Assert.assertTrue(commandResult.contains("Failed"));
         Assert.assertNotNull(GetSegmentInfoCommand.descriptor());
@@ -56,6 +68,8 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         writer.writeEvents("rk", Arrays.asList("a", "2", "3"));
         writer.flush();
         String commandResult = TestUtils.executeCommand("segmentstore read-segment segmentstore/readsegment/0.#epoch.0 0 8 localhost", STATE.get());
+        Assert.assertFalse(commandResult.contains("Error"));
+        commandResult = TestUtils.executeCommand("segmentstore read-segment _system/_RGcommitStreamReaders/0.#epoch.0 0 8 localhost", STATE.get());
         Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore read-segment not/exists/0 0 1 localhost", STATE.get());
         Assert.assertTrue(commandResult.contains("Error"));
