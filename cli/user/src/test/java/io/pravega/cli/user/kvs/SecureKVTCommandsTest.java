@@ -25,6 +25,7 @@ import lombok.SneakyThrows;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Collections;
@@ -33,6 +34,7 @@ import static io.pravega.cli.user.TestUtils.createPravegaCluster;
 import static io.pravega.cli.user.TestUtils.getCLIControllerUri;
 import static io.pravega.cli.user.TestUtils.createCLIConfig;
 
+@Ignore("https://github.com/pravega/pravega/issues/5941") // TODO: fix with 5941
 public class SecureKVTCommandsTest {
     private static final ClusterWrapper CLUSTER = createPravegaCluster(true, true);
     private static final InteractiveConfig CONFIG = createCLIConfig(getCLIControllerUri(CLUSTER.controllerUri()), true, true);
