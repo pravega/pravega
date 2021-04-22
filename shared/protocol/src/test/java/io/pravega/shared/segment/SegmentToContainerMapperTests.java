@@ -104,8 +104,8 @@ public class SegmentToContainerMapperTests {
             String segmentName = getSegmentName(segmentId);
             int containerId = m.getContainerId(segmentName);
             for (int i = 0; i < transactionPerParentCount; i++) {
-                String transcationName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
-                int transactionContainerId = m.getContainerId(transcationName);
+                String transactionName = NameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+                int transactionContainerId = m.getContainerId(transactionName);
                 Assert.assertEquals("Parent and Transaction were not assigned to the same container.", containerId, transactionContainerId);
             }
         }
@@ -129,6 +129,16 @@ public class SegmentToContainerMapperTests {
                 int duplicateContainerId = m.getContainerId(duplicate);
                 Assert.assertEquals("Parent and Transaction were not assigned to the same container.", containerId, duplicateContainerId);
             }
+        }
+    }
+
+    @Test
+    public void testInternalSegmentMapping() {
+        int containerCount = 16;
+        SegmentToContainerMapper m = new SegmentToContainerMapper(containerCount);
+        for (int i = 0; i < containerCount; i++) {
+            Assert.assertEquals(i, m.getContainerId(NameUtils.getMetadataSegmentName(i)));
+            Assert.assertEquals(i, m.getContainerId(NameUtils.getStorageMetadataSegmentName(i)));
         }
     }
 

@@ -46,11 +46,11 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_RGscaleGroup/0.#epoch.0 localhost", STATE.get());
         Assert.assertFalse(commandResult.contains("Error"));
-        commandResult = TestUtils.executeCommand("segmentstore get-segment-info segmentstore/_MARKreadsegment/0.#epoch.0 localhost", STATE.get());
-        Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_RGkvtStreamReaders/0.#epoch.0 localhost", STATE.get());
         Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_RGabortStreamReaders/0.#epoch.0 localhost", STATE.get());
+        Assert.assertFalse(commandResult.contains("Error"));
+        commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/containers/metadata_0 localhost", STATE.get());
         Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info not/exists/0 localhost", STATE.get());
         Assert.assertTrue(commandResult.contains("Error"));

@@ -59,6 +59,23 @@ public final class SegmentToContainerMapper {
      * @return Integer indicating the container id for the given StreamSegment.
      */
     public int getContainerId(String streamSegmentName) {
+       return isAddressableSegment(streamSegmentName) ? getSegmentContainerId(streamSegmentName) :
+               getInternalMetadataSegmentContainerId(streamSegmentName);
+    }
+
+    /**
+     * This method returns whether the input Segment name can be addressed to the right container via regular hashing
+     * scheme. Note that only Container and Storage metadata Segments do not follow the regular hashing scheme.
+     *
+     * @param streamSegmentName  Name of the Segment to check.
+     * @return                   Returns true whether this Segment can be addressed to the right container via the
+     *                           regular hashing scheme or not.
+     */
+    private boolean isAddressableSegment(String streamSegmentName) {
+        return !(NameUtils.isMetadataSegmentName(streamSegmentName) || NameUtils.isStorageMetadataSegmentName(streamSegmentName));
+    }
+
+    private int getSegmentContainerId(String streamSegmentName) {
         String primaryStreamSegmentName = NameUtils.extractPrimaryStreamSegmentName(streamSegmentName);
         if (primaryStreamSegmentName != null) {
             // This is a Transaction. Map it to the parent's Container.
@@ -67,6 +84,17 @@ public final class SegmentToContainerMapper {
             // Standalone StreamSegment.
             return mapStreamSegmentNameToContainerId(streamSegmentName);
         }
+    }
+
+    /**
+     * Internal Container and Storage metadata Segments should be addressed to the container identified by the number
+     * used as suffix in their name (instead of using hashing).
+     *
+     * @param streamSegmentName  Name of the Segment.
+     * @return                   Container id for this internal metadata Segment.
+     */
+    private int getInternalMetadataSegmentContainerId(String streamSegmentName) {
+        return Integer.parseInt(streamSegmentName.substring(streamSegmentName.lastIndexOf(NameUtils.INTERNAL_NAME_PREFIX) + 1));
     }
 
     private int mapStreamSegmentNameToContainerId(String streamSegmentName) {
