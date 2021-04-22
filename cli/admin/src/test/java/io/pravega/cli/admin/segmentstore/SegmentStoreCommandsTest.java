@@ -37,23 +37,23 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
     public void testGetSegmentInfoCommand() throws Exception {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getinfo", StreamConfiguration.builder().build());
         String commandResult = TestUtils.executeCommand("segmentstore get-segment-info segmentstore/getinfo/0.#epoch.0 localhost", STATE.get());
-        Assert.assertFalse(commandResult.contains("Failed"));
+        Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_abortStream/0.#epoch.0 localhost", STATE.get());
-        Assert.assertFalse(commandResult.contains("Failed"));
+        Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_requeststream/0.#epoch.0 localhost", STATE.get());
-        Assert.assertFalse(commandResult.contains("Failed"));
+        Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_RGcommitStreamReaders/0.#epoch.0 localhost", STATE.get());
-        Assert.assertFalse(commandResult.contains("Failed"));
+        Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_RGscaleGroup/0.#epoch.0 localhost", STATE.get());
-        Assert.assertFalse(commandResult.contains("Failed"));
+        Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info segmentstore/_MARKreadsegment/0.#epoch.0 localhost", STATE.get());
-        Assert.assertFalse(commandResult.contains("Failed"));
+        Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_RGkvtStreamReaders/0.#epoch.0 localhost", STATE.get());
-        Assert.assertFalse(commandResult.contains("Failed"));
+        Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_RGabortStreamReaders/0.#epoch.0 localhost", STATE.get());
-        Assert.assertFalse(commandResult.contains("Failed"));
+        Assert.assertFalse(commandResult.contains("Error"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info not/exists/0 localhost", STATE.get());
-        Assert.assertTrue(commandResult.contains("Failed"));
+        Assert.assertTrue(commandResult.contains("Error"));
         Assert.assertNotNull(GetSegmentInfoCommand.descriptor());
     }
 

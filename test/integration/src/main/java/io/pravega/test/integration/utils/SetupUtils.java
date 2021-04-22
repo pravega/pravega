@@ -154,6 +154,7 @@ public final class SetupUtils {
 
         this.controllerWrapper.close();
         this.server.close();
+        this.adminListener.close();
         this.zkTestServer.close();
         this.clientFactory.close();
         this.controller.close();
