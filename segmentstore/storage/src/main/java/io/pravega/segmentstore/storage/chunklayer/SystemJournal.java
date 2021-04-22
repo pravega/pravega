@@ -516,6 +516,7 @@ public class SystemJournal {
                             .build();
                     return snapshotInfoStore.writeSnapshotInfo(info)
                             .thenAcceptAsync(v1 -> {
+                                log.info("SystemJournal[{}] Snapshot info saved.{}", containerId, info);
                                 lastSavedSnapshotInfo.set(info);
                                 lastSavedSnapshotTime.set(currentTimeSupplier.get());
                             }, executor)
@@ -535,6 +536,8 @@ public class SystemJournal {
                 .thenComposeAsync(snapshotInfo -> {
                     if (null != snapshotInfo) {
                         val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, snapshotInfo.getEpoch(), snapshotInfo.getSnapshotId());
+                        log.debug("SystemJournal[{}] Snapshot info read. {} pointing to {}", containerId, snapshotInfo, snapshotFileName);
+
                         // Step 2: Validate.
                         return checkSnapshotExists(snapshotFileName)
                                 // Step 3: Read contents.
