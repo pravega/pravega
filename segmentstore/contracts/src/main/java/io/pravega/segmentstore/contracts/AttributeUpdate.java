@@ -67,6 +67,10 @@ public class AttributeUpdate {
 
     @Override
     public String toString() {
-        return String.format("AttributeId = %s, Value = %s, UpdateType = %s", this.attributeId, this.value, this.updateType);
+        if (this.updateType == AttributeUpdateType.ReplaceIfEquals) {
+            return String.format("AttributeId = %s, UpdateType = %s, Value = %s, Compare = %s", this.attributeId, this.updateType, this.value, this.comparisonValue);
+        } else {
+            return String.format("AttributeId = %s, UpdateType = %s, Value = %s", this.attributeId, this.updateType, this.value);
+        }
     }
 }

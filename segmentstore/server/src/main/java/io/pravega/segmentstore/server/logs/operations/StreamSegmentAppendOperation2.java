@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs.operations;
+
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -44,12 +45,11 @@ public class StreamSegmentAppendOperation2 extends StreamSegmentAppendOperation 
         private static final int STATIC_LENGTH = 3 * Long.BYTES;
         /**
          * Fixed portion:
-         * - AttributeId Length: 1 byte
          * - AttributeUpdateType: 1 byte
          * - Value: 8 bytes
          * - We do not encode the compare value anymore. There is no need post-serialization/validation.
          */
-        private static final int ATTRIBUTE_UPDATE_LENGTH_FIXED = 1 + Byte.BYTES + Long.BYTES;
+        private static final int ATTRIBUTE_UPDATE_LENGTH_FIXED = Byte.BYTES + Long.BYTES;
 
         @Override
         protected OperationBuilder<StreamSegmentAppendOperation2> newBuilder() {
@@ -75,7 +75,7 @@ public class StreamSegmentAppendOperation2 extends StreamSegmentAppendOperation 
         private void write00(StreamSegmentAppendOperation2 o, RevisionDataOutput target) throws IOException {
             int attributesLength = o.attributeUpdates == null
                     ? target.getCompactIntLength(0)
-                    : target.getCollectionLength(o.attributeUpdates, this::getAttributeUpdateLength);
+                    : target.getCollectionLength(o.attributeUpdates, au -> getAttributeUpdateLength(target, au));
             int dataLength = o.getData().getLength();
             target.length(STATIC_LENGTH + target.getCompactIntLength(dataLength) + dataLength + attributesLength);
             target.writeLong(o.getSequenceNumber());
@@ -85,8 +85,8 @@ public class StreamSegmentAppendOperation2 extends StreamSegmentAppendOperation 
             target.writeCollection(o.attributeUpdates, this::writeAttributeUpdate00);
         }
 
-        private int getAttributeUpdateLength(AttributeUpdate au) {
-            return au.getAttributeId().byteCount() + ATTRIBUTE_UPDATE_LENGTH_FIXED;
+        private int getAttributeUpdateLength(RevisionDataOutput target, AttributeUpdate au) {
+            return target.getCompactIntLength(au.getAttributeId().byteCount()) + au.getAttributeId().byteCount() + ATTRIBUTE_UPDATE_LENGTH_FIXED;
         }
 
         private void read00(RevisionDataInput source, OperationBuilder<StreamSegmentAppendOperation2> b) throws IOException {

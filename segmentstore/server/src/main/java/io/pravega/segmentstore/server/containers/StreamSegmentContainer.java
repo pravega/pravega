@@ -48,6 +48,7 @@ import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ReadIndexFactory;
+import io.pravega.segmentstore.server.SegmentAppend;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
@@ -68,6 +69,7 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.OperationType;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation2;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
@@ -946,18 +948,28 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         @Override
         public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-            ensureRunning();
-            logRequest("append", this.segmentId, data.getLength());
-            StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, data, attributeUpdates);
-            return processAppend(operation, new TimeoutTimer(timeout))
-                    .thenApply(v -> operation.getStreamSegmentOffset());
+            return append(SegmentAppend.builder().data(data).attributeUpdates(attributeUpdates).build(), timeout);
         }
 
         @Override
         public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, long offset, Duration timeout) {
+            return append(SegmentAppend.builder().data(data).offset(offset).attributeUpdates(attributeUpdates).build(), timeout);
+        }
+
+        @Override
+        public CompletableFuture<Long> append(SegmentAppend append, Duration timeout) {
             ensureRunning();
-            logRequest("append", this.segmentId, data.getLength());
-            StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, offset, data, attributeUpdates);
+            logRequest("append", this.segmentId, append);
+            StreamSegmentAppendOperation operation;
+            if (append.isVariableAttributeIds()) {
+                operation = append.isOffsetConditional()
+                        ? new StreamSegmentAppendOperation2(this.segmentId, append.getOffset(), append.getData(), append.getAttributeUpdates())
+                        : new StreamSegmentAppendOperation2(this.segmentId, append.getData(), append.getAttributeUpdates());
+            } else {
+                operation = append.isOffsetConditional()
+                        ? new StreamSegmentAppendOperation(this.segmentId, append.getOffset(), append.getData(), append.getAttributeUpdates())
+                        : new StreamSegmentAppendOperation(this.segmentId, append.getData(), append.getAttributeUpdates());
+            }
             return processAppend(operation, new TimeoutTimer(timeout))
                     .thenApply(v -> operation.getStreamSegmentOffset());
         }
@@ -985,7 +997,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         }
 
         @Override
-        public SegmentProperties getInfo() {
+        public SegmentMetadata getInfo() {
             ensureRunning();
             return StreamSegmentContainer.this.metadata.getStreamSegmentMetadata(this.segmentId);
         }

@@ -74,7 +74,7 @@ class SegmentAttributeIterator implements AttributeIterator {
         // the SegmentMetadata's lock, thus ensuring a correct iteration. SegmentMetadata.getAttributes() provides a simple
         // read-only view that cannot be used for safe iteration in this case.
         this.metadataAttributes = metadata
-                .getAttributes((key, value) -> fromId.compareTo(key) <= 0 && toId.compareTo(key) >= 0)
+                .getAttributes((key, value) -> !Attributes.isCoreAttribute(key) && fromId.compareTo(key) <= 0 && toId.compareTo(key) >= 0)
                 .entrySet().stream()
                 .sorted(Map.Entry.comparingByKey(AttributeId::compareTo))
                 .collect(Collectors.toCollection(ArrayDeque::new));

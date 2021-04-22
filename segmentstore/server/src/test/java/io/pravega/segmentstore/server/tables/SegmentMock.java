@@ -24,9 +24,9 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.SegmentAppend;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
@@ -137,6 +137,13 @@ class SegmentMock implements DirectSegmentAccess {
     }
 
     @Override
+    public CompletableFuture<Long> append(SegmentAppend append, Duration timeout) {
+        return append.getOffset() >= 0
+                ? append(append.getData(), append.getAttributeUpdates(), append.getOffset(), timeout)
+                : append(append.getData(), append.getAttributeUpdates(), timeout);
+    }
+
+    @Override
     public ReadResult read(long offset, int maxLength, Duration timeout) {
         // We actually get a view of the data frozen in time, as any changes to the contents field after exiting from the
         // synchronized block may create a new buffer, but we don't care as the data we already have won't change.
@@ -244,7 +251,7 @@ class SegmentMock implements DirectSegmentAccess {
     }
 
     @Override
-    public synchronized SegmentProperties getInfo() {
+    public synchronized SegmentMetadata getInfo() {
         return this.metadata;
     }
 
