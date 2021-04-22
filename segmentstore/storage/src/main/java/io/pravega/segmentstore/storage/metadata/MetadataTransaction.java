@@ -109,7 +109,7 @@ public class MetadataTransaction implements AutoCloseable {
      */
     @Getter
     @Setter
-    private Callable<Void> externalCommitStep;
+    private Callable<CompletableFuture<Void>> externalCommitStep;
 
     /**
      * Array of keys to lock for this transaction.
