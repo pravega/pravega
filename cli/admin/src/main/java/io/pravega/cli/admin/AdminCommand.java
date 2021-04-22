@@ -49,13 +49,11 @@ import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
-import io.pravega.cli.admin.utils.AdminHostControllerStore;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.common.Exceptions;
-import io.pravega.common.cluster.Host;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -373,14 +371,13 @@ public abstract class AdminCommand {
     }
 
     @VisibleForTesting
-    public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient, boolean forceHost, Host forceHostEndpoint) {
+    public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(true)
                 .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
                 .containerCount(getServiceConfig().getContainerCount())
                 .build();
-        HostControllerStore hostStore = new AdminHostControllerStore(HostStoreFactory.createStore(hostMonitorConfig,
-                StoreClientFactory.createZKStoreClient(zkClient)), forceHost, forceHostEndpoint, getServiceConfig().getAdminGatewayPort());
+        HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, StoreClientFactory.createZKStoreClient(zkClient));
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()))
                 .validateHostName(getCLIControllerConfig().isAuthEnabled())
@@ -388,11 +385,6 @@ public abstract class AdminCommand {
                 .build();
         ConnectionPool pool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
         return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
-    }
-
-    @VisibleForTesting
-    public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
-        return instantiateSegmentHelper(zkClient, false, null);
     }
 
     //endregion
