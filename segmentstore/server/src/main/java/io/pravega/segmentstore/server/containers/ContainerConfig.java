@@ -31,7 +31,7 @@ public class ContainerConfig {
     public static final int MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS = 60; // Minimum possible value for segmentExpiration
     public static final Property<Integer> SEGMENT_METADATA_EXPIRATION_SECONDS = Property.named("segment.metadata.expiry.seconds",
             MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS, "segmentMetadataExpirationSeconds");
-    public static final Property<Integer> STORAGE_SNAPSHOT_TIMEOUT_SECONDS = Property.named("storage.snapshot.timeout", MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS);
+    public static final Property<Integer> STORAGE_SNAPSHOT_TIMEOUT_SECONDS = Property.named("storage.snapshot.timeout.seconds", MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS);
     public static final Property<Integer> METADATA_STORE_INIT_TIMEOUT_SECONDS = Property.named("metadataStore.init.timeout.seconds", 30, "metadataStoreInitTimeoutSeconds");
     public static final Property<Integer> MAX_ACTIVE_SEGMENT_COUNT = Property.named("segment.active.count.max", 25000, "maxActiveSegmentCount");
     public static final Property<Integer> MAX_CONCURRENT_SEGMENT_EVICTION_COUNT = Property.named("segment.eviction.concurrent.count.max", 2500, "maxConcurrentSegmentEvictionCount");

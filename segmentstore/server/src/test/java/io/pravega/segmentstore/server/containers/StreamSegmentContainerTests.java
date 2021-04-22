@@ -185,6 +185,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
+            .with(ContainerConfig.STORAGE_SNAPSHOT_TIMEOUT_SECONDS, 60)
             .build();
 
     // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
@@ -1532,7 +1533,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 .builder()
                 .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
                 .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, maxSegmentCount + EXPECTED_PINNED_SEGMENT_COUNT)
-                .with(ContainerConfig.STORAGE_SNAPSHOT_TIMEOUT_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
+                .with(ContainerConfig.STORAGE_SNAPSHOT_TIMEOUT_SECONDS, (int) DEFAULT_CONFIG.getStorageSnapshotTimeout().getSeconds())
                 .build();
 
         // We need a special DL config so that we can force truncations after every operation - this will speed up metadata

@@ -28,7 +28,6 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadata;
 import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.MetadataTransaction;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
-import io.pravega.segmentstore.storage.metadata.StorageMetadata;
 import io.pravega.shared.NameUtils;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -637,8 +636,10 @@ public class SystemJournal {
         return checkInvariants(systemSnapshot)
                 .thenComposeAsync(v ->
                         validateSystemSnapshotExistsInTxn(txn, systemSnapshot), executor)
-                .thenRun(() -> log.debug("SystemJournal[{}] Done applying snapshots.", containerId))
-                .thenApplyAsync(v -> systemSnapshot, executor);
+                .thenApplyAsync(v -> {
+                    log.debug("SystemJournal[{}] Done applying snapshots.", containerId);
+                    return systemSnapshot;
+                }, executor);
     }
 
     /**
@@ -654,16 +655,10 @@ public class SystemJournal {
                 systemSnapshot.getSegmentSnapshotRecords(),
                 segmentSnapshot ->
                     txn.get(segmentSnapshot.segmentMetadata.getKey())
-                        .thenApplyAsync(this::checkMetadata, executor)
-                        .thenComposeAsync(v -> validateChunksInSegmentSnapshot(txn, segmentSnapshot), executor)
+                        .thenComposeAsync(m -> validateChunksInSegmentSnapshot(txn, segmentSnapshot), executor)
                         .thenComposeAsync(vv -> validateSegment(txn, segmentSnapshot.segmentMetadata.getKey()), executor)
                         .thenApplyAsync(v -> true, executor),
                 executor);
-    }
-
-    private StorageMetadata checkMetadata(StorageMetadata metadata) {
-        Preconditions.checkState(null != metadata);
-        return metadata;
     }
 
     private CompletableFuture<Void> validateChunksInSegmentSnapshot(MetadataTransaction txn, SegmentSnapshotRecord segmentSnapshot) {
@@ -671,8 +666,10 @@ public class SystemJournal {
         return Futures.loop(
                 segmentSnapshot.getChunkMetadataCollection(),
                 m -> txn.get(m.getKey())
-                        .thenApplyAsync(this::checkMetadata, executor)
-                        .thenApplyAsync(v -> true, executor),
+                        .thenApplyAsync(mm -> {
+                            Preconditions.checkState(null != mm, "Chunk metadata must not be null.");
+                            return true;
+                        }, executor),
                 executor);
     }
 
@@ -683,13 +680,13 @@ public class SystemJournal {
         return txn.get(segmentName)
                 .thenComposeAsync(m -> {
                     val segmentMetadata = (SegmentMetadata) m;
-                    Preconditions.checkState(null != segmentMetadata);
+                    Preconditions.checkState(null != segmentMetadata, "Segment metadata must not be null.");
                     val chunkName = new AtomicReference<>(segmentMetadata.getFirstChunk());
                     return Futures.loop(
                             () -> chunkName.get() != null,
                             () -> txn.get(chunkName.get())
-                                    .thenApplyAsync(this::checkMetadata, executor)
                                     .thenAcceptAsync(mm -> {
+                                        Preconditions.checkState(null != mm, "Chunk metadata must not be null.");
                                         val chunkMetadata = (ChunkMetadata) mm;
                                         chunkName.set(chunkMetadata.getNextChunk());
                                     }, executor),
@@ -704,23 +701,34 @@ public class SystemJournal {
         if (null != systemSnapshot) {
             for (val segmentSnapshot : systemSnapshot.getSegmentSnapshotRecords()) {
                 segmentSnapshot.segmentMetadata.checkInvariants();
-                Preconditions.checkState(segmentSnapshot.segmentMetadata.isStorageSystemSegment());
-                Preconditions.checkState(segmentSnapshot.segmentMetadata.getChunkCount() == segmentSnapshot.chunkMetadataCollection.size());
+                Preconditions.checkState(segmentSnapshot.segmentMetadata.isStorageSystemSegment(),
+                        "Segment must be storage segment. Segment snapshot= %s", segmentSnapshot);
+                Preconditions.checkState(segmentSnapshot.segmentMetadata.getChunkCount() == segmentSnapshot.chunkMetadataCollection.size(),
+                        "Chunk count must match. Segment snapshot= %s", segmentSnapshot);
                 if (segmentSnapshot.chunkMetadataCollection.size() == 0) {
-                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getFirstChunk() == null);
-                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getLastChunk() == null);
+                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getFirstChunk() == null,
+                            "First chunk must be null. Segment snapshot= %s", segmentSnapshot);
+                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getLastChunk() == null,
+                            "Last chunk must be null. Segment snapshot= %s", segmentSnapshot);
                 } else if (segmentSnapshot.chunkMetadataCollection.size() == 1) {
-                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getFirstChunk() != null);
-                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getFirstChunk().equals(segmentSnapshot.segmentMetadata.getLastChunk()));
+                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getFirstChunk() != null,
+                            "First chunk must not be null. Segment snapshot= %s", segmentSnapshot);
+                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getFirstChunk().equals(segmentSnapshot.segmentMetadata.getLastChunk()),
+                            "First chunk and last chunk should be same. Segment snapshot= %s", segmentSnapshot);
                 } else {
-                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getFirstChunk() != null);
-                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getLastChunk() != null);
-                    Preconditions.checkState(!segmentSnapshot.segmentMetadata.getFirstChunk().equals(segmentSnapshot.segmentMetadata.getLastChunk()));
+                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getFirstChunk() != null,
+                            "First chunk must be not be null. Segment snapshot= %s", segmentSnapshot);
+                    Preconditions.checkState(segmentSnapshot.segmentMetadata.getLastChunk() != null,
+                            "Last chunk must not be null. Segment snapshot= %s", segmentSnapshot);
+                    Preconditions.checkState(!segmentSnapshot.segmentMetadata.getFirstChunk().equals(segmentSnapshot.segmentMetadata.getLastChunk()),
+                            "First chunk and last chunk should not match. Segment snapshot= %s", segmentSnapshot);
                 }
                 ChunkMetadata previous = null;
                 for (val metadata : segmentSnapshot.getChunkMetadataCollection()) {
                     if (previous != null) {
-                        Preconditions.checkState(previous.getNextChunk().equals(metadata.getName()));
+                        Preconditions.checkState(previous.getNextChunk().equals(metadata.getName()),
+                                "In correct link . chunk %s must point to chunk %s. Segment snapshot= %s",
+                                previous.getName(), metadata.getName(), segmentSnapshot);
                     }
                     previous = metadata;
                 }
@@ -741,7 +749,6 @@ public class SystemJournal {
         return Futures.loop(
                 () -> attempt.get() < config.getMaxJournalReadAttempts() && !isReadDone.get(),
                 () -> readFully(chunkPath, retValue)
-                        .thenAcceptAsync(v -> isReadDone.set(true), executor)
                         .handleAsync((v, e) -> {
                             attempt.incrementAndGet();
                             if (e != null) {
@@ -750,7 +757,8 @@ public class SystemJournal {
                                 log.warn("SystemJournal[{}] Error while reading journal {}.", containerId, chunkPath, lastException);
                                 return null;
                             } else {
-                                // no exception, return the value.
+                                // no exception, we are done reading. Return the value.
+                                isReadDone.set(true);
                                 return v;
                             }
                         }, executor),
@@ -1058,7 +1066,7 @@ public class SystemJournal {
                 .thenComposeAsync(metadata -> {
                     SegmentMetadata segmentMetadata = (SegmentMetadata) metadata;
                     segmentMetadata.checkInvariants();
-                    val currentChunkName = new AtomicReference<String>(segmentMetadata.getFirstChunk());
+                    val currentChunkName = new AtomicReference<>(segmentMetadata.getFirstChunk());
                     val currentMetadata = new AtomicReference<ChunkMetadata>();
                     val startOffset = new AtomicLong(segmentMetadata.getFirstChunkStartOffset());
                     val shouldBreak = new AtomicBoolean();
