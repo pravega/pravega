@@ -560,6 +560,7 @@ cl
                 && k1.getSecondaryKey().equals(k2.getSecondaryKey());
     }
 
+    /*
     private boolean areEqual(TableKey k1, TableKey k2) {
         return areEqualExcludingVersion(k1, k2) && k1.getVersion().equals(k2.getVersion());
     }
@@ -567,6 +568,7 @@ cl
     private boolean areEqual(TableEntry e1, TableEntry e2) {
         return areEqual(e1.getKey(), e2.getKey()) && e1.getValue().equals(e2.getValue());
     }
+    */
 
     //endregion
 

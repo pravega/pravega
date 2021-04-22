@@ -49,6 +49,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -58,6 +59,7 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
  *
  */
 @Slf4j
+@Ignore("https://github.com/pravega/pravega/issues/5942") // TODO revert and fix once 5942 and issues leading up to it are done.
 public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final String ENDPOINT = "localhost";
     private static final String SCOPE = "Scope";
