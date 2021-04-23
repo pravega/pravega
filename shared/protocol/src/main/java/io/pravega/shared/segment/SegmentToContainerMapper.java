@@ -61,7 +61,7 @@ public final class SegmentToContainerMapper {
      * @return Integer indicating the container id for the given StreamSegment.
      */
     public int getContainerId(String streamSegmentName) {
-        int containerId = 0;
+        int containerId = Integer.MIN_VALUE;
         if (!isAddressableSegment(streamSegmentName)) {
             containerId = tryGetInternalMetadataSegmentContainerId(streamSegmentName);
         }
