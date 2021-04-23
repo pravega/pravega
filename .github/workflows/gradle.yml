@@ -332,7 +332,7 @@ jobs:
       - name: Untar reports
         run: ( ls */reports-*.tzst | xargs -n1 tar --use-compress-program zstd --keep-newer-files -xf )
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v1.0.15
+        uses: codecov/codecov-action@v1
 
   snapshot:
     name: Artifactory Snapshot
