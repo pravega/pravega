@@ -280,10 +280,15 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
     private ByteBuf serializeKey(TableKey k) {
         Preconditions.checkArgument(k.getPrimaryKey().remaining() == this.config.getPrimaryKeyLength(),
                 "Invalid Primary Key Length. Expected %s, actual %s.", this.config.getPrimaryKeyLength(), k.getPrimaryKey().remaining());
-        Preconditions.checkArgument(k.getSecondaryKey().remaining() == this.config.getSecondaryKeyLength(),
-                "Invalid Secondary Key Length. Expected %s, actual %s.", this.config.getSecondaryKeyLength(), k.getSecondaryKey().remaining());
-
-        return Unpooled.wrappedBuffer(k.getPrimaryKey(), k.getSecondaryKey());
+        if (this.config.getSecondaryKeyLength() == 0) {
+            Preconditions.checkArgument(k.getSecondaryKey() == null || k.getSecondaryKey().remaining() == this.config.getSecondaryKeyLength(),
+                    "Not expecting a Secondary Key.");
+            return Unpooled.wrappedBuffer(k.getPrimaryKey());
+        } else {
+            Preconditions.checkArgument(k.getSecondaryKey().remaining() == this.config.getSecondaryKeyLength(),
+                    "Invalid Secondary Key Length. Expected %s, actual %s.", this.config.getSecondaryKeyLength(), k.getSecondaryKey().remaining());
+            return Unpooled.wrappedBuffer(k.getPrimaryKey(), k.getSecondaryKey());
+        }
     }
 
     private DeserializedKey deserializeKey(ByteBuf keySerialization) {

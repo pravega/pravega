@@ -15,10 +15,12 @@
  */
 package io.pravega.client.tables.impl;
 
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTable;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
@@ -28,11 +30,16 @@ import io.pravega.test.common.AssertExtensions;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import javax.annotation.Nullable;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.val;
@@ -477,6 +484,90 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
         }
     }
 
+    /**
+     * Tests functionality without secondary keys. Only single-key operations are tested because we cannot do multi-key
+     * operations using different primary keys.
+     * @throws Exception If an error occurred.
+     */
+    @Test
+    public void testNoSecondaryKeys() throws Exception {
+        val entryCount = getPrimaryKeyCount();
+        val config = KeyValueTableConfiguration.builder()
+                .partitionCount(DEFAULT_SEGMENT_COUNT)
+                .primaryKeyLength(16)
+                .secondaryKeyLength(0) // No Secondary Keys.
+                .build();
+        val rnd = new Random(0);
+
+        @Cleanup
+        val kvt = createKeyValueTable(new KeyValueTableInfo("Scope", "KVT_NoSecondaryKeys"), config);
+
+        List<ByteBuffer> keys = IntStream.range(0, entryCount)
+                .mapToObj(i -> {
+                    val keyData = new byte[config.getPrimaryKeyLength()];
+                    rnd.nextBytes(keyData);
+                    return ByteBuffer.wrap(keyData).asReadOnlyBuffer();
+                })
+                .collect(Collectors.toList());
+
+        // Insertions.
+        val iteration = new AtomicInteger(0);
+        val versions = new HashMap<ByteBuffer, Version>();
+        for (ByteBuffer k : keys) {
+            Version v = kvt.put(TableEntry.notExists(k, getValue(k, iteration.get()))).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            versions.put(k, v);
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "Conditional insert did not fail for existing key.",
+                    () -> kvt.put(TableEntry.notExists(k, getValue(k, iteration.get()))),
+                    ex -> ex instanceof BadKeyVersionException);
+        }
+        checkValues(iteration.get(), versions, kvt);
+
+        // Updates.
+        iteration.incrementAndGet();
+        for (ByteBuffer k : keys) {
+            Version v = versions.get(k);
+            long pkValue = Math.abs(PK_SERIALIZER.deserialize(k));
+            TableEntry entry = pkValue % 2 == 0
+                    ? TableEntry.versioned(k, v, getValue(k, iteration.get()))
+                    : TableEntry.unversioned(k, getValue(k, iteration.get()));
+            v = kvt.put(entry).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            versions.put(k, v);
+        }
+        checkValues(iteration.get(), versions, kvt);
+
+        // Removals.
+        iteration.incrementAndGet();
+        for (ByteBuffer k : keys) {
+            Version v = versions.get(k);
+            long pkValue = Math.abs(PK_SERIALIZER.deserialize(k));
+            TableKey key = pkValue % 2 == 0 ? TableKey.versioned(k, v) : TableKey.unversioned(k);
+            kvt.remove(key).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            versions.put(k, null);
+        }
+        checkValues(iteration.get(), versions, kvt);
+    }
+
+    private void checkValues(int iteration, Map<ByteBuffer, Version> keyVersions, KeyValueTable kvt) {
+        // Using single get.
+        for (val k : keyVersions.entrySet()) {
+            val expectedValue = k.getValue() == null ? null : TableEntry.versioned(k.getKey(), k.getValue(), getValue(k.getKey(), iteration));
+            val actualEntry = kvt.get(TableKey.unversioned(k.getKey())).join();
+            Assert.assertTrue(areEqual(expectedValue, actualEntry));
+        }
+
+        // Using multi-get.
+        val requestKeys = new ArrayList<>(keyVersions.entrySet());
+        val entries = kvt.getAll(requestKeys.stream().map(k -> TableKey.unversioned(k.getKey())).collect(Collectors.toList())).join();
+        Assert.assertEquals(keyVersions.size(), entries.size());
+        for (int i = 0; i < requestKeys.size(); i++) {
+            val k = requestKeys.get(i);
+            val expectedValue = k.getValue() == null ? null : TableEntry.versioned(k.getKey(), k.getValue(), getValue(k.getKey(), iteration));
+            val actualEntry = entries.get(i);
+            Assert.assertTrue(areEqual(expectedValue, actualEntry));
+        }
+    }
+
     @Test
     @Ignore("https://github.com/pravega/pravega/issues/5941") // TODO
     public void testIterators() {
@@ -555,20 +646,29 @@ cl
         return new VersionImpl(newSegmentId, newVersion);
     }
 
-    private boolean areEqualExcludingVersion(TableKey k1, TableKey k2) {
-        return k1.getPrimaryKey().equals(k2.getPrimaryKey())
-                && k1.getSecondaryKey().equals(k2.getSecondaryKey());
+    private boolean areEqualExcludingVersion(@Nullable TableKey k1, @Nullable TableKey k2) {
+        if (k1 == null) {
+            Assert.assertNull(k2);
+        }
+        if (!k1.getPrimaryKey().equals(k2.getPrimaryKey())) {
+            return false;
+        }
+        if (k1.getSecondaryKey() == null || k1.getSecondaryKey().remaining() == 0) {
+            return k2.getSecondaryKey() == null || k2.getSecondaryKey().remaining() == 0;
+        }
+
+        return k1.getSecondaryKey().equals(k2.getSecondaryKey());
     }
 
-    /*
-    private boolean areEqual(TableKey k1, TableKey k2) {
-        return areEqualExcludingVersion(k1, k2) && k1.getVersion().equals(k2.getVersion());
+    private boolean areEqual(@Nullable TableKey k1, @Nullable TableKey k2) {
+        return (k1 == null && k2 == null)
+                || (k1 != null && k2 != null && areEqualExcludingVersion(k1, k2) && k1.getVersion().equals(k2.getVersion()));
     }
 
-    private boolean areEqual(TableEntry e1, TableEntry e2) {
-        return areEqual(e1.getKey(), e2.getKey()) && e1.getValue().equals(e2.getValue());
+    private boolean areEqual(@Nullable TableEntry e1, @Nullable TableEntry e2) {
+        return (e1 == null && e2 == null)
+                || (e1 != null && e2 != null && areEqual(e1.getKey(), e2.getKey()) && e1.getValue().equals(e2.getValue()));
     }
-    */
 
     //endregion
 

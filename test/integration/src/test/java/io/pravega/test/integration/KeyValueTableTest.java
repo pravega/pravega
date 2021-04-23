@@ -209,7 +209,12 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     @Override
     protected KeyValueTable createKeyValueTable() {
         val kvt = newKeyValueTableName();
-        boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join();
+        return createKeyValueTable(kvt, DEFAULT_CONFIG);
+    }
+
+    @Override
+    protected KeyValueTable createKeyValueTable(KeyValueTableInfo kvt, KeyValueTableConfiguration configuration){
+        boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), configuration).join();
         Assert.assertTrue(created);
         return this.keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KeyValueTableClientConfiguration.builder().build());
     }

@@ -15,9 +15,11 @@
  */
 package io.pravega.client.tables.impl;
 
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.tables.KeyValueTable;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.Version;
@@ -65,6 +67,8 @@ abstract class KeyValueTableTestSetup extends LeakDetectorTestSuite {
     }
 
     protected abstract KeyValueTable createKeyValueTable();
+
+    protected abstract KeyValueTable createKeyValueTable(KeyValueTableInfo kvt, KeyValueTableConfiguration configuration);
 
     protected int getPrimaryKeyLength() {
         return Long.BYTES;
@@ -154,6 +158,10 @@ abstract class KeyValueTableTestSetup extends LeakDetectorTestSuite {
 
     protected String getUniqueKeyId(ByteBuffer pk) {
         return String.format("(PK=%s)", PK_SERIALIZER.deserialize(pk));
+    }
+
+    protected ByteBuffer getValue(ByteBuffer pk, int iteration) {
+        return getValue(pk, ByteBuffer.wrap(new byte[0]), iteration);
     }
 
     protected ByteBuffer getValue(ByteBuffer pk, ByteBuffer sk, int iteration) {
