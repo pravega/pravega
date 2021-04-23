@@ -111,6 +111,16 @@ public class Attributes {
     public static final UUID ATTRIBUTE_SEGMENT_TYPE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 9);
 
     /**
+     * Defines an attribute that is used to store SLTS snapshot id.
+     */
+    public static final UUID ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 10);
+
+    /**
+     * Defines an attribute that is used to store SLTS snapshot epoch.
+     */
+    public static final UUID ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 11);
+
+    /**
      * Determines whether the given attribute cannot be modified once originally set on the Segment.
      *
      * @param attributeId The Attribute Id to check.
