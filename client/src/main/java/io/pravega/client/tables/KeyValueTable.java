@@ -36,24 +36,39 @@ import lombok.NonNull;
  * <ul>
  * <li> The Primary Key is mandatory and is used to group all {@link TableKey}s with the same Primary Key together in the
  * same Table Partition; this allows multiple keys/entries sharing the same Primary Key to be updated/removed atomically.
- * <li> The Secondary Key is optional.
+ * The Primary Keys must all have the same length throughout the Key-Value Table. This needs to be configured when the
+ * Key-Value Table is created (See {@link KeyValueTableConfiguration#getPrimaryKeyLength()} and must be greater than 0.
+ *
+ * <li> The Secondary Key is optional. The Secondary Keys must all have the same length throughout the Key-Value Table.
+ * This needs to be configured when the Key-Value Table is created (See {@link KeyValueTableConfiguration#getSecondaryKeyLength()}
+ * and must be at least 0. For Key-Value Tables with no Secondary Keys, set this value to 0.
+ *
+ * <li> The Primary Keys must all have the same length throughout the Key-Value Table. This needs to be configured when
+ * the Key-Value Table is created (See {@link KeyValueTableConfiguration#getPrimaryKeyLength()}.
+ *
  * <li> Two {@link TableKey} instances are considered equal if they have the same Primary Key and same Secondary Key.
  * The same Secondary Key may be "associated" with different Primary Keys, in which case the resulting {@link TableKey}s
  * will be distinct. For example, consider Primary Keys PK1 != PK2 and Secondary Key SK1; key PK1.SK1 is different from
- * PK2.SK1 and both are different from PK1 and PK2 (no secondary key associated).
+ * PK2.SK1 and both are different from PK1 and PK2 (with no secondary key).
+ *
  * <li> Multiple {@link TableKey}/{@link TableEntry} instances with the same Primary Key can be updated or removed
  * atomically (either all changes will be applied or none will).
+ *
  * <li> {@link TableKey}s that do not share the same Primary Key may be hashed to different Key-Value Table Partitions
  * and cannot be used for multi-key/entry atomic updates or removals.
+ *
  * <li> {@link TableKey}s sharing the same Primary Key are grouped into the same Table Segment; as such, the choice of
- * Primary Keys can have performance implications. An ideally balanced Key-Value Table is one where there are no
- * Secondary Keys or the number of Secondary Keys associated with each Primary Key is approximately the same. To enable
- * a uniform distribution of Keys over the Key-Value Table, consider not using Secondary Keys at all. If this situation
- * cannot be avoided (i.e., multi-entry atomic updates are required), then it is recommended that Primary Keys themselves
- * be diversified. Such an approaches will ensure that the Key-Value Table load will be spread across all its Table Segments.
- * An undesirable situation is an extreme case where all the Keys in the  Key-Value Table are associated with a single
+ * Primary Keys can have performance implications. An ideally balanced Key-Value Table is one where there the load on each
+ * Table Segment is approximately the same; this can be achieved by not having any Secondary Keys at all or where each
+ * Primary Key has approximately the same number of Secondary Keys. To enable a uniform distribution of Keys over the
+ * Key-Value Table, consider not using Secondary Keys at all. If this situation cannot be avoided (i.e., multi-entry
+ * atomic updates are required), then it is recommended to use a sufficiently large number of Primary Keys compared to
+ * the number of Partitions configured on the Key-Value Table (the higher the ratio of Primary Keys to Partitions, the
+ * better). Such an approach will ensure that the Key-Value Table load will be spread across all its Table Segments.
+ * An undesirable situation is an extreme case where all the Keys in the Key-Value Table are associated with a single
  * Primary Key; in this case the entire Key-Value Table load will be placed on a single backing Table Segment instead of
- * spreading it across many Table Segments, leading to eventual performance degradation.
+ * spreading it across many Table Segments, limiting the performance of the whole Key-Value Table to that of a single
+ * Table Segment.
  * </ul>
  * <p>
  * Types of Updates:
@@ -61,35 +76,40 @@ import lombok.NonNull;
  * <li> Unconditional Updates will insert and/or overwrite any existing values for the given {@link TableKey}, regardless
  * of whether that {@link TableKey} previously existed or not, and regardless of what that {@link TableKey}'s {@link Version}
  * is.
+ *
  * <li> Conditional Updates will only overwrite an existing value if the specified {@link Version} matches the one that
- * is currently present on the server. Conditional inserts can be performed using {@link #put} or {@link #putAll} by passing
- * a {@link TableEntry} that was created using {@link TableEntry#notExists} and will only succeed if the associated
- * {@link TableKey} does not already exist. Conditional updates can performed using the same methods, by passing
+ * is currently present on the server. Conditional updates can performed using {@link #put} or {@link #putAll} by passing
  * {@link TableEntry} instances that were either created using {@link TableEntry#versioned} or were retrieved from a
- * {@link #get}, {@link #getAll} or {@link #entryIterator} call.
+ * {@link #get}, {@link #getAll} or {@link #entryIterator} call. Conditional inserts can be performed using the same
+ * methods by passing a {@link TableEntry} that was created using {@link TableEntry#notExists} and will only succeed if
+ * the associated {@link TableKey} does not already exist.
+ *
  * <li> Unconditional Removals will remove a {@link TableKey} regardless of what that {@link TableKey}'s {@link Version}
- * is. The operation will also succeed (albeit with no effect) if the {@link TableKey} does not exist. Such removals can
- * be performed using {@link #remove} or {@link #removeAll} by passing a {@link TableKey} created using
- * {@link TableKey#unversioned}.
+ * is. Such removals can be performed using {@link #remove} or {@link #removeAll} by passing a {@link TableKey} created
+ * using {@link TableKey#unversioned}. The operation will also succeed (albeit with no effect) if the {@link TableKey}
+ * does not exist.
+ *
  * <li> Conditional Removals will remove a {@link TableKey} only if the specified {@link Version} matches the one that is
  * currently present on the server. Such removals can be performed using {@link #remove} or {@link #removeAll} by passing
  * a {@link TableKey} created using {@link TableKey#versioned} or retrieved from a {@link #get}, {@link #getAll},
  * {@link #keyIterator} or {@link #entryIterator} call.
- * <li> Multi-key updates allow mixing different types of updates in the same update batch. Some entries may be conditioned
- * on their {@link TableKey}s not existing at all ({@link TableEntry#getKey()}{@link TableKey#getVersion()} equals
- * {@link Version#NOT_EXISTS}), some may be conditioned on specific versions and some may not have condition attached at
- * all ({@link TableEntry#getKey()}{@link TableKey#getVersion()} equals {@link Version#NO_VERSION}). All the conditions
- * that are present in the update batch must be satisfied in order for the update batch to be accepted - the condition
- * checks and updates are performed atomically. Use {@link #putAll(Iterable)} for such an update.
- * <li> Multi-key removals allow mixing different types of removals in the same removal batch. Some removals may be
- * conditioned on their affected {@link TableKey} having a specific version and some may not have a condition attached at
- * all ({@link TableKey#getVersion()} equals {@link Version#NO_VERSION}). Although unusual, it is possible to have a
- * removal conditioned on a {@link TableKey} not existing ({@link TableKey#getVersion()} equals {@link Version#NOT_EXISTS});
- * such an update will have no effect on that {@link TableKey} if it doesn't exist but it will prevent the rest of the
- * removals from the same batch from being applied - this can be used in scenarios where a set of {@link TableKey} must
- * be removed only if a particular {@link TableKey} is not present. All the conditions that are present in the removal
- * batch must be satisfied in order for the removal batch to be accepted - the condition checks and updates are performed
- * atomically. Use {@link #removeAll(Iterable)} for such a removal.
+ *
+ * <li> Multi-key updates allow mixing different types of updates in the same update batch. All the conditions that are
+ * present in the update batch must be satisfied in order for the update batch to be accepted - the condition checks and
+ * updates are performed atomically. Some entries may be conditioned on their {@link TableKey}s not existing at all
+ * ({@link TableEntry#getKey()}{@link TableKey#getVersion()} equals {@link Version#NOT_EXISTS}), some may be conditioned
+ * on specific versions and some may not have condition attached at all ({@link TableEntry#getKey()}{@link TableKey#getVersion()}
+ * equals {@link Version#NO_VERSION}). Use {@link #putAll(Iterable)} for such an update.
+ *
+ * <li> Multi-key removals allow mixing different types of removals in the same removal batch. All the conditions that
+ * are present in the removal batch must be satisfied in order for the removal batch to be accepted - the condition checks
+ * and updates are performed atomically. Some removals may be conditioned on their affected {@link TableKey} having a
+ * specific version and some may not have a condition attached at all ({@link TableKey#getVersion()} equals {@link Version#NO_VERSION}).
+ * Although unusual, it is possible to have a removal conditioned on a {@link TableKey} not existing ({@link TableKey#getVersion()}
+ * equals {@link Version#NOT_EXISTS}); such an update will have no effect on that {@link TableKey} if it doesn't exist
+ * but it will prevent the rest of the removals from the same batch from being applied - this can be used in scenarios
+ * where a set of {@link TableKey} must be removed only if a particular {@link TableKey} is not present. Use
+ * {@link #removeAll(Iterable)} for such a removal.
  * </ul>
  * <p>
  * Conditional Update Responses:
@@ -107,9 +127,9 @@ import lombok.NonNull;
 @Beta
 public interface KeyValueTable extends AutoCloseable {
     /**
-     * The maximum serialized length of a Table Segment Value.
+     * The maximum length of a Table Segment Value.
      */
-    int MAXIMUM_SERIALIZED_VALUE_LENGTH = TableSegment.MAXIMUM_VALUE_LENGTH;
+    int MAXIMUM_VALUE_LENGTH = TableSegment.MAXIMUM_VALUE_LENGTH;
 
     /**
      * Inserts a new or updates an existing {@link TableEntry} in the {@link KeyValueTable}.

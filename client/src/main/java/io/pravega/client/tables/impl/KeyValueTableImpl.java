@@ -296,8 +296,8 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
     }
 
     private ByteBuf serializeValue(ByteBuffer v) {
-        Preconditions.checkArgument(v.remaining() <= KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH,
-                "Value Too Long. Expected at most %s, actual %s.", KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH, v.remaining());
+        Preconditions.checkArgument(v.remaining() <= KeyValueTable.MAXIMUM_VALUE_LENGTH,
+                "Value Too Long. Expected at most %s, actual %s.", KeyValueTable.MAXIMUM_VALUE_LENGTH, v.remaining());
         return Unpooled.wrappedBuffer(v);
     }
 

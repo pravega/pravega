@@ -316,7 +316,7 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
         val longPK = ByteBuffer.allocate(getPrimaryKeyLength() + 1);
         val limitSK = ByteBuffer.wrap(new byte[getSecondaryKeyLength()]);
         val longSK = ByteBuffer.allocate(getSecondaryKeyLength() + 1);
-        val limitValue = ByteBuffer.wrap(new byte[KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH]);
+        val limitValue = ByteBuffer.wrap(new byte[KeyValueTable.MAXIMUM_VALUE_LENGTH]);
         rnd.nextBytes(limitPK.array());
         rnd.nextBytes(limitSK.array());
         rnd.nextBytes(limitValue.array());
@@ -368,7 +368,7 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
         // Max Value Length exceeded.
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected a rejection of a value that is too long.",
-                () -> kvt.put(TableEntry.unversioned(limitPK.duplicate(), limitSK.duplicate(), ByteBuffer.allocate(KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH + 1))),
+                () -> kvt.put(TableEntry.unversioned(limitPK.duplicate(), limitSK.duplicate(), ByteBuffer.allocate(KeyValueTable.MAXIMUM_VALUE_LENGTH + 1))),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
@@ -415,7 +415,7 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
         // Exceed by serialization size.
         // It is impossible to exceed the serialization size for retrievals or removals (due to the max key constraint),
         // so the only request we can verify is the update one.
-        val limitValue = new byte[KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH];
+        val limitValue = new byte[KeyValueTable.MAXIMUM_VALUE_LENGTH];
         rnd.nextBytes(limitValue);
         val putBatchSizeExceeded = new ArrayList<TableEntry>();
         int estimatedSize = 0;
