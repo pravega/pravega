@@ -16,6 +16,7 @@
 package io.pravega.client.tables.impl;
 
 import io.pravega.client.admin.KeyValueTableInfo;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
@@ -27,6 +28,7 @@ import io.pravega.client.tables.Version;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.LeakDetectorTestSuite;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -34,16 +36,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
+import lombok.AccessLevel;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -54,12 +60,57 @@ import org.junit.rules.Timeout;
  * and currently applies both to {@link KeyValueTableImplTests} (using mocked Controller and Segment Store) and
  * `io.pravega.test.integration.KeyValueTableImplTests` (using real Segment Store and Wire Protocol).
  */
-public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
-    
+public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
+    private static final Serializer<Long> PK_SERIALIZER = new LongSerializer();
+    private static final Serializer<Integer> SK_SERIALIZER = new IntegerSerializer();
+    private static final int DEFAULT_SEGMENT_COUNT = 4;
+    private static final int DEFAULT_PRIMARY_KEY_COUNT = 100;
+    private static final int DEFAULT_SECONDARY_KEY_COUNT = 10; // Per Primary Key
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Getter
     @Rule
     public final Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+    @Getter(AccessLevel.PROTECTED)
+    private List<ByteBuffer> primaryKeys;
+
+    @Before
+    public void setup() throws Exception {
+        int count = getPrimaryKeyCount();
+        val rnd = new Random(0);
+        this.primaryKeys = IntStream.range(0, count)
+                .mapToLong(i -> rnd.nextLong())
+                .mapToObj(PK_SERIALIZER::serialize)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 3;
+    }
+
+    protected abstract KeyValueTable createKeyValueTable();
+
+    protected abstract KeyValueTable createKeyValueTable(KeyValueTableInfo kvt, KeyValueTableConfiguration configuration);
+
+    protected int getPrimaryKeyLength() {
+        return Long.BYTES;
+    }
+
+    protected int getSecondaryKeyLength() {
+        return Integer.BYTES;
+    }
+
+    protected int getPrimaryKeyCount() {
+        return DEFAULT_PRIMARY_KEY_COUNT;
+    }
+
+    protected int getSegmentCount() {
+        return DEFAULT_SEGMENT_COUNT;
+    }
+
+    protected int getSecondaryKeyCount() {
+        return DEFAULT_SECONDARY_KEY_COUNT;
+    }
 
     /**
      * Tests the ability to perform single-key conditional insertions. These methods are exercised:
@@ -548,26 +599,6 @@ public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
         checkValues(iteration.get(), versions, kvt);
     }
 
-    private void checkValues(int iteration, Map<ByteBuffer, Version> keyVersions, KeyValueTable kvt) {
-        // Using single get.
-        for (val k : keyVersions.entrySet()) {
-            val expectedValue = k.getValue() == null ? null : TableEntry.versioned(k.getKey(), k.getValue(), getValue(k.getKey(), iteration));
-            val actualEntry = kvt.get(TableKey.unversioned(k.getKey())).join();
-            Assert.assertTrue(areEqual(expectedValue, actualEntry));
-        }
-
-        // Using multi-get.
-        val requestKeys = new ArrayList<>(keyVersions.entrySet());
-        val entries = kvt.getAll(requestKeys.stream().map(k -> TableKey.unversioned(k.getKey())).collect(Collectors.toList())).join();
-        Assert.assertEquals(keyVersions.size(), entries.size());
-        for (int i = 0; i < requestKeys.size(); i++) {
-            val k = requestKeys.get(i);
-            val expectedValue = k.getValue() == null ? null : TableEntry.versioned(k.getKey(), k.getValue(), getValue(k.getKey(), iteration));
-            val actualEntry = entries.get(i);
-            Assert.assertTrue(areEqual(expectedValue, actualEntry));
-        }
-    }
-
     @Test
     @Ignore("https://github.com/pravega/pravega/issues/5941") // TODO
     public void testIterators() {
@@ -639,11 +670,92 @@ cl
 
     //region Helpers
 
+    private void forEveryKey(BiConsumer<ByteBuffer, ByteBuffer> handler) {
+        int secondaryCount = getSecondaryKeyCount();
+        for (val pk : getPrimaryKeys()) {
+            for (int skId = 0; skId < secondaryCount; skId++) {
+                handler.accept(pk.duplicate(), SK_SERIALIZER.serialize(skId));
+            }
+        }
+    }
+
+    private void forEveryPrimaryKey(BiConsumer<ByteBuffer, List<ByteBuffer>> handler) {
+        int secondaryCount = getSecondaryKeyCount();
+        for (val pk : getPrimaryKeys()) {
+            val sks = IntStream.range(0, secondaryCount).mapToObj(SK_SERIALIZER::serialize).collect(Collectors.toList());
+            handler.accept(pk, sks);
+        }
+    }
+
     private Version alterVersion(Version original, boolean changeSegmentId, boolean changeVersion) {
         VersionImpl impl = original.asImpl();
         long newSegmentId = changeSegmentId ? impl.getSegmentId() + 1 : impl.getSegmentId();
         long newVersion = changeVersion ? impl.getSegmentVersion() + 1 : impl.getSegmentVersion();
         return new VersionImpl(newSegmentId, newVersion);
+    }
+
+    private void checkValues(int iteration, Versions versions, KeyValueTable keyValueTable) {
+        // Check individually.
+        forEveryKey((pk, sk) -> {
+            val keyId = getUniqueKeyId(pk, sk);
+            val expectedValue = getValue(pk, sk, iteration);
+            val expectedVersion = versions.get(keyId);
+
+            val requestKey = TableKey.unversioned(pk, sk);
+            val actualEntry = keyValueTable.get(requestKey).join();
+            checkValue(requestKey, expectedValue, expectedVersion, actualEntry, keyId);
+        });
+
+        // Check using getAll.
+        forEveryPrimaryKey((pk, secondaryKeys) -> {
+            val expectedVersions = secondaryKeys.stream()
+                    .map(sk -> versions.get(getUniqueKeyId(pk, sk)))
+                    .collect(Collectors.toList());
+            val expectedValues = secondaryKeys.stream()
+                    .map(sk -> getValue(pk, sk, iteration))
+                    .collect(Collectors.toList());
+            val requestKeys = secondaryKeys.stream().map(sk -> TableKey.unversioned(pk, sk)).collect(Collectors.toList());
+            val result = keyValueTable.getAll(requestKeys).join();
+
+            val hint = getUniqueKeyId(pk);
+            Assert.assertEquals("Unexpected result size" + hint, requestKeys.size(), result.size());
+            for (int i = 0; i < requestKeys.size(); i++) {
+                checkValue(requestKeys.get(i), expectedValues.get(i), expectedVersions.get(i), result.get(i), hint);
+            }
+        });
+    }
+
+    private void checkValues(int iteration, Map<ByteBuffer, Version> keyVersions, KeyValueTable kvt) {
+        // Using single get.
+        for (val k : keyVersions.entrySet()) {
+            val expectedValue = k.getValue() == null ? null : TableEntry.versioned(k.getKey(), k.getValue(), getValue(k.getKey(), iteration));
+            val actualEntry = kvt.get(TableKey.unversioned(k.getKey())).join();
+            Assert.assertTrue(areEqual(expectedValue, actualEntry));
+        }
+
+        // Using multi-get.
+        val requestKeys = new ArrayList<>(keyVersions.entrySet());
+        val entries = kvt.getAll(requestKeys.stream().map(k -> TableKey.unversioned(k.getKey())).collect(Collectors.toList())).join();
+        Assert.assertEquals(keyVersions.size(), entries.size());
+        for (int i = 0; i < requestKeys.size(); i++) {
+            val k = requestKeys.get(i);
+            val expectedValue = k.getValue() == null ? null : TableEntry.versioned(k.getKey(), k.getValue(), getValue(k.getKey(), iteration));
+            val actualEntry = entries.get(i);
+            Assert.assertTrue(areEqual(expectedValue, actualEntry));
+        }
+    }
+
+    private void checkValue(TableKey key, ByteBuffer expectedValue, Version expectedVersion, TableEntry actualEntry, Object hint) {
+        if (expectedVersion == null) {
+            // Key was removed or never inserted.
+            Assert.assertNull("Not expecting a value for removed key" + hint, actualEntry);
+        } else {
+            // Key exists.
+            Assert.assertEquals("Unexpected Primary Key" + hint, key.getPrimaryKey(), actualEntry.getKey().getPrimaryKey());
+            Assert.assertEquals("Unexpected Secondary Key" + hint, key.getSecondaryKey(), actualEntry.getKey().getSecondaryKey());
+            Assert.assertEquals("Unexpected version" + hint, expectedVersion, actualEntry.getKey().getVersion());
+            Assert.assertEquals("Unexpected value" + hint, expectedValue, actualEntry.getValue());
+        }
     }
 
     private boolean areEqualExcludingVersion(@Nullable TableKey k1, @Nullable TableKey k2) {
@@ -670,9 +782,75 @@ cl
                 || (e1 != null && e2 != null && areEqual(e1.getKey(), e2.getKey()) && e1.getValue().equals(e2.getValue()));
     }
 
+    private String getUniqueKeyId(ByteBuffer pk, ByteBuffer sk) {
+        return String.format("(PK=%s, SK=%s)", PK_SERIALIZER.deserialize(pk),
+                sk == null || sk.remaining() == 0 ? "[null]" : SK_SERIALIZER.deserialize(sk));
+    }
+
+    private String getUniqueKeyId(ByteBuffer pk) {
+        return String.format("(PK=%s)", PK_SERIALIZER.deserialize(pk));
+    }
+
+    private ByteBuffer getValue(ByteBuffer pk, int iteration) {
+        return getValue(pk, ByteBuffer.wrap(new byte[0]), iteration);
+    }
+
+    private ByteBuffer getValue(ByteBuffer pk, ByteBuffer sk, int iteration) {
+        val result = ByteBuffer.allocate(pk.remaining() + sk.remaining() + Integer.BYTES);
+        result.put(pk.duplicate());
+        result.put(sk.duplicate());
+        result.putInt(iteration);
+        return result.asReadOnlyBuffer();
+    }
+
     //endregion
 
     //region Helper classes
+
+    private static class Versions {
+        @Getter(AccessLevel.PACKAGE)
+        private final Map<String, VersionImpl> versions = new ConcurrentHashMap<>();
+
+        void add(String keyId, Version kv) {
+            this.versions.put(keyId, kv.asImpl());
+        }
+
+        void remove(String keyId) {
+            this.versions.remove(keyId);
+        }
+
+        VersionImpl get(String keyId) {
+            return this.versions.getOrDefault(keyId, null);
+        }
+
+        boolean isEmpty() {
+            return this.versions.isEmpty();
+        }
+    }
+
+    private static class IntegerSerializer implements Serializer<Integer> {
+        @Override
+        public ByteBuffer serialize(Integer value) {
+            return ByteBuffer.allocate(Integer.BYTES).putInt(0, value).asReadOnlyBuffer();
+        }
+
+        @Override
+        public Integer deserialize(ByteBuffer serializedValue) {
+            return serializedValue.duplicate().getInt();
+        }
+    }
+
+    private static class LongSerializer implements Serializer<Long> {
+        @Override
+        public ByteBuffer serialize(Long value) {
+            return ByteBuffer.allocate(Long.BYTES).putLong(0, value).asReadOnlyBuffer();
+        }
+
+        @Override
+        public Long deserialize(ByteBuffer serializedValue) {
+            return serializedValue.duplicate().getLong();
+        }
+    }
 
     @FunctionalInterface
     private interface InvokeIterator<T> {
