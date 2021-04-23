@@ -213,7 +213,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     }
 
     @Override
-    protected KeyValueTable createKeyValueTable(KeyValueTableInfo kvt, KeyValueTableConfiguration configuration){
+    protected KeyValueTable createKeyValueTable(KeyValueTableInfo kvt, KeyValueTableConfiguration configuration) {
         boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), configuration).join();
         Assert.assertTrue(created);
         return this.keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KeyValueTableClientConfiguration.builder().build());
