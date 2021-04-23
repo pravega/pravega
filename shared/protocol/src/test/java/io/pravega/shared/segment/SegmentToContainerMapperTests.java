@@ -140,6 +140,8 @@ public class SegmentToContainerMapperTests {
             Assert.assertEquals(i, m.getContainerId(NameUtils.getMetadataSegmentName(i)));
             Assert.assertEquals(i, m.getContainerId(NameUtils.getStorageMetadataSegmentName(i)));
         }
+        // Other Segment naming formats should fall back to regular hashing as usual.
+        Assert.assertNotEquals(0, m.getContainerId(NameUtils.getAttributeSegmentName(NameUtils.getStorageMetadataSegmentName(0))));
     }
 
     private String getSegmentName(int segmentId) {

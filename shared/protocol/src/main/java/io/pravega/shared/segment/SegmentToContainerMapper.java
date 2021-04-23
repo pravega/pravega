@@ -18,10 +18,12 @@ package io.pravega.shared.segment;
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.shared.NameUtils;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Defines a Mapper from StreamSegment Name to Container Id.
  */
+@Slf4j
 public final class SegmentToContainerMapper {
     
     private final HashHelper hasher = HashHelper.seededWith("SegmentToContainerMapper");
@@ -59,8 +61,11 @@ public final class SegmentToContainerMapper {
      * @return Integer indicating the container id for the given StreamSegment.
      */
     public int getContainerId(String streamSegmentName) {
-       return isAddressableSegment(streamSegmentName) ? getSegmentContainerId(streamSegmentName) :
-               getInternalMetadataSegmentContainerId(streamSegmentName);
+        int containerId = 0;
+        if (!isAddressableSegment(streamSegmentName)) {
+            containerId = tryGetInternalMetadataSegmentContainerId(streamSegmentName);
+        }
+        return (containerId >= 0) ? containerId : getSegmentContainerId(streamSegmentName);
     }
 
     /**
@@ -93,8 +98,13 @@ public final class SegmentToContainerMapper {
      * @param streamSegmentName  Name of the Segment.
      * @return                   Container id for this internal metadata Segment.
      */
-    private int getInternalMetadataSegmentContainerId(String streamSegmentName) {
-        return Integer.parseInt(streamSegmentName.substring(streamSegmentName.lastIndexOf(NameUtils.INTERNAL_NAME_PREFIX) + 1));
+    private int tryGetInternalMetadataSegmentContainerId(String streamSegmentName) {
+        try {
+            return Integer.parseInt(streamSegmentName.substring(streamSegmentName.lastIndexOf(NameUtils.INTERNAL_NAME_PREFIX) + 1));
+        } catch (NumberFormatException e) {
+            log.warn("Metadata segment name has a not supported naming ({}), falling back to default assignment.", streamSegmentName);
+        }
+        return Integer.MIN_VALUE;
     }
 
     private int mapStreamSegmentNameToContainerId(String streamSegmentName) {
