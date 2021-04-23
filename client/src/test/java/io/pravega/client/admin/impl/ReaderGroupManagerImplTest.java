@@ -25,6 +25,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.stream.ConfigMismatchException;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Serializer;
@@ -54,6 +55,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -132,8 +134,7 @@ public class ReaderGroupManagerImplTest {
         ReaderGroupConfig newConfig = ReaderGroupConfig.builder()
                                                        .stream(createStream("s1"), createStreamCut("s1", 2))
                                                        .build();
-        boolean result = readerGroupManager.createReaderGroup(GROUP_NAME, newConfig);
-        assertFalse(result);
+        assertThrows(ConfigMismatchException.class, () -> readerGroupManager.createReaderGroup(GROUP_NAME, newConfig));
         verify(clientFactory, never()).createStateSynchronizer(anyString(), any(Serializer.class),
                                                                 any(Serializer.class), any(SynchronizerConfig.class));
         Map<SegmentWithRange, Long> segments = ImmutableMap.<SegmentWithRange, Long>builder()
@@ -163,7 +164,7 @@ public class ReaderGroupManagerImplTest {
                 .thenReturn(CompletableFuture.completedFuture(expectedConfig));
         // Create a ReaderGroup
         boolean created = readerGroupManager.createReaderGroup(GROUP_NAME, config);
-        assertTrue(created);
+        assertFalse(created);
         verify(clientFactory, never()).createStateSynchronizer(anyString(), any(Serializer.class),
                                                                 any(Serializer.class), any(SynchronizerConfig.class));
         verify(synchronizer, never()).initialize(any(InitialUpdate.class));
