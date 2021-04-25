@@ -45,8 +45,4 @@ public class DataCorruptionException extends ServiceHaltException {
     public DataCorruptionException(String message, Throwable cause, Object... additionalData) {
         super(message, cause, additionalData);
     }
-
-    public DataCorruptionException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
-        super(message, cause, enableSuppression, writableStackTrace);
-    }
 }
