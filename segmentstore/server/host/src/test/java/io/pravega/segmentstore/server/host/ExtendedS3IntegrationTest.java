@@ -37,6 +37,7 @@ import io.pravega.storage.extendeds3.S3ClientMock;
 import io.pravega.storage.extendeds3.S3Mock;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
+import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.Getter;
@@ -121,7 +122,11 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
         private final ExtendedS3StorageConfig config;
 
         @Getter
-        private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
+        private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .journalSnapshotInfoUpdateFrequency(Duration.ofMillis(10))
+                .maxJournalUpdatesPerSnapshot(5)
+                .selfCheckEnabled(true)
+                .build();
 
         @Getter
         private final ScheduledExecutorService executor;
