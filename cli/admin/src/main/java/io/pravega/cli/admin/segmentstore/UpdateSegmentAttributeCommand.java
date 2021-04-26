@@ -40,30 +40,26 @@ public class UpdateSegmentAttributeCommand extends SegmentStoreCommand {
     public void execute() {
         ensureArgCount(5);
 
-        final String fullyQualifiedSegmentName = getCommandArgs().getArgs().get(0);
-        final UUID attributeId = UUID.fromString(getCommandArgs().getArgs().get(1));
+        final String fullyQualifiedSegmentName = getArg(0);
+        final UUID attributeId = getUUIDArg(1);
         final long newValue = getLongArg(2);
         final long existingValue = getLongArg(3);
-        final String segmentStoreHost = getCommandArgs().getArgs().get(4);
+        final String segmentStoreHost = getArg(4);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
         CompletableFuture<WireCommands.SegmentAttributeUpdated> reply = segmentHelper.updateSegmentAttribute(fullyQualifiedSegmentName,
                 attributeId, newValue, existingValue, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
-        try {
-            output("UpdateSegmentAttribute: %s", reply.join().toString());
-        } catch (Exception e) {
-            output("Error executing UpdateSegmentAttributeCommand command: %s", e.getMessage());
-        }
+        output("UpdateSegmentAttribute: %s", reply.join().toString());
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "update-segment-attribute", "Get the details of a given Segment.",
+        return new CommandDescriptor(COMPONENT, "update-segment-attribute", "Updates an attribute for a Segment.",
                 new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to update attribute (e.g., scope/stream/0.#epoch.0)."),
                 new ArgDescriptor("attribute-id", "UUID of the Segment Attribute to update."),
                 new ArgDescriptor("attribute-new-value", "New value of the Segment Attribute."),
                 new ArgDescriptor("attribute-old-value", "Existing value of the Segment Attribute."),
-                new ArgDescriptor("segmentstore-endpoint", "Name of the Segment Store we want to send this request."));
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }

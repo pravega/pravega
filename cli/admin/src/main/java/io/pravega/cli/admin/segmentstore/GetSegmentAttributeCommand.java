@@ -40,26 +40,22 @@ public class GetSegmentAttributeCommand extends SegmentStoreCommand {
     public void execute() {
         ensureArgCount(3);
 
-        final String fullyQualifiedSegmentName = getCommandArgs().getArgs().get(0);
-        final UUID attributeId = UUID.fromString(getCommandArgs().getArgs().get(1));
-        final String segmentStoreHost = getCommandArgs().getArgs().get(2);
+        final String fullyQualifiedSegmentName = getArg(0);
+        final UUID attributeId = getUUIDArg(1);
+        final String segmentStoreHost = getArg(2);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
         CompletableFuture<WireCommands.SegmentAttribute> reply = segmentHelper.getSegmentAttribute(fullyQualifiedSegmentName,
                 attributeId, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
-        try {
-            output("GetSegmentAttribute: %s", reply.join().toString());
-        } catch (Exception e) {
-            output("Error executing GetSegmentAttributeCommand command: %s", e.getMessage());
-        }
+        output("GetSegmentAttribute: %s", reply.join().toString());
     }
 
     public static CommandDescriptor descriptor() {
-        return new CommandDescriptor(COMPONENT, "get-segment-attribute", "Get the details of a given Segment.",
+        return new CommandDescriptor(COMPONENT, "get-segment-attribute", "Gets an attribute for a Segment.",
                 new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to get info from (e.g., scope/stream/0.#epoch.0)."),
                 new ArgDescriptor("attribute-id", "UUID of the Segment Attribute to fetch."),
-                new ArgDescriptor("segmentstore-endpoint", "Name of the Segment Store we want to send this request."));
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }

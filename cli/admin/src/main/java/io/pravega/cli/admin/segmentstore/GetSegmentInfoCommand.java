@@ -42,24 +42,20 @@ public class GetSegmentInfoCommand extends SegmentStoreCommand {
     public void execute() {
         ensureArgCount(2);
 
-        final String fullyQualifiedSegmentName = getCommandArgs().getArgs().get(0);
-        final String segmentStoreHost = getCommandArgs().getArgs().get(1);
+        final String fullyQualifiedSegmentName = getArg(0);
+        final String segmentStoreHost = getArg(1);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
         CompletableFuture<WireCommands.StreamSegmentInfo> reply = segmentHelper.getSegmentInfo(fullyQualifiedSegmentName,
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
-        try {
-            output("StreamSegmentInfo: %s", reply.join().toString());
-        } catch (Exception e) {
-            output("Error executing GetSegmentInfoCommand command: %s", e.getMessage());
-        }
+        output("StreamSegmentInfo: %s", reply.join().toString());
     }
 
     public static CommandDescriptor descriptor() {
         return new CommandDescriptor(COMPONENT, "get-segment-info", "Get the details of a given Segment.",
                 new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to get info from (e.g., scope/stream/0.#epoch.0)."),
-                new ArgDescriptor("segmentstore-endpoint", "Name of the Segment Store we want to send this request."));
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }

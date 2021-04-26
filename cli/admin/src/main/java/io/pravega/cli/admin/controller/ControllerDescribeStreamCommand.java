@@ -49,8 +49,8 @@ public class ControllerDescribeStreamCommand extends ControllerCommand {
     @Override
     public void execute() {
         ensureArgCount(2);
-        final String scope = getCommandArgs().getArgs().get(0);
-        final String stream = getCommandArgs().getArgs().get(1);
+        final String scope = getArg(0);
+        final String stream = getArg(1);
 
         try {
             @Cleanup

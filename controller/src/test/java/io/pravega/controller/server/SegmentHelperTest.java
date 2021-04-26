@@ -437,6 +437,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     @Test
     public void testReadSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
         CompletableFuture<WireCommands.SegmentRead> retVal = helper.readSegment("", 0, 10,
                 new PravegaNodeUri("localhost", 12345), "");

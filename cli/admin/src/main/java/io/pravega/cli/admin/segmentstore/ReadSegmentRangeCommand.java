@@ -22,8 +22,11 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class ReadSegmentRangeCommand extends SegmentStoreCommand {
 
@@ -39,24 +42,22 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
     }
 
     @Override
-    public void execute() {
+    public void execute() throws ExecutionException, InterruptedException, TimeoutException {
         ensureArgCount(4);
 
-        final String fullyQualifiedSegmentName = getCommandArgs().getArgs().get(0);
+        final String fullyQualifiedSegmentName = getArg(0);
         final int offset = getIntArg(1);
         final int length = getIntArg(2);
-        final String segmentStoreHost = getCommandArgs().getArgs().get(3);
+        final String segmentStoreHost = getArg(3);
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
         CompletableFuture<WireCommands.SegmentRead> reply = segmentHelper.readSegment(fullyQualifiedSegmentName,
                 offset, length, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
-        try {
-            output("ReadSegment: %s", reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS).toString());
-        } catch (Exception e) {
-            output("Error executing ReadSegment command: %s", e.getMessage());
-        }
+        WireCommands.SegmentRead segmentRead = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        output("ReadSegment: %s", segmentRead.toString());
+        output("SegmentRead content: %s", segmentRead.getData().toString(StandardCharsets.UTF_8));
     }
 
     public static CommandDescriptor descriptor() {
@@ -64,6 +65,6 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
                 new ArgDescriptor("qualified-segment-name", "Fully qualified name of the Segment to get info from (e.g., scope/stream/0.#epoch.0)."),
                 new ArgDescriptor("offset", "Starting point of the read request within the target Segment."),
                 new ArgDescriptor("length", "Number of bytes to read."),
-                new ArgDescriptor("segmentstore-endpoint", "Name of the Segment Store we want to send this request."));
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }

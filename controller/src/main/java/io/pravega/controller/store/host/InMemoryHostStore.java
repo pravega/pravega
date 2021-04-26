@@ -41,7 +41,7 @@ public class InMemoryHostStore implements HostControllerStore {
     InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap, int containerCount) {
         Preconditions.checkNotNull(hostContainerMap, "hostContainerMap");
         this.hostContainerMap = hostContainerMap;
-        segmentMapper = new SegmentToContainerMapper(containerCount);
+        segmentMapper = new SegmentToContainerMapper(containerCount, true);
     }
 
     @Override

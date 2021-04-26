@@ -70,6 +70,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -196,6 +197,14 @@ public abstract class AdminCommand {
 
     protected long getLongArg(int index) {
         return getArg(index, Long::parseLong);
+    }
+
+    protected UUID getUUIDArg(int index) {
+        return getArg(index, UUID::fromString);
+    }
+
+    protected String getArg(int index) {
+        return getArg(index, String::toString);
     }
 
     private <T> T getArg(int index, Function<String, T> converter) {

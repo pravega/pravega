@@ -111,6 +111,7 @@ public class SegmentHelper implements AutoCloseable {
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_FAILING_REPLIES =
             ImmutableMap.<Class<? extends Request>, Set<Class<? extends Reply>>>builder()
+            .put(WireCommands.GetStreamSegmentInfo.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .put(WireCommands.ReadSegment.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .put(WireCommands.GetSegmentAttribute.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .put(WireCommands.UpdateSegmentAttribute.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))

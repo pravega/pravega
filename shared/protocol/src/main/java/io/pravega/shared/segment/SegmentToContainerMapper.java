@@ -28,15 +28,18 @@ public final class SegmentToContainerMapper {
     
     private final HashHelper hasher = HashHelper.seededWith("SegmentToContainerMapper");
     private final int containerCount;
+    private final boolean enableAdmin;
 
     /**
      * Creates a new instance of the SegmentToContainerMapper class.
      *
      * @param containerCount The number of containers that are available.
+     * @param enableAdmin    Whether we allow to resolve internal metadata segments (i.e., when Admin Gateway is enabled).
      */
-    public SegmentToContainerMapper(int containerCount) {
+    public SegmentToContainerMapper(int containerCount, boolean enableAdmin) {
         Exceptions.checkArgument(containerCount > 0, "containerCount", "containerCount must be a positive integer.");
         this.containerCount = containerCount;
+        this.enableAdmin = enableAdmin;
     }
 
     /**
@@ -61,6 +64,14 @@ public final class SegmentToContainerMapper {
      * @return Integer indicating the container id for the given StreamSegment.
      */
     public int getContainerId(String streamSegmentName) {
+        // If not in admin mode, return the hash for a Segment as regular. Enabling admin mode gives access to internal
+        // metadata segments, but is also more CPU expensive (i.e., String manipulation). As this operation is in the
+        // hot path, we suggest to only allow admin mode when necessary for debug/repair purposes.
+        if (!enableAdmin) {
+            return getSegmentContainerId(streamSegmentName);
+        }
+
+        // Only if the admin gateway is enabled, explore if we can locate internal Segments.
         int containerId = Integer.MIN_VALUE;
         if (!isAddressableSegment(streamSegmentName)) {
             containerId = tryGetInternalMetadataSegmentContainerId(streamSegmentName);
