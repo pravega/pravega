@@ -56,9 +56,9 @@ import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.bookkeeper.client.BKException.BKLedgerClosedException;
-import org.apache.bookkeeper.client.BKException.ZKException;
-import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
+import org.apache.bookkeeper.client.api.BookKeeper;
+import org.apache.bookkeeper.client.api.DigestType;
 import org.apache.bookkeeper.client.api.ReadHandle;
 import org.apache.bookkeeper.client.api.WriteHandle;
 import org.apache.curator.framework.CuratorFramework;
@@ -67,10 +67,8 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -82,8 +80,6 @@ import org.junit.rules.Timeout;
 public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     //region Setup, Config and Cleanup
 
-    private static final AtomicBoolean SECURE_BK = new AtomicBoolean();
-
     private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT = 500;
     private static final int BOOKIE_COUNT = 1;
@@ -91,32 +87,33 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     private static final int MAX_WRITE_ATTEMPTS = 5;
     private static final int MAX_LEDGER_SIZE = WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 20);
 
-    private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
-    private static final AtomicInteger BK_PORT = new AtomicInteger();
-
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(100 * TIMEOUT.getSeconds());
+    public Timeout globalTimeout = Timeout.seconds(100);
     private final AtomicReference<BookKeeperConfig> config = new AtomicReference<>();
     private final AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
     private final AtomicReference<BookKeeperLogFactory> factory = new AtomicReference<>();
+    private final AtomicBoolean secureBk = new AtomicBoolean();
+    private final AtomicReference<BookKeeperServiceRunner> bkService = new AtomicReference<>();
 
     /**
      * Start BookKeeper once for the duration of this class. This is pretty strenuous, so in the interest of running time
      * we only do it once.
      */
-    public static void setUpBookKeeper(boolean secure) throws Exception {
+    public void setUpBookKeeper(boolean secure) throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
-        SECURE_BK.set(secure);
-        BK_PORT.set(TestUtils.getAvailableListenPort());
+        secureBk.set(secure);
+        String testId = Long.toHexString(System.nanoTime());
+        int zkPort = TestUtils.getAvailableListenPort();
         val bookiePorts = new ArrayList<Integer>();
         for (int i = 0; i < BOOKIE_COUNT; i++) {
             bookiePorts.add(TestUtils.getAvailableListenPort());
         }
 
+        String ledgersPath = "/pravega/bookkeeper/ledgers/" + testId;
         val runner = BookKeeperServiceRunner.builder()
                                             .startZk(true)
-                                            .zkPort(BK_PORT.get())
-                                            .ledgersPath("/pravega/bookkeeper/ledgers")
+                                            .zkPort(zkPort)
+                                            .ledgersPath(ledgersPath)
                                             .secureBK(isSecure())
                                             .secureZK(isSecure())
                                             .tlsTrustStore("../../../config/bookie.truststore.jks")
@@ -125,45 +122,28 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                                             .bookiePorts(bookiePorts)
                                             .build();
         runner.startAll();
-        BK_SERVICE.set(runner);
-    }
-
-    public static boolean isSecure() {
-        return SECURE_BK.get();
-    }
-
-    @AfterClass
-    public static void tearDownBookKeeper() throws Exception {
-        val process = BK_SERVICE.getAndSet(null);
-        if (process != null) {
-            process.close();
-        }
-    }
-
-    /**
-     * Before each test, we create a new namespace; this ensures that data created from a previous test does not leak
-     * into the current one (namespaces cannot be deleted (at least not through the API)).
-     */
-    @Before
-    public void setUp() throws Exception {
+        bkService.set(runner);
+        
         // Create a ZKClient with a unique namespace.
-        String namespace = "pravega/segmentstore/unittest_" + Long.toHexString(System.nanoTime());
+        String namespace = "pravega/segmentstore/unittest_" + testId;
         this.zkClient.set(CuratorFrameworkFactory
                 .builder()
-                .connectString("localhost:" + BK_PORT.get())
+                .connectString("127.0.0.1:" + zkPort)
                 .namespace(namespace)
-                .retryPolicy(new ExponentialBackoffRetry(1000, 5))
+                .retryPolicy(new ExponentialBackoffRetry(1000, 10))
                 .build());
         this.zkClient.get().start();
+        this.zkClient.get().blockUntilConnected();
 
         // Setup config to use the port and namespace.
         this.config.set(BookKeeperConfig
                 .builder()
-                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
+                .with(BookKeeperConfig.ZK_ADDRESS, "127.0.0.1:" + zkPort)
                 .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, MAX_WRITE_ATTEMPTS)
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, MAX_LEDGER_SIZE)
+                .with(BookKeeperConfig.BK_DIGEST_TYPE, DigestType.DUMMY.name())
                 .with(BookKeeperConfig.ZK_METADATA_PATH, namespace)
-                .with(BookKeeperConfig.BK_LEDGER_PATH, "/pravega/bookkeeper/ledgers")
+                .with(BookKeeperConfig.BK_LEDGER_PATH, ledgersPath)
                 .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, BOOKIE_COUNT)
@@ -174,11 +154,20 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         // Create default factory.
         val factory = new BookKeeperLogFactory(this.config.get(), this.zkClient.get(), executorService());
         factory.initialize();
-        this.factory.set(factory);
+        this.factory.set(factory);        
+    }
+
+    public boolean isSecure() {
+        return secureBk.get();
     }
 
     @After
-    public void tearDown() {
+    public void tearDownBookKeeper() throws Exception {
+        val process = bkService.getAndSet(null);
+        if (process != null) {
+            process.close();
+        }
+        
         val factory = this.factory.getAndSet(null);
         if (factory != null) {
             factory.close();
@@ -190,6 +179,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         }
     }
 
+
     /**
      * Tests the BookKeeperLogFactory and its initialization.
      */
@@ -197,7 +187,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     public void testFactoryInitialize() {
         BookKeeperConfig bkConfig = BookKeeperConfig
                 .builder()
-                .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
+                .with(BookKeeperConfig.ZK_ADDRESS, "127.0.0.1:" + TestUtils.getAvailableListenPort())
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * 10) // Very frequent rollovers.
                 .with(BookKeeperConfig.ZK_METADATA_PATH, this.zkClient.get().getNamespace())
                 .build();
@@ -206,7 +196,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         AssertExtensions.assertThrows("",
                 factory::initialize,
                 ex -> ex instanceof DataLogNotAvailableException &&
-                        ex.getCause() instanceof ZKException
+                        ex.getCause() != null
         );
     }
 
@@ -275,7 +265,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 // Resume the bookie with the appends still in flight.
                 resumeFirstBookie();
                 AssertExtensions.assertThrows("Bookies should be running, but they aren't",
-                        BookKeeperLogTests::restartFirstBookie, ex -> ex instanceof IllegalStateException);
+                        this::restartFirstBookie, ex -> ex instanceof IllegalStateException);
             }
 
             // Wait for all writes to complete, then reassemble the data in the order set by LogAddress.
@@ -328,9 +318,9 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                             });
                 }
                 AssertExtensions.assertThrows("Bookies shouldn't be running, but they are",
-                        BookKeeperLogTests::suspendFirstBookie, ex -> ex instanceof IllegalStateException);
+                        this::suspendFirstBookie, ex -> ex instanceof IllegalStateException);
                 AssertExtensions.assertThrows("Bookies shouldn't be running, but they are",
-                        BookKeeperLogTests::resumeFirstBookie, ex -> ex instanceof IllegalStateException);
+                        this::resumeFirstBookie, ex -> ex instanceof IllegalStateException);
             } finally {
                 // Don't forget to resume the bookie, but only AFTER we are done testing.
                 restartFirstBookie();
@@ -778,21 +768,21 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         return THREAD_POOL_SIZE;
     }
 
-    private static void stopFirstBookie() {
-        BK_SERVICE.get().stopBookie(0);
+    private void stopFirstBookie() {
+        bkService.get().stopBookie(0);
     }
 
-    private static void suspendFirstBookie() {
-        BK_SERVICE.get().suspendBookie(0);
+    private void suspendFirstBookie() {
+        bkService.get().suspendBookie(0);
     }
 
-    private static void resumeFirstBookie() {
-        BK_SERVICE.get().resumeBookie(0);
+    private void resumeFirstBookie() {
+        bkService.get().resumeBookie(0);
     }
 
     @SneakyThrows
-    private static void restartFirstBookie() {
-        BK_SERVICE.get().startBookie(0);
+    private void restartFirstBookie() {
+        bkService.get().startBookie(0);
     }
 
     private static boolean isLedgerClosedException(Throwable ex) {
@@ -915,15 +905,15 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     //region Actual Test Implementations
 
     public static class SecureBookKeeperLogTests extends BookKeeperLogTests {
-        @BeforeClass
-        public static void startUp() throws Exception {
+        @Before
+        public void startUp() throws Exception {
             setUpBookKeeper(true);
         }
     }
 
     public static class RegularBookKeeperLogTests extends BookKeeperLogTests {
-        @BeforeClass
-        public static void startUp() throws Exception {
+        @Before
+        public void startUp() throws Exception {
             setUpBookKeeper(false);
         }
     }

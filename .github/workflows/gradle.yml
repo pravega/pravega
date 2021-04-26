@@ -29,27 +29,23 @@ on:
 # Define a few constants that are shared across all the jobs.
 env:
   GLOBAL_CACHE_PATH: |
-    .gradle
     ~/.gradle
     ~/.m2
   GLOBAL_CACHE_KEY: gradle-m2-java-11
   GLOBAL_CACHE_RESTORE_KEYS: |
     gradle-m2-java-
     gradle-m2
-  # We cache the source code, resources and build output. This is generated on the build job and reused in dependent jobs.
-  BUILD_CACHE_PATH: ./*
-  # We cache test execution (including history) and reports (code coverage) per test job. This helps speed up workflow re-runs.
-  TEST_OUTPUT_CACHE_PATH: |
+  # We cache the class files, resources and build output. This is generated on the build job and reused in dependent jobs.
+  # If there are subsequent builds this includes test execution.
+  BUILD_CACHE_PATH: |
     .gradle
-    **/build/test-results
-    **/**/build/test-results
-    **/**/**/build/test-results
-    **/build/jacoco
-    **/**/build/jacoco
-    **/**/**/build/jacoco
-    **/build/reports
-    **/**/build/reports
-    **/**/**/build/reports
+    ./bin
+    **/bin
+    **/build
+
+  REPORTS_LOCATIONS: |
+    ./*/build/reports ./*/*/build/reports ./*/*/*/build/reports
+
   # Set 'GRADLE_OPTS' to pass additional custom parameters to each ./gradlew invocation in this workflow.
   # Example '--info' or '--debug'.
   #GRADLE_OPTS: --info
@@ -71,7 +67,7 @@ jobs:
       - name: Build Information
         run: echo Building a '${{ github.event_name }}' for target '${{ github.ref }}'.
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -82,15 +78,33 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
-      - name: Compile & Static Analysis
-        run: ./gradlew jar compileTest rat checkstyleMain checkstyleTest spotbugsMain spotbugsTest --parallel ${{env.GRADLE_OPTS}}
+          key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
+          restore-keys: |
+            ${{github.ref}}
+      - name: Clean
+        if: ${{ startsWith(github.ref, 'refs/heads/') }}
+        run: ./gradlew clean ${{env.GRADLE_OPTS}}
+      - name: Compile & Checkstyle
+        run: ./gradlew jar compileTest checkstyleMain checkstyleTest --parallel ${{env.GRADLE_OPTS}}
+      - name: Tar Reports
+        run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
+      - name: Upload Reports
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{github.job}}-reports
+          retention-days: 4
+          path: reports-${{github.job}}.tzst
+# Uncomment these two lines if you need ssh access to debug a build.
+#      - name: Setup upterm session
+#        uses: lhotari/action-upterm@v1
 
   unit_client:
     name: Client Unit Tests
     needs: build
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -101,22 +115,29 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
-      - name: Test Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.job}}
+          key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
+          restore-keys: |
+            ${{github.ref}}-${{github.run_id}}
+            ${{github.ref}}
       - name: Unit tests
-        run: ./gradlew client:test ${{env.GRADLE_OPTS}}
-      - name: Codecov
-        uses: codecov/codecov-action@v1.0.15
+        run: ./gradlew client:test shared:protocol:test shared:security:test common:test test:testcommon:test --parallel ${{env.GRADLE_OPTS}}
+      - name: Tar Reports
+        run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
+      - name: Upload Reports
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{github.job}}-reports
+          retention-days: 4
+          path: reports-${{github.job}}.tzst
 
   unit_controller:
     name: Controller Unit Tests
     needs: build
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -127,22 +148,29 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
-      - name: Test Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.job}}
+          key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
+          restore-keys: |
+            ${{github.ref}}-${{github.run_id}}
+            ${{github.ref}}
       - name: Controller Unit tests
-        run: ./gradlew controller:test ${{env.GRADLE_OPTS}}
-      - name: Codecov
-        uses: codecov/codecov-action@v1.0.15
+        run: ./gradlew controller:test shared:controller-api:test --parallel ${{env.GRADLE_OPTS}}
+      - name: Tar Reports
+        run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
+      - name: Upload Reports
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{github.job}}-reports
+          retention-days: 4
+          path: reports-${{github.job}}.tzst
 
   unit_segment_store:
     name: Segment Store Unit Tests
     needs: build
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -153,33 +181,71 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
-      - name: Test Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.job}}
+          key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
+          restore-keys: |
+            ${{github.ref}}-${{github.run_id}}
+            ${{github.ref}}
       - name: Segment Store Unit tests
         run: >
           ./gradlew
           segmentstore:server:test
-          segmentstore:storage:test
-          segmentstore:storage:impl:test
+          segmentstore:server:host:test
           bindings:test
           --parallel ${{env.GRADLE_OPTS}}
-      - name: Segment Store Host Tests      # Run this separately since it conflicts with segmentstore:storage:impl:test.
+      - name: Tar Reports
+        run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
+      - name: Upload Reports
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{github.job}}-reports
+          retention-days: 4
+          path: reports-${{github.job}}.tzst
+
+  unit_storage:
+    name: Storage Unit Tests
+    needs: build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Gradle & Maven Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.GLOBAL_CACHE_PATH}}
+          key: ${{env.GLOBAL_CACHE_KEY}}
+          restore-keys: ${{env.GLOBAL_CACHE_RESTORE_KEYS}}
+      - name: Build Output Cache
+        uses: actions/cache@v2.1.0
+        with:
+          path: ${{env.BUILD_CACHE_PATH}}
+          key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
+          restore-keys: |
+            ${{github.ref}}-${{github.run_id}}
+            ${{github.ref}}
+      - name: Segment Store Unit tests
         run: >
           ./gradlew
-          segmentstore:server:host:test
+          segmentstore:storage:test
+          segmentstore:storage:impl:test
           --parallel ${{env.GRADLE_OPTS}}
-      - name: Codecov
-        uses: codecov/codecov-action@v1.0.15
+      - name: Tar Reports
+        run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
+      - name: Upload Reports
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{github.job}}-reports
+          retention-days: 4
+          path: reports-${{github.job}}.tzst
 
   unit_other:
     name: All Other Unit Tests
     needs: build
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -190,17 +256,23 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
-      - name: Test Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.job}}
+          key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
+          restore-keys: |
+            ${{github.ref}}-${{github.run_id}}
+            ${{github.ref}}
+      - name: Static analysis tests
+        run: >
+          ./gradlew rat spotbugsMain spotbugsTest --parallel ${{env.GRADLE_OPTS}}
       - name: Unit tests
         run: >
           ./gradlew test
           -x client:test
+          -x shared:protocol:test
+          -x shared:security:test
+          -x common:test
+          -x test:testcommon:test
           -x controller:test
+          -x shared:controller-api:test
           -x test:integration:test
           -x bindings:test
           -x segmentstore:storage:impl:test
@@ -208,14 +280,23 @@ jobs:
           -x segmentstore:server:host:test
           -x segmentstore:server:test
           --parallel ${{env.GRADLE_OPTS}}
-      - name: Codecov
-        uses: codecov/codecov-action@v1.0.15
+      - name: Tar Reports
+        run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
+      - name: Upload Reports
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{github.job}}-reports
+          retention-days: 4
+          path: reports-${{github.job}}.tzst
 
   integration:
     name: Integration Tests
     needs: build
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -226,23 +307,32 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
-      - name: Test Output Cache
-        uses: actions/cache@v2.1.0
-        with:
-          path: ${{env.TEST_OUTPUT_CACHE_PATH}}
-          key: ${{github.run_id}}-${{github.job}}
+          key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
+          restore-keys: |
+            ${{github.ref}}-${{github.run_id}}
+            ${{github.ref}}
       - name: Integration Tests
-        run: ./gradlew test:integration:test ${{env.GRADLE_OPTS}}
+        run: ./gradlew test:integration:test --parallel ${{env.GRADLE_OPTS}}
+      #Integration tests don't upload code-cov reports
 
   # DO NOT RENAME THIS JOB. Mergers to master branch are gated on this completing successfully.
   build_and_test_complete:
     name: CI Complete
-    needs: [build, integration, unit_other, unit_segment_store, unit_controller, unit_client]
+    needs: [build, integration, unit_other, unit_segment_store, unit_storage, unit_controller, unit_client]
     runs-on: ubuntu-20.04
     steps:
       - name: Check Build Status
         run: echo Build, static analysis, unit and integration tests successful.
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: Download code coverage reports
+        uses: actions/download-artifact@v2
+      - name: Untar reports
+        run: ( ls */reports-*.tzst | xargs -n1 tar --use-compress-program zstd --keep-newer-files -xf )
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v1
 
   snapshot:
     name: Artifactory Snapshot
@@ -251,6 +341,10 @@ jobs:
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/r0.') || startsWith(github.ref, 'refs/heads/r1.')) }}
     runs-on: ubuntu-20.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
@@ -261,7 +355,10 @@ jobs:
         uses: actions/cache@v2.1.0
         with:
           path: ${{env.BUILD_CACHE_PATH}}
-          key: ${{github.run_id}}
+          key: ${{github.ref}}-${{github.run_id}}-${{github.job}}
+          restore-keys: |
+            ${{github.ref}}-${{github.run_id}}
+            ${{github.ref}}
       - name: Assemble
         run: ./gradlew assemble --parallel ${{env.GRADLE_OPTS}}
       - name: Publish Shapshot

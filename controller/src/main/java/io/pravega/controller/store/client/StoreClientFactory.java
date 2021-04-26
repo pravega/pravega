@@ -97,13 +97,14 @@ public class StoreClientFactory {
                 .retryPolicy(retryPolicy)
                 .sessionTimeoutMs(zkClientConfig.getSessionTimeoutMs())
                 .build();
-        zkClient.start();
 
         zkClient.getConnectionStateListenable().addListener((client1, newState) -> {
             if (newState.equals(ConnectionState.LOST)) {
                 expiryHandler.accept(null);
             }
         });
+        
+        zkClient.start();
 
         return zkClient;
     }

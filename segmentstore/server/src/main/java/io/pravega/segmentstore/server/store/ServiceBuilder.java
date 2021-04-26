@@ -373,7 +373,9 @@ public class ServiceBuilder implements AutoCloseable {
      */
     @VisibleForTesting
     public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig builderConfig, ExecutorBuilder executorBuilder) {
-        ServiceConfig serviceConfig = builderConfig.getConfig(ServiceConfig::builder);
+        ServiceConfig serviceConfig = builderConfig.getConfigBuilder(ServiceConfig::builder)
+            .with(ServiceConfig.LISTENING_IP_ADDRESS, "localhost")
+            .build();
         ServiceBuilder builder;
         if (serviceConfig.isReadOnlySegmentStore()) {
             // Only components required for ReadOnly SegmentStore.
