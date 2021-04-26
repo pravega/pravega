@@ -25,6 +25,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
+import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
@@ -195,8 +196,7 @@ public class StreamMetaDataAuthFocusedTests {
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
-        restServer = new RESTServer(authManager, serverConfig,
-                connectionFactory, Set.of(controller, mockControllerService));
+        restServer = new RESTServer(serverConfig, Set.of(new StreamMetadataResourceImpl(controller, mockControllerService, authManager, connectionFactory)));
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();
