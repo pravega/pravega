@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.local;
 
@@ -40,6 +46,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private String jksKeyFile;
     private String jksTrustFile;
     private String keyPasswordFile;
+    private boolean enableMetrics;
+    private boolean enableInfluxDB;
+    private int metricsReportInterval;
 
     @Getter
     private final InProcPravegaCluster inProcPravegaCluster;
@@ -57,10 +66,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .controllerCount(1)
                     .isInProcSegmentStore(true)
                     .segmentStoreCount(1)
-                    .containerCount(4)
+                    .containerCount(1)
                     .restServerPort(restServerPort)
                     .enableRestServer(enableRestServer)
-                    .enableMetrics(false)
                     .enableAuth(enableAuth)
                     .enableTls(enableTls)
                     .certFile(certFile)
@@ -72,13 +80,15 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .passwdFile(passwdFile)
                     .userName(userName)
                     .passwd(passwd)
+                    .enableMetrics(enableMetrics)
+                    .enableInfluxDB(enableInfluxDB)
+                    .metricsReportInterval(metricsReportInterval)
                     .build();
             this.inProcPravegaCluster.setControllerPorts(new int[]{controllerPort});
             this.inProcPravegaCluster.setSegmentStorePorts(new int[]{segmentStorePort});
             return new LocalPravegaEmulator(zkPort, controllerPort, segmentStorePort, restServerPort, enableRestServer,
                     enableAuth, enableTls, certFile, passwd, userName, passwdFile, keyFile, enableTlsReload,
-                    jksKeyFile, jksTrustFile, keyPasswordFile,
-                    inProcPravegaCluster);
+                    jksKeyFile, jksTrustFile, keyPasswordFile, enableMetrics, enableInfluxDB, metricsReportInterval, inProcPravegaCluster);
         }
     }
 
@@ -99,6 +109,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .enableRestServer(conf.isEnableRestServer())
                     .enableAuth(conf.isEnableAuth())
                     .enableTls(conf.isEnableTls())
+                    .enableMetrics(conf.isEnableMetrics())
+                    .enableInfluxDB(conf.isEnableInfluxDB())
+                    .metricsReportInterval(conf.getMetricsReportInterval())
                     .certFile(conf.getCertFile())
                     .keyFile(conf.getKeyFile())
                     .enableTlsReload(conf.isEnableSegmentStoreTlsReload())

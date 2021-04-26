@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -115,9 +121,6 @@ public class InMemoryStream extends PersistentStreamBase {
 
     @GuardedBy("subscribersLock")
     private final List<VersionedMetadata<StreamSubscriber>> streamSubscribers = new ArrayList<>();
-
-    @GuardedBy("subscribersLock")
-    private final Map<String, Long> subscribersSet = new HashMap<String, Long>();
 
     InMemoryStream(String scope, String name) {
         this(scope, name, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis());
@@ -841,31 +844,31 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> createSubscriber(String subscriber, long generation) {
+    public CompletableFuture<Void> addSubscriber(String subscriber, long generation) {
         synchronized (subscribersLock) {
-            if (subscribersSet.containsKey(subscriber)) {
-                Long subGeneration = subscribersSet.get(subscriber);
-                if (subGeneration < generation) {
-                    subscribersSet.put(subscriber, generation);
-                }
-            } else {
-                subscribersSet.put(subscriber, generation);
-                streamSubscribers.add(new VersionedMetadata<>(new StreamSubscriber(subscriber, ImmutableMap.of(),
+            Optional<VersionedMetadata<StreamSubscriber>> foundSubscriber = streamSubscribers.stream()
+                    .filter(sub -> sub.getObject().getSubscriber().equals(subscriber)).findAny();
+            if (foundSubscriber.isEmpty()) {
+                streamSubscribers.add(new VersionedMetadata<>(new StreamSubscriber(subscriber, generation, ImmutableMap.of(),
                         System.currentTimeMillis()), new Version.IntVersion(0)));
+            } else {
+                if (foundSubscriber.get().getObject().getGeneration() < generation) {
+                    setSubscriberData(new VersionedMetadata<>(new StreamSubscriber(subscriber, generation,
+                            foundSubscriber.get().getObject().getTruncationStreamCut(),
+                            System.currentTimeMillis()), foundSubscriber.get().getVersion()));
+                }
             }
         }
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<Void> removeSubscriber(String subscriber, long generation) {
+    public CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation) {
         synchronized (subscribersLock) {
-            if (subscribersSet.containsKey(subscriber) && subscribersSet.get(subscriber).longValue() <= generation) {
-                subscribersSet.remove(subscriber);
-                Optional<VersionedMetadata<StreamSubscriber>> sub = streamSubscribers.stream().filter(s -> s.getObject().getSubscriber().equals(subscriber)).findAny();
-                if (sub.isPresent()) {
-                    streamSubscribers.remove(sub.get());
-                }
+            Optional<VersionedMetadata<StreamSubscriber>> foundSubscriber = streamSubscribers.stream()
+                    .filter(sub -> sub.getObject().getSubscriber().equals(subscriber)).findAny();
+            if (foundSubscriber.isPresent() && generation >= foundSubscriber.get().getObject().getGeneration()) {
+                streamSubscribers.remove(foundSubscriber.get());
             }
         }
         return CompletableFuture.completedFuture(null);

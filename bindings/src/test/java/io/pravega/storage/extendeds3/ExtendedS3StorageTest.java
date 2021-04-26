@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.storage.extendeds3;
 
@@ -23,7 +29,7 @@ import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
-
+import io.pravega.test.common.SerializedClassRunner;
 import java.io.ByteArrayInputStream;
 import java.util.Iterator;
 import java.util.concurrent.Executor;
@@ -33,6 +39,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.assertEquals;
@@ -43,6 +50,7 @@ import static org.junit.Assert.assertTrue;
  * Unit tests for ExtendedS3Storage.
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     private ExtendedS3TestContext setup;
 
@@ -119,13 +127,13 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             storage.create("a", null).join();
             assertEquals(1, ExtendedS3Metrics.CREATE_COUNT.get());
             assertEquals(1, ExtendedS3Metrics.CREATE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
-            assertTrue(0 < ExtendedS3Metrics.CREATE_LATENCY.toOpStatsData().getAvgLatencyMillis());
+            assertTrue(0 <= ExtendedS3Metrics.CREATE_LATENCY.toOpStatsData().getAvgLatencyMillis());
 
             // Create segment B
             storage.create("b", null).join();
             assertEquals(2, ExtendedS3Metrics.CREATE_COUNT.get());
             assertEquals(2, ExtendedS3Metrics.CREATE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
-            assertTrue(0 < ExtendedS3Metrics.CREATE_LATENCY.toOpStatsData().getAvgLatencyMillis());
+            assertTrue(0 <= ExtendedS3Metrics.CREATE_LATENCY.toOpStatsData().getAvgLatencyMillis());
 
             SegmentHandle handleA = storage.openWrite("a").get();
             SegmentHandle handleB = storage.openWrite("b").get();
@@ -140,14 +148,14 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
                 totalBytesWritten += i;
                 assertEquals(totalBytesWritten, ExtendedS3Metrics.WRITE_BYTES.get());
                 assertEquals(i, ExtendedS3Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
-                assertTrue(0 < ExtendedS3Metrics.WRITE_LATENCY.toOpStatsData().getAvgLatencyMillis());
+                assertTrue(0 <= ExtendedS3Metrics.WRITE_LATENCY.toOpStatsData().getAvgLatencyMillis());
             }
             // Write some data to segment B
             storage.write(handleB, 0, new ByteArrayInputStream(str.getBytes()), str.length(), null).join();
             totalBytesWritten += str.length();
             assertEquals(totalBytesWritten, ExtendedS3Metrics.WRITE_BYTES.get());
             assertEquals(5, ExtendedS3Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
-            assertTrue(0 < ExtendedS3Metrics.WRITE_LATENCY.toOpStatsData().getAvgLatencyMillis());
+            assertTrue(0 <= ExtendedS3Metrics.WRITE_LATENCY.toOpStatsData().getAvgLatencyMillis());
 
             // Read some data
             int totalBytesRead = 0;
@@ -156,7 +164,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
                 totalBytesRead += storage.read(handleA, totalBytesRead, buffer, 0, i, null).join();
                 assertEquals(totalBytesRead, ExtendedS3Metrics.READ_BYTES.get());
                 assertEquals(i, ExtendedS3Metrics.READ_LATENCY.toOpStatsData().getNumSuccessfulEvents());
-                assertTrue(0 < ExtendedS3Metrics.READ_LATENCY.toOpStatsData().getAvgLatencyMillis());
+                assertTrue(0 <= ExtendedS3Metrics.READ_LATENCY.toOpStatsData().getAvgLatencyMillis());
             }
 
             // Concat
@@ -165,19 +173,13 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             storage.concat(handleA, info.getLength(), handleB.getSegmentName(), null).get();
             assertEquals(str.length(), ExtendedS3Metrics.CONCAT_BYTES.get());
             assertEquals(1, ExtendedS3Metrics.CONCAT_LATENCY.toOpStatsData().getNumSuccessfulEvents());
-            assertTrue(0 < ExtendedS3Metrics.CONCAT_LATENCY.toOpStatsData().getAvgLatencyMillis());
+            assertTrue(0 <= ExtendedS3Metrics.CONCAT_LATENCY.toOpStatsData().getAvgLatencyMillis());
 
             // delete
             storage.delete(handleA, null).join();
             assertEquals(1, ExtendedS3Metrics.DELETE_COUNT.get());
             assertEquals(1, ExtendedS3Metrics.DELETE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
-            assertTrue(0 < ExtendedS3Metrics.DELETE_LATENCY.toOpStatsData().getAvgLatencyMillis());
-
-            storage.delete(handleB, null).join();
-            assertEquals(2, ExtendedS3Metrics.DELETE_COUNT.get());
-            assertEquals(2, ExtendedS3Metrics.DELETE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
-            assertTrue(0 < ExtendedS3Metrics.DELETE_LATENCY.toOpStatsData().getAvgLatencyMillis());
-
+            assertTrue(0 <= ExtendedS3Metrics.DELETE_LATENCY.toOpStatsData().getAvgLatencyMillis());
         }
     }
 
@@ -258,7 +260,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             iterator = s.listSegments();
             int actualCount = 0;
             while (iterator.hasNext()) {
-                SegmentProperties prop = iterator.next();
+                iterator.next();
                 ++actualCount;
             }
             Assert.assertEquals(actualCount, expectedCount);
@@ -268,7 +270,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
 
     private static Storage createStorage(S3Client client, ExtendedS3StorageConfig adapterConfig, Executor executor) {
         // We can't use the factory here because we're setting our own (mock) client.
-        ExtendedS3Storage storage = new ExtendedS3Storage(client, adapterConfig);
+        ExtendedS3Storage storage = new ExtendedS3Storage(client, adapterConfig, false);
         return new AsyncStorageWrapper(storage, executor);
     }
 
@@ -299,7 +301,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
 
         @Override
         protected Storage createStorage() {
-            ExtendedS3Storage storage = new ExtendedS3Storage(setup.client, setup.adapterConfig);
+            ExtendedS3Storage storage = new ExtendedS3Storage(setup.client, setup.adapterConfig, false);
             return wrap(storage);
         }
     }

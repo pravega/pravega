@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.contracts;
 
@@ -86,10 +92,25 @@ public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
     void setCopyOnRead(boolean value);
 
     /**
+     * Gets a value indicating the maximum number of bytes to read at once with every invocation of {@link #next()}.
+     *
+     * @return The maximum number of bytes to read at once.
+     */
+    int getMaxReadAtOnce();
+
+    /**
+     * Sets the maximum number of bytes to read at once with every invocation of {@link #next()}.
+     *
+     * @param value The value to set. If not positive or exceeds {@link #getMaxResultLength()}, this will be set to
+     *              {@link #getMaxResultLength()}.
+     */
+    void setMaxReadAtOnce(int value);
+
+    /**
      * Gets a value indicating whether this ReadResult is fully consumed (either because it was read in its entirety
      * or because it was closed externally).
      *
-     * @return true if ReadResult is fully consumed or closed externally, otherwise false
+     * @return true if ReadResult is fully consumed or closed externally, otherwise false.
      */
     boolean isClosed();
 

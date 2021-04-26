@@ -1,21 +1,22 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.common.Exceptions;
-import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
-import io.pravega.segmentstore.server.CacheUtilizationProvider;
-import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -27,22 +28,28 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
+import io.pravega.segmentstore.storage.ThrottleSourceListener;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.invocation.InvocationOnMock;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for MemoryStateUpdater class.
@@ -61,59 +68,65 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
 
         // Add to MTL + Add to ReadIndex (append; beginMerge).
         InMemoryLog opLog = new InMemoryLog();
-        ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
+        val readIndex = mock(ReadIndex.class);
+
+        val triggerSegmentIds = new ArrayList<Long>();
+        doAnswer(x -> {
+            triggerSegmentIds.clear();
+            triggerSegmentIds.addAll(x.getArgument(0));
+            return null;
+        }).when(readIndex).triggerFutureReads(anyCollection());
+
+        val invocations = new ArrayList<InvocationOnMock>();
+        doAnswer(invocations::add).when(readIndex).append(anyLong(), anyLong(), any());
+        doAnswer(invocations::add).when(readIndex).beginMerge(anyLong(), anyLong(), anyLong());
+
         MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         // Verify they were properly processed.
-        int triggerFutureCount = (int) methodInvocations.stream().filter(mi -> mi.methodName.equals(TestReadIndex.TRIGGER_FUTURE_READS)).count();
-        int addCount = methodInvocations.size() - triggerFutureCount;
-        Assert.assertEquals("Unexpected number of items added to ReadIndex.",
-                operations.size() - segmentCount * operationCountPerType, addCount);
-        Assert.assertEquals("Unexpected number of calls to the ReadIndex triggerFutureReads method.", 1, triggerFutureCount);
-
-        // Verify add calls.
         Queue<Operation> logIterator = opLog.poll(operations.size());
         int currentIndex = -1;
-        int currentReadIndex = -1;
+        val invocationIterator = invocations.iterator();
         while (!logIterator.isEmpty()) {
             currentIndex++;
             Operation expected = operations.get(currentIndex);
             Operation actual = logIterator.poll();
             if (expected instanceof StorageOperation) {
-                currentReadIndex++;
-                TestReadIndex.MethodInvocation invokedMethod = methodInvocations.get(currentReadIndex);
+                val invokedMethod = invocationIterator.next();
                 if (expected instanceof StreamSegmentAppendOperation) {
                     Assert.assertTrue("StreamSegmentAppendOperation was not added as a CachedStreamSegmentAppendOperation to the Memory Log.", actual instanceof CachedStreamSegmentAppendOperation);
                     StreamSegmentAppendOperation appendOp = (StreamSegmentAppendOperation) expected;
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.APPEND, invokedMethod.methodName);
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentId(), invokedMethod.args.get("streamSegmentId"));
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getData(), invokedMethod.args.get("data"));
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.",
+                            "append", invokedMethod.getMethod().getName());
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.",
+                            appendOp.getStreamSegmentId(), (long) invokedMethod.getArgument(0));
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.",
+                            appendOp.getStreamSegmentOffset(), (long) invokedMethod.getArgument(1));
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.",
+                            appendOp.getData(), invokedMethod.getArgument(2));
                 } else if (expected instanceof MergeSegmentOperation) {
                     MergeSegmentOperation mergeOp = (MergeSegmentOperation) expected;
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.BEGIN_MERGE, invokedMethod.methodName);
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentId(), invokedMethod.args.get("targetStreamSegmentId"));
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getSourceSegmentId(), invokedMethod.args.get("sourceStreamSegmentId"));
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.",
+                            "beginMerge", invokedMethod.getMethod().getName());
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.",
+                            mergeOp.getStreamSegmentId(), (long) invokedMethod.getArgument(0));
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.",
+                            mergeOp.getStreamSegmentOffset(), (long) invokedMethod.getArgument(1));
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.",
+                            mergeOp.getSourceSegmentId(), (long) invokedMethod.getArgument(2));
                 }
             }
         }
 
         // Verify triggerFutureReads args.
-        @SuppressWarnings("unchecked")
-        Collection<Long> triggerSegmentIds = (Collection<Long>) methodInvocations
-                .stream()
-                .filter(mi -> mi.methodName.equals(TestReadIndex.TRIGGER_FUTURE_READS))
-                .findFirst().get()
-                .args.get("streamSegmentIds");
         val expectedSegmentIds = operations.stream()
-                                           .filter(op -> op instanceof SegmentOperation)
-                                           .map(op -> ((SegmentOperation) op).getStreamSegmentId())
-                                           .collect(Collectors.toSet());
+                .filter(op -> op instanceof SegmentOperation)
+                .map(op -> ((SegmentOperation) op).getStreamSegmentId())
+                .collect(Collectors.toSet());
 
-        AssertExtensions.assertContainsSameElements("ReadIndex.triggerFutureReads() was called with the wrong set of StreamSegmentIds.", expectedSegmentIds, triggerSegmentIds);
+        AssertExtensions.assertContainsSameElements("ReadIndex.triggerFutureReads() was called with the wrong set of StreamSegmentIds.",
+                expectedSegmentIds, triggerSegmentIds);
 
         // Test DataCorruptionException.
         AssertExtensions.assertThrows(
@@ -126,15 +139,14 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
      * Tests the functionality of the {@link MemoryStateUpdater#process} method with critical errors.
      */
     @Test
-    public void testProcessWithErrors() throws Exception {
+    public void testProcessWithErrors() {
         final int corruptAtIndex = 10;
         final int segmentCount = 10;
         final int operationCountPerType = 5;
 
         // Add to MTL + Add to ReadIndex (append; beginMerge).
         val opLog = new OperationLogTestBase.CorruptedMemoryOperationLog(corruptAtIndex);
-        ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
+        val readIndex = mock(ReadIndex.class);
         MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex);
 
         AssertExtensions.assertThrows(
@@ -143,8 +155,7 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof DataCorruptionException);
 
         // Verify they were properly processed.
-        int triggerFutureCount = (int) methodInvocations.stream().filter(mi -> mi.methodName.equals(TestReadIndex.TRIGGER_FUTURE_READS)).count();
-        Assert.assertEquals("Not expecting any trigger-future-read invocations.", 0, triggerFutureCount);
+        verify(readIndex, never()).triggerFutureReads(anyCollection());
 
         Queue<Operation> logIterator = opLog.poll(corruptAtIndex * 2);
         int addCount = 0;
@@ -166,22 +177,33 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
     public void testRecoveryMode() throws Exception {
         // Check it's properly delegated to Read index.
         InMemoryLog opLog = new InMemoryLog();
-        ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
+        val readIndex = mock(ReadIndex.class);
         MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex);
 
         UpdateableContainerMetadata metadata1 = new MetadataBuilder(1).build();
         updater.enterRecoveryMode(metadata1);
+        updater.cleanupReadIndex();
         updater.exitRecoveryMode(true);
 
-        Assert.assertEquals("Unexpected number of method invocations.", 2, methodInvocations.size());
-        TestReadIndex.MethodInvocation enterRecovery = methodInvocations.get(0);
-        Assert.assertEquals("ReadIndex.enterRecoveryMode was not called when expected.", TestReadIndex.ENTER_RECOVERY_MODE, enterRecovery.methodName);
-        Assert.assertEquals("ReadIndex.enterRecoveryMode was called with the wrong arguments.", metadata1, enterRecovery.args.get("recoveryMetadataSource"));
+        verify(readIndex).enterRecoveryMode(metadata1);
+        verify(readIndex).cleanup(null);
+        verify(readIndex).trimCache();
+        verify(readIndex).exitRecoveryMode(true);
+    }
 
-        TestReadIndex.MethodInvocation exitRecovery = methodInvocations.get(1);
-        Assert.assertEquals("ReadIndex.exitRecoveryMode was not called when expected.", TestReadIndex.EXIT_RECOVERY_MODE, exitRecovery.methodName);
-        Assert.assertEquals("ReadIndex.exitRecoveryMode was called with the wrong arguments.", true, exitRecovery.args.get("successfulRecovery"));
+    /**
+     * Tests {@link MemoryStateUpdater#registerReadListener} and {@link MemoryStateUpdater#notifyLogRead()}.
+     */
+    @Test
+    public void testReadListeners() {
+        val updater = new MemoryStateUpdater(new InMemoryLog(), mock(ReadIndex.class));
+        val l1 = mock(ThrottleSourceListener.class);
+        when(l1.isClosed()).thenReturn(false);
+        updater.registerReadListener(l1);
+        verify(l1).isClosed();
+
+        updater.notifyLogRead();
+        verify(l1).notifyThrottleSourceChanged();
     }
 
     private ArrayList<Operation> populate(MemoryStateUpdater updater, int segmentCount, int operationCountPerType) throws DataCorruptionException {
@@ -215,123 +237,5 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         }
 
         return operations;
-    }
-
-    private static class TestReadIndex implements ReadIndex {
-        static final String APPEND = "append";
-        static final String BEGIN_MERGE = "beginMerge";
-        static final String COMPLETE_MERGE = "completeMerge";
-        static final String READ = "read";
-        static final String READ_DIRECT = "readDirect";
-        static final String TRIGGER_FUTURE_READS = "triggerFutureReads";
-        static final String CLEANUP = "cleanup";
-        static final String ENTER_RECOVERY_MODE = "enterRecoveryMode";
-        static final String EXIT_RECOVERY_MODE = "exitRecoveryMode";
-
-        private final Consumer<MethodInvocation> methodInvokeCallback;
-        private boolean closed;
-
-        TestReadIndex(Consumer<MethodInvocation> methodInvokeCallback) {
-            this.methodInvokeCallback = methodInvokeCallback;
-        }
-
-        @Override
-        public void append(long segmentId, long offset, BufferView data) {
-            invoke(new MethodInvocation(APPEND)
-                    .withArg("streamSegmentId", segmentId)
-                    .withArg("offset", offset)
-                    .withArg("data", data));
-        }
-
-        @Override
-        public void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId) {
-            invoke(new MethodInvocation(BEGIN_MERGE)
-                    .withArg("targetStreamSegmentId", targetStreamSegmentId)
-                    .withArg("offset", offset)
-                    .withArg("sourceStreamSegmentId", sourceStreamSegmentId));
-        }
-
-        @Override
-        public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
-            invoke(new MethodInvocation(COMPLETE_MERGE)
-                    .withArg("targetStreamSegmentId", targetStreamSegmentId)
-                    .withArg("sourceStreamSegmentId", sourceStreamSegmentId));
-        }
-
-        @Override
-        public BufferView readDirect(long streamSegmentId, long offset, int length) {
-            invoke(new MethodInvocation(READ_DIRECT)
-                    .withArg("offset", offset)
-                    .withArg("length", length));
-            return null;
-        }
-
-        @Override
-        public ReadResult read(long streamSegmentId, long offset, int maxLength, Duration timeout) {
-            invoke(new MethodInvocation(READ)
-                    .withArg("offset", offset)
-                    .withArg("maxLength", maxLength));
-            return null;
-        }
-
-        @Override
-        public void triggerFutureReads(Collection<Long> streamSegmentIds) {
-            invoke(new MethodInvocation(TRIGGER_FUTURE_READS)
-                    .withArg("streamSegmentIds", streamSegmentIds));
-        }
-
-        @Override
-        public void clear() {
-            throw new IllegalStateException("Not Implemented");
-        }
-
-        @Override
-        public void cleanup(Collection<Long> segmentIds) {
-            invoke(new MethodInvocation(CLEANUP));
-        }
-
-        @Override
-        public void enterRecoveryMode(ContainerMetadata recoveryMetadataSource) {
-            invoke(new MethodInvocation(ENTER_RECOVERY_MODE)
-                    .withArg("recoveryMetadataSource", recoveryMetadataSource));
-        }
-
-        @Override
-        public void exitRecoveryMode(boolean successfulRecovery) {
-            invoke(new MethodInvocation(EXIT_RECOVERY_MODE)
-                    .withArg("successfulRecovery", successfulRecovery));
-        }
-
-        @Override
-        public void close() {
-            this.closed = true;
-        }
-
-        @Override
-        public CacheUtilizationProvider getCacheUtilizationProvider() {
-            throw new UnsupportedOperationException();
-        }
-
-        private void invoke(MethodInvocation methodInvocation) {
-            Exceptions.checkNotClosed(this.closed, this);
-            if (this.methodInvokeCallback != null) {
-                this.methodInvokeCallback.accept(methodInvocation);
-            }
-        }
-
-        static class MethodInvocation {
-            final String methodName;
-            final AbstractMap<String, Object> args;
-
-            MethodInvocation(String name) {
-                this.methodName = name;
-                this.args = new HashMap<>();
-            }
-
-            MethodInvocation withArg(String name, Object value) {
-                this.args.put(name, value);
-                return this;
-            }
-        }
     }
 }

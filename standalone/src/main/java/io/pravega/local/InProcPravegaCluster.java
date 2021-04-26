@@ -1,17 +1,23 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.local;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.security.ZKTLSUtils;
 import io.pravega.controller.server.ControllerServiceConfig;
@@ -42,6 +48,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.security.auth.Credentials;
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
@@ -67,13 +74,17 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     /* Cluster name */
     private final String clusterName = "singlenode-" + UUID.randomUUID();
-    private boolean enableMetrics;
 
     /*Enabling this will configure security for the singlenode with hardcoded cert files and creds.*/
     private boolean enableAuth;
     private boolean enableTls;
 
     private boolean enableTlsReload;
+
+    /* Metrics related variables*/
+    private boolean enableMetrics;
+    private boolean enableInfluxDB;
+    private int metricsReportInterval;
 
     /*Controller related variables*/
     private boolean isInProcController;
@@ -152,7 +163,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                     "TLS enabled, but not all parameters set");
 
             this.isInProcHDFS = this.isInMemStorage ? false : true;
-            return new InProcPravegaCluster(isInMemStorage, enableMetrics, enableAuth, enableTls, enableTlsReload,
+            return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, enableTlsReload,
+                    enableMetrics, enableInfluxDB, metricsReportInterval,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
@@ -280,8 +292,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.KEY_FILE, this.keyFile)
                         .with(ServiceConfig.CERT_FILE, this.certFile)
                         .with(ServiceConfig.ENABLE_TLS_RELOAD, this.enableTlsReload)
-                        .with(ServiceConfig.LISTENING_IP_ADDRESS, this.enableTls ? LOCALHOST : "")
-                        .with(ServiceConfig.PUBLISHED_IP_ADDRESS, this.enableTls ? LOCALHOST : "")
+                        .with(ServiceConfig.LISTENING_IP_ADDRESS, LOCALHOST)
+                        .with(ServiceConfig.PUBLISHED_IP_ADDRESS, LOCALHOST)
                         .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 60)
                         .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
@@ -304,7 +316,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                                          .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
                                          .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
                 .include(MetricsConfig.builder()
-                        .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
+                        .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics)
+                        .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, enableInfluxDB)
+                        .with(MetricsConfig.OUTPUT_FREQUENCY, metricsReportInterval));
 
         nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build());
         nodeServiceStarter[segmentStoreId].start();
@@ -361,15 +375,18 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(true)
-                .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
-                .containerCount(Config.HOST_STORE_CONTAINER_COUNT)
+                .containerCount(containerCount)
+                .hostMonitorMinRebalanceInterval(1)
                 .build();
 
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
                 .maxLeaseValue(Config.MAX_LEASE_VALUE)
                 .build();
 
-        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
+        ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl
+                .withDefaultBuilder()
+                .shutdownTimeout(Duration.ofMillis(100))
+                .build();
 
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl
                 .builder()
@@ -408,6 +425,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
                 .restServerConfig(Optional.ofNullable(restServerConfig))
+                .shutdownTimeout(Duration.ofMillis(100))
                 .build();
 
         ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);

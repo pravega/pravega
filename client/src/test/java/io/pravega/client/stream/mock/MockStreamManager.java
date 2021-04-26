@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.mock;
 
@@ -39,18 +45,21 @@ import io.pravega.shared.NameUtils;
 import java.net.URI;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;
 import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
-
+    @Getter
     private final String scope;
     @Getter
     private final ConnectionPool connectionPool;
+    @Getter
     private final MockController controller;
     @Getter
     private final MockClientFactory clientFactory;
@@ -165,12 +174,16 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
                 StreamConfiguration.builder()
                                    .scalingPolicy(ScalingPolicy.fixed(1)).build());
+        if (ReaderGroupConfig.DEFAULT_UUID.equals(config.getReaderGroupId())) {
+            config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+        }
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
                                               new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+        Futures.getThrowingException(controller.createReaderGroup(scope, groupName, config));
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
 
-        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
+        synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
     }
 
     public Position getInitialPosition(String stream) {
@@ -200,7 +213,13 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        Futures.getAndHandleExceptions(controller.deleteStream(scope, NameUtils.getStreamForReaderGroup(groupName)),
-                                       RuntimeException::new);
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
+                new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
+        synchronizer.fetchUpdates();
+        UUID groupId = synchronizer.getState().getConfig().getReaderGroupId();
+        long generation = synchronizer.getState().getConfig().getGeneration();
+        getAndHandleExceptions(controller.deleteReaderGroup(scope, groupName, groupId),
+                RuntimeException::new);
     }
 }

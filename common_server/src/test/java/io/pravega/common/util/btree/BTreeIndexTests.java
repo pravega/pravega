@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util.btree;
 
@@ -286,6 +292,14 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val recoveredIndex = defaultBuilder(ds).build();
         recoveredIndex.initialize(TIMEOUT).join();
         check("after recovery", recoveredIndex, entries, 0);
+
+        // Now verify how it would behave if we had no root pointer. An exception should be thrown.
+        ds.rootPointer.set(-1L);
+        val corruptedIndex = defaultBuilder(ds).build();
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected corrupted index to fail initialization.",
+                () -> corruptedIndex.initialize(TIMEOUT),
+                ex -> ex instanceof IllegalArgumentException); // Captures IllegalDataFormatException as well.
     }
 
     /**

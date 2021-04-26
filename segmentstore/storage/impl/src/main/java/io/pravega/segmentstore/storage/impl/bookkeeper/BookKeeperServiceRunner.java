@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
@@ -16,7 +22,6 @@ import io.pravega.common.security.JKSHelper;
 import io.pravega.common.security.ZKTLSUtils;
 import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -25,8 +30,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
 import org.apache.bookkeeper.util.IOUtils;
@@ -52,7 +57,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public static final String TLS_KEY_STORE = "tlsKeyStore";
     public static final String PROPERTY_LEDGERS_DIR = "ledgersDir"; // File System path to store ledger data.
 
-    private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
+    private static final String LOOPBACK_ADDRESS = "127.0.0.1";
     private final boolean startZk;
     private final int zkPort;
     private final String ledgersPath;
@@ -115,6 +120,34 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     }
 
     /**
+     * Suspends processing for the BookieService with the given index.
+     *
+     * @param bookieIndex The index of the bookie to stop.
+     */
+    public void suspendBookie(int bookieIndex) {
+        Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
+        Preconditions.checkState(this.servers.get(0) != null, "Bookie does not exists.");
+        val bk = this.servers.get(bookieIndex);
+        log.info("Bookie {} is suspending processing.", bookieIndex);
+        bk.suspendProcessing();
+        log.info("Bookie {} suspended processing.", bookieIndex);
+    }
+
+    /**
+     * Resumes processing for the BookieService with the given index.
+     *
+     * @param bookieIndex The index of the bookie to stop.
+     */
+    public void resumeBookie(int bookieIndex) {
+        Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
+        Preconditions.checkState(this.servers.get(0) != null, "Bookie does not exists.");
+        val bk = this.servers.get(bookieIndex);
+        log.info("Bookie {} is resuming processing.", bookieIndex);
+        bk.resumeProcessing();
+        log.info("Bookie {} resumed processing.", bookieIndex);
+    }
+
+    /**
      * Restarts the BookieService with the given index.
      *
      * @param bookieIndex The index of the bookie to restart.
@@ -144,7 +177,8 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         }
 
         // Start or resume ZK.
-        this.zkServer.get().start();
+        zk.start();
+        ZooKeeperServiceRunner.waitForServerUp(this.zkPort);
         log.info("ZooKeeper resumed.");
     }
 
@@ -177,7 +211,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
         @Cleanup
         val zkc = ZooKeeperClient.newBuilder()
-                                 .connectString(LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort)
+                                 .connectString(LOOPBACK_ADDRESS + ":" + this.zkPort)
                                  .sessionTimeoutMs(10000)
                                  .build();
 
@@ -224,8 +258,9 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         }
 
         val conf = new ServerConfiguration();
+        conf.setAdvertisedAddress(LOOPBACK_ADDRESS);
         conf.setBookiePort(bkPort);
-        conf.setMetadataServiceUri("zk://" + LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort + ledgersPath);
+        conf.setMetadataServiceUri("zk://" + LOOPBACK_ADDRESS + ":" + this.zkPort + ledgersPath);
         conf.setJournalDirName(journalDir.getPath());
         conf.setLedgerDirNames(new String[]{ledgerDir.getPath()});
         conf.setAllowLoopback(true);

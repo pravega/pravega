@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.fault;
 
@@ -38,6 +44,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -55,7 +62,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -208,7 +214,11 @@ public class ControllerClusterListenerTest {
 
         TxnSweeper txnSweeper = spy(new TxnSweeper(streamStore, txnTasks, 100, executor));
         // any attempt to sweep txnHost should have been ignored
+        AtomicBoolean txnSweeperRealMethod = new AtomicBoolean(false);
         doAnswer(invocation -> {
+            if (txnSweeperRealMethod.get()) {
+                return invocation.callRealMethod();
+            }
             txnHostSweepIgnore.complete(null);
             return false;
         }).when(txnSweeper).isReady();
@@ -237,8 +247,11 @@ public class ControllerClusterListenerTest {
         // Future for txnsweeper.failedProcess to be called the first time
         CompletableFuture<Void> requestHostSweepIgnore = new CompletableFuture<>();
         CompletableFuture<Void> requestHostSweep2 = new CompletableFuture<>();
-
+        AtomicBoolean requestSweeperRealMethod = new AtomicBoolean(false);
         doAnswer(invocation -> {
+            if (requestSweeperRealMethod.get()) {
+                return invocation.callRealMethod();
+            }
             requestHostSweepIgnore.complete(null);
             return false;
         }).when(requestSweeper).isReady();
@@ -310,7 +323,7 @@ public class ControllerClusterListenerTest {
         verify(requestSweeper, atLeast(1)).isReady();
 
         // Reset the mock to call real method on txnsweeper.isReady.
-        doCallRealMethod().when(txnSweeper).isReady();
+        txnSweeperRealMethod.set(true);
 
         // Complete txn sweeper initialization by adding event writers.
         txnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
@@ -322,7 +335,7 @@ public class ControllerClusterListenerTest {
         verify(txnSweeper, times(1)).sweepFailedProcesses(any());
 
         // Reset the mock to call real method on requestSweeper.isReady.
-        doCallRealMethod().when(requestSweeper).isReady();
+        requestSweeperRealMethod.set(true);
 
         // Complete requestSweeper initialization by adding event writers.
         streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.containers;
 
@@ -15,7 +21,6 @@ import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
@@ -71,10 +76,13 @@ import io.pravega.segmentstore.storage.SimpleStorageFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorage;
+import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
+import io.pravega.segmentstore.storage.chunklayer.SnapshotInfoStore;
 import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -94,6 +102,9 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH;
+import static io.pravega.segmentstore.contracts.Attributes.ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID;
+
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
  * same StreamSegmentContainer. Handles all operations that can be performed on such streams.
@@ -104,13 +115,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
             .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
     protected final StreamSegmentContainerMetadata metadata;
+    protected final MetadataStore metadataStore;
     private final String traceObjectId;
     private final OperationLog durableLog;
     private final ReadIndex readIndex;
     private final ContainerAttributeIndex attributeIndex;
     private final Writer writer;
     private final Storage storage;
-    private final MetadataStore metadataStore;
     private final ScheduledExecutorService executor;
     private final MetadataCleaner metadataCleaner;
     private final AtomicBoolean closed;
@@ -173,7 +184,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
             String s = NameUtils.getStorageMetadataSegmentName(this.metadata.getContainerId());
 
-            val metadataStore = new TableBasedMetadataStore(s, tableExtension, simpleFactory.getExecutor());
+            val metadataStore = new TableBasedMetadataStore(s, tableExtension, simpleFactory.getChunkedSegmentStorageConfig(), simpleFactory.getExecutor());
 
             return simpleFactory.createStorageAdapter(this.metadata.getContainerId(), metadataStore);
         } else {
@@ -186,7 +197,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 this::deleteSegmentImmediate, this::deleteSegmentDelayed, this::runMetadataCleanup);
         ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
         Preconditions.checkArgument(tableExtension != null, "ContainerTableExtension required for initialization.");
-        return new TableMetadataStore(connector, tableExtension, this.executor);
+        return new TableMetadataStore(connector, tableExtension, tableExtension.getConfig(), this.executor);
     }
 
     /**
@@ -206,17 +217,27 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      *
      * @throws Exception
      */
-    private CompletableFuture<Void> initializeStorage() throws Exception {
+    private CompletableFuture<Void> initializeStorage() {
         log.info("{}: Initializing storage.", this.traceObjectId);
         this.storage.initialize(this.metadata.getContainerEpoch());
 
         if (this.storage instanceof ChunkedSegmentStorage) {
             ChunkedSegmentStorage chunkedStorage = (ChunkedSegmentStorage) this.storage;
-
+            val snapshotInfoStore = getStorageSnapshotInfoStore();
             // Bootstrap
-            return chunkedStorage.bootstrap();
+            return chunkedStorage.bootstrap(snapshotInfoStore);
         }
         return CompletableFuture.completedFuture(null);
+    }
+
+    /**
+     * Returns instance of {@link SnapshotInfoStore} implemented by this instance.
+     * @return instance of {@link SnapshotInfoStore}.
+     */
+    SnapshotInfoStore getStorageSnapshotInfoStore() {
+        return new SnapshotInfoStore(this.metadata.getContainerId(),
+                snapshotInfo -> saveStorageSnapshot(snapshotInfo, config.getStorageSnapshotTimeout()),
+                () -> readStorageSnapshot(config.getStorageSnapshotTimeout()));
     }
 
     //endregion
@@ -233,6 +254,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.writer.close();
             this.durableLog.close();
             this.readIndex.close();
+            this.attributeIndex.close();
             this.storage.close();
             this.metrics.close();
             log.info("{}: Closed.", this.traceObjectId);
@@ -283,10 +305,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     if (ex == null) {
                         // Successful start.
                         log.info("{}: Started.", this.traceObjectId);
-                    } else if (!(Exceptions.unwrap(ex) instanceof ObjectClosedException) || !Services.isTerminating(state())) {
+                    } else if (Services.isTerminating(state())) {
                         // If the delayed start fails, immediately shut down the Segment Container with the appropriate
-                        // exception. We should ignore ObjectClosedExceptions or other exceptions during a shutdown phase
-                        // since that's most likely due to us shutting down.
+                        // exception. However if we are already shut down (or in the process of), it is sufficient to
+                        // log the secondary service exception and move on.
+                        log.warn("{}: Ignoring delayed start error due to Segment Container shutting down.", this.traceObjectId, ex);
+                    } else {
                         doStop(ex);
                     }
                 });
@@ -337,8 +361,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     Throwable failureCause = getFailureCause(this.durableLog, this.writer, this.metadataCleaner);
                     if (failureCause == null) {
                         failureCause = cause;
-                    } else if (cause != null && failureCause != cause) {
-                        failureCause.addSuppressed(cause);
                     }
 
                     if (failureCause == null) {
@@ -606,6 +628,33 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     //endregion
+    private CompletableFuture<SnapshotInfo> readStorageSnapshot(Duration timeout) {
+        val segmentId =   this.metadata.getStreamSegmentId(NameUtils.getMetadataSegmentName(this.metadata.getContainerId()), false);
+        if (segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+            val map =  this.metadata.getStreamSegmentMetadata(segmentId).getAttributes();
+            val epoch = map.getOrDefault(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH, 0L);
+            val snapshotId = map.getOrDefault(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID, 0L);
+            if (epoch > 0) {
+                val retValue = SnapshotInfo.builder()
+                        .snapshotId(snapshotId)
+                        .epoch(epoch)
+                        .build();
+                log.debug("{}: Read SLTS snapshot. {}", this.traceObjectId, retValue);
+                return CompletableFuture.completedFuture(retValue);
+            }
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    private CompletableFuture<Void> saveStorageSnapshot(SnapshotInfo checkpoint, Duration timeout) {
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        val attributeUpdates = Arrays.asList(
+                new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID, AttributeUpdateType.Replace, checkpoint.getSnapshotId()),
+                new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH, AttributeUpdateType.Replace, checkpoint.getEpoch()));
+        return this.metadataStore.getOrAssignSegmentId(NameUtils.getMetadataSegmentName(this.metadata.getContainerId()), timer.getRemaining(),
+                streamSegmentId -> updateAttributesForSegment(streamSegmentId, attributeUpdates, timer.getRemaining()))
+                .thenRunAsync(() -> log.debug("{}: Save SLTS snapshot. {}", this.traceObjectId, checkpoint));
+    }
 
     //region SegmentContainer Implementation
 

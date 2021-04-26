@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.protocol.netty;
 
@@ -14,7 +20,6 @@ import io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
-import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
@@ -64,7 +69,6 @@ public class FailingReplyProcessorTest {
         assertThrows(IllegalStateException.class, () -> rp.conditionalCheckFailed(new ConditionalCheckFailed(null, 1, 2)));
         assertThrows(IllegalStateException.class, () -> rp.dataAppended(new DataAppended(1, null, 0, -1, 2)));
         assertThrows(IllegalStateException.class, () -> rp.invalidEventNumber(new InvalidEventNumber(null, 0, "")));
-        assertThrows(IllegalStateException.class, () -> rp.keepAlive(new KeepAlive()));
         assertThrows(IllegalStateException.class, () -> rp.noSuchSegment(new NoSuchSegment(0, "", "", 2)));
         assertThrows(UnsupportedOperationException.class, () -> rp.operationUnsupported(new OperationUnsupported(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.segmentAlreadyExists(new SegmentAlreadyExists(1, "", "")));

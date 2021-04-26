@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.task.Stream;
 
@@ -50,6 +56,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.Synchronized;
@@ -94,6 +101,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private final CountDownLatch readyLatch;
     private final CompletableFuture<EventStreamWriter<CommitEvent>> commitWriterFuture;
     private final CompletableFuture<EventStreamWriter<AbortEvent>> abortWriterFuture;
+    private final AtomicLong maxTransactionExecutionTimeBound;
 
     @VisibleForTesting
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
@@ -114,6 +122,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         readyLatch = new CountDownLatch(1);
         this.commitWriterFuture = new CompletableFuture<>();
         this.abortWriterFuture = new CompletableFuture<>();
+        this.maxTransactionExecutionTimeBound = new AtomicLong(Duration.ofDays(Config.MAX_TXN_EXECUTION_TIMEBOUND_DAYS).toMillis());
     }
 
     @VisibleForTesting
@@ -178,13 +187,13 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             commitWriterFuture.complete(clientFactory.createEventWriter(
                     config.getCommitStreamName(),
                     ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
-                    EventWriterConfig.builder().build()));
+                    EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build()));
         }
         if (!abortWriterFuture.isDone()) {
             abortWriterFuture.complete(clientFactory.createEventWriter(
                     config.getAbortStreamName(),
                     ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
-                    EventWriterConfig.builder().build()));
+                    EventWriterConfig.builder().retryAttempts(Integer.MAX_VALUE).build()));
         }
         this.setReady();
     }
@@ -323,7 +332,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                    final OperationContext ctx) {
         // Step 1. Validate parameters.
         CompletableFuture<Void> validate = validate(lease);
-        long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
+        long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, maxTransactionExecutionTimeBound.get());
 
         // 1. get latest epoch from history
         // 2. generateNewTransactionId.. this step can throw WriteConflictException
@@ -744,5 +753,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         } else {
             abortWriterFuture.cancel(true);
         }
+    }
+    
+    @VisibleForTesting
+    void setMaxExecutionTime(long timeInMillis) {
+        maxTransactionExecutionTimeBound.set(timeInMillis);
     }
 }

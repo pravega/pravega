@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.endtoendtest;
 
@@ -55,7 +61,7 @@ public class RetentionTest {
     private final String serviceHost = "localhost";
     private final int containerCount = 4;
     private int controllerPort;
-    private URI controllerURI; 
+    private URI controllerURI;
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
@@ -94,7 +100,7 @@ public class RetentionTest {
         serviceBuilder.close();
         zkTestServer.close();
     }
-    
+
     @Test(timeout = 30000)
     public void testRetentionTime() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
@@ -120,12 +126,12 @@ public class RetentionTest {
         assertTrue(x.values().stream().allMatch(a -> a == 0));
         AtomicBoolean continueLoop = new AtomicBoolean(true);
         Futures.loop(continueLoop::get, () -> writer.writeEvent("a"), executor);
-        
+
         AssertExtensions.assertEventuallyEquals(true, () -> controller
                 .getSegmentsAtTime(stream, 0L).join().values().stream().anyMatch(a -> a > 0), 30 * 1000L);
         continueLoop.set(false);
     }
-    
+
     @Test(timeout = 30000)
     public void testRetentionSize() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
@@ -151,7 +157,7 @@ public class RetentionTest {
         assertTrue(x.values().stream().allMatch(a -> a == 0));
         AtomicBoolean continueLoop = new AtomicBoolean(true);
         Futures.loop(continueLoop::get, () -> writer.writeEvent("a"), executor);
-        
+
         AssertExtensions.assertEventuallyEquals(true, () -> controller
                 .getSegmentsAtTime(stream, 0L).join().values().stream().anyMatch(a -> a > 0), 30 * 1000L);
         continueLoop.set(false);

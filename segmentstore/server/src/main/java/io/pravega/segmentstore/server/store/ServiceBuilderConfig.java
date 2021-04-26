@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.store;
 
@@ -68,6 +74,18 @@ public class ServiceBuilderConfig {
                           .rebase(this.properties)
                           .build();
     }
+    
+    /**
+     * Gets a new instance of a Builder for this builder.
+     *
+     * @param constructor A Supplier for a ConfigBuilder for the given Configuration.
+     * @param <T>         The type of the Configuration to instantiate a builder for.
+     * @return The new instance of a ConfigurationBuilder for this builder.
+     */
+    public <T> ConfigBuilder<? extends T> getConfigBuilder(Supplier<? extends ConfigBuilder<? extends T>> constructor) {
+        return constructor.get()
+                          .rebase(this.properties);
+    }
 
     /**
      * Stores the contents of the ServiceBuilderConfig into the given File.
@@ -104,9 +122,9 @@ public class ServiceBuilderConfig {
                 .include(ServiceConfig.builder().with(ServiceConfig.CONTAINER_COUNT, 1))
                 .build();
     }
-
+    
     //endregion
-
+    
     //region Builder
 
     /**

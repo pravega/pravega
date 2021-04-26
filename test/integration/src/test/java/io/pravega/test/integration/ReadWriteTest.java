@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
@@ -67,8 +73,8 @@ public class ReadWriteTest {
     private static final String STREAM_NAME = "testMultiReaderWriterStream" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final int NUM_WRITERS = 20;
     private static final int NUM_READERS = 20;
-    private static final long TOTAL_NUM_EVENTS = 20000;
-    private static final int NUM_EVENTS_BY_WRITER = 1000;
+    private static final int NUM_EVENTS_BY_WRITER = 500;
+    private static final long TOTAL_NUM_EVENTS = NUM_WRITERS * NUM_EVENTS_BY_WRITER;
     private AtomicLong eventData;
     private AtomicLong eventReadCount;
     private AtomicBoolean stopReadFlag;
@@ -205,10 +211,9 @@ public class ReadWriteTest {
             
             //set stop read flag to true
             stopReadFlag.set(true);
-            ExecutorServiceHelpers.shutdown(readerPool);
-            
             //wait for readers completion
             Futures.allOf(readerList).get();
+            ExecutorServiceHelpers.shutdown(readerPool);
 
             //delete readergroup
             log.info("Deleting readergroup {}", readerGroupName);
@@ -242,7 +247,7 @@ public class ReadWriteTest {
                     EventWriterConfig.builder().build());
             for (int i = 0; i < NUM_EVENTS_BY_WRITER; i++) {
                 long value = data.incrementAndGet();
-                log.info("Writing event {}", value);
+                log.debug("Writing event {}", value);
                 writer.writeEvent(String.valueOf(value), value);
                 writer.flush();
             }
@@ -263,7 +268,7 @@ public class ReadWriteTest {
                     ReaderConfig.builder().build());
             while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
                 final Long longEvent = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
-                log.info("Reading event {}", longEvent);
+                log.debug("Reading event {}", longEvent);
                 if (longEvent != null) {
                     //update if event read is not null.
                     readResult.add(longEvent);

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server;
 
@@ -612,7 +618,7 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     private void closeConnection(Reply reply, RawClient client) {
-        log.info("Closing connection as a result of receiving: {}", reply);
+        log.debug("Closing connection as a result of receiving: {}", reply);
         if (client != null) {
             try {
                 client.close();
@@ -633,20 +639,25 @@ public class SegmentHelper implements AutoCloseable {
     @VisibleForTesting
     <T extends Request & WireCommand> void processAndRethrowException(long requestId, T request, Throwable e) {
         Throwable unwrap = Exceptions.unwrap(e);
+        WireCommandFailedException ex = null;
         if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
-            log.warn(requestId, "Connection dropped");
-            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+            ex = new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+            log.warn(requestId, "Connection dropped: {}.", ex.getMessage());
+            throw ex;
         } else if (unwrap instanceof AuthenticationException) {
-            log.warn(requestId, "Authentication Exception");
-            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+            ex = new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+            log.warn(requestId, "Authentication Exception: {}.", ex.getMessage());
+            throw ex;
         } else if (unwrap instanceof TokenExpiredException) {
-            log.warn(requestId, "Token expired");
-            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+            ex = new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
+            log.warn(requestId, "Token expired: {}.", ex.getMessage());
+            throw ex;
         } else if (unwrap instanceof TimeoutException) {
-            log.warn(requestId, "Request timed out.");
-            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+            ex = new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
+            log.warn(requestId, "Request timed out with exception: {}. Request: {}.", ex.getMessage(), request);
+            throw ex;
         } else {
-            log.error(requestId, "Request failed", e);
+            log.error(requestId, "Request failed.", e);
             throw new CompletionException(e);
         }
     }
@@ -671,10 +682,10 @@ public class SegmentHelper implements AutoCloseable {
         Set<Class<? extends Reply>> expectedReplies = EXPECTED_SUCCESS_REPLIES.get(requestType);
         Set<Class<? extends Reply>> expectedFailingReplies = EXPECTED_FAILING_REPLIES.get(requestType);
         if (expectedReplies != null && expectedReplies.contains(reply.getClass())) {
-            log.info(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
+            log.debug(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
                     reply.getClass().getSimpleName(), reply.getRequestId());
         } else if (expectedFailingReplies != null && expectedFailingReplies.contains(reply.getClass())) {
-            log.info(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
+            log.debug(callerRequestId, "{} {} {} {}.", requestType.getSimpleName(), qualifiedStreamSegmentName,
                     reply.getClass().getSimpleName(), reply.getRequestId());
             if (reply instanceof WireCommands.NoSuchSegment) {
                 throw new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist);
