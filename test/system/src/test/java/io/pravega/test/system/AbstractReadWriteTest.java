@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system;
 
@@ -62,7 +68,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     static final int TRANSACTION_TIMEOUT = 119 * 1000;
     static final int RK_RENEWAL_RATE_WRITER = 500;
     static final int SCALE_WAIT_ITERATIONS = 12;
-    private static final int READ_TIMEOUT = 1000;
+    private static final int READ_TIMEOUT = 10000;
     private static final int WRITE_THROTTLING_TIME = 100;
 
     final String readerName = "reader";
@@ -408,15 +414,15 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                 EventWriterConfig.builder().build());
         for (int i = initialPoint; i < totalEvents + initialPoint; i++) {
             writer.writeEvent(String.format("%03d", i)).join(); // this ensures the event size is constant.
-            log.debug("Writing event: {} to stream {}.", streamName + String.valueOf(i), streamName);
+            log.debug("Writing event: {} to stream {}.", streamName + i, streamName);
         }
+        log.info("Writer {} finished writing {} events.", writer, totalEvents - initialPoint);
     }
 
     <T extends Serializable> List<CompletableFuture<Integer>> readEventFutures(EventStreamClientFactory client, String rGroup, int numReaders, int limit) {
         List<EventStreamReader<T>> readers = new ArrayList<>();
         for (int i = 0; i < numReaders; i++) {
-            readers.add(client.createReader(rGroup + "-" + String.valueOf(i), rGroup,
-                    new JavaSerializer<>(), ReaderConfig.builder().build()));
+            readers.add(client.createReader(rGroup + "-" + i, rGroup, new JavaSerializer<>(), ReaderConfig.builder().build()));
         }
 
         return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r, limit / numReaders))).collect(toList());
@@ -548,7 +554,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         } finally {
             closeReader(reader);
         }
-
+        log.info("Reader {} finished reading {} events (limit was {}).", reader, validEvents, limit);
         return validEvents;
     }
 

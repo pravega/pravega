@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
@@ -71,7 +77,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
         UUID txId = event.getTxid();
         Timer timer = new Timer();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
-        log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
+        log.info("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
         return Futures.toVoid(streamMetadataStore.getSegmentsInEpoch(event.getScope(), event.getStream(), epoch, context, executor)
                                                  .thenApply(segments -> segments.stream().map(StreamSegmentRecord::segmentId)
@@ -80,11 +86,11 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor))
                 .whenComplete((result, error) -> {
                     if (error != null) {
-                        log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),
+                        log.warn("Failed aborting transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
                         TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, event.getTxid().toString());
                     } else {
-                        log.debug("Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
+                        log.info("Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
                                 event.getScope(), event.getStream());
                         if (processedEvents != null) {
                             processedEvents.offer(event);

@@ -1,14 +1,21 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -113,10 +120,9 @@ interface Stream {
      * Create subscribers record for storing metadata about Stream Subscribers.
      * Also add this new Subscriber to the Record.
      * @param subscriber first subscriber to be added the SubscribersRecord in Stream Metadata.
-     * @param generation generation of subscriber in Stream Metadata.
      * @return future of operation.
      */
-    CompletableFuture<Void> createSubscriber(String subscriber, long generation);
+    CompletableFuture<Void> addSubscriber(String subscriber, long generation);
 
     /**
      * Fetches the record corresponding to the subscriber
@@ -133,17 +139,19 @@ interface Stream {
     /**
      * Update subscribers record for the Stream.
      * @param previous - Subscriber Record that would be replaced by this update API
-     * @param subscriberData  new Subscriber Record that would replace the previous one.
+     * @param subscriber  subscriber name.
+     * @param streamCut - new subscriber streamcut
      * @return future of operation.
      */
-    CompletableFuture<Void> updateSubscriberStreamCut(final VersionedMetadata<StreamSubscriber> previous, final StreamSubscriber subscriberData);
+    CompletableFuture<Void> updateSubscriberStreamCut(final VersionedMetadata<StreamSubscriber> previous,
+                                                      final String subscriber, long generation, final ImmutableMap<Long, Long> streamCut);
 
     /**
      * Remove subscriber from list of Subscribers for the Stream.
      * @param subscriber  subscriber to be removed.
      * @return future of operation.
      */
-    CompletableFuture<Void> removeSubscriber(final String subscriber, final long generation);
+    CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation);
 
     /**
      * Starts truncating an existing stream.
@@ -683,15 +691,16 @@ interface Stream {
     CompletableFuture<Integer> getSegmentSealedEpoch(long segmentId);
 
     /**
-     * Method to compare streamcuts to check if streamcut1 is strictly ahead of streamcut2. 
-     * Strictly means if the two streamcuts are overlapping for any range, then this method will reply in negative. 
+     * Compares two Stream cuts and returns StreamCutComparison:
+     * A streamcut is considered greater than other if for all key ranges the segment/offset in one streamcut is ahead of 
+     * second streamcut. 
      * 
      * @param cut1 streamcut to check
      * @param cut2 streamcut to check against. 
      *
-     * @return CompletableFuture which, upon completion, will indicate if the streamcut1 is strictly ahead of streamcut2.
+     * @return CompletableFuture which, upon completion, will contain comparison result of streamcut1 and streamcut2.
      */
-    CompletableFuture<Boolean> isStreamCutStrictlyGreaterThan(Map<Long, Long> cut1, Map<Long, Long> cut2);
+    CompletableFuture<StreamCutComparison> compareStreamCuts(Map<Long, Long> cut1, Map<Long, Long> cut2);
 
     /**
      * Finds the latest streamcutreference record from retentionset that is strictly before the supplied streamcut.
@@ -701,4 +710,13 @@ interface Stream {
      * is strictly before the supplied streamcut. 
      */
     CompletableFuture<StreamCutReferenceRecord> findStreamCutReferenceRecordBefore(Map<Long, Long> streamCut, RetentionSet retentionSet);
+
+    /**
+     * Finds the cumulative number of splits and merges in this Stream till this epoch.
+     *
+     * @param epochRecord EpochRecord till which to compute splits/merges.
+     * @return A completable future which when completed will return an Entry<Key, Value>,
+     * where 'Key' is number of splits and 'Value' is number of merges in the Stream till this epoch.
+     */
+    CompletableFuture<SimpleEntry<Long, Long>> getSplitMergeCountsTillEpoch(EpochRecord epochRecord);
 }

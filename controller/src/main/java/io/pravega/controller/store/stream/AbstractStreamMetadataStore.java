@@ -1,16 +1,23 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.Scope;
@@ -39,6 +46,7 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
+import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -64,7 +72,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -80,6 +87,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
+    private final LoadingCache<Pair<String, String>, ReaderGroup> rgCache;
     private final HostIndex hostTxnIndex;
     @Getter
     private final HostIndex hostTaskIndex;
@@ -97,6 +105,23 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                             public Stream load(Pair<String, String> input) {
                                 try {
                                     return newStream(input.getKey(), input.getValue());
+                                } catch (Exception e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                        });
+
+        rgCache = CacheBuilder.newBuilder()
+                .maximumSize(10000)
+                .refreshAfterWrite(10, TimeUnit.MINUTES)
+                .expireAfterWrite(10, TimeUnit.MINUTES)
+                .build(
+                        new CacheLoader<Pair<String, String>, ReaderGroup>() {
+                            @Override
+                            @ParametersAreNonnullByDefault
+                            public ReaderGroup load(Pair<String, String> input) {
+                                try {
+                                    return newReaderGroup(input.getKey(), input.getValue());
                                 } catch (Exception e) {
                                     throw new RuntimeException(e);
                                 }
@@ -225,7 +250,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
             } else {
-                log.debug("Create scope failed due to ", ex);
+                log.error("Create scope failed for scope {} due to ", scopeName, ex);
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.FAILURE).build();
             }
         });
@@ -249,7 +274,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             } else if (ex instanceof StoreException.DataNotEmptyException) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
             } else {
-                log.debug("DeleteScope failed due to {} ", ex);
+                log.error("DeleteScope failed for scope {} due to {} ", scopeName, ex);
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.FAILURE).build();
             }
         });
@@ -522,24 +547,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> createSubscriber(final String scopeName, final String streamName, String subscriber,
-                                                    final long generation, final OperationContext context, final Executor executor) {
+    public CompletableFuture<Void> addSubscriber(final String scopeName, final String streamName, String subscriber,
+                                                 final long generation, final OperationContext context, final Executor executor) {
         Stream stream = getStream(scopeName, streamName, context);
-        return Futures.completeOn(stream.createSubscriber(subscriber, generation), executor);
+        return Futures.completeOn(stream.addSubscriber(subscriber, generation), executor);
     }
-
-    @Override
-    public CompletableFuture<Void> updateSubscriberStreamCut(final String scope,
-                                                            final String name,
-                                                            final String subscriber,
-                                                            final ImmutableMap<Long, Long> streamCut,
-                                                            final VersionedMetadata<StreamSubscriber> previousRecord,
-                                                            final OperationContext context,
-                                                            final Executor executor) {
-        return Futures.completeOn(getStream(scope, name, context)
-                .updateSubscriberStreamCut(previousRecord, new StreamSubscriber(subscriber, streamCut, System.currentTimeMillis())), executor);
-    }
-
 
     @Override
     public CompletableFuture<Void> deleteSubscriber(final String scope,
@@ -548,7 +560,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                     final long generation,
                                                     final OperationContext context,
                                                     final Executor executor) {
-        return Futures.completeOn(getStream(scope, name, context).removeSubscriber(subscriber, generation), executor);
+        return Futures.completeOn(getStream(scope, name, context).deleteSubscriber(subscriber, generation), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> updateSubscriberStreamCut(final String scope,
+                                                            final String name,
+                                                            final String subscriber,
+                                                            final long generation,
+                                                            final ImmutableMap<Long, Long> streamCut,
+                                                            final VersionedMetadata<StreamSubscriber> previousRecord,
+                                                            final OperationContext context,
+                                                            final Executor executor) {
+        return Futures.completeOn(getStream(scope, name, context)
+                .updateSubscriberStreamCut(previousRecord, subscriber, generation, streamCut), executor);
     }
 
     @Override
@@ -882,9 +907,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> streamCutStrictlyGreaterThan(String scope, String streamName, Map<Long, Long> streamCut1,
-                                                                   Map<Long, Long> streamCut2, OperationContext context, Executor executor) {
-        return Futures.completeOn(getStream(scope, streamName, context).isStreamCutStrictlyGreaterThan(streamCut1, streamCut2), executor);
+    public CompletableFuture<StreamCutComparison> compareStreamCut(String scope, String streamName, Map<Long, Long> streamCut1,
+                                                       Map<Long, Long> streamCut2, OperationContext context, Executor executor) {
+        return Futures.completeOn(getStream(scope, streamName, context).compareStreamCuts(streamCut1, streamCut2), executor);
     }
 
     @Override
@@ -919,17 +944,105 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return scope;
     }
 
-    private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, OperationContext context, Executor executor) {
-        return getScaleMetadata(scopeName, streamName, 0, Long.MAX_VALUE, context, executor).thenApply(scaleMetadataList -> {
-            AtomicLong totalNumSplits = new AtomicLong(0L);
-            AtomicLong totalNumMerges = new AtomicLong(0L);
-            scaleMetadataList.forEach(x -> {
-                totalNumMerges.addAndGet(x.getMerges());
-                totalNumSplits.addAndGet(x.getSplits());
-            });
+    // region ReaderGroup
+    @Override
+    public CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName) {
+        return getScope(scopeName).getReaderGroupId(rgName);
+    }
 
-            return new SimpleEntry<>(totalNumSplits.get(), totalNumMerges.get());
-        });
+    @Override
+    public CompletableFuture<Void> startRGConfigUpdate(final String scope, final String name,
+                                                       final ReaderGroupConfig configuration,
+                                                       final RGOperationContext context,
+                                                       final Executor executor) {
+      return Futures.completeOn(getReaderGroup(scope, name, context).startUpdateConfiguration(configuration), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> completeRGConfigUpdate(final String scope, final String name,
+                                                          final VersionedMetadata<ReaderGroupConfigRecord> existing,
+                                                          final RGOperationContext context, final Executor executor) {
+        return Futures.completeOn(getReaderGroup(scope, name, context).completeUpdateConfiguration(existing), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<ReaderGroupState>> getVersionedReaderGroupState(final String scope, final String name,
+                                                                                        final boolean ignoreCached,
+                                                                                        final RGOperationContext context,
+                                                                                        final Executor executor) {
+      return Futures.completeOn(getReaderGroup(scope, name, context).getVersionedState(), executor);
+    }
+
+    @Override
+    public CompletableFuture<ReaderGroupState> getReaderGroupState(final String scope, final String name,
+                                             final boolean ignoreCached,
+                                             final RGOperationContext context,
+                                             final Executor executor) {
+        return Futures.completeOn(getReaderGroup(scope, name, context).getState(ignoreCached), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<ReaderGroupConfigRecord>> getReaderGroupConfigRecord(final String scope,
+                                                                   final String name,
+                                                                   final RGOperationContext context, final Executor executor) {
+        return Futures.completeOn(getReaderGroup(scope, name, context).getVersionedConfigurationRecord(), executor);
+    }
+
+    @Override
+    public RGOperationContext createRGContext(String scope, String name) {
+        return new RGOperationContext(getReaderGroup(scope, name, null));
+    }
+
+    protected ReaderGroup getReaderGroup(String scope, final String name, RGOperationContext context) {
+        ReaderGroup readerGroup;
+        if (context != null) {
+            readerGroup = context.getReaderGroup();
+            assert readerGroup.getScope().equals(scope);
+            assert readerGroup.getName().equals(name);
+        } else {
+            readerGroup = rgCache.getUnchecked(new ImmutablePair<>(scope, name));
+            readerGroup.refresh();
+        }
+        return readerGroup;
+    }
+
+    @Override
+    public CompletableFuture<Void> createReaderGroup(final String scope,
+                                                                 final String rgName,
+                                                                 final ReaderGroupConfig configuration,
+                                                                 final long createTimestamp,
+                                                                 final RGOperationContext context,
+                                                                 final Executor executor) {
+        return Futures.completeOn(checkScopeExists(scope)
+                   .thenCompose(exists -> {
+                   if (exists) {
+                     // Create reader group may fail, if scope is deleted as we attempt to create the reader group under scope.
+                     return getReaderGroup(scope, rgName, context)
+                                    .create(configuration, createTimestamp);
+                   } else {
+                     return Futures.toVoid(Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope does not exist")));
+                   }
+                 }), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteReaderGroup(final String scopeName, final String rgName,
+                                                     final RGOperationContext context, final Executor executor) {
+        return getReaderGroup(scopeName, rgName, context).delete();
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<ReaderGroupState>> updateReaderGroupVersionedState(final String scope, final String name,
+                                                                                final ReaderGroupState state, final VersionedMetadata<ReaderGroupState> previous,
+                                                                                final RGOperationContext context, final Executor executor) {
+        return Futures.completeOn(getReaderGroup(scope, name, context).updateVersionedState(previous, state), executor);
+    }
+
+    //endregion
+
+    private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, OperationContext context, Executor executor) {
+        Stream stream = getStream(scopeName, streamName, context);
+        return Futures.completeOn(stream.getActiveEpoch(true).thenCompose(lastEpoch -> stream.getSplitMergeCountsTillEpoch(lastEpoch)), executor);
     }
 
     /**
@@ -963,8 +1076,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     abstract CompletableFuture<Int96> getNextCounter();
 
-    abstract CompletableFuture<Boolean> checkScopeExists(String scope);
-
     private String getTxnResourceString(TxnResource txn) {
         return txn.toString(RESOURCE_PART_SEPARATOR);
     }
@@ -980,5 +1091,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     abstract Version getEmptyVersion();
 
     abstract Version parseVersionData(byte[] data);
+
+    // region reader group
+    abstract ReaderGroup newReaderGroup(final String scope, final String name);
+
+    //endregion
 }
 

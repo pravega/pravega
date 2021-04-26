@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.control.impl;
 
@@ -15,6 +21,7 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
@@ -121,28 +128,46 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> updateStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
 
     /**
-     * API to add a Subscriber to the Stream.
-     * @param scope Scope name
-     * @param streamName Stream name
-     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
-     * @param generation Subscriber generation.
+     * API create a ReaderGroup.
+     * @param scopeName Scope name for Reader Group.
+     * @param rgName Stream name.
+     * @param config ReaderGroup configuration.
      * @throws IllegalArgumentException if Stream does not exist.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscriber was updated in Stream Metadata.
      */
-    CompletableFuture<Boolean> addSubscriber(final String scope, final String streamName, final String subscriber, final long generation);
+    CompletableFuture<ReaderGroupConfig> createReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
 
     /**
-     * API to remove a Subscriber from list of Subscribers for the Stream.
-     * @param scope Scope name
-     * @param streamName Stream name
-     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
-     * @param generation Subscriber generation.
-     * @throws IllegalArgumentException if Stream/Subscriber does not exist.
-     * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     *         indicate that the subscriber was updated in Stream Metadata.
+     * API to update a ReaderGroup config.
+     * @param scopeName Scope name for Reader Group.
+     * @param rgName Stream name.
+     * @param config ReaderGroup configuration.
+     * @throws IllegalArgumentException if Stream does not exist.
+     * @throws ReaderGroupConfigRejectedException if the provided ReaderGroupConfig is invalid
+     * @return A future which will throw if the operation fails, otherwise
+     *         the subscriber was updated in Stream Metadata and a long indicating
+     *         the updated config generation is returned.
      */
-    CompletableFuture<Boolean> deleteSubscriber(final String scope, final String streamName, final String subscriber, final long generation);
+    CompletableFuture<Long> updateReaderGroup(final String scopeName, final String rgName, ReaderGroupConfig config);
+
+    /**
+     * API to get Reader Group Configuration.
+     * @param scope Scope name for Reader Group.
+     * @param rgName Stream name.
+     * @throws IllegalArgumentException if ReaderGroup does not exist.
+     * @return A future which will throw if the operation fails, otherwise returns configuration of the Reader Group.
+     */
+    CompletableFuture<ReaderGroupConfig> getReaderGroupConfig(final String scope, final String rgName);
+
+    /**
+     * API to delete a Reader Group.
+     * @param scope Scope name for Reader Group.
+     * @param rgName Reader Group name.
+     * @param readerGroupId Unique Id for this readerGroup.
+     * @return A future which will throw if the operation fails, otherwise returns configuration of the Reader Group.
+     */
+    CompletableFuture<Boolean> deleteReaderGroup(final String scope, final String rgName, final UUID readerGroupId);
 
     /**
      * Get list of Subscribers for the Stream.
@@ -157,13 +182,16 @@ public interface Controller extends AutoCloseable {
      * Used when Stream has Consumption Based Retention Policy configured.
      * @param scope Scope name
      * @param streamName Stream name
-     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber..
+     * @param subscriber Name/Id that uniquely identifies a Stream Subscriber.
+     * @param readerGroupId Reader Group Id.
+     * @param generation subscriber generation number.
      * @param streamCut StreamCut at which Stream can be Truncated for a Consumption based retention policy
      * @throws IllegalArgumentException if Stream/Subscriber does not exist, or StreamCut is not valid.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the subscribers position was updated in Stream Metadata.
      */
-    CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber, final StreamCut streamCut);
+    CompletableFuture<Boolean> updateSubscriberStreamCut(final String scope, final String streamName, final String subscriber,
+                                                         final UUID readerGroupId, final long generation, final StreamCut streamCut);
 
     /**
      * API to Truncate stream. This api takes a stream cut point which corresponds to a cut in
@@ -280,7 +308,7 @@ public interface Controller extends AutoCloseable {
      * {@link TxnFailedException} if the transaction has already been committed or aborted.
      *
      * @param stream Stream name
-     * @param writerId The writer that is comiting the transaction.
+     * @param writerId The writer that is committing the transaction.
      * @param timestamp The timestamp the writer provided for the commit (or null if they did not specify one).
      * @param txId Transaction id
      * @return Void or TxnFailedException

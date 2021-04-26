@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.writer;
 
@@ -14,6 +20,7 @@ import io.pravega.common.AbstractTimer;
 import io.pravega.segmentstore.server.WriterFlushResult;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import java.time.Duration;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -35,6 +42,7 @@ class WriterState {
     private final AtomicReference<Duration> currentIterationStartTime;
     private final AtomicLong iterationId;
     private final AtomicReference<ForceFlushContext> forceFlushContext;
+    private final AtomicReference<Queue<Operation>> lastRead;
 
     //endregion
 
@@ -50,6 +58,7 @@ class WriterState {
         this.currentIterationStartTime = new AtomicReference<>();
         this.forceFlushContext = new AtomicReference<>();
         this.iterationId = new AtomicLong();
+        this.lastRead = new AtomicReference<>(null);
     }
 
     //endregion
@@ -180,6 +189,32 @@ class WriterState {
      */
     boolean isForceFlush() {
         return this.forceFlushContext.get() != null;
+    }
+
+    /**
+     * Gets the Last Read operations.
+     *
+     * @return A {@link Queue} containing the last read (and unprocessed) Operations, or null if there are no such Operations.
+     */
+    Queue<Operation> getLastRead() {
+        Queue<Operation> result = this.lastRead.get();
+        if (result != null && result.isEmpty()) {
+            this.lastRead.compareAndSet(result, null);
+            return null;
+        }
+
+        return result;
+    }
+
+    /**
+     * Sets the Last Read operations.
+     *
+     * @param lastRead A {@link Queue} containing the last read Operations.
+     * @return {@code lastRead}.
+     */
+    Queue<Operation> setLastRead(Queue<Operation> lastRead) {
+        this.lastRead.set(lastRead);
+        return lastRead;
     }
 
     @Override

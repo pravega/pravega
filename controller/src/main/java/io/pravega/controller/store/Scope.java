@@ -1,14 +1,19 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store;
-
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
 import java.util.List;
@@ -79,9 +84,17 @@ public interface Scope {
     CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final int limit, final String continuationToken,
                                                               final Executor executor);
 
+    CompletableFuture<UUID> getReaderGroupId(String rgName);
+
     default byte[] newId() {
         byte[] b = new byte[2 * Long.BYTES];
         BitConverter.writeUUID(new ByteArraySegment(b), UUID.randomUUID());
+        return b;
+    }
+
+    default byte[] getIdInBytes(UUID id) {
+        byte[] b = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(new ByteArraySegment(b), id);
         return b;
     }
 }

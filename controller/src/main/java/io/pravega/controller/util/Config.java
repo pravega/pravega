@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.util;
 
@@ -167,8 +173,11 @@ public final class Config {
     public static final Property<Integer> PROPERTY_TXN_MIN_LEASE = Property.named(
             "transaction.lease.count.min", 10000, "transaction.minLeaseValue");
 
-    public static final Property<Integer> PROPERTY_TXN_MAX_LEASE = Property.named(
-            "transaction.lease.count.max", 120000, "transaction.maxLeaseValue");
+    public static final Property<Long> PROPERTY_TXN_MAX_LEASE = Property.named(
+            "transaction.lease.count.max", 120000L, "transaction.maxLeaseValue");
+
+    public static final Property<Integer> PROPERTY_TXN_MAX_EXECUTION_TIMEBOUND_DAYS = Property.named(
+            "transaction.execution.timeBound.days", 1);
 
     public static final Property<Integer> PROPERTY_TXN_TTL_HOURS = Property.named(
             "transaction.ttl.hours", 24, "transaction.ttlHours");
@@ -247,6 +256,7 @@ public final class Config {
     //Transaction configuration
     public static final long MIN_LEASE_VALUE;
     public static final long MAX_LEASE_VALUE;
+    public static final int MAX_TXN_EXECUTION_TIMEBOUND_DAYS;
 
     // Completed Transaction TTL
     public static final int COMPLETED_TRANSACTION_TTL_IN_HOURS;
@@ -327,7 +337,8 @@ public final class Config {
         REST_KEYSTORE_PASSWORD_FILE_PATH = p.get(PROPERTY_REST_KEYSTORE_PASSWORD_FILE_PATH);
 
         MIN_LEASE_VALUE = p.getInt(PROPERTY_TXN_MIN_LEASE);
-        MAX_LEASE_VALUE = p.getInt(PROPERTY_TXN_MAX_LEASE);
+        MAX_LEASE_VALUE = p.getLong(PROPERTY_TXN_MAX_LEASE);
+        MAX_TXN_EXECUTION_TIMEBOUND_DAYS = p.getInt(PROPERTY_TXN_MAX_EXECUTION_TIMEBOUND_DAYS);
         COMPLETED_TRANSACTION_TTL_IN_HOURS = p.getInt(PROPERTY_TXN_TTL_HOURS);
         MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = p.getInt(PROPERTY_RETENTION_FREQUENCY_MINUTES);
         RETENTION_BUCKET_COUNT = p.getInt(PROPERTY_RETENTION_BUCKET_COUNT);

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
@@ -18,6 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -52,6 +59,36 @@ public class StreamSegmentReadResultTests {
         r2.setCopyOnRead(false);
         expectedMakeCopy.set(false);
         r2.next();
+    }
+
+    /**
+     * Tests the ability to handle {@link StreamSegmentReadResult#setMaxReadAtOnce(int)}.
+     */
+    @Test
+    public void testMaxReadAtOnce() {
+        final int maxReadAtOnce = 10;
+        StreamSegmentReadResult.NextEntrySupplier nes = (offset, length, makeCopy) -> TestReadResultEntry.endOfSegment(offset, length);
+
+        // Set it to a small value.
+        @Cleanup
+        StreamSegmentReadResult r1 = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
+        r1.setMaxReadAtOnce(maxReadAtOnce);
+        val r11 = r1.next();
+        Assert.assertEquals(maxReadAtOnce, r11.getRequestedReadLength());
+
+        // Set it to 0.
+        @Cleanup
+        StreamSegmentReadResult r2 = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
+        r2.setMaxReadAtOnce(0);
+        val r21 = r2.next();
+        Assert.assertEquals(MAX_RESULT_LENGTH, r21.getRequestedReadLength());
+
+        // Set it to more than max result length.
+        @Cleanup
+        StreamSegmentReadResult r3 = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
+        r3.setMaxReadAtOnce(MAX_RESULT_LENGTH + 123);
+        val r31 = r3.next();
+        Assert.assertEquals(MAX_RESULT_LENGTH, r31.getRequestedReadLength());
     }
 
     /**

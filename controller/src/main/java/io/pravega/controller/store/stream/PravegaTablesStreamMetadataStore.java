@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -40,6 +46,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -86,6 +93,21 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         this.completedTxnGCRef = new AtomicReference<>(completedTxnGC);
         this.counter = new ZkInt96Counter(zkStoreHelper);
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
+        this.executor = executor;
+    }
+
+    @VisibleForTesting
+    PravegaTablesStreamMetadataStore(CuratorFramework curatorClient, ScheduledExecutorService executor,
+                                     Duration gcPeriod, PravegaTablesStoreHelper helper) {
+        super(new ZKHostIndex(curatorClient, "/hostTxnIndex", executor), new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
+        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
+        this.orderer = new ZkOrderedStore("txnCommitOrderer", zkStoreHelper, executor);
+        this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, zkStoreHelper, this::gcCompletedTxn, gcPeriod);
+        this.completedTxnGC.startAsync();
+        this.completedTxnGC.awaitRunning();
+        this.completedTxnGCRef = new AtomicReference<>(completedTxnGC);
+        this.counter = new ZkInt96Counter(zkStoreHelper);
+        this.storeHelper = helper;
         this.executor = executor;
     }
 
@@ -163,7 +185,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
-    CompletableFuture<Boolean> checkScopeExists(String scope) {
+    public CompletableFuture<Boolean> checkScopeExists(String scope) {
         return Futures.completeOn(storeHelper.expectingDataNotFound(
                 storeHelper.getEntry(SCOPES_TABLE, scope, x -> x).thenApply(v -> true),
                 false), executor);
@@ -242,6 +264,13 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
+    public CompletableFuture<Boolean> checkReaderGroupExists(final String scopeName,
+                                                        final String rgName) {
+        return Futures.completeOn(((PravegaTablesScope) getScope(scopeName)).checkReaderGroupExistsInScope(rgName), executor);
+    }
+
+
+    @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
         return Futures.completeOn(storeHelper.getEntry(DELETED_STREAMS_TABLE, getScopedStreamName(scopeName, streamName),
                 x -> BitConverter.readInt(x, 0))
@@ -291,4 +320,28 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         completedTxnGC.stopAsync();
         completedTxnGC.awaitTerminated();
     }
+
+    // region Reader Group
+    @Override
+    PravegaTablesReaderGroup newReaderGroup(final String scope, final String rgName) {
+        return new PravegaTablesReaderGroup(scope, rgName, storeHelper,
+                () -> ((PravegaTablesScope) getScope(scope)).getReaderGroupsInScopeTableName(), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> addReaderGroupToScope(final String scope,
+                                                         final String name, final UUID readerGroupId) {
+        return Futures.completeOn(((PravegaTablesScope) getScope(scope))
+                .addReaderGroupToScope(name, readerGroupId), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteReaderGroup(final String scope, final String name,
+                                                    final RGOperationContext context, final Executor executor) {
+        return Futures.completeOn(super.deleteReaderGroup(scope, name, context, executor)
+                        .thenCompose(status -> ((PravegaTablesScope) getScope(scope))
+                                .removeReaderGroupFromScope(name).thenApply(v -> status)),
+                executor);
+    }
+    //endregion
 }

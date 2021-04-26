@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -13,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.gson.internal.LinkedTreeMap;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
@@ -24,6 +31,7 @@ import io.pravega.controller.store.Version;
 import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -35,6 +43,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -56,7 +65,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final AtomicInteger position = new AtomicInteger();
     @GuardedBy("$lock")
     private final LinkedTreeMap<String, Integer> orderedScopes = new LinkedTreeMap<>();
-    
+
+    @GuardedBy("$lock")
+    private final Map<String, InMemoryReaderGroup> readerGroups = new HashMap<>();
+
+
     @GuardedBy("$lock")
     private final Map<Integer, List<String>> bucketedStreams = new HashMap<>();
 
@@ -96,6 +109,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     @Synchronized
     public CompletableFuture<Boolean> checkScopeExists(String scope) {
+        log.debug("InMemory checking if scope exists");
         return CompletableFuture.completedFuture(scopes.containsKey(scope));
     }
 
@@ -107,6 +121,18 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     Version parseVersionData(byte[] data) {
         return Version.IntVersion.fromBytes(data);
+    }
+
+    @Override
+    @Synchronized
+    @SneakyThrows
+    ReaderGroup newReaderGroup(String scope, String name) {
+        final String scopedRGName = scopedStreamName(scope, name);
+        if (readerGroups.containsKey(scopedRGName)) {
+            return readerGroups.get(scopedRGName);
+        } else {
+           return new InMemoryReaderGroup(scope, name);
+        }
     }
 
     @Override
@@ -190,7 +216,57 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
-    
+
+    @Override
+    public CompletableFuture<Void> addReaderGroupToScope(String scopeName, String rgName, UUID readerGroupId) {
+        if (scopes.containsKey(scopeName)) {
+            scopes.get(scopeName).addReaderGroupToScope(rgName, readerGroupId);
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return Futures.
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
+        }
+    }
+
+    // region ReaderGroup
+    @Override
+    public CompletableFuture<Void> createReaderGroup(final String scope,
+                                                     final String name,
+                                                     final ReaderGroupConfig configuration,
+                                                     final long createTimestamp,
+                                                     final RGOperationContext context,
+                                                     final Executor executor) {
+        if (scopes.containsKey(scope)) {
+           InMemoryReaderGroup readerGroup = (InMemoryReaderGroup) getReaderGroup(scope, name, context);
+           readerGroups.put(scopedStreamName(scope, name), readerGroup);
+           return readerGroup.create(configuration, createTimestamp);
+        } else {
+            return Futures.
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scope));
+        }
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteReaderGroup(final String scopeName, final String rgName,
+                                                     final RGOperationContext context, final Executor executor) {
+        String scopedRGName = scopedStreamName(scopeName, rgName);
+        if (scopes.containsKey(scopeName) && readerGroups.containsKey(scopedRGName)) {
+            readerGroups.remove(scopedRGName);
+            return scopes.get(scopeName).removeReaderGroupFromScope(rgName);
+        } else {
+            return Futures.
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, rgName));
+        }
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkReaderGroupExists(final String scopeName,
+                                                             final String rgName) {
+        return Futures.completeOn(((InMemoryScope) getScope(scopeName)).checkReaderGroupExistsInScope(rgName), executor);
+    }
+
+    // endregion
+
     @Override
     @Synchronized
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {

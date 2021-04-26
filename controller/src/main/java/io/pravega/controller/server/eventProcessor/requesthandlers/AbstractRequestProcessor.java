@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
@@ -27,6 +33,9 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.controller.event.CreateReaderGroupEvent;
+import io.pravega.shared.controller.event.DeleteReaderGroupEvent;
+import io.pravega.shared.controller.event.UpdateReaderGroupEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -111,6 +120,21 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
 
     @Override
     public CompletableFuture<Void> processDeleteStream(DeleteStreamEvent deleteStreamEvent) {
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
+    }
+
+    @Override
+    public CompletableFuture<Void> processCreateReaderGroup(CreateReaderGroupEvent createRGEvent) {
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
+    }
+
+    @Override
+    public CompletableFuture<Void> processDeleteReaderGroup(DeleteReaderGroupEvent deleteRGEvent) {
+        return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
+    }
+
+    @Override
+    public CompletableFuture<Void> processUpdateReaderGroup(UpdateReaderGroupEvent updateRGEvent) {
         return Futures.failedFuture(new RequestUnsupportedException("Request Unsupported"));
     }
 

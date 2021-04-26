@@ -1,17 +1,23 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -138,7 +144,6 @@ public class BatchClientAuthTest extends BatchClientTest {
             setClientAuthProperties("unauthorizeduser", "1111_aaaa");
             ClientConfig config = ClientConfig.builder()
                     .controllerURI(URI.create(this.controllerUri()))
-                    .credentials(new DefaultCredentials("1111_aaaa", "unauthorizeduser"))
                     .build();
 
             AssertExtensions.assertThrows("Auth exception did not occur.",
@@ -189,7 +194,7 @@ public class BatchClientAuthTest extends BatchClientTest {
         // Depending on an exception message for determining whether the given exception represents auth failure
         // is not a good thing to do, but we have no other choice here because auth failures are represented as the
         // overly general io.grpc.StatusRuntimeException.
-        return innermostException instanceof StatusRuntimeException &&
+        return innermostException != null && innermostException instanceof StatusRuntimeException &&
                 innermostException.getMessage().toUpperCase().contains("PERMISSION_DENIED");
     }
 
@@ -199,7 +204,7 @@ public class BatchClientAuthTest extends BatchClientTest {
         // Depending on an exception message for determining whether the given exception represents auth failure
         // is not a good thing to do, but we have no other choice here because auth failures are represented as the
         // overly general io.grpc.StatusRuntimeException.
-        return innermostException instanceof StatusRuntimeException &&
+        return innermostException != null && innermostException instanceof StatusRuntimeException &&
                 innermostException.getMessage().toUpperCase().contains("UNAUTHENTICATED");
     }
 }

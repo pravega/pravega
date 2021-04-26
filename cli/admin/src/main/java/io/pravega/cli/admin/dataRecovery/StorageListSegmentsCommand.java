@@ -1,27 +1,32 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.cli.admin.dataRecovery;
 
 import io.pravega.cli.admin.CommandArgs;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+import lombok.Cleanup;
 import org.apache.hadoop.fs.Path;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.text.SimpleDateFormat;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
@@ -31,18 +36,16 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Lists all non-shadow segments from there from the storage. The storage is loaded using the config properties.
  */
-public class StorageListSegmentsCommand extends DataRecoveryCommand implements AutoCloseable {
+public class StorageListSegmentsCommand extends DataRecoveryCommand {
     /**
      * Header line for writing segments' details to csv files.
      */
     private static final List<String> HEADER = Arrays.asList("Sealed Status", "Length", "Segment Name");
     private static final int CONTAINER_EPOCH = 1;
     private final int containerCount;
-    private final ScheduledExecutorService scheduledExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(1,
-            "listSegmentsProcessor");
+    private final ScheduledExecutorService scheduledExecutorService = getCommandArgs().getState().getExecutor();
     private final SegmentToContainerMapper segToConMapper;
     private final StorageFactory storageFactory;
-    private final Storage storage;
     private final FileWriter[] csvWriters;
     private String filePath;
 
@@ -55,20 +58,8 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand implements A
         super(args);
         this.containerCount = getServiceConfig().getContainerCount();
         this.segToConMapper = new SegmentToContainerMapper(this.containerCount);
-        this.storageFactory = createStorageFactory(scheduledExecutorService);
-        this.storage = this.storageFactory.createStorageAdapter();
+        this.storageFactory = createStorageFactory(this.scheduledExecutorService);
         this.csvWriters = new FileWriter[this.containerCount];
-    }
-
-    @Override
-    public void close() throws Exception {
-        for (FileWriter fileWriter : this.csvWriters) {
-            if (fileWriter != null) {
-                fileWriter.close();
-            }
-        }
-        this.storage.close();
-        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(2), scheduledExecutorService);
     }
 
     /**
@@ -119,10 +110,12 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand implements A
 
     @Override
     public void execute() throws Exception {
+        @Cleanup
+        Storage storage = this.storageFactory.createStorageAdapter();
         outputInfo("Container Count = %d", this.containerCount);
 
         // Get the storage using the config.
-        this.storage.initialize(CONTAINER_EPOCH);
+        storage.initialize(CONTAINER_EPOCH);
         outputInfo("Loaded %s Storage.", getServiceConfig().getStorageImplementation().toString());
 
         // Gets total number of segments listed.
@@ -132,7 +125,7 @@ public class StorageListSegmentsCommand extends DataRecoveryCommand implements A
         createCSVFiles();
 
         outputInfo("Writing segments' details to the csv files...");
-        Iterator<SegmentProperties> segmentIterator = this.storage.listSegments();
+        Iterator<SegmentProperties> segmentIterator = storage.listSegments();
         while (segmentIterator.hasNext()) {
             SegmentProperties currentSegment = segmentIterator.next();
 

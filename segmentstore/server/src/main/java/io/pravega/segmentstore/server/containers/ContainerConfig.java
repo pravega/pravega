@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.containers;
 
@@ -25,6 +31,7 @@ public class ContainerConfig {
     public static final int MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS = 60; // Minimum possible value for segmentExpiration
     public static final Property<Integer> SEGMENT_METADATA_EXPIRATION_SECONDS = Property.named("segment.metadata.expiry.seconds",
             MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS, "segmentMetadataExpirationSeconds");
+    public static final Property<Integer> STORAGE_SNAPSHOT_TIMEOUT_SECONDS = Property.named("storage.snapshot.timeout.seconds", MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS);
     public static final Property<Integer> METADATA_STORE_INIT_TIMEOUT_SECONDS = Property.named("metadataStore.init.timeout.seconds", 30, "metadataStoreInitTimeoutSeconds");
     public static final Property<Integer> MAX_ACTIVE_SEGMENT_COUNT = Property.named("segment.active.count.max", 25000, "maxActiveSegmentCount");
     public static final Property<Integer> MAX_CONCURRENT_SEGMENT_EVICTION_COUNT = Property.named("segment.eviction.concurrent.count.max", 2500, "maxConcurrentSegmentEvictionCount");
@@ -61,6 +68,12 @@ public class ContainerConfig {
     @Getter
     private final int maxCachedExtendedAttributeCount;
 
+    /**
+     * Default timeout for StorageSnapshot operations.
+     */
+    @Getter
+    private final Duration storageSnapshotTimeout;
+
     //endregion
 
     //region Constructor
@@ -84,6 +97,13 @@ public class ContainerConfig {
                     METADATA_STORE_INIT_TIMEOUT_SECONDS));
         }
         this.metadataStoreInitTimeout = Duration.ofSeconds(metadataStoreInitSeconds);
+
+        int storageSnapshotTimeout = properties.getInt(STORAGE_SNAPSHOT_TIMEOUT_SECONDS);
+        if (storageSnapshotTimeout <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.",
+                    STORAGE_SNAPSHOT_TIMEOUT_SECONDS));
+        }
+        this.storageSnapshotTimeout = Duration.ofSeconds(storageSnapshotTimeout);
 
         this.maxActiveSegmentCount = properties.getInt(MAX_ACTIVE_SEGMENT_COUNT);
         if (this.maxActiveSegmentCount <= 0) {

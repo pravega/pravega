@@ -1,24 +1,24 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.storage.extendeds3;
 
 import com.emc.object.s3.S3Config;
-import com.emc.object.s3.bean.ObjectKey;
-import com.emc.object.s3.jersey.S3JerseyClient;
-import com.emc.object.s3.request.DeleteObjectsRequest;
-import com.emc.object.util.ConfigUri;
 import io.pravega.test.common.TestUtils;
-
-import java.util.List;
+import java.net.URI;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Test context Extended S3 tests.
@@ -26,13 +26,13 @@ import java.util.stream.Collectors;
 public class ExtendedS3TestContext {
     public static final String BUCKET_NAME_PREFIX = "pravegatest-";
     public final ExtendedS3StorageConfig adapterConfig;
-    public final S3JerseyClient client;
-    public final S3ImplBase s3Proxy;
+    public final S3ClientMock client;
+    public final S3Mock s3Mock;
     public final int port;
     public final String configUri;
     public final S3Config s3Config;
 
-    public ExtendedS3TestContext() throws Exception {
+    public ExtendedS3TestContext() {
         try {
             this.port = TestUtils.getAvailableListenPort();
             this.configUri = "http://127.0.0.1:" + port + "?identity=x&secretKey=x";
@@ -42,30 +42,21 @@ public class ExtendedS3TestContext {
                     .with(ExtendedS3StorageConfig.BUCKET, bucketName)
                     .with(ExtendedS3StorageConfig.PREFIX, "samplePrefix")
                     .build();
-            s3Config = new ConfigUri<>(S3Config.class).parseUri(configUri);
-            s3Proxy = new S3ProxyImpl(configUri, s3Config);
-            s3Proxy.start();
-            client = new S3JerseyClientWrapper(s3Config, s3Proxy);
-            client.createBucket(bucketName);
-            List<ObjectKey> keys = client.listObjects(bucketName).getObjects().stream()
-                    .map(object -> new ObjectKey(object.getKey()))
-                    .collect(Collectors.toList());
-
-            if (!keys.isEmpty()) {
-                client.deleteObjects(new DeleteObjectsRequest(bucketName).withKeys(keys));
-            }
+            s3Config = new S3Config(URI.create(configUri))
+                    .withRetryEnabled(false)
+                    .withInitialRetryDelay(1)
+                    .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
+            s3Mock = new S3Mock();
+            client = new S3ClientMock(s3Config, s3Mock);
         } catch (Exception e) {
             close();
             throw e;
         }
     }
 
-    public void close() throws Exception {
+    public void close() {
         if (client != null) {
             client.destroy();
-        }
-        if (s3Proxy != null) {
-            s3Proxy.stop();
         }
     }
 }

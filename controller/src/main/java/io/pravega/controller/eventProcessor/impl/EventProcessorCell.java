@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.eventProcessor.impl;
 
@@ -53,6 +59,7 @@ class EventProcessorCell<T extends ControllerEvent> {
     private final EventStreamReader<T> reader;
     private final EventStreamWriter<T> selfWriter;
     private final CheckpointStore checkpointStore;
+    @Getter(AccessLevel.PACKAGE)
     private final String process;
     private final String readerGroupName;
     @Getter(AccessLevel.PACKAGE)
@@ -135,14 +142,6 @@ class EventProcessorCell<T extends ControllerEvent> {
                     reader.closeAt(getCheckpoint());
                 } catch (Exception e) {
                     log.info("Exception while closing EventProcessorCell reader from checkpointStore: {}.", e.getMessage());
-                }
-
-                // Next, clean up the reader and its position from checkpoint store
-                log.info("Cleaning up checkpoint store for {}", objectId);
-                try {
-                    checkpointStore.removeReader(process, readerGroupName, readerId);
-                } catch (Exception e) {
-                    log.info("Exception while removing reader from checkpointStore: {}.", e.getMessage());
                 }
             }
         }

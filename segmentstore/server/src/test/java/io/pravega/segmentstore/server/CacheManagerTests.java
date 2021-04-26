@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server;
 
@@ -28,7 +34,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -138,7 +144,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
 
                 // Fail the test if we get an unexpected value for currentGeneration.
                 clients.forEach(c ->
-                        c.setUpdateGenerationsImpl((current, oldest) -> {
+                        c.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> {
                             Assert.assertEquals("Unexpected value for current generation.", currentGeneration.get(), (int) current);
                             updatedClients.add(c);
                             return false;
@@ -149,7 +155,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
             } else {
                 // Non-active cycle: each client will declare that they had no activity in the last generation.
                 clients.forEach(c ->
-                        c.setUpdateGenerationsImpl((current, oldest) -> {
+                        c.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> {
                             updatedClients.add(c);
                             return false;
                         }));
@@ -171,7 +177,6 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
      * Tests the ability to increment the oldest generation (or not) based on the activity of the clients.
      */
     @Test
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testIncrementOldestGeneration() {
         final int cycleCount = 12345;
         final int defaultOldestGeneration = 0;
@@ -197,7 +202,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         AtomicInteger currentGeneration = new AtomicInteger();
         for (int cycleId = 0; cycleId < cycleCount * 3; cycleId++) {
             client.setCacheStatus(0, currentGeneration.get());
-            client.setUpdateGenerationsImpl((current, oldest) -> false);
+            client.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> false);
             cm.applyCachePolicy();
             currentGeneration.incrementAndGet();
         }
@@ -214,7 +219,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                 // the cache is within limits or no change can be made.
                 cache.setUsedBytes(policy.getEvictionThreshold() + excess);
                 client.setCacheStatus(currentOldestGeneration.get(), currentGeneration.get());
-                client.setUpdateGenerationsImpl((current, oldest) -> {
+                client.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> {
                     AssertExtensions.assertGreaterThan("Expected an increase in oldestGeneration.", currentOldestGeneration.get(), oldest);
                     currentOldestGeneration.set(oldest);
                     callCount.incrementAndGet();
@@ -231,7 +236,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                 cache.setStoredBytes(policy.getEvictionThreshold() - 1);
                 cache.setUsedBytes(policy.getEvictionThreshold() - 1);
                 client.setCacheStatus(defaultOldestGeneration, currentGeneration.get());
-                client.setUpdateGenerationsImpl((current, oldest) -> {
+                client.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> {
                     Assert.assertEquals("Not expecting a change for oldestGeneration", currentOldestGeneration.get(), (int) oldest);
                     return false;
                 });
@@ -255,6 +260,81 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                     expectedCallCount,
                     callCount.get());
         }
+    }
+
+    /**
+     * Tests the ability to adjust the "Non-Essential Only" flags based on cache utilization.
+     */
+    @Test
+    public void testNonEssentialOnly() {
+        final int maxSize = 100;
+        final double targetUtilization = 0.5;
+        final double maxUtilization = 0.9;
+        final CachePolicy policy = new CachePolicy(maxSize, targetUtilization, maxUtilization, Duration.ofHours(10000), Duration.ofHours(1));
+        @Cleanup
+        val cache = new TestCache(policy.getMaxSize());
+        cache.setStoredBytes(1); // The Cache Manager won't do anything if there's no stored data.
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
+
+        TestClient client = new TestClient();
+        cm.register(client);
+        client.setCacheStatus(0, 0);
+        val essentialOnly = new AtomicBoolean(false);
+        val essentialCount = new AtomicInteger(0);
+        val nonEssentialCount = new AtomicInteger(0);
+        val changeNewGen = new AtomicBoolean();
+        val changeOldGen = new AtomicBoolean();
+        client.setUpdateGenerationsImpl((current, oldest, essential) -> {
+            essentialOnly.set(essential);
+            Assert.assertEquals("Essential flag passed to client is different from actual state.", essential, cm.isEssentialEntriesOnly());
+            if (essential) {
+                essentialCount.incrementAndGet();
+            } else {
+                nonEssentialCount.incrementAndGet();
+            }
+
+            // Change the client's old gen and new gen alternatively.
+            if (changeNewGen.get()) {
+                int og = client.getCacheStatus().getOldestGeneration();
+                if (changeOldGen.get()) {
+                    og++;
+                }
+                changeOldGen.set(!changeOldGen.get());
+                client.setCacheStatus(og, current);
+            }
+            changeNewGen.set(!changeNewGen.get());
+            return !changeNewGen.get();
+        });
+
+        val isExpected = new Supplier<Boolean>() {
+            @Override
+            public Boolean get() {
+                return cache.getUsedBytes() >= policy.getCriticalThreshold();
+            }
+        };
+
+        // First increase size.
+        AtomicInteger currentGeneration = new AtomicInteger();
+        for (long size = cache.getStoredBytes(); size < maxSize; size++) {
+            cache.setUsedBytes(size);
+            cm.applyCachePolicy();
+            currentGeneration.incrementAndGet();
+            Assert.assertEquals("Unexpected value for essentialOnly for StoredBytes = " + size, isExpected.get(), essentialOnly.get());
+            Assert.assertEquals("Unexpected value for isEssentialEntriesOnly for StoredBytes = " + size, isExpected.get(), cm.isEssentialEntriesOnly());
+        }
+
+        // Then decrease size.
+        for (long size = cache.getUsedBytes(); size >= 0; size--) {
+            cache.setUsedBytes(size);
+            cm.applyCachePolicy();
+            currentGeneration.incrementAndGet();
+            Assert.assertEquals("Unexpected value for essentialOnly for StoredBytes = " + size, isExpected.get(), essentialOnly.get());
+            Assert.assertEquals("Unexpected value for isEssentialEntriesOnly for StoredBytes = " + size, isExpected.get(), cm.isEssentialEntriesOnly());
+        }
+
+        AssertExtensions.assertGreaterThan("", 0, essentialCount.get());
+        AssertExtensions.assertGreaterThan("", 0, nonEssentialCount.get());
     }
 
     /**
@@ -284,14 +364,14 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         // First do a dry-run - we need this to make sure the current generation advances enough.
         for (int cycleId = 0; cycleId < maxGenerationCount; cycleId++) {
             client.setCacheStatus(0, cycleId);
-            client.setUpdateGenerationsImpl((current, oldest) -> false);
+            client.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> false);
             cm.applyCachePolicy();
         }
 
         cache.setUsedBytes(policy.getEvictionThreshold() + 1);
         client.setCacheStatus(0, maxGenerationCount);
         AtomicInteger callCount = new AtomicInteger();
-        client.setUpdateGenerationsImpl((current, oldest) -> {
+        client.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> {
             client.setCacheStatus(oldest, current); // Update the client's cache status to reflect a full eviction.
             cache.setUsedBytes(policy.getEvictionThreshold() - 1); // Reduce the cache size to something below the threshold.
             callCount.incrementAndGet();
@@ -317,14 +397,14 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
 
         // Setup the client so that it throws ObjectClosedException when updateGenerations is called.
         client.setCacheStatus(0, 0);
-        client.setUpdateGenerationsImpl((current, oldest) -> {
+        client.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> {
             throw new ObjectClosedException(this);
         });
         cm.applyCachePolicy();
 
         // Now do the actual verification.
         client.setCacheStatus(0, 1);
-        client.setUpdateGenerationsImpl((current, oldest) -> {
+        client.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> {
             Assert.fail("Client was not unregistered after throwing ObjectClosedException.");
             return false;
         });
@@ -350,7 +430,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         cache.setUsedBytes(policy.getMaxSize() + 1);
         AtomicInteger updatedOldest = new AtomicInteger(-1);
         AtomicInteger updatedCurrent = new AtomicInteger(-1);
-        client.setUpdateGenerationsImpl((current, oldest) -> {
+        client.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> {
             updatedOldest.set(oldest);
             updatedCurrent.set(current);
             return true;
@@ -366,7 +446,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         cache.setUsedBytes(10);
         updatedCurrent.set(-1);
         updatedOldest.set(-1);
-        client.setUpdateGenerationsImpl((current, oldest) -> {
+        client.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> {
             updatedOldest.set(oldest);
             updatedCurrent.set(current);
             return false;
@@ -399,7 +479,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         // Setup the TestClient to evict write1 when requested.
         val cleanupRequestCount = new AtomicInteger(0);
         client.setCacheStatus(0, 1);
-        client.setUpdateGenerationsImpl((ng, og) -> {
+        client.setUpdateGenerationsImpl((ng, og, essentialOnly) -> {
             cleanupRequestCount.incrementAndGet();
             cache.delete(write1);
             return true;
@@ -441,7 +521,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         val cleanupRequestCount = new AtomicInteger(0);
         val concurrentRequest = new AtomicBoolean(false);
         client.setCacheStatus(0, 1);
-        client.setUpdateGenerationsImpl((ng, og) -> {
+        client.setUpdateGenerationsImpl((ng, og, essentialOnly) -> {
             int rc = cleanupRequestCount.incrementAndGet();
             if (rc == 1) {
                 // This is the first concurrent request requesting a cleanup.
@@ -505,7 +585,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         TestCleanupListener l2 = new TestCleanupListener();
         cm.getUtilizationProvider().registerCleanupListener(l1);
         cm.getUtilizationProvider().registerCleanupListener(l2);
-        client.setUpdateGenerationsImpl((current, oldest) -> true); // We always remove something.
+        client.setUpdateGenerationsImpl((current, oldest, essentialOnly) -> true); // We always remove something.
 
         // In the first iteration, we should invoke both listeners.
         client.setCacheStatus(0, 0);
@@ -538,13 +618,13 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
 
     private static class TestClient implements CacheManager.Client {
         private CacheManager.CacheStatus currentStatus;
-        private BiFunction<Integer, Integer, Boolean> updateGenerationsImpl = (current, oldest) -> false;
+        private UpdateGenerations updateGenerationsImpl = (current, oldest, essentialOnly) -> false;
 
         void setCacheStatus(int oldestGeneration, int newestGeneration) {
             this.currentStatus = new CacheManager.CacheStatus(oldestGeneration, newestGeneration);
         }
 
-        void setUpdateGenerationsImpl(BiFunction<Integer, Integer, Boolean> function) {
+        void setUpdateGenerationsImpl(UpdateGenerations function) {
             this.updateGenerationsImpl = function;
         }
 
@@ -554,8 +634,8 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
-            return this.updateGenerationsImpl.apply(currentGeneration, oldestGeneration);
+        public boolean updateGenerations(int currentGeneration, int oldestGeneration, boolean essentialOnly) {
+            return this.updateGenerationsImpl.apply(currentGeneration, oldestGeneration, essentialOnly);
         }
     }
 
@@ -564,7 +644,6 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
             setCacheStatus(CacheManager.CacheStatus.EMPTY_VALUE, CacheManager.CacheStatus.EMPTY_VALUE);
         }
     }
-
 
     @RequiredArgsConstructor
     @Getter
@@ -579,5 +658,10 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
             val s = super.getState();
             return new CacheState(this.storedBytes, this.usedBytes, 0, 0, this.maxBytes);
         }
+    }
+
+    @FunctionalInterface
+    interface UpdateGenerations {
+        boolean apply(int currentGeneration, int oldestGeneration, boolean essentialOnly);
     }
 }

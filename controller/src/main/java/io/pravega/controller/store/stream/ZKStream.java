@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -244,7 +250,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> createSubscriber(String subscriber, long generation) {
+    public CompletableFuture<Void> addSubscriber(String subscriber, long generation) {
         throw new UnsupportedOperationException();
     }
 
@@ -259,12 +265,12 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriber) {
+    public CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public CompletableFuture<Void> removeSubscriber(String subscriber, long generation) {
+    public CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriber) {
         throw new UnsupportedOperationException();
     }
 
@@ -446,7 +452,7 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> createSubscribersRecordIfAbsent() {
-        Subscribers subscribersSetRecord = new Subscribers(ImmutableMap.of());
+        Subscribers subscribersSetRecord = Subscribers.EMPTY_SET;
         return Futures.toVoid(store.createZNodeIfNotExist(subscribersPath, subscribersSetRecord.toBytes()));
     }
 

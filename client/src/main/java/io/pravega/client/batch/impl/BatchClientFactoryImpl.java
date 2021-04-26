@@ -1,17 +1,22 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.batch.impl;
 
 import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamCutHelper;
@@ -21,6 +26,7 @@ import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -33,15 +39,15 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.AccessOperation;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
-import lombok.Cleanup;
+import java.util.stream.Collectors;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
@@ -94,9 +100,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                 CompletableFuture.completedFuture(endCut.get()) : streamCutHelper.fetchTailStreamCut(stream);
 
         //fetch the StreamSegmentsInfo based on start and end streamCuts.
-        CompletableFuture<StreamSegmentsIterator> streamSegmentInfo = startSCFuture.thenCombine(endSCFuture,
-                (startSC, endSC) -> getStreamSegmentInfo(stream, startSC, endSC));
-        return getAndHandleExceptions(streamSegmentInfo, RuntimeException::new);
+        return getStreamSegmentInfo(stream, startSCFuture.join(), endSCFuture.join());
     }
 
     private StreamSegmentsIterator getStreamSegmentInfo(final Stream stream, final StreamCut startStreamCut, final StreamCut endStreamCut) {
@@ -110,9 +114,9 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
                 .create(controller, stream.getScope(), stream.getStreamName(), AccessOperation.READ);
         log.debug("List of Segments between the start and end stream cuts : {}", segmentSet);
 
-        Iterator<SegmentRange> iterator = Iterators.transform(segmentSet.iterator(),
-                s -> getSegmentRange(s, startStreamCut, endStreamCut, tokenProvider));
-        return StreamSegmentsInfoImpl.builder().segmentRangeIterator(iterator)
+        val futures = segmentSet.stream().map(s -> getSegmentRange(s, startStreamCut, endStreamCut, tokenProvider)).collect(Collectors.toList());
+        List<SegmentRange> results = Futures.getThrowingException(Futures.allOfWithResults(futures));
+        return StreamSegmentsInfoImpl.builder().segmentRangeIterator(results.iterator())
                                      .startStreamCut(startStreamCut)
                                      .endStreamCut(endStreamCut).build();
     }
@@ -122,27 +126,31 @@ public class BatchClientFactoryImpl implements BatchClientFactory {
      * - If segment is part of startStreamCut / endStreamCut update startOffset and endOffset accordingly.
      * - If segment is not part of the streamCuts fetch the data using SegmentMetadataClient.
      */
-    private SegmentRange getSegmentRange(final Segment segment, final StreamCut startStreamCut,
+    private CompletableFuture<SegmentRange> getSegmentRange(final Segment segment, final StreamCut startStreamCut,
                                          final StreamCut endStreamCut, final DelegationTokenProvider tokenProvider) {
-        SegmentRangeImpl.SegmentRangeImplBuilder segmentRangeBuilder = SegmentRangeImpl.builder()
-                                                                                       .segment(segment);
         if (startStreamCut.asImpl().getPositions().containsKey(segment) && endStreamCut.asImpl().getPositions().containsKey(segment)) {
-            //use the meta data present in startStreamCut and endStreamCuts.
+            // use the meta data present in startStreamCut and endStreamCuts.
+            SegmentRangeImpl.SegmentRangeImplBuilder segmentRangeBuilder = SegmentRangeImpl.builder().segment(segment);
             segmentRangeBuilder.startOffset(startStreamCut.asImpl().getPositions().get(segment))
-                               .endOffset(endStreamCut.asImpl().getPositions().get(segment));
+                .endOffset(endStreamCut.asImpl().getPositions().get(segment));
+            return CompletableFuture.completedFuture(segmentRangeBuilder.build());
         } else {
             //use segment meta data client to fetch the segment offsets.
-            SegmentInfo r = segmentToInfo(segment, tokenProvider);
-            segmentRangeBuilder.startOffset(startStreamCut.asImpl().getPositions().getOrDefault(segment, r.getStartingOffset()))
-                               .endOffset(endStreamCut.asImpl().getPositions().getOrDefault(segment, r.getWriteOffset()));
+            return segmentToInfo(segment, tokenProvider).thenApply(r -> {
+                SegmentRangeImpl.SegmentRangeImplBuilder segmentRangeBuilder = SegmentRangeImpl.builder().segment(segment);
+                segmentRangeBuilder.startOffset(startStreamCut.asImpl().getPositions().getOrDefault(segment, r.getStartingOffset()))
+                                   .endOffset(endStreamCut.asImpl().getPositions().getOrDefault(segment, r.getWriteOffset()));
+                return segmentRangeBuilder.build();
+            });
         }
-        return segmentRangeBuilder.build();
+
     }
 
-    private SegmentInfo segmentToInfo(Segment s, DelegationTokenProvider tokenProvider) {
-        @Cleanup
+    private CompletableFuture<SegmentInfo> segmentToInfo(Segment s, DelegationTokenProvider tokenProvider) {
         SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, tokenProvider);
-        return client.getSegmentInfo();
+        CompletableFuture<SegmentInfo> result = client.getSegmentInfo();
+        result.whenComplete((r, e) -> client.close());
+        return result;
     }
 
     @Override

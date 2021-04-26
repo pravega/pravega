@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.selftest;
 
@@ -14,6 +20,7 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import java.net.InetAddress;
 import java.time.Duration;
 import java.util.HashSet;
@@ -49,6 +56,8 @@ public class TestConfig {
     static final Property<Integer> TABLE_REMOVE_PERCENTAGE = Property.named("tableRemovePercentage", 10); // 0..100
     static final Property<Integer> TABLE_NEW_KEY_PERCENTAGE = Property.named("tableNewKeyPercentage", 30); // 0..100
     static final Property<Integer> TABLE_CONSUMERS_PER_TABLE = Property.named("consumersPerTable", 10);
+    static final Property<Integer> TABLE_KEY_LENGTH = Property.named("tableKeyLength", MIN_APPEND_SIZE.getDefaultValue());
+    static final Property<String> TABLE_TYPE = Property.named("tableType", TableType.Hash.toString());
     static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 80);
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 3000);
     static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStore.toString());
@@ -63,6 +72,7 @@ public class TestConfig {
     static final Property<Boolean> PAUSE_BEFORE_EXIT = Property.named("pauseBeforeExit", false);
     static final Property<String> BOOKIE_LEDGERS_DIR = Property.named("bkLedgersDir", "");
     static final Property<String> STORAGE_DIR = Property.named("storageDir", TMP_DIR + "/pravega/storage");
+    static final Property<Boolean> CHUNKED_SEGMENT_STORAGE_ENABLED = Property.named("useChunkedSegmentStorage", true);
     private static final Property<Integer> ZK_PORT = Property.named("zkPort", 9000);
     private static final Property<Integer> BK_BASE_PORT = Property.named("bkBasePort", 9100);
     private static final Property<Integer> SEGMENT_STORE_BASE_PORT = Property.named("segmentStorePort", 9300);
@@ -108,6 +118,10 @@ public class TestConfig {
     @Getter
     private final int tableNewKeyPercentage;
     @Getter
+    private final int tableKeyLength;
+    @Getter
+    private final TableType tableType;
+    @Getter
     private final int consumersPerTable;
     @Getter
     private final int threadPoolSize;
@@ -142,6 +156,8 @@ public class TestConfig {
     private final String storageDir;
     @Getter
     private final String testId = Long.toHexString(System.currentTimeMillis());
+    @Getter
+    private final boolean chunkedSegmentStorageEnabled;
 
     //endregion
 
@@ -184,6 +200,12 @@ public class TestConfig {
             throw new ConfigurationException(String.format("Property '%s' must be a value between 0 and 100. Given %s.",
                     TABLE_NEW_KEY_PERCENTAGE, this.tableNewKeyPercentage));
         }
+        this.tableKeyLength = properties.getInt(TABLE_KEY_LENGTH);
+        if (this.tableKeyLength <= 0 || this.tableKeyLength > TableStore.MAXIMUM_KEY_LENGTH) {
+            throw new ConfigurationException(String.format("Property '%s' must be a value between 0 and %s. Given %s.",
+                    TABLE_KEY_LENGTH, TableStore.MAXIMUM_KEY_LENGTH, this.tableNewKeyPercentage));
+        }
+        this.tableType = TableType.valueOf(properties.get(TABLE_TYPE));
         this.consumersPerTable = properties.getInt(TABLE_CONSUMERS_PER_TABLE);
         this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.timeout = Duration.ofMillis(properties.getInt(TIMEOUT_MILLIS));
@@ -202,6 +224,7 @@ public class TestConfig {
         this.enableSecurity = properties.getBoolean(ENABLE_SECURITY);
         this.bookieLedgersDir = properties.get(BOOKIE_LEDGERS_DIR);
         this.storageDir = properties.get(STORAGE_DIR);
+        this.chunkedSegmentStorageEnabled = properties.getBoolean(CHUNKED_SEGMENT_STORAGE_ENABLED);
         checkOverlappingPorts();
     }
 
@@ -350,12 +373,19 @@ public class TestConfig {
         SegmentStore(false),
         SegmentStoreTable(true),
         InProcessMock(false),
+        InProcessMockTable(true),
         InProcessStore(false),
+        InProcessStoreTable(true),
         AppendProcessor(false),
         OutOfProcess(false),
         External(false),
         BookKeeper(false);
         @Getter
         private final boolean tablesTest;
+    }
+
+    public enum TableType {
+        Hash,
+        Sorted,
     }
 }

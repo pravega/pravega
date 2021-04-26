@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.host.handler;
 
@@ -37,23 +43,22 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
+import io.pravega.segmentstore.server.host.security.TLSConfigChangeEventConsumer;
+import io.pravega.segmentstore.server.host.security.TLSConfigChangeFileConsumer;
+import io.pravega.segmentstore.server.host.security.TLSHelper;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
-import io.pravega.segmentstore.server.host.security.TLSConfigChangeFileConsumer;
-import io.pravega.segmentstore.server.host.security.TLSConfigChangeEventConsumer;
-import io.pravega.segmentstore.server.host.security.TLSHelper;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
@@ -207,12 +212,11 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          new AppendDecoder(),
                          lsh);
 
-                 lsh.setRequestProcessor(new AppendProcessor(store,
-                         lsh,
-                         connectionTracker,
-                         new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError),
-                         statsRecorder,
-                         tokenVerifier,
+                 TrackedConnection c = new TrackedConnection(lsh, connectionTracker);
+                 PravegaRequestProcessor prp = new PravegaRequestProcessor(store, tableStore, c, statsRecorder,
+                         tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError);
+
+                 lsh.setRequestProcessor(new AppendProcessor(store, c, prp, statsRecorder, tokenVerifier,
                          replyWithStackTraceOnError, tokenExpiryHandlerExecutor));
              }
          });

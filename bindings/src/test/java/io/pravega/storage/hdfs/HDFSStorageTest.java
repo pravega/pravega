@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.storage.hdfs;
 
@@ -48,6 +54,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.junit.rules.Timeout;
 
 /**
@@ -58,14 +65,14 @@ public class HDFSStorageTest extends StorageTestBase {
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
-    private File baseDir = null;
+    @Rule
+    public TemporaryFolder baseDir = new TemporaryFolder();
     private MiniDFSCluster hdfsCluster = null;
     private HDFSStorageConfig adapterConfig;
 
     @Before
     public void setUp() throws Exception {
-        this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
-        this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
+        this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getRoot().getAbsolutePath());
         this.adapterConfig = HDFSStorageConfig
                 .builder()
                 .with(HDFSStorageConfig.REPLICATION, 1)
@@ -78,7 +85,7 @@ public class HDFSStorageTest extends StorageTestBase {
         if (hdfsCluster != null) {
             hdfsCluster.shutdown();
             hdfsCluster = null;
-            FileHelpers.deleteFileOrDirectory(baseDir);
+            FileHelpers.deleteFileOrDirectory(baseDir.getRoot());
             baseDir = null;
         }
     }

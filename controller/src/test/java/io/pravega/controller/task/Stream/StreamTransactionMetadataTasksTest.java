@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.task.Stream;
 
@@ -61,11 +67,14 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
+import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -577,7 +586,7 @@ public class StreamTransactionMetadataTasksTest {
     }
 
     @Test(timeout = 10000)
-    public void txnPingTest() {
+    public void txnPingTest() throws Exception {
         // Create mock writer objects.
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
         EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
@@ -632,6 +641,14 @@ public class StreamTransactionMetadataTasksTest {
         // try with a non existent transaction id 
         assertEquals(PingTxnStatus.Status.UNKNOWN, 
                 txnTasks.pingTxn(SCOPE, STREAM, UUID.randomUUID(), 10000L, null).join().getStatus());
+
+        // Verify max execution time.
+        txnTasks.setMaxExecutionTime(1L);
+        txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, null).join();
+        UUID tid = txn.getKey().getId();
+        AssertExtensions.assertEventuallyEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, 
+                () -> txnTasks.pingTxn(SCOPE, STREAM, tid, 10000L, null).join().getStatus(), 10000L);
+        txnTasks.setMaxExecutionTime(Duration.ofDays(Config.MAX_TXN_EXECUTION_TIMEBOUND_DAYS).toMillis());
     }
     
     @Test(timeout = 10000)
@@ -639,6 +656,7 @@ public class StreamTransactionMetadataTasksTest {
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
         EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
         StreamMetadataStore streamStoreMock = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        final long leasePeriod = 5000;
 
         // region close before initialize
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
@@ -687,13 +705,13 @@ public class StreamTransactionMetadataTasksTest {
         streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 1L, null, executor).join();
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
 
-        CompletableFuture<Pair<VersionedTransactionData, List<StreamSegmentRecord>>> createFuture = txnTasks.createTxn(SCOPE, STREAM, 100L, null);
+        CompletableFuture<Pair<VersionedTransactionData, List<StreamSegmentRecord>>> createFuture = txnTasks.createTxn(SCOPE, STREAM, leasePeriod, null);
 
         // create and ping transactions should not wait for writer initialization and complete immediately.
         createFuture.join();
         assertTrue(Futures.await(createFuture));
         UUID txnId = createFuture.join().getKey().getId();
-        CompletableFuture<PingTxnStatus> pingFuture = txnTasks.pingTxn(SCOPE, STREAM, txnId, 100L, null);
+        CompletableFuture<PingTxnStatus> pingFuture = txnTasks.pingTxn(SCOPE, STREAM, txnId, leasePeriod, null);
         assertTrue(Futures.await(pingFuture));
 
         CompletableFuture<TxnStatus> commitFuture = txnTasks.commitTxn(SCOPE, STREAM, txnId, null);
@@ -701,7 +719,7 @@ public class StreamTransactionMetadataTasksTest {
 
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
         assertTrue(Futures.await(commitFuture));
-        UUID txnId2 = txnTasks.createTxn(SCOPE, STREAM, 100L, null).join().getKey().getId();
+        UUID txnId2 = txnTasks.createTxn(SCOPE, STREAM, leasePeriod, null).join().getKey().getId();
         assertTrue(Futures.await(txnTasks.abortTxn(SCOPE, STREAM, txnId2, null, null)));
     }
     
