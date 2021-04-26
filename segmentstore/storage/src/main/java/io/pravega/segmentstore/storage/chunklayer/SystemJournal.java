@@ -636,7 +636,7 @@ public class SystemJournal {
                 }
             }
         } else {
-            log.debug("SystemJournal[{}] No snapshot previous present.", containerId);
+            log.debug("SystemJournal[{}] No previous snapshot present.", containerId);
             // Initialize with default values.
             for (String systemSegment : systemSegments) {
                 SegmentMetadata segmentMetadata = SegmentMetadata.builder()
@@ -838,7 +838,7 @@ public class SystemJournal {
             epochToStartScanning.set(systemSnapshotRecord.epoch);
             fileIndexToRecover.set(systemSnapshotRecord.fileIndex + 1);
         }
-        log.debug("SystemJournal[{}] Applying journal operations. Starting at epoch={}  journal index = {}", containerId,
+        log.debug("SystemJournal[{}] Applying journal operations. Starting at epoch={}  journal index={}", containerId,
                 epochToStartScanning.get(), fileIndexToRecover.get());
         // Linearly read and apply all the journal files after snapshot.
         val epochToRecover = new AtomicLong(epochToStartScanning.get());
@@ -861,8 +861,8 @@ public class SystemJournal {
                                             if (!exists) {
                                                 // File does not exist. We have reached end of our scanning.
                                                 isScanDone.set(true);
-                                                log.debug("SystemJournal[{}] Done applying journal operations for epoch={}. Last journal index= {}",
-                                                        containerId, epochToStartScanning.get(), fileIndexToRecover.get());
+                                                log.debug("SystemJournal[{}] Done applying journal operations for epoch={}. Last journal index={}",
+                                                        containerId, epochToRecover.get(), fileIndexToRecover.get());
                                                 return CompletableFuture.completedFuture(null);
                                             } else {
                                                 // Read contents.
@@ -972,7 +972,7 @@ public class SystemJournal {
                                                     val newLength = segmentMetadata.getLastChunkStartOffset() + length;
                                                     segmentMetadata.setLength(newLength);
                                                     log.debug("SystemJournal[{}] Adjusting length of last chunk segment. segment={}, length={} chunk={}, chunk length={}",
-                                                            containerId, length, segmentMetadata.getName(), lastChunk.getName(), newLength);
+                                                            containerId, segmentMetadata.getName(), length, lastChunk.getName(), newLength);
 
                                                 }, executor);
                                     }, executor);
