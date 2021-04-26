@@ -150,7 +150,7 @@ class TableIterator<T> implements AsyncIterator<T> {
             // Transform every eligible Attribute into a TableBucket and add it to the result.
             for (val indexHash : indexHashes) {
                 Preconditions.checkArgument(indexHash.getKey().isUUID(), "TableSegments should only have 16-byte (UUID) Attribute Ids.");
-                UUID indexHashKey = indexHash.getKey().toUUID();
+                UUID indexHashKey = ((AttributeId.UUID) indexHash.getKey()).toUUID();
                 if (KeyHasher.isValid(indexHashKey) && indexHash.getValue() != Attributes.NULL_ATTRIBUTE_VALUE) {
                     // For each bucket returned above, include all Buckets/hashes from the ContainerKeyIndex which are equal to or
                     // below it. (this is very similar to the AttributeMixer - maybe reuse that methodology).

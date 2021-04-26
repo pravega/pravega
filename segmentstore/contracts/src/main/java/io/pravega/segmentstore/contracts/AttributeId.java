@@ -27,11 +27,14 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Attribute Id for Segments.
+ * Defines an Attribute Id for Segments.
  */
 public abstract class AttributeId implements Comparable<AttributeId> {
-    public static final int MAX_KEY_LENGTH = 256; // Maximum Attribute Id length is 256 bytes.
-    private static final int UUID_KEY_LENGTH = 2 * Long.BYTES;
+    /**
+     * The maximum length for any Attribute Id. Regardless of implementation, Attribute Id serialization may not exceed
+     * this value.
+     */
+    public static final int MAX_LENGTH = 256;
 
     /**
      * Creates a new {@link AttributeId.UUID} using the given bits.
@@ -47,19 +50,19 @@ public abstract class AttributeId implements Comparable<AttributeId> {
     /**
      * Creates a new {@link AttributeId.UUID} using the given {@link UUID}.
      *
-     * @param uuid The {@link UUID} to use.
+     * @param uuid The {@link java.util.UUID} to use.
      * @return A new instance of {@link AttributeId.UUID}.
      */
     public static AttributeId fromUUID(java.util.UUID uuid) {
-        return new UUID(uuid);
+        return new UUID(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
     }
 
     /**
      * Creates a new {@link AttributeId.Variable} using the given byte array.
      *
-     * @param data The byte array to wrap. NOTE: this will not be duplicated. Any changes to the underlying
-     *             buffer will be reflected in this Attribute, which may have unintended consequences.
-     * @return A new instance of {@link AttributeId.Variable}.
+     * @param data The byte array to wrap. NOTE: this will not be duplicated. Any changes to the underlying buffer will
+     *             be reflected in this Attribute Id.
+     * @return A new instance of {@link AttributeId.Variable} wrapping the given byte array.
      */
     public static AttributeId from(byte[] data) {
         return new Variable(data);
@@ -72,9 +75,14 @@ public abstract class AttributeId implements Comparable<AttributeId> {
      */
     @VisibleForTesting
     public static AttributeId randomUUID() {
-        return new UUID(java.util.UUID.randomUUID());
+        return fromUUID(java.util.UUID.randomUUID());
     }
 
+    /**
+     * Gets a value indicating whether this {@link AttributeId} instance is a UUID Attribute.
+     *
+     * @return True if this instance is an {@link AttributeId.UUID}, false otherwise.
+     */
     public abstract boolean isUUID();
 
     /**
@@ -89,23 +97,25 @@ public abstract class AttributeId implements Comparable<AttributeId> {
      *
      * @param position The 0-based position representing the bit group to get. Each position maps to an 8-byte (64-bit)
      *                 block of data (position 0 maps to index 0, position 1 maps to index 8, ..., position i maps to index 8*i).
-     * @return The bit group.
+     * @return The value of the bit group.
      */
     public abstract long getBitGroup(int position);
 
+    /**
+     * Gets a new {@link AttributeId} of the same types as this one that, when compared with {@link #compareTo}, is
+     * immediately after this one (there are no other {@link AttributeId} instances in between the two.
+     *
+     * @return The next {@link AttributeId} after this one, or null if no such value exists (i.e., this is the highest
+     * possible {@link AttributeId} in its class.
+     */
     public abstract AttributeId nextValue();
 
-    public java.util.UUID toUUID() {
-        if (!isUUID()) {
-            throw new UnsupportedOperationException(String.format("toUUID() invoked with byteCount() == %s. Required: %s.", byteCount(), UUID_KEY_LENGTH));
-        }
-        return new java.util.UUID(getBitGroup(0), getBitGroup(1));
-    }
-
     /**
-     * TODO: explain this is not appropriate for serialization and that it doesn't use unsigned. This should only be used
-     * for non-UUID too.
-     * @return
+     * Serializes this {@link AttributeId} into a {@link ByteArraySegment}. This should be appropriate for most cases
+     * where it will be later needed to deserialize back into an {@link AttributeId}. For {@link AttributeId.UUID} instances,
+     * this will use signed Long serialization, which may not be appropriate for comparison using {@link BufferViewComparator}.
+     *
+     * @return A {@link ByteArraySegment} of length {@link #byteCount()} containing a serialization of this {@link AttributeId}.
      */
     public abstract ByteArraySegment toBuffer();
 
@@ -116,22 +126,20 @@ public abstract class AttributeId implements Comparable<AttributeId> {
     public abstract int hashCode();
 
     @Override
-    public abstract int compareTo(AttributeId val);
+    public abstract int compareTo(AttributeId other);
 
     //region UUID
 
     /**
-     * A 16-byte {@link AttributeId} that maps to a {@link UUID}.
+     * A 16-byte {@link AttributeId} that maps to a {@link UUID}. These should be the default Attribute Id type for
+     * segments, except if a different Attribute Id length is requested (i.e., using {@link Attributes#ATTRIBUTE_ID_LENGTH}).
      */
     @Getter
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class UUID extends AttributeId {
+        private static final int UUID_KEY_LENGTH = 2 * Long.BYTES;
         private final long mostSignificantBits;
         private final long leastSignificantBits;
-
-        public UUID(java.util.UUID uuid) {
-            this(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
-        }
 
         @Override
         public boolean isUUID() {
@@ -171,6 +179,17 @@ public abstract class AttributeId implements Comparable<AttributeId> {
             }
 
             return new AttributeId.UUID(msb, lsb);
+        }
+
+
+        /**
+         * Gets a {@link java.util.UUID} representation of this {@link AttributeId}.
+         *
+         * @return A new {@link java.util.UUID}.
+         * @throws UnsupportedOperationException If {@link #isUUID()} is false.
+         */
+        public java.util.UUID toUUID() {
+            return new java.util.UUID(this.mostSignificantBits, this.leastSignificantBits);
         }
 
         @Override
@@ -217,9 +236,8 @@ public abstract class AttributeId implements Comparable<AttributeId> {
 
     //region Variable
 
-
     /**
-     * A 16-byte {@link AttributeId} that maps to a {@link UUID}.
+     * An {@link AttributeId} that can encode any-length attribute ids (up to {@link #MAX_LENGTH}).
      */
     public static final class Variable extends AttributeId {
         private static final BufferViewComparator COMPARATOR = BufferViewComparator.create();
@@ -233,7 +251,7 @@ public abstract class AttributeId implements Comparable<AttributeId> {
 
         @Override
         public boolean isUUID() {
-            return false; // TODO any interoperability here?
+            return false;
         }
 
         @Override
@@ -284,13 +302,27 @@ public abstract class AttributeId implements Comparable<AttributeId> {
 
         @Override
         public String toString() {
-            return String.format("Length = %s", this.data.length);
+            return String.format("Length = %s, Hashcode = %s", this.data.length, this.hashCode);
         }
 
+        /**
+         * Gets an {@link AttributeId.Variable} of the given length ({@link #byteCount()} will equal that) that is the
+         * minimum possible value for that length.
+         *
+         * @param length The length.
+         * @return The minimum possible {@link AttributeId.Variable} for the given length.
+         */
         public static AttributeId minValue(int length) {
             return new AttributeId.Variable(BufferViewComparator.getMinValue(length));
         }
 
+        /**
+         * Gets an {@link AttributeId.Variable} of the given length ({@link #byteCount()} will equal that) that is the
+         * maximum possible value for that length.
+         *
+         * @param length The length.
+         * @return The maximum possible {@link AttributeId.Variable} for the given length.
+         */
         public static AttributeId maxValue(int length) {
             return new AttributeId.Variable(BufferViewComparator.getMaxValue(length));
         }

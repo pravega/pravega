@@ -125,6 +125,24 @@ public abstract class BufferViewComparatorTests {
         }
     }
 
+    /**
+     * Tests static methods {@link BufferViewComparator#getMaxValue(int)} and {@link BufferViewComparator#getMinValue(int)}.
+     */
+    @Test
+    public void testGetMinMaxValue() {
+        for (int i = 0; i < 16; i++) {
+            val expectedMin = new byte[i];
+            val expectedMax = new byte[i];
+            for (int j = 0; j < i; j++) {
+                expectedMin[j] = BufferViewComparator.MIN_VALUE;
+                expectedMax[j] = BufferViewComparator.MAX_VALUE;
+            }
+
+            Assert.assertArrayEquals(expectedMin, BufferViewComparator.getMinValue(i));
+            Assert.assertArrayEquals(expectedMax, BufferViewComparator.getMaxValue(i));
+        }
+    }
+
     private ArrayList<ByteArraySegment> generateSortedData() {
         val sortedData = new ArrayList<ByteArraySegment>();
         int maxValue = COUNT / 2;

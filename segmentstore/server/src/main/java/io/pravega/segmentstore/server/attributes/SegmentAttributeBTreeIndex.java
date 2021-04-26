@@ -163,8 +163,8 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
 
     private KeySerializer getKeySerializer(SegmentMetadata segmentMetadata) {
         long keyLength = segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_ID_LENGTH, 0L);
-        Preconditions.checkArgument(keyLength <= AttributeId.MAX_KEY_LENGTH, "Invalid value %s for attribute `%s` for Segment `%s'. Expected at most %s.",
-                Attributes.ATTRIBUTE_ID_LENGTH, segmentMetadata.getName(), AttributeId.MAX_KEY_LENGTH);
+        Preconditions.checkArgument(keyLength <= AttributeId.MAX_LENGTH, "Invalid value %s for attribute `%s` for Segment `%s'. Expected at most %s.",
+                Attributes.ATTRIBUTE_ID_LENGTH, segmentMetadata.getName(), AttributeId.MAX_LENGTH);
         return keyLength <= 0 ? new UUIDKeySerializer() : new BufferKeySerializer((int) keyLength);
     }
 

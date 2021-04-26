@@ -218,7 +218,7 @@ public class TableIteratorTests extends ThreadPooledTestSuite {
 
             @Override
             public CompletableFuture<AttributeIterator> attributeIterator(AttributeId fromId, AttributeId toId, Duration timeout) {
-                Assert.assertEquals("toId must always be KeyHasher.MAX_HASH.", KeyHasher.MAX_HASH, toId.toUUID());
+                Assert.assertEquals("toId must always be KeyHasher.MAX_HASH.", KeyHasher.MAX_HASH, ((AttributeId.UUID) toId).toUUID());
                 val iterator = baseIteratorHashes.iterator();
                 return CompletableFuture.completedFuture(() -> CompletableFuture.completedFuture(
                         iterator.hasNext() ? toAttributeIterator(iterator.next(), fromId, toId) : null));

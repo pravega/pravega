@@ -144,7 +144,7 @@ class IndexReader {
         return segment
                 .getAttributes(attributeIds, false, timer.getRemaining())
                 .thenApply(attributes -> attributes.entrySet().stream()
-                        .map(e -> new TableBucket(e.getKey().toUUID(), e.getValue()))
+                        .map(e -> new TableBucket(((AttributeId.UUID) e.getKey()).toUUID(), e.getValue())) // These should always be UUID.
                         .collect(Collectors.toMap(TableBucket::getHash, b -> b)));
     }
 
