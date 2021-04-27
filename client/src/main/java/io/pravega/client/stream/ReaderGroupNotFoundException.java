@@ -15,6 +15,10 @@
  */
 package io.pravega.client.stream;
 
+/**
+ * ReaderGroupNotFoundException is thrown by {@link io.pravega.client.admin.ReaderGroupManager#getReaderGroup(String)} API
+ * when the provided reader group does not exist.
+ */
 public class ReaderGroupNotFoundException extends IllegalArgumentException {
     private static final long serialVersionUID = 1L;
     public ReaderGroupNotFoundException(String readerGroupScopedName) {

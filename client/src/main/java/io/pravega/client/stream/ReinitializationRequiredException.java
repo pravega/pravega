@@ -15,6 +15,10 @@
  */
 package io.pravega.client.stream;
 
+/**
+ * ReinitializationRequiredException is thrown by {@link EventStreamReader#readNextEvent(long)} API if
+ * {@link ReaderGroup#resetReaderGroup(ReaderGroupConfig)} was called, which requires readers to be reinitialized.
+ */
 public class ReinitializationRequiredException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;

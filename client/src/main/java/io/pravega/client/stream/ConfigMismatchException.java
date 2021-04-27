@@ -15,12 +15,14 @@
  */
 package io.pravega.client.stream;
 
-
+/**
+ * ConfigMismatchException is thrown by the {@link io.pravega.client.admin.ReaderGroupManager#createReaderGroup(String, ReaderGroupConfig)} API
+ * when the reader group already exists with a different configuration.
+ */
 public class ConfigMismatchException extends IllegalArgumentException {
     private static final long serialVersionUID = 1L;
+
     public ConfigMismatchException(String readerGroupScopedName, ReaderGroupConfig currentConfig) {
         super(String.format("Reader Group %s already exists with a different configuration %s.", readerGroupScopedName, currentConfig));
     }
-
-
 }
