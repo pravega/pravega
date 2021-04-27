@@ -110,20 +110,20 @@ public class Attributes {
     public static final AttributeId ATTRIBUTE_SEGMENT_TYPE = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 9);
 
     /**
-     * Defines an attribute that is used to store the Segment's Extended Attribute Id Length.
-     * If not specified (or if set to 0), the default will be the length of {@link AttributeId.UUID} (16 bytes).
-     */
-    public static final AttributeId ATTRIBUTE_ID_LENGTH = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 10);
-
-    /**
      * Defines an attribute that is used to store SLTS snapshot id.
      */
-    public static final UUID ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 10);
+    public static final AttributeId ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 10);
 
     /**
      * Defines an attribute that is used to store SLTS snapshot epoch.
      */
-    public static final UUID ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 11);
+    public static final AttributeId ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 11);
+
+    /**
+     * Defines an attribute that is used to store the Segment's Extended Attribute Id Length.
+     * If not specified (or if set to 0), the default will be the length of {@link AttributeId.UUID} (16 bytes).
+     */
+    public static final AttributeId ATTRIBUTE_ID_LENGTH = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, 12);
 
     /**
      * Determines whether the given attribute cannot be modified once originally set on the Segment.
@@ -132,7 +132,7 @@ public class Attributes {
      * @return True if immutable, false otherwise.
      */
     public static boolean isUnmodifiable(AttributeId attributeId) {
-        return attributeId == ATTRIBUTE_SEGMENT_TYPE;
+        return attributeId == ATTRIBUTE_SEGMENT_TYPE || attributeId == ATTRIBUTE_ID_LENGTH;
     }
 
     /**

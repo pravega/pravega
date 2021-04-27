@@ -34,7 +34,8 @@ public class AttributesTests {
     public void testGeneral() {
         boolean atLeastOneUnmodifiable = false;
         for (val attributeId : getAllAttributes()) {
-            val expectedUnmodifiable = attributeId.equals(Attributes.ATTRIBUTE_SEGMENT_TYPE);
+            val expectedUnmodifiable = attributeId.equals(Attributes.ATTRIBUTE_SEGMENT_TYPE)
+                    || attributeId.equals(Attributes.ATTRIBUTE_ID_LENGTH);
             val actualUnmodifiable = Attributes.isUnmodifiable(attributeId);
 
             Assert.assertEquals("Unmodifiable for " + attributeId, expectedUnmodifiable, actualUnmodifiable);

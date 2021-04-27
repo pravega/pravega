@@ -84,7 +84,6 @@ import io.pravega.segmentstore.storage.metadata.TableBasedMetadataStore;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -648,7 +647,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private CompletableFuture<Void> saveStorageSnapshot(SnapshotInfo checkpoint, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        val attributeUpdates = Arrays.asList(
+        val attributeUpdates = AttributeUpdateCollection.from(
                 new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID, AttributeUpdateType.Replace, checkpoint.getSnapshotId()),
                 new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH, AttributeUpdateType.Replace, checkpoint.getEpoch()));
         return this.metadataStore.getOrAssignSegmentId(NameUtils.getMetadataSegmentName(this.metadata.getContainerId()), timer.getRemaining(),
