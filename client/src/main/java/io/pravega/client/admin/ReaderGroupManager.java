@@ -18,9 +18,11 @@ package io.pravega.client.admin;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.stream.ConfigMismatchException;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Serializer;
 import lombok.val;
 
@@ -71,8 +73,11 @@ public interface ReaderGroupManager extends AutoCloseable {
      * may block.
      * @param groupName The name of the group to be created.
      * @param config The configuration for the new ReaderGroup.
+     * @return True if ReaderGroup was created.
+     * @throws ConfigMismatchException If the reader group already exists with a different configuration. Use {@link ReaderGroup#resetReaderGroup} to change
+     * the reader group configuration.
      */
-    void createReaderGroup(String groupName, ReaderGroupConfig config);
+    boolean createReaderGroup(String groupName, ReaderGroupConfig config) throws ConfigMismatchException;
     
     /**
      * Deletes a reader group, removing any state associated with it. There should be no reader left
@@ -88,8 +93,9 @@ public interface ReaderGroupManager extends AutoCloseable {
      * 
      * @param groupName The name of the group
      * @return Reader group with the given name
+     * @throws ReaderGroupNotFoundException If the reader group does not exist.
      */
-    ReaderGroup getReaderGroup(String groupName);
+    ReaderGroup getReaderGroup(String groupName) throws ReaderGroupNotFoundException;
     
     /**
      * Close this manager class. This will close any connections created through it.

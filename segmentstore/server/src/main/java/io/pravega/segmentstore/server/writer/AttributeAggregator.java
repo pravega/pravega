@@ -213,7 +213,7 @@ class AttributeAggregator implements WriterSegmentProcessor, AutoCloseable {
         CompletableFuture<Void> result = handleAttributeException(persistPendingAttributes(
                 this.state.getAttributes(), this.state.getLastSequenceNumber(), timer));
         if (this.state.hasSeal()) {
-            result = result.thenComposeAsync(v -> handleAttributeException(sealAttributes(timer)));
+            result = result.thenComposeAsync(v -> handleAttributeException(sealAttributes(timer)), this.executor);
         }
 
         return result.thenApply(v -> {
