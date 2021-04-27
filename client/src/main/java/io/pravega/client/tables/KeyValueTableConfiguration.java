@@ -16,6 +16,7 @@
 package io.pravega.client.tables;
 
 import com.google.common.annotations.Beta;
+import com.google.common.base.Preconditions;
 import java.io.Serializable;
 import lombok.Builder;
 import lombok.Data;
@@ -56,5 +57,14 @@ public class KeyValueTableConfiguration implements Serializable {
     @Override
     public String toString() {
         return String.format("Partitions = %s, KeyLength = %s:%s", this.partitionCount, this.primaryKeyLength, this.secondaryKeyLength);
+    }
+
+    public static final class KeyValueTableConfigurationBuilder {
+        public KeyValueTableConfiguration build() {
+            Preconditions.checkArgument(this.partitionCount > 0, "partitionCount must be a positive integer. Given %s.", this.partitionCount);
+            Preconditions.checkArgument(this.primaryKeyLength > 0, "primaryKeyLength must be a positive integer. Given %s.", this.primaryKeyLength);
+            Preconditions.checkArgument(this.secondaryKeyLength >= 0, "secondaryKeyLength must be a non-negative integer. Given %s.", this.secondaryKeyLength);
+            return new KeyValueTableConfiguration(this.partitionCount, this.primaryKeyLength, this.secondaryKeyLength);
+        }
     }
 }
