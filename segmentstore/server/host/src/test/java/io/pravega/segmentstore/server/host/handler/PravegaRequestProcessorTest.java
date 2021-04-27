@@ -387,8 +387,7 @@ public class PravegaRequestProcessorTest {
         // Verify the correct type of Segment is created and that it has the correct roles.
         val si = store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT).join();
         val segmentType = SegmentType.fromAttributes(si.getAttributes());
-        Assert.assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem()
-                || segmentType.isSortedTableSegment() || segmentType.isTableSegment());
+        Assert.assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem() || segmentType.isTableSegment());
 
         // TestCreateSealDelete may executed before this test case,
         // so createSegmentStats may record 1 or 2 createSegment operation here.
@@ -672,11 +671,6 @@ public class PravegaRequestProcessorTest {
 
     @Test(timeout = 20000)
     public void testCreateTableSegment() throws Exception {
-        testCreateTableSegment(false);
-        testCreateTableSegment(true);
-    }
-
-    private void testCreateTableSegment(boolean sorted) throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         String tableSegmentName = "testCreateTableSegment";
         @Cleanup
@@ -691,10 +685,8 @@ public class PravegaRequestProcessorTest {
                 SegmentStatsRecorder.noOp(), recorderMock, new PassingTokenVerifier(), false);
 
         // Execute and Verify createTableSegment calling stack is executed as design.
-        processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, sorted, ""));
+        processor.createTableSegment(new WireCommands.CreateTableSegment(1, tableSegmentName, false, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, tableSegmentName));
-        processor.createTableSegment(new WireCommands.CreateTableSegment(2, tableSegmentName, sorted, ""));
-        order.verify(connection).send(new WireCommands.SegmentAlreadyExists(2, tableSegmentName, ""));
         verify(recorderMock).createTableSegment(eq(tableSegmentName), any());
         verifyNoMoreInteractions(recorderMock);
 
@@ -703,7 +695,6 @@ public class PravegaRequestProcessorTest {
         val segmentType = SegmentType.fromAttributes(si.getAttributes());
         Assert.assertFalse(segmentType.isInternal() || segmentType.isCritical() || segmentType.isSystem());
         Assert.assertTrue(segmentType.isTableSegment());
-        Assert.assertEquals(sorted, segmentType.isSortedTableSegment());
     }
 
     /**

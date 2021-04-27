@@ -67,7 +67,6 @@ public class TableStoreMock implements TableStore {
     public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkArgument(segmentType.isTableSegment(), "Expected SegmentType.isTableSegment");
-        Preconditions.checkArgument(!segmentType.isSortedTableSegment(), "Sorted Table Segments not supported in this mock.");
         return CompletableFuture.runAsync(() -> {
             synchronized (this.tables) {
                 if (this.tables.containsKey(segmentName)) {
