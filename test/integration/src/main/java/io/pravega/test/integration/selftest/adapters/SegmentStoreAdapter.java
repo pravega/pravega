@@ -273,13 +273,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> createTable(String tableName, Duration timeout) {
         ensureRunning();
-        val type = SegmentType.builder();
-        if (this.config.getTableType() == TestConfig.TableType.Sorted) {
-            type.sortedTableSegment();
-        } else {
-            type.tableSegment();
-        }
-
+        val type = SegmentType.builder().tableSegment();
         return this.tableStore.createSegment(tableName, type.build(), timeout);
     }
 

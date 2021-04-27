@@ -21,17 +21,17 @@ import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.integration.demo.ClusterWrapper;
+import java.util.Collections;
 import lombok.SneakyThrows;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
-import java.util.Collections;
-
+import static io.pravega.cli.user.TestUtils.createCLIConfig;
 import static io.pravega.cli.user.TestUtils.createPravegaCluster;
 import static io.pravega.cli.user.TestUtils.getCLIControllerUri;
-import static io.pravega.cli.user.TestUtils.createCLIConfig;
 
 public class KVTCommandsTest extends SecureKVTCommandsTest {
     private static final ClusterWrapper CLUSTER = createPravegaCluster(false, false);
@@ -56,6 +56,7 @@ public class KVTCommandsTest extends SecureKVTCommandsTest {
 
     @Test(timeout = 60000)
     @SneakyThrows
+    @Ignore("Restore/fix when https://github.com/pravega/pravega/issues/5941 is done") // TODO fix before merging to master.
     public void testPutAndGetKVT() {
         final String scope = "putAndGetKVTable";
         final String table = NameUtils.getScopedStreamName(scope, "kvt1");

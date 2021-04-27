@@ -279,24 +279,18 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                     .thenCompose(ei -> {
                         val result = new ArrayList<TableEntry>();
                         return ei.forEachRemaining(i -> result.addAll(i.getEntries()), executorService())
-                                .thenApply(v -> {
-                                    if (isSorted(segmentName)) {
-                                        checkSortedOrder(result);
-                                    }
-                                    return result;
-                                });
+                                .thenApply(v -> result);
                     });
             iteratorFutures.add(future);
-            if (!isSorted(segmentName)) {
-                unsortedIteratorFutures.add(future);
-                // For simplicity, always start from beginning of TableSegment.
-                offsetIteratorFutures.add(tableStore.entryDeltaIterator(segmentName, 0L, TIMEOUT)
-                        .thenCompose(ei -> {
-                            val result = new ArrayList<IteratorItem<TableEntry>>();
-                            return ei.forEachRemaining(i -> result.add(i), executorService())
-                                    .thenApply(v -> result);
-                        }));
-            }
+            unsortedIteratorFutures.add(future);
+
+            // For simplicity, always start from beginning of TableSegment.
+            offsetIteratorFutures.add(tableStore.entryDeltaIterator(segmentName, 0L, TIMEOUT)
+                    .thenCompose(ei -> {
+                        val result = new ArrayList<IteratorItem<TableEntry>>();
+                        return ei.forEachRemaining(i -> result.add(i), executorService())
+                                .thenApply(v -> result);
+                    }));
         }
 
         // Check search results.
@@ -500,23 +494,11 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             String segmentName = getSegmentName(i);
             segmentNames.add(segmentName);
             val segmentType = SegmentType.builder().tableSegment();
-            if (isSorted(i)) {
-                segmentType.sortedTableSegment();
-            }
             futures.add(store.createSegment(segmentName, segmentType.build(), TIMEOUT));
         }
 
         Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         return segmentNames;
-    }
-
-    private boolean isSorted(int segmentIndex) {
-        return segmentIndex % 2 == 0;
-    }
-
-    private boolean isSorted(String segmentName) {
-        assert segmentName.startsWith(TABLE_SEGMENT_NAME_PREFIX) : segmentName;
-        return isSorted(Integer.parseInt(segmentName.substring(TABLE_SEGMENT_NAME_PREFIX.length())));
     }
 
     private static String getSegmentName(int i) {

@@ -432,7 +432,7 @@ abstract public class BaseMetadataStore implements ChunkMetadataStore {
         // Execute external commit step.
         try {
             if (null != txn.getExternalCommitStep()) {
-                txn.getExternalCommitStep().call();
+                return txn.getExternalCommitStep().call();
             }
         } catch (Exception e) {
             log.error("Exception during execution of external commit step", e);

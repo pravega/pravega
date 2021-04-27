@@ -51,6 +51,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -204,6 +205,13 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
 
+    }
+
+    @Test
+    @Ignore("Reenable/Redesign with https://github.com/pravega/pravega/issues/5941") // TODO Do not merge to master before fixing this.
+    @Override
+    public void testIterators() {
+        super.testIterators();
     }
 
     @Override

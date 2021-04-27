@@ -25,12 +25,12 @@ limitations under the License.
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${log.dir:-.}/${log.name:-pravega}.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <!-- daily rollover. Make sure the path matches the one in the file element or else
+            <!-- hourly rollover. Make sure the path matches the one in the file element or else
              the rollover logs are placed in the working directory. -->
             <fileNamePattern>${log.dir:-.}/%d{YYYY-MM-dd, aux}/${log.name:-pravega}_%d{yyyy-MM-dd_HH}.%i.log.gz</fileNamePattern>
-            <!-- each file should be at most 10MB, keep 30 files worth of history, but at most 10GB -->
+            <!-- each file should be at most 10MB, keep 720 (1 month) files worth of history, but at most 10GB -->
             <maxFileSize>10MB</maxFileSize>
-            <maxHistory>30</maxHistory>
+            <maxHistory>720</maxHistory>
             <totalSizeCap>10GB</totalSizeCap>
         </rollingPolicy>
 

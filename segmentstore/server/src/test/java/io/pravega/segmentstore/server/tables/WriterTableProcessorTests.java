@@ -19,7 +19,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
@@ -275,7 +274,6 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             // Verify correctness.
             batch.expectedEntries.keySet().forEach(k -> allKeys.put(k, context.keyHasher.hash(k)));
             checkIndex(batch.expectedEntries, allKeys, context);
-            checkSortedKeyIndex(batch.expectedEntries, context);
             lastBatch = batch;
         }
 
@@ -413,15 +411,6 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void checkSortedKeyIndex(HashMap<BufferView, TableEntry> existingEntries, TestContext context) {
-        val expectedKeys = new ArrayList<>(existingEntries.keySet());
-        expectedKeys.sort(BufferViewComparator.create()::compare);
-        val actualKeys = new ArrayList<BufferView>();
-        context.sortedKeyIndex.iterator(context.sortedKeyIndex.getIteratorRange(null, null), TIMEOUT)
-                .forEachRemaining(actualKeys::addAll, executorService()).join();
-        AssertExtensions.assertListEquals("", expectedKeys, actualKeys, BufferView::equals);
-    }
-
     private ArrayList<TestBatchData> generateAndPopulateEntries(TestContext context) {
         val result = new ArrayList<TestBatchData>();
         int count = 0;
@@ -458,7 +447,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
                 // Run the key through the external translator to ensure that we don't clash with internal keys by chance.
                 // (this is done for us by ContainerTableExtensionImpl already, so we're only simulating the same behavior).
-                val key = SortedKeyIndexDataSource.EXTERNAL_TRANSLATOR.inbound(new ByteArraySegment(keyData));
+                val key = new ByteArraySegment(keyData);
                 val offset = context.metadata.getLength();
                 val entry = TableEntry.versioned(key, new ByteArraySegment(valueData), offset);
                 append = generateRawAppend(entry, offset, context);
@@ -524,7 +513,6 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         final WriterTableProcessor processor;
         final IndexReader indexReader;
         final TableStoreMock tableStoreMock;
-        final SegmentSortedKeyIndexImpl sortedKeyIndex;
         final Random random;
         final AtomicLong sequenceNumber;
 
@@ -544,8 +532,6 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.indexReader = new IndexReader(executorService());
             this.connector = new TableWriterConnectorImpl();
             this.processor = new WriterTableProcessor(connector, executorService());
-            val ds = new SortedKeyIndexDataSource(this.tableStoreMock::put, this.tableStoreMock::remove, this.tableStoreMock::get);
-            this.sortedKeyIndex = new SegmentSortedKeyIndexImpl(SEGMENT_NAME, ds, executorService());
         }
 
         @Override
@@ -576,7 +562,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
                     TIMEOUT).join();
             this.segmentMock.append(new ByteArraySegment(new byte[(int) INITIAL_LAST_INDEXED_OFFSET]), null, TIMEOUT).join();
 
-            // Create the Table Segment Mock to be used by the sorted key index.
+            // Create the Table Segment Mock.
             this.tableStoreMock.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         }
 
@@ -606,11 +592,6 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             @Override
             public KeyHasher getKeyHasher() {
                 return keyHasher;
-            }
-
-            @Override
-            public SegmentSortedKeyIndex getSortedKeyIndex() {
-                return sortedKeyIndex;
             }
 
             @Override

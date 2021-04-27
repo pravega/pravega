@@ -72,14 +72,6 @@ public class StreamSegmentMetadataTests {
         Assert.assertEquals("Core attributes were not updated as a result from derived refresh.",
                 expectedType.getValue(), (long) metadata.getAttributes().get(Attributes.ATTRIBUTE_SEGMENT_TYPE));
 
-        // ... and now a Sorted Table Segment.
-        expectedType = SegmentType.builder(expectedType).sortedTableSegment().build();
-        metadata.updateAttributes(Collections.singletonMap(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE));
-        metadata.refreshType();
-        Assert.assertEquals("Unexpected value for sorted table segment type.", expectedType, metadata.getType());
-        Assert.assertEquals("Core attributes were not updated as a result from derived refresh.",
-                expectedType.getValue(), (long) metadata.getAttributes().get(Attributes.ATTRIBUTE_SEGMENT_TYPE));
-
         // CopyFrom.
         val m2 = new StreamSegmentMetadata(metadata.getName(), metadata.getId(), metadata.getContainerId());
         metadata.setLength(0);
