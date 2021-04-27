@@ -84,7 +84,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         assertEquals(commitEvent.getKey(), "test/test");
     }
 
-    @Test(timeout = 10000)
+    @Test()//timeout = 10000)
     public void testHandleOrphaned() throws CheckpointStoreException {
         Controller localController = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
@@ -102,6 +102,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         EventProcessorGroup<ControllerEvent> mockProcessor = spy(processor);
 
         doThrow(new CheckpointStoreException("host not found")).when(mockProcessor).notifyProcessFailure("host3");
+        doThrow(new NullPointerException("No host")).when(mockProcessor).notifyProcessFailure(null);
         try {
             when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(mockProcessor);
         } catch (CheckpointStoreException e) {
@@ -118,6 +119,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
         assertTrue(Futures.await(processors.handleFailedProcess("host1")));
         AssertExtensions.assertFutureThrows("host not found", processors.handleFailedProcess("host3"), e -> e instanceof CheckpointStoreException);
+        AssertExtensions.assertFutureThrows("no host", processors.handleFailedProcess(null), e -> e instanceof NullPointerException);
         processors.shutDown();
     }
     
