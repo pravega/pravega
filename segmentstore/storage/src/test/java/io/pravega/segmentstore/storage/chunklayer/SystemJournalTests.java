@@ -597,7 +597,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
         } catch (Exception e) {
             val ex = Exceptions.unwrap(e);
             Assert.assertTrue(Exceptions.unwrap(e) instanceof IllegalStateException
-                    && ex.getMessage().contains("File pointed by SnapshotInfo must exist"));
+                    && ex.getMessage().contains("Chunk pointed by SnapshotInfo must exist"));
         }
     }
 
