@@ -281,7 +281,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                         } else {
                             SLTS_READ_INDEX_BLOCK_LOOKUP_LATENCY.reportSuccessEvent(indexLookupTimer.getElapsed());
                         }
-                    });
+                    }, chunkedSegmentStorage.getExecutor());
         } else {
            f = CompletableFuture.completedFuture(null);
         }
