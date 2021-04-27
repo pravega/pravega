@@ -386,6 +386,5 @@ public class TestConfig {
 
     public enum TableType {
         Hash,
-        Sorted,
     }
 }

@@ -37,8 +37,6 @@ public class SegmentTypeTests {
     public void testBuilder() {
         checkBuilder(SegmentType.STREAM_SEGMENT, SegmentType.FORMAT_BASIC);
         checkBuilder(SegmentType.builder().tableSegment().build(), SegmentType.FORMAT_TABLE_SEGMENT, SegmentType::isTableSegment);
-        checkBuilder(SegmentType.builder().sortedTableSegment().build(), SegmentType.FORMAT_SORTED_TABLE_SEGMENT,
-                SegmentType::isTableSegment, SegmentType::isSortedTableSegment);
         checkBuilder(SegmentType.builder().internal().build(), SegmentType.ROLE_INTERNAL, SegmentType::isInternal);
         checkBuilder(SegmentType.builder().system().build(), SegmentType.ROLE_SYSTEM, SegmentType::isSystem, SegmentType::isInternal);
         checkBuilder(SegmentType.builder().critical().build(), SegmentType.ROLE_CRITICAL, SegmentType::isCritical);
@@ -64,14 +62,6 @@ public class SegmentTypeTests {
         val simpleTableSegment = SegmentType.fromAttributes(segmentAttributes);
         val expectedSimpleSegment = SegmentType.builder(baseType).tableSegment().build();
         Assert.assertEquals("Simple Table Segment.", expectedSimpleSegment, simpleTableSegment);
-
-        segmentAttributes.put(TableAttributes.SORTED, Attributes.BOOLEAN_FALSE);
-        Assert.assertEquals("Simple Table Segment (Sorted==False).", expectedSimpleSegment, SegmentType.fromAttributes(segmentAttributes));
-
-        segmentAttributes.put(TableAttributes.SORTED, Attributes.BOOLEAN_TRUE);
-        val sortedTableSegment = SegmentType.fromAttributes(segmentAttributes);
-        val expectedSortedSegment = SegmentType.builder(expectedSimpleSegment).sortedTableSegment().build();
-        Assert.assertEquals("Sorted Table Segment.", expectedSortedSegment, sortedTableSegment);
     }
 
     private void checkBuilder(SegmentType type, long expectedValue, Predicate<SegmentType>... predicates) {

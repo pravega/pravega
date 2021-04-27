@@ -585,7 +585,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(createTableSegment.getRequestId(), "Creating table segment {}.", createTableSegment);
         val timer = new Timer();
-        val type = createTableSegment.isSorted() ? SegmentType.TABLE_SEGMENT_SORTED : SegmentType.TABLE_SEGMENT_HASH;
+        val type = SegmentType.TABLE_SEGMENT_HASH;
         tableStore.createSegment(createTableSegment.getSegment(), type, TIMEOUT)
                 .thenAccept(v -> {
                     connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment()));

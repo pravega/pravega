@@ -541,11 +541,6 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public SegmentSortedKeyIndex getSortedKeyIndex() {
-            return SegmentSortedKeyIndex.noop();
-        }
-
-        @Override
         public CompletableFuture<DirectSegmentAccess> getSegment(Duration timeout) {
             return CompletableFuture.completedFuture(this.segment);
         }

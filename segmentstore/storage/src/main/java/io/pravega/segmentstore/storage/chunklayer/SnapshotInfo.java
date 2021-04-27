@@ -13,29 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.common.util.btree.sets;
+package io.pravega.segmentstore.storage.chunklayer;
 
-import io.pravega.common.util.ArrayView;
+import lombok.Builder;
 import lombok.Data;
-import lombok.NonNull;
 
 /**
- * An item to be updated.
+ * Basic info about snapshot.
  */
 @Data
-class UpdateItem implements Comparable<UpdateItem> {
+@Builder
+public class SnapshotInfo {
     /**
-     * The item.
+     * Epoch.
      */
-    @NonNull
-    private final ArrayView item;
-    /**
-     * True if this item is to be removed, false if it is to be inserted.
-     */
-    private final boolean removal;
+    final private long epoch;
 
-    @Override
-    public int compareTo(UpdateItem other) {
-        return BTreeSet.COMPARATOR.compare(this.item, other.item);
-    }
+    /**
+     * Id of the snapshot.
+     */
+    final private long snapshotId;
 }

@@ -91,7 +91,6 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         val segmentTypes = Arrays.asList(
                 SegmentType.STREAM_SEGMENT,
                 SegmentType.builder().system().build(),
-                SegmentType.TABLE_SEGMENT_SORTED,
                 SegmentType.builder().critical().internal().build());
 
         @Cleanup
