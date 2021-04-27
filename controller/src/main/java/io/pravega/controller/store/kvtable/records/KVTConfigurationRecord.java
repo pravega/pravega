@@ -79,7 +79,11 @@ public class KVTConfigurationRecord {
                 throws IOException {
             configurationRecordBuilder.scope(revisionDataInput.readUTF())
                                       .kvtName(revisionDataInput.readUTF());
-            KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(revisionDataInput.readInt()).build();
+            KeyValueTableConfiguration config = KeyValueTableConfiguration.builder()
+                    .partitionCount(revisionDataInput.readInt())
+                    .primaryKeyLength(4) // TODO fix this with https://github.com/pravega/pravega/issues/5939
+                    .secondaryKeyLength(4) // TODO fix this with https://github.com/pravega/pravega/issues/5939
+                    .build();
             configurationRecordBuilder.kvtConfiguration(config);
 
         }

@@ -66,7 +66,10 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
         long requestId = request.getRequestId();
         String kvTableId = request.getTableId().toString();
         KeyValueTableConfiguration config = KeyValueTableConfiguration.builder()
-                                            .partitionCount(partitionCount).build();
+                                            .partitionCount(partitionCount)
+                                            .primaryKeyLength(4) // TODO fix this with https://github.com/pravega/pravega/issues/5939
+                                            .secondaryKeyLength(4) // TODO fix this with https://github.com/pravega/pravega/issues/5939
+                                            .build();
 
         return RetryHelper.withRetriesAsync(() -> getKeyValueTable(scope, kvt)
                 .thenCompose(table -> table.getId()).thenCompose(id -> {
