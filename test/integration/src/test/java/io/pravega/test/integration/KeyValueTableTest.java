@@ -63,7 +63,11 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final String ENDPOINT = "localhost";
     private static final String SCOPE = "Scope";
-    private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder().partitionCount(5).build();
+    private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder()
+            .partitionCount(5)
+            .primaryKeyLength(Long.BYTES)
+            .secondaryKeyLength(Integer.BYTES)
+            .build();
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
