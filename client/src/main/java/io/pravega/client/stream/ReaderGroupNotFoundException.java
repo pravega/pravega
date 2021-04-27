@@ -16,26 +16,16 @@
 package io.pravega.client.stream;
 
 /**
- * ReinitializationRequiredException is thrown by {@link EventStreamReader#readNextEvent(long)} API if
- * {@link ReaderGroup#resetReaderGroup(ReaderGroupConfig)} was called, which requires readers to be reinitialized.
+ * ReaderGroupNotFoundException is thrown by {@link io.pravega.client.admin.ReaderGroupManager#getReaderGroup(String)} API
+ * when the provided reader group does not exist.
  */
-public class ReinitializationRequiredException extends RuntimeException {
-
+public class ReaderGroupNotFoundException extends IllegalArgumentException {
     private static final long serialVersionUID = 1L;
-
-    public ReinitializationRequiredException() {
-        super();
+    public ReaderGroupNotFoundException(String readerGroupScopedName) {
+        super(String.format("Reader Group %s not found.", readerGroupScopedName));
     }
 
-    public ReinitializationRequiredException(Throwable e) {
-        super(e);
-    }
-
-    public ReinitializationRequiredException(String msg, Throwable e) {
-        super(msg, e);
-    }
-
-    public ReinitializationRequiredException(String msg) {
-        super(msg);
+    public ReaderGroupNotFoundException(String readerGroupScopedName, Throwable e) {
+        super(String.format("Reader Group %s not found.", readerGroupScopedName), e);
     }
 }

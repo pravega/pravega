@@ -42,6 +42,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -123,8 +124,11 @@ public class NonAppendExtendedS3IntegrationTest extends BookKeeperIntegrationTes
 
         @Getter
         private final ChunkedSegmentStorageConfig chunkedSegmentStorageConfig = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
-                    .appendEnabled(false)
-                    .build();
+                .journalSnapshotInfoUpdateFrequency(Duration.ofMillis(10))
+                .maxJournalUpdatesPerSnapshot(5)
+                .appendEnabled(false)
+                .selfCheckEnabled(true)
+                .build();
 
         @Getter
         private final ScheduledExecutorService executor;

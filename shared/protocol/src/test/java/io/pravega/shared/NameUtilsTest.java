@@ -167,4 +167,15 @@ public class NameUtilsTest {
         UUID txnId = UUID.fromString("00000065-0000-000a-0000-000000000064");
         assertEquals(101, NameUtils.getEpoch(txnId));
     }
+
+    @Test
+    public void testStorageNames() {
+        Assert.assertEquals(NameUtils.getStorageMetadataSegmentName(1), "_system/containers/storage_metadata_1");
+        Assert.assertEquals(NameUtils.getSystemJournalFileName(2, 3, 4),
+                "_system/containers/_sysjournal.epoch3.container2.file4");
+        Assert.assertEquals(NameUtils.getSystemJournalSnapshotFileName(5, 6, 7),
+                "_system/containers/_sysjournal.epoch6.container5.snapshot7");
+        Assert.assertTrue(NameUtils.getSegmentChunkName("segment", 8, 9).startsWith("segment.E-8-O-9"));
+        Assert.assertEquals(NameUtils.getSegmentReadIndexBlockName("segment", 10), "segment.B-10");
+    }
 }

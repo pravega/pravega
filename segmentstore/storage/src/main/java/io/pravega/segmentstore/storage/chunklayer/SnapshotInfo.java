@@ -13,11 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.client.stream.impl;
+package io.pravega.segmentstore.storage.chunklayer;
 
-public class ReaderGroupNotFoundException extends IllegalArgumentException {
-    private static final long serialVersionUID = 1L;
-    public ReaderGroupNotFoundException(String readerGroupScopedName) {
-        super(String.format("Reader Group %s not found.", readerGroupScopedName));
-    }
+import lombok.Builder;
+import lombok.Data;
+
+/**
+ * Basic info about snapshot.
+ */
+@Data
+@Builder
+public class SnapshotInfo {
+    /**
+     * Epoch.
+     */
+    final private long epoch;
+
+    /**
+     * Id of the snapshot.
+     */
+    final private long snapshotId;
 }
