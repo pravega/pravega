@@ -16,26 +16,13 @@
 package io.pravega.client.stream;
 
 /**
- * ReinitializationRequiredException is thrown by {@link EventStreamReader#readNextEvent(long)} API if
- * {@link ReaderGroup#resetReaderGroup(ReaderGroupConfig)} was called, which requires readers to be reinitialized.
+ * ConfigMismatchException is thrown by the {@link io.pravega.client.admin.ReaderGroupManager#createReaderGroup(String, ReaderGroupConfig)} API
+ * when the reader group already exists with a different configuration.
  */
-public class ReinitializationRequiredException extends RuntimeException {
-
+public class ConfigMismatchException extends IllegalArgumentException {
     private static final long serialVersionUID = 1L;
 
-    public ReinitializationRequiredException() {
-        super();
-    }
-
-    public ReinitializationRequiredException(Throwable e) {
-        super(e);
-    }
-
-    public ReinitializationRequiredException(String msg, Throwable e) {
-        super(msg, e);
-    }
-
-    public ReinitializationRequiredException(String msg) {
-        super(msg);
+    public ConfigMismatchException(String readerGroupScopedName, ReaderGroupConfig currentConfig) {
+        super(String.format("Reader Group %s already exists with a different configuration %s.", readerGroupScopedName, currentConfig));
     }
 }
