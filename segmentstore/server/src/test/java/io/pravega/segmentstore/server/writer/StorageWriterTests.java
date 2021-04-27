@@ -20,6 +20,7 @@ import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -970,7 +971,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         // Make sure we increase the Length prior to appending; the Writer checks for this.
         long offset = segmentMetadata.getLength();
         segmentMetadata.setLength(offset + data.length);
-        Collection<AttributeUpdate> attributeUpdates = generateAttributeUpdates(segmentMetadata);
+        AttributeUpdateCollection attributeUpdates = generateAttributeUpdates(segmentMetadata);
         StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), new ByteArraySegment(data), attributeUpdates);
         op.setStreamSegmentOffset(offset);
         context.dataSource.recordAppend(op);
@@ -979,13 +980,13 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     }
 
     private void updateAttributes(UpdateableSegmentMetadata segmentMetadata, TestContext context) {
-        Collection<AttributeUpdate> attributeUpdates = generateAttributeUpdates(segmentMetadata);
+        AttributeUpdateCollection attributeUpdates = generateAttributeUpdates(segmentMetadata);
         context.dataSource.add(new UpdateAttributesOperation(segmentMetadata.getId(), attributeUpdates));
     }
 
-    private Collection<AttributeUpdate> generateAttributeUpdates(UpdateableSegmentMetadata segmentMetadata) {
+    private AttributeUpdateCollection generateAttributeUpdates(UpdateableSegmentMetadata segmentMetadata) {
         long coreAttributeValue = segmentMetadata.getAttributes().getOrDefault(CORE_ATTRIBUTE_ID, 0L) + 1;
-        val attributeUpdates = new ArrayList<AttributeUpdate>();
+        val attributeUpdates = new AttributeUpdateCollection();
         attributeUpdates.add(new AttributeUpdate(CORE_ATTRIBUTE_ID, AttributeUpdateType.Accumulate, coreAttributeValue));
         for (int i = 0; i < EXTENDED_ATTRIBUTE_IDS.size(); i++) {
             AttributeId id = EXTENDED_ATTRIBUTE_IDS.get(i);

@@ -327,6 +327,40 @@ public class RevisionDataStreamCommonTests {
         }
     }
 
+    /**
+     * Tests {@link RevisionDataInput#getRemaining()}.
+     */
+    @Test
+    public void testGetRemaining() throws Exception {
+        @Cleanup
+        val os = new ByteBufferOutputStream();
+        @Cleanup
+        val rdos = RevisionDataOutputStream.wrap(os);
+        rdos.writeInt(1);
+        rdos.writeLong(2L);
+        rdos.writeBuffer(new ByteArraySegment(new byte[3]));
+        rdos.flush();
+        rdos.close();
+        int expectedRemaining = os.getData().getLength() - Integer.BYTES; // BoundedInputStream header.
+
+        // Use a SequenceInputStream - this will always have available() set to 0.
+        @Cleanup
+        val rdis = RevisionDataInputStream.wrap(os.getData().getReader());
+        Assert.assertEquals(expectedRemaining, rdis.getRemaining());
+
+        Assert.assertEquals(1, rdis.readInt());
+        expectedRemaining -= Integer.BYTES;
+        Assert.assertEquals(expectedRemaining, rdis.getRemaining());
+
+        Assert.assertEquals(2L, rdis.readLong());
+        expectedRemaining -= Long.BYTES;
+        Assert.assertEquals(expectedRemaining, rdis.getRemaining());
+
+        Assert.assertEquals(3, rdis.readArray().length);
+        expectedRemaining = 0;
+        Assert.assertEquals(expectedRemaining, rdis.getRemaining());
+    }
+
     private <T> void testGetCompactLength(Map<T, Integer> expectedValues, BiFunction<RevisionDataOutputStream, T, Integer> getLength, BiConsumerWithException<RevisionDataOutputStream, T> writeNumber) throws Exception {
         @Cleanup
         val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());

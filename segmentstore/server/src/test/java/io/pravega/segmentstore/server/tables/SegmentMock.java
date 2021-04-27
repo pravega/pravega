@@ -21,12 +21,12 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.SegmentAppend;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
@@ -99,13 +99,13 @@ class SegmentMock implements DirectSegmentAccess {
     }
 
     @Override
-    public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         // Similarly to the append below, we assume this is only for data construction, so offsets are not considered.
         return append(data, attributeUpdates, WireCommands.NULL_TABLE_SEGMENT_OFFSET, timeout);
     }
 
     @Override
-    public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, long tableSegmentOffset, Duration timeout) {
+    public CompletableFuture<Long> append(BufferView data, AttributeUpdateCollection attributeUpdates, long tableSegmentOffset, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> {
             // Note that this append is not atomic (data & attributes) - but for testing purposes it does not matter as
             // this method should only be used for constructing the test data.
@@ -134,13 +134,6 @@ class SegmentMock implements DirectSegmentAccess {
 
             return offset;
         }, this.executor);
-    }
-
-    @Override
-    public CompletableFuture<Long> append(SegmentAppend append, Duration timeout) {
-        return append.getOffset() >= 0
-                ? append(append.getData(), append.getAttributeUpdates(), append.getOffset(), timeout)
-                : append(append.getData(), append.getAttributeUpdates(), timeout);
     }
 
     @Override
@@ -177,7 +170,7 @@ class SegmentMock implements DirectSegmentAccess {
     }
 
     @Override
-    public CompletableFuture<Void> updateAttributes(Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Void> updateAttributes(AttributeUpdateCollection attributeUpdates, Duration timeout) {
         return CompletableFuture.runAsync(() -> {
             synchronized (this) {
                 val updatedValues = new HashMap<AttributeId, Long>();

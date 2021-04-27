@@ -18,6 +18,7 @@ package io.pravega.segmentstore.server.store;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -54,7 +55,7 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         return invoke(
                 streamSegmentName,
                 container -> container.append(streamSegmentName, data, attributeUpdates, timeout),
@@ -62,7 +63,7 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     }
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         return invoke(
                 streamSegmentName,
                 container -> container.append(streamSegmentName, offset, data, attributeUpdates, timeout),
@@ -70,7 +71,7 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     }
 
     @Override
-    public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Void> updateAttributes(String streamSegmentName, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         return invoke(
                 streamSegmentName,
                 container -> container.updateAttributes(streamSegmentName, attributeUpdates, timeout),

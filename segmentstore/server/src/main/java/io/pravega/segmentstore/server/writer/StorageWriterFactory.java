@@ -20,6 +20,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentType;
@@ -38,8 +39,6 @@ import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.Storage;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -118,7 +117,7 @@ public class StorageWriterFactory implements WriterFactory {
         @Override
         public CompletableFuture<Void> notifyAttributesPersisted(long segmentId, SegmentType segmentType, long rootPointer,
                                                                  long lastSequenceNumber, Duration timeout) {
-            List<AttributeUpdate> updates = Arrays.asList(
+            AttributeUpdateCollection updates = AttributeUpdateCollection.from(
                     new AttributeUpdate(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, AttributeUpdateType.ReplaceIfGreater, rootPointer),
                     new AttributeUpdate(Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, AttributeUpdateType.Replace, lastSequenceNumber));
             UpdateAttributesOperation op = new UpdateAttributesOperation(segmentId, updates);

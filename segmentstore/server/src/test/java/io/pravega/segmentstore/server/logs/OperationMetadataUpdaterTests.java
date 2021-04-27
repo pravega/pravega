@@ -18,6 +18,7 @@ package io.pravega.segmentstore.server.logs;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -33,7 +34,6 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation
 import io.pravega.segmentstore.storage.LogAddress;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -333,7 +333,7 @@ public class OperationMetadataUpdaterTests {
     private void recordAppend(long segmentId, int length, OperationMetadataUpdater updater, UpdateableContainerMetadata referenceMetadata)
             throws Exception {
         byte[] data = new byte[length];
-        val attributeUpdates = Arrays.asList(
+        val attributeUpdates = AttributeUpdateCollection.from(
                 new AttributeUpdate(Attributes.CREATION_TIME, AttributeUpdateType.Replace, NEXT_ATTRIBUTE_VALUE.get()),
                 new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.Accumulate, NEXT_ATTRIBUTE_VALUE.get()));
         val op = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(data), attributeUpdates);

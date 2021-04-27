@@ -137,7 +137,7 @@ public abstract class AttributeId implements Comparable<AttributeId> {
     @Getter
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public static final class UUID extends AttributeId {
-        private static final int UUID_KEY_LENGTH = 2 * Long.BYTES;
+        public static final int ATTRIBUTE_ID_LENGTH = 2 * Long.BYTES;
         private final long mostSignificantBits;
         private final long leastSignificantBits;
 
@@ -148,7 +148,7 @@ public abstract class AttributeId implements Comparable<AttributeId> {
 
         @Override
         public int byteCount() {
-            return UUID_KEY_LENGTH;
+            return ATTRIBUTE_ID_LENGTH;
         }
 
         @Override
@@ -194,7 +194,7 @@ public abstract class AttributeId implements Comparable<AttributeId> {
 
         @Override
         public ByteArraySegment toBuffer() {
-            ByteArraySegment result = new ByteArraySegment(new byte[UUID_KEY_LENGTH]);
+            ByteArraySegment result = new ByteArraySegment(new byte[ATTRIBUTE_ID_LENGTH]);
             result.setLong(0, this.mostSignificantBits);
             result.setLong(Long.BYTES, this.leastSignificantBits);
             return result;

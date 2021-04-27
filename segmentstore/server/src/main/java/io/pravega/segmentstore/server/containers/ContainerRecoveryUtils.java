@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -27,9 +28,6 @@ import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.io.ByteArrayInputStream;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
@@ -38,7 +36,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -48,6 +45,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.shared.NameUtils.getMetadataSegmentName;
 
@@ -356,9 +355,9 @@ public class ContainerRecoveryUtils {
                     }
 
                     // Get the attributes for the current segment
-                    List<AttributeUpdate> attributeUpdates = properties.getAttributes().entrySet().stream()
+                    val attributeUpdates = properties.getAttributes().entrySet().stream()
                             .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
-                            .collect(Collectors.toList());
+                            .collect(Collectors.toCollection(AttributeUpdateCollection::new));
                     log.info("Segment Name: {} Attributes Updates: {}", properties.getName(), attributeUpdates);
 
                     // Update attributes for the current segment

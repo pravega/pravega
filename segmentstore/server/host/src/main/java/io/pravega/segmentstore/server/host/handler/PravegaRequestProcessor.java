@@ -30,6 +30,7 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
@@ -356,7 +357,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         long trace = LoggerHelpers.traceEnter(log, operation, updateSegmentAttribute);
         val update = new AttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, newValue, expectedValue);
-        segmentStore.updateAttributes(segmentName, Collections.singletonList(update), TIMEOUT)
+        segmentStore.updateAttributes(segmentName, AttributeUpdateCollection.from(update), TIMEOUT)
                     .whenComplete((v, e) -> {
                         LoggerHelpers.traceLeave(log, operation, trace, e);
                         final Consumer<Throwable> failureHandler = t -> {
@@ -556,8 +557,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        Collection<AttributeUpdate> attributes = Arrays.asList(
-                new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, (long) updateSegmentPolicy.getScaleType()),
+        AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
+                new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, updateSegmentPolicy.getScaleType()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, updateSegmentPolicy.getTargetRate()));
 
         log.info(updateSegmentPolicy.getRequestId(), "Updating segment policy {} ", updateSegmentPolicy);

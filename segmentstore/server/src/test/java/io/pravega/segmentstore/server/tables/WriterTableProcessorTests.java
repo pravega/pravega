@@ -22,6 +22,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -40,7 +41,6 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -561,7 +561,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         void setMinUtilization(int value) {
             Preconditions.checkArgument(value >= 0 && value <= 100);
             this.segmentMock.updateAttributes(
-                    Collections.singleton(new AttributeUpdate(TableAttributes.MIN_UTILIZATION, AttributeUpdateType.Replace, value)), TIMEOUT).join();
+                    AttributeUpdateCollection.from(new AttributeUpdate(TableAttributes.MIN_UTILIZATION, AttributeUpdateType.Replace, value)), TIMEOUT).join();
         }
 
         private void initializeSegment() {
@@ -570,7 +570,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
             // Pre-populate the INDEX_OFFSET. We write some garbage at the beginning and want to make sure that the indexer
             // can begin from the appropriate index offset.
-            this.segmentMock.updateAttributes(Arrays.asList(
+            this.segmentMock.updateAttributes(AttributeUpdateCollection.from(
                     new AttributeUpdate(TableAttributes.INDEX_OFFSET, AttributeUpdateType.Replace, INITIAL_LAST_INDEXED_OFFSET),
                     new AttributeUpdate(TableAttributes.COMPACTION_OFFSET, AttributeUpdateType.Replace, INITIAL_LAST_INDEXED_OFFSET)),
                     TIMEOUT).join();

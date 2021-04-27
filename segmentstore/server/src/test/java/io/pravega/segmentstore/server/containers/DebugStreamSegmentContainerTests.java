@@ -20,6 +20,7 @@ import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
@@ -67,7 +68,6 @@ import org.junit.rules.Timeout;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -365,8 +365,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             segmentContents.put(segmentName, appendData);
 
             for (int i = 0; i < attributesUpdatesPerSegment; i++) {
-                Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
-                attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
+                AttributeUpdateCollection attributeUpdates = AttributeUpdateCollection.from(
+                        new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
                 opFutures.add(container.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
             }
         }

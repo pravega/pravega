@@ -29,6 +29,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
@@ -48,7 +49,6 @@ import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ReadIndexFactory;
-import io.pravega.segmentstore.server.SegmentAppend;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
@@ -69,7 +69,6 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.OperationType;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation2;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
@@ -86,7 +85,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -402,7 +400,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -416,7 +414,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -430,7 +428,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Void> updateAttributes(String streamSegmentName, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -649,7 +647,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     //region Helpers
 
-    private CompletableFuture<Void> updateAttributesForSegment(long segmentId, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    private CompletableFuture<Void> updateAttributesForSegment(long segmentId, AttributeUpdateCollection attributeUpdates, Duration timeout) {
         UpdateAttributesOperation operation = new UpdateAttributesOperation(segmentId, attributeUpdates);
         return processAttributeUpdaterOperation(operation, new TimeoutTimer(timeout));
     }
@@ -813,10 +811,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 // Update the in-memory Segment Metadata using a special update (AttributeUpdateType.None, which should
                 // complete if the attribute is not currently set). If it has some value, then a concurrent update
                 // must have changed it and we cannot update anymore.
-                List<AttributeUpdate> updates = extendedAttributes
-                        .entrySet().stream()
-                        .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
-                        .collect(Collectors.toList());
+                val updates = new AttributeUpdateCollection();
+                for (val e : extendedAttributes.entrySet()) {
+                    updates.add(new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()));
+                }
 
                 // We need to make sure not to update attributes via updateAttributes() as that method may indirectly
                 // invoke this one again.
@@ -947,35 +945,24 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         private final long segmentId;
 
         @Override
-        public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-            return append(SegmentAppend.builder().data(data).attributeUpdates(attributeUpdates).build(), timeout);
-        }
-
-        @Override
-        public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, long offset, Duration timeout) {
-            return append(SegmentAppend.builder().data(data).offset(offset).attributeUpdates(attributeUpdates).build(), timeout);
-        }
-
-        @Override
-        public CompletableFuture<Long> append(SegmentAppend append, Duration timeout) {
+        public CompletableFuture<Long> append(BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
             ensureRunning();
-            logRequest("append", this.segmentId, append);
-            StreamSegmentAppendOperation operation;
-            if (append.isVariableAttributeIds()) {
-                operation = append.isOffsetConditional()
-                        ? new StreamSegmentAppendOperation2(this.segmentId, append.getOffset(), append.getData(), append.getAttributeUpdates())
-                        : new StreamSegmentAppendOperation2(this.segmentId, append.getData(), append.getAttributeUpdates());
-            } else {
-                operation = append.isOffsetConditional()
-                        ? new StreamSegmentAppendOperation(this.segmentId, append.getOffset(), append.getData(), append.getAttributeUpdates())
-                        : new StreamSegmentAppendOperation(this.segmentId, append.getData(), append.getAttributeUpdates());
-            }
+            logRequest("append", this.segmentId, data.getLength());
+            StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, data, attributeUpdates);
+            return processAppend(operation, new TimeoutTimer(timeout))
+                    .thenApply(v -> operation.getStreamSegmentOffset());        }
+
+        @Override
+        public CompletableFuture<Long> append(BufferView data, AttributeUpdateCollection attributeUpdates, long offset, Duration timeout) {
+            ensureRunning();
+            logRequest("append", this.segmentId, data.getLength());
+            StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, offset, data, attributeUpdates);
             return processAppend(operation, new TimeoutTimer(timeout))
                     .thenApply(v -> operation.getStreamSegmentOffset());
         }
 
         @Override
-        public CompletableFuture<Void> updateAttributes(Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Void> updateAttributes(AttributeUpdateCollection attributeUpdates, Duration timeout) {
             ensureRunning();
             logRequest("updateAttributes", this.segmentId, attributeUpdates);
             return StreamSegmentContainer.this.updateAttributesForSegment(this.segmentId, attributeUpdates, timeout);

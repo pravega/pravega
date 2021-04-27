@@ -18,6 +18,7 @@ package io.pravega.segmentstore.server.writer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -108,9 +109,9 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
 
         // Add some attributes
         context.aggregator.add(new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(new byte[123]),
-                Collections.singleton(createAttributeUpdate(extendedId, 1))));
+                AttributeUpdateCollection.from(createAttributeUpdate(extendedId, 1))));
         context.aggregator.add(new UpdateAttributesOperation(SEGMENT_ID,
-                Collections.singleton(createAttributeUpdate(extendedId, 2))));
+                AttributeUpdateCollection.from(createAttributeUpdate(extendedId, 2))));
         Assert.assertFalse("Unexpected value from mustFlush().", context.aggregator.mustFlush());
 
         // Seal using operation.
@@ -121,13 +122,13 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 "No operations should be allowed after sealing.",
                 () -> context.aggregator.add(new UpdateAttributesOperation(SEGMENT_ID,
-                        Collections.singleton(createAttributeUpdate(extendedId, 3)))),
+                        AttributeUpdateCollection.from(createAttributeUpdate(extendedId, 3)))),
                 ex -> ex instanceof DataCorruptionException);
 
         // Delete and verify nothing else changes.
         context.segmentMetadata.markDeleted();
         context.aggregator.add(new UpdateAttributesOperation(SEGMENT_ID,
-                Collections.singleton(createAttributeUpdate(extendedId, 4))));
+                AttributeUpdateCollection.from(createAttributeUpdate(extendedId, 4))));
         Assert.assertFalse("Unexpected value from mustFlush() after deleting.", context.aggregator.mustFlush());
     }
 
@@ -726,7 +727,7 @@ public class AttributeAggregatorTests extends ThreadPooledTestSuite {
     private UpdateAttributesOperation generateUpdateAttributesAndUpdateMetadata(int attributeCount, TestContext context) {
         Assert.assertTrue(attributeCount <= EXTENDED_ATTRIBUTE_IDS.size());
         long coreAttributeValue = context.segmentMetadata.getAttributes().getOrDefault(CORE_ATTRIBUTE_ID, 0L) + 1;
-        val attributeUpdates = new ArrayList<AttributeUpdate>();
+        val attributeUpdates = new AttributeUpdateCollection();
 
         // Always add a Core Attribute - this should be ignored.
         attributeUpdates.add(new AttributeUpdate(CORE_ATTRIBUTE_ID, AttributeUpdateType.Accumulate, coreAttributeValue));

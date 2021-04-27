@@ -27,6 +27,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
@@ -577,10 +578,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return execute(createAppendDataRequests(segmentNames, segmentContents, lengths, appendBuffers), store);
     }
 
-    private Collection<AttributeUpdate> createAttributeUpdates() {
+    private AttributeUpdateCollection createAttributeUpdates() {
         return ATTRIBUTES.stream()
                 .map(id -> new AttributeUpdate(id, AttributeUpdateType.Accumulate, 1))
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(AttributeUpdateCollection::new));
     }
 
     private ArrayList<StoreRequest> createMergeTransactionsRequests(

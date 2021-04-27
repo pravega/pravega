@@ -24,6 +24,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -231,7 +232,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // This should have no effect and not throw any errors.
         context.segmentAggregator.add(new UpdateAttributesOperation(SEGMENT_ID,
-                Collections.singleton(new AttributeUpdate(AttributeId.randomUUID(), AttributeUpdateType.Replace, 1))));
+                AttributeUpdateCollection.from(new AttributeUpdate(AttributeId.randomUUID(), AttributeUpdateType.Replace, 1))));
     }
 
     /**

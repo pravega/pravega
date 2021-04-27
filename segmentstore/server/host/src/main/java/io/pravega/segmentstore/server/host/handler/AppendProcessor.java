@@ -28,6 +28,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
@@ -58,9 +59,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -254,7 +253,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     private CompletableFuture<Long> storeAppend(Append append, long lastEventNumber) {
-        List<AttributeUpdate> attributes = Arrays.asList(
+        AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
                 new AttributeUpdate(AttributeId.fromUUID(append.getWriterId()), AttributeUpdateType.ReplaceIfEquals, append.getEventNumber(), lastEventNumber),
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
         ByteBufWrapper buf = new ByteBufWrapper(append.getData());

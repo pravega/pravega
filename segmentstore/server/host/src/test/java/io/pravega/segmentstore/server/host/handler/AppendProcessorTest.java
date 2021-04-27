@@ -27,6 +27,7 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
@@ -62,8 +63,6 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
@@ -1024,14 +1023,14 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
                       .thenCompose(v -> Futures.failedFuture(ex));
     }
 
-    private Collection<AttributeUpdate> updateEventNumber(UUID clientId, long eventNum) {
+    private AttributeUpdateCollection updateEventNumber(UUID clientId, long eventNum) {
         return updateEventNumber(clientId, eventNum, 0, 1);
     }
 
-    private Collection<AttributeUpdate> updateEventNumber(UUID clientId, long eventNum, long previousValue, long eventCount) {
-        return Arrays.asList(new AttributeUpdate(AttributeId.fromUUID(clientId), AttributeUpdateType.ReplaceIfEquals, eventNum,
-                                                 previousValue),
-                             new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
+    private AttributeUpdateCollection updateEventNumber(UUID clientId, long eventNum, long previousValue, long eventCount) {
+        return AttributeUpdateCollection.from(
+                new AttributeUpdate(AttributeId.fromUUID(clientId), AttributeUpdateType.ReplaceIfEquals, eventNum, previousValue),
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, eventCount));
     }
 
     private void setupGetAttributes(String streamSegmentName, UUID clientId, StreamSegmentStore store) {
@@ -1076,7 +1075,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         return (Reply) decoded;
     }
 
-    private AppendContext interceptAppend(StreamSegmentStore store, String streamSegmentName, Collection<AttributeUpdate> attributeUpdates,
+    private AppendContext interceptAppend(StreamSegmentStore store, String streamSegmentName, AttributeUpdateCollection attributeUpdates,
                                           CompletableFuture<Long> response) {
         val result = new AppendContext(store, streamSegmentName, attributeUpdates);
         when(store.append(eq(streamSegmentName), any(), eq(attributeUpdates), eq(AppendProcessor.TIMEOUT)))
@@ -1087,7 +1086,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         return result;
     }
 
-    private AppendContext interceptAppend(StreamSegmentStore store, String streamSegmentName, long offset, Collection<AttributeUpdate> attributeUpdates,
+    private AppendContext interceptAppend(StreamSegmentStore store, String streamSegmentName, long offset, AttributeUpdateCollection attributeUpdates,
                                           CompletableFuture<Long> response) {
         val result = new AppendContext(store, streamSegmentName, offset, attributeUpdates);
         when(store.append(eq(streamSegmentName), eq(offset), any(), eq(attributeUpdates), eq(AppendProcessor.TIMEOUT)))
@@ -1127,10 +1126,10 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         final StreamSegmentStore store;
         final String segmentName;
         final Long offset;
-        final Collection<AttributeUpdate> attributeUpdates;
+        final AttributeUpdateCollection attributeUpdates;
         final AtomicReference<byte[]> appendedData = new AtomicReference<>();
 
-        AppendContext(StreamSegmentStore store, String segmentName, Collection<AttributeUpdate> attributeUpdates) {
+        AppendContext(StreamSegmentStore store, String segmentName, AttributeUpdateCollection attributeUpdates) {
             this(store, segmentName, null, attributeUpdates);
         }
     }

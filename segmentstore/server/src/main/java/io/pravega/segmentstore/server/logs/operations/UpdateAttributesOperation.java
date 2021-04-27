@@ -20,10 +20,10 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -36,7 +36,7 @@ public class UpdateAttributesOperation extends MetadataOperation implements Attr
     @Getter
     private long streamSegmentId;
     @Getter
-    private Collection<AttributeUpdate> attributeUpdates;
+    private AttributeUpdateCollection attributeUpdates;
     /**
      * Whether this operation is internally generated.
      * This field is not serialized; upon deserialization (recovery) all instances will be marked as Internal (true).
@@ -55,7 +55,7 @@ public class UpdateAttributesOperation extends MetadataOperation implements Attr
      * @param streamSegmentId  The Id of the StreamSegment for which to update attributes.
      * @param attributeUpdates A Collection of AttributeUpdates to apply.
      */
-    public UpdateAttributesOperation(long streamSegmentId, Collection<AttributeUpdate> attributeUpdates) {
+    public UpdateAttributesOperation(long streamSegmentId, AttributeUpdateCollection attributeUpdates) {
         super();
         Preconditions.checkNotNull(attributeUpdates, "attributeUpdates");
 
@@ -108,24 +108,23 @@ public class UpdateAttributesOperation extends MetadataOperation implements Attr
         }
 
         private void write00(UpdateAttributesOperation o, RevisionDataOutput target) throws IOException {
-            Collection<AttributeUpdate> updates = o.attributeUpdates == null ? null :
-                    o.attributeUpdates.stream().filter(au -> au.getAttributeId().isUUID()).collect(Collectors.toList());
+            Collection<AttributeUpdate> updates = o.attributeUpdates == null ? null : o.attributeUpdates.getUUIDAttributeUpdates();
 
             int attributesLength = updates == null ? target.getCompactIntLength(0) : target.getCollectionLength(updates.size(), ATTRIBUTE_UUID_UPDATE_LENGTH);
             target.length(STATIC_LENGTH + attributesLength);
             target.writeLong(o.getSequenceNumber());
             target.writeLong(o.streamSegmentId);
-            target.writeCollection(updates, this::writeAttributeUpdate00);
+            target.writeCollection(updates, this::writeAttributeUpdateUUID00);
         }
 
         private void read00(RevisionDataInput source, OperationBuilder<UpdateAttributesOperation> b) throws IOException {
             b.instance.setSequenceNumber(source.readLong());
             b.instance.streamSegmentId = source.readLong();
-            b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdate00);
+            b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdateUUID00, AttributeUpdateCollection::new);
             b.instance.internal = true;
         }
 
-        private void writeAttributeUpdate00(RevisionDataOutput target, AttributeUpdate au) throws IOException {
+        private void writeAttributeUpdateUUID00(RevisionDataOutput target, AttributeUpdate au) throws IOException {
             target.writeLong(au.getAttributeId().getBitGroup(0));
             target.writeLong(au.getAttributeId().getBitGroup(1));
             target.writeByte(au.getUpdateType().getTypeId());
@@ -133,7 +132,7 @@ public class UpdateAttributesOperation extends MetadataOperation implements Attr
             target.writeLong(au.getComparisonValue());
         }
 
-        private AttributeUpdate readAttributeUpdate00(RevisionDataInput source) throws IOException {
+        private AttributeUpdate readAttributeUpdateUUID00(RevisionDataInput source) throws IOException {
             return new AttributeUpdate(
                     AttributeId.uuid(source.readLong(), source.readLong()),
                     AttributeUpdateType.get(source.readByte()),
@@ -147,23 +146,23 @@ public class UpdateAttributesOperation extends MetadataOperation implements Attr
                 return;
             }
 
-            Collection<AttributeUpdate> updates = o.attributeUpdates.stream().filter(au -> !au.getAttributeId().isUUID()).collect(Collectors.toList());
+            Collection<AttributeUpdate> updates = o.attributeUpdates.getVariableAttributeUpdates();
             int attributesLength = target.getCollectionLength(updates, au -> getAttributeUpdateNonUUIDLength(target, au));
             target.length(attributesLength);
-            target.writeCollection(updates, this::writeAttributeUpdate01);
+            target.writeCollection(updates, this::writeAttributeUpdateVariable01);
         }
 
         private void read01(RevisionDataInput source, OperationBuilder<UpdateAttributesOperation> b) throws IOException {
-            source.readCollection(this::readAttributeUpdate01, b.instance::getAttributeUpdates);
+            source.readCollection(this::readAttributeUpdateVariable01, b.instance::getAttributeUpdates);
         }
 
-        private void writeAttributeUpdate01(RevisionDataOutput target, AttributeUpdate au) throws IOException {
+        private void writeAttributeUpdateVariable01(RevisionDataOutput target, AttributeUpdate au) throws IOException {
             target.writeBuffer(au.getAttributeId().toBuffer());
             target.writeByte(au.getUpdateType().getTypeId());
             target.writeLong(au.getValue());
         }
 
-        private AttributeUpdate readAttributeUpdate01(RevisionDataInput source) throws IOException {
+        private AttributeUpdate readAttributeUpdateVariable01(RevisionDataInput source) throws IOException {
             return new AttributeUpdate(
                     AttributeId.from(source.readArray()),
                     AttributeUpdateType.get(source.readByte()),

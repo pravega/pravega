@@ -21,6 +21,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -38,7 +39,6 @@ import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -171,12 +171,12 @@ public class TableContext implements AutoCloseable {
             return Futures.failedFuture(new StreamSegmentExistsException(segmentName));
         }
 
-            return CompletableFuture
-                    .runAsync(() -> {
-                        SegmentMock segment = this.segmentCreator.get();
-                        Assert.assertTrue(this.segment.compareAndSet(null, segment));
-                    }, executorService)
-                    .thenCompose(v -> this.segment.get().updateAttributes(attributes == null ? Collections.emptyList() : attributes, timeout));
+        return CompletableFuture
+                .runAsync(() -> {
+                    SegmentMock segment = this.segmentCreator.get();
+                    Assert.assertTrue(this.segment.compareAndSet(null, segment));
+                }, executorService)
+                .thenCompose(v -> this.segment.get().updateAttributes(attributes == null ? new AttributeUpdateCollection() : AttributeUpdateCollection.from(attributes), timeout));
         }
 
         @Override
@@ -258,17 +258,17 @@ public class TableContext implements AutoCloseable {
         }
 
         @Override
-        public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
         @Override
-        public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
         @Override
-        public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Void> updateAttributes(String streamSegmentName, AttributeUpdateCollection attributeUpdates, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
