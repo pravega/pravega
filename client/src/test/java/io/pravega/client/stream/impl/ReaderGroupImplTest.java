@@ -59,6 +59,7 @@ import lombok.Cleanup;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentMatcher;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -69,6 +70,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -212,18 +214,17 @@ public class ReaderGroupImplTest {
         CompletableFuture<Long> badFuture = new CompletableFuture<>();
         badFuture.completeExceptionally(new ReaderGroupConfigRejectedException("handle"));
         // The controller has config2
-        when(controller.updateReaderGroup(SCOPE, GROUP_NAME, config1)).thenReturn(badFuture);
-        when(controller.updateReaderGroup(SCOPE, GROUP_NAME,
-                ReaderGroupConfig.cloneConfig(config1, config1.getReaderGroupId(), config2.getGeneration())))
+        when(controller.updateReaderGroup(eq(SCOPE), eq(GROUP_NAME), argThat(new ReaderGroupConfigMatcher(config1)))).thenReturn(badFuture);
+        when(controller.updateReaderGroup(eq(SCOPE), eq(GROUP_NAME),
+                                          argThat(new ReaderGroupConfigMatcher(ReaderGroupConfig.cloneConfig(config1, config1.getReaderGroupId(), config2.getGeneration())))))
                 .thenReturn(CompletableFuture.completedFuture(2L));
         when(controller.getReaderGroupConfig(SCOPE, GROUP_NAME)).thenReturn(CompletableFuture.completedFuture(config2));
 
         readerGroup.resetReaderGroup(config1);
 
         verify(synchronizer, times(1)).fetchUpdates();
-        verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME, config1);
-        verify(controller, times(1)).updateReaderGroup(SCOPE, GROUP_NAME,
-                ReaderGroupConfig.cloneConfig(config1, config1.getReaderGroupId(), config2.getGeneration()));
+        verify(controller, times(1)).updateReaderGroup(eq(SCOPE), eq(GROUP_NAME), argThat(new ReaderGroupConfigMatcher(config1)));
+        verify(controller, times(1)).updateReaderGroup(eq(SCOPE), eq(GROUP_NAME), argThat(new ReaderGroupConfigMatcher(ReaderGroupConfig.cloneConfig(config1, config1.getReaderGroupId(), config2.getGeneration()))));
         verify(controller, times(1)).getReaderGroupConfig(SCOPE, GROUP_NAME);
         verify(synchronizer, times(4)).updateState(any(StateSynchronizer.UpdateGenerator.class));
     }
@@ -502,5 +503,22 @@ public class ReaderGroupImplTest {
         Map<Stream, StreamCut> cuts = new HashMap<>();
         cuts.put(test, createStreamCut("test", 1));
         readerGroup.updateRetentionStreamCut(cuts);
+    }
+
+    private static class ReaderGroupConfigMatcher implements ArgumentMatcher<ReaderGroupConfig> {
+        private final ReaderGroupConfig expected;
+
+        public ReaderGroupConfigMatcher(ReaderGroupConfig expected) {
+            this.expected = expected;
+        }
+
+        @Override
+        public boolean matches(ReaderGroupConfig actual) {
+            if (actual == null) {
+                return false;
+            }
+            return actual.equals(expected) && actual.getGeneration() == expected.getGeneration()
+                    && actual.getReaderGroupId().equals(expected.getReaderGroupId());
+        }
     }
 }

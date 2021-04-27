@@ -21,11 +21,14 @@ import io.pravega.client.stream.impl.CheckpointImpl;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.UUID;
+
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Mockito.when;
 
 public class ReaderGroupConfigTest {
@@ -193,6 +196,21 @@ public class ReaderGroupConfigTest {
                          .stream(Stream.of(SCOPE, "s1"), getStreamCut("s1", 0, 7),
                                  getStreamCut("s1", 5, 4, 6))
                          .build();
+    }
+
+    @Test
+    public void testEquals() {
+        ReaderGroupConfig cfg1 = ReaderGroupConfig.builder()
+                                                  .stream(Stream.of(SCOPE, "s1"), StreamCut.UNBOUNDED)
+                                                  .build();
+
+        ReaderGroupConfig cfg2 = ReaderGroupConfig.cloneConfig(cfg1, UUID.randomUUID(), 100L);
+        assertEquals(cfg1, cfg2);
+        ReaderGroupConfig cfg3 = ReaderGroupConfig.builder()
+                                                  .stream(Stream.of(SCOPE, "s1"), StreamCut.UNBOUNDED)
+                                                  .stream(Stream.of(SCOPE, "s2"), StreamCut.UNBOUNDED)
+                                                  .build();
+        assertNotEquals(cfg2, cfg3);
     }
 
     @Test
