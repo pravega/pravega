@@ -84,7 +84,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         assertEquals(commitEvent.getKey(), "test/test");
     }
 
-    @Test()//timeout = 10000)
+    @Test(timeout = 10000)
     public void testHandleOrphaned() throws CheckpointStoreException {
         Controller localController = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
