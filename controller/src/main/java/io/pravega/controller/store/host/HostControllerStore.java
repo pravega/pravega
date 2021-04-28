@@ -52,7 +52,7 @@ public interface HostControllerStore {
      * 
      * @param scope                         The scope of the segment
      * @param stream                        The stream of the segment
-     * @param segmentId                 The number of the segment
+     * @param segmentId                     The number of the segment
      * @return                              The host which owns the supplied segment.
      * @throws HostStoreException           On error while fetching host info from the ownership Map.
      */

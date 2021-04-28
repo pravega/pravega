@@ -15,35 +15,22 @@
  */
 package io.pravega.cli.admin.controller;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
-import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.connection.impl.ConnectionPoolImpl;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.store.client.StoreClientFactory;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostMonitorConfig;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.util.Config;
-import java.net.URI;
+import lombok.Cleanup;
+import org.apache.curator.framework.CuratorFramework;
+
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-
-import lombok.Cleanup;
-import org.apache.curator.framework.CuratorFramework;
 
 /**
  * Gets a description of different characteristics related to a Stream (e.g., configuration, state, active txn).
@@ -62,8 +49,8 @@ public class ControllerDescribeStreamCommand extends ControllerCommand {
     @Override
     public void execute() {
         ensureArgCount(2);
-        final String scope = getCommandArgs().getArgs().get(0);
-        final String stream = getCommandArgs().getArgs().get(1);
+        final String scope = getArg(0);
+        final String stream = getArg(1);
 
         try {
             @Cleanup
@@ -127,22 +114,5 @@ public class ControllerDescribeStreamCommand extends ControllerCommand {
         return new CommandDescriptor(COMPONENT, "describe-stream", "Get the details of a given Stream.",
                 new ArgDescriptor("scope-name", "Name of the Scope where the Stream belongs to."),
                 new ArgDescriptor("stream-name", "Name of the Stream to describe."));
-    }
-
-    @VisibleForTesting
-    protected SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
-        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
-                                                                   .hostMonitorEnabled(true)
-                                                                   .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
-                                                                   .containerCount(getServiceConfig().getContainerCount())
-                                                                   .build();
-        HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, StoreClientFactory.createZKStoreClient(zkClient));
-        ClientConfig clientConfig = ClientConfig.builder()
-                                                .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()))
-                                                .validateHostName(getCLIControllerConfig().isAuthEnabled())
-                                                .credentials(new DefaultCredentials(getCLIControllerConfig().getPassword(), getCLIControllerConfig().getUserName()))
-                                                .build();
-        ConnectionPool pool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
-        return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
     }
 }
