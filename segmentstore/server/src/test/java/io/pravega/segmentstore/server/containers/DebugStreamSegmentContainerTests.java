@@ -224,7 +224,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Record details(name, container Id & sealed status) of each segment to be created.
         Set<String> sealedSegments = new HashSet<>();
         byte[] data = "data".getBytes();
-        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
+        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount, true);
         Map<Integer, ArrayList<String>> segmentByContainers = new HashMap<>();
 
         // Create segments and get their container Ids, sealed status and names to verify.

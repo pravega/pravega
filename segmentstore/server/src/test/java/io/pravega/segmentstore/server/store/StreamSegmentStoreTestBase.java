@@ -243,7 +243,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService(), TIMEOUT);
 
             // Verify that segment details match post restoration.
-            SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(CONTAINER_COUNT);
+            SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(CONTAINER_COUNT, true);
             for (String segment : segmentNames) {
                 int containerId = segToConMapper.getContainerId(segment);
                 SegmentProperties props = debugStreamSegmentContainerMap.get(containerId).getStreamSegmentInfo(segment, TIMEOUT)
