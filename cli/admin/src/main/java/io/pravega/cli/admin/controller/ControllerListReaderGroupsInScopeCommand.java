@@ -38,7 +38,7 @@ public class ControllerListReaderGroupsInScopeCommand extends ControllerCommand 
         ensureArgCount(1);
         @Cleanup
         val context = createContext();
-        String scope = getCommandArgs().getArgs().get(0);
+        String scope = getArg(0);
         prettyJSONOutput(executeRESTCall(context, "/v1/scopes/" + scope + "/readergroups"));
     }
 
