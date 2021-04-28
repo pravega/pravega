@@ -102,7 +102,6 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         EventProcessorGroup<ControllerEvent> mockProcessor = spy(processor);
 
         doThrow(new CheckpointStoreException("host not found")).when(mockProcessor).notifyProcessFailure("host3");
-        doThrow(new NullPointerException("No host")).when(mockProcessor).notifyProcessFailure(null);
         try {
             when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(mockProcessor);
         } catch (CheckpointStoreException e) {
@@ -114,12 +113,13 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, 
                 kvtStore, kvtTasks, system, executorService());
+        //check for a case where init is not initalized
+        assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
         assertTrue(Futures.await(processors.handleFailedProcess("host1")));
         AssertExtensions.assertFutureThrows("host not found", processors.handleFailedProcess("host3"), e -> e instanceof CheckpointStoreException);
-        AssertExtensions.assertFutureThrows("no host", processors.handleFailedProcess(null), e -> e instanceof NullPointerException);
         processors.shutDown();
     }
     
