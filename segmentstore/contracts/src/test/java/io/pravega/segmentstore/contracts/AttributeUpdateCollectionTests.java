@@ -32,7 +32,7 @@ public class AttributeUpdateCollectionTests {
 
     @Test
     public void testAdd() {
-        val uuids = generate(i -> AttributeId.uuid(i, i));
+        val uuids = generate(i -> AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX, i));
         val variables = generate(i -> AttributeId.from(new byte[]{(byte) (int) i}));
 
         val c = new AttributeUpdateCollection();
@@ -112,7 +112,7 @@ public class AttributeUpdateCollectionTests {
      */
     @Test
     public void testEqualsHashCode() {
-        val uuids = generate(i -> AttributeId.uuid(i, i));
+        val uuids = generate(i -> AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX, i));
         val variables = generate(i -> AttributeId.from(new byte[]{(byte) (int) i}));
 
         val c1 = AttributeUpdateCollection.from(uuids);
