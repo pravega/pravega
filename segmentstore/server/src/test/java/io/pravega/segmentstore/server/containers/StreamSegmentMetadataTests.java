@@ -50,24 +50,29 @@ public class StreamSegmentMetadataTests {
     public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
-     * Tests {@link StreamSegmentMetadata#getType()} and {@link StreamSegmentMetadata#refreshType()}.
+     * Tests {@link StreamSegmentMetadata#getType()} and {@link StreamSegmentMetadata#refreshDerivedProperties()}.
      */
     @Test
-    public void testSegmentType() {
+    public void testRefreshType() {
         SegmentType expectedType = SegmentType.STREAM_SEGMENT;
+        int expectedAttributeIdLength = -1;
         StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
-        Assert.assertEquals("Unexpected value for non-initialized type.", expectedType, metadata.getType());
+        Assert.assertEquals("Unexpected segment type for non-initialized type.", expectedType, metadata.getType());
+        Assert.assertEquals("Unexpected id length for non-initialized type.", expectedAttributeIdLength, metadata.getAttributeIdLength());
 
         // Segment type exists in Core attributes.
         expectedType = SegmentType.builder().critical().internal().build();
         metadata.updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_SEGMENT_TYPE, expectedType.getValue()));
-        metadata.refreshType();
-        Assert.assertEquals("Unexpected value for single type.", expectedType, metadata.getType());
+        expectedAttributeIdLength = 123;
+        metadata.updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_ID_LENGTH, (long) expectedAttributeIdLength));
+        metadata.refreshDerivedProperties();
+        Assert.assertEquals("Unexpected segment type for single type.", expectedType, metadata.getType());
+        Assert.assertEquals("Unexpected id length.", expectedAttributeIdLength, metadata.getAttributeIdLength());
 
         // Segment type exists in Core attributes, but other attributes indicate this is a Table Segment.
         expectedType = SegmentType.builder(expectedType).tableSegment().build();
         metadata.updateAttributes(Collections.singletonMap(TableAttributes.INDEX_OFFSET, 0L));
-        metadata.refreshType();
+        metadata.refreshDerivedProperties();
         Assert.assertEquals("Unexpected value for simple table segment type.", expectedType, metadata.getType());
         Assert.assertEquals("Core attributes were not updated as a result from derived refresh.",
                 expectedType.getValue(), (long) metadata.getAttributes().get(Attributes.ATTRIBUTE_SEGMENT_TYPE));
@@ -237,7 +242,7 @@ public class StreamSegmentMetadataTests {
         newMetadata.copyFrom(baseMetadata);
         Assert.assertTrue("copyFrom copied the Active flag too.", newMetadata.isActive());
         // Force the base metadata to update its core attributes with the correct type. Do this after the copyFrom call.
-        baseMetadata.refreshType();
+        baseMetadata.refreshDerivedProperties();
         SegmentMetadataComparer.assertEquals("Metadata copy:", baseMetadata, newMetadata);
         Assert.assertEquals("Metadata copy: getLastUsed differs.",
                 baseMetadata.getLastUsed(), newMetadata.getLastUsed());

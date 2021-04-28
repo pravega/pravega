@@ -501,7 +501,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         }
 
         metadata.updateAttributes(mapping.getAttributes());
-        metadata.refreshType();
+        metadata.refreshDerivedProperties();
     }
 
     //endregion
@@ -908,7 +908,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             }
 
             @Override
-            public void refreshType() {
+            public void refreshDerivedProperties() {
                 // Not relevant here.
             }
 
@@ -961,6 +961,11 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             @Override
             public SegmentType getType() {
                 return null;
+            }
+
+            @Override
+            public int getAttributeIdLength() {
+                return 0;
             }
 
             //endregion

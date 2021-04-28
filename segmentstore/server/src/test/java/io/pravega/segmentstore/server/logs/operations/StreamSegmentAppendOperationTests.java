@@ -23,6 +23,7 @@ import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,12 +64,10 @@ public class StreamSegmentAppendOperationTests extends OperationTestsBase<Stream
     static AttributeUpdateCollection createAttributes() {
         val result = new AttributeUpdateCollection();
         long currentValue = 0;
-        val rnd = new Random(0);
+
         for (AttributeUpdateType ut : AttributeUpdateType.values()) {
-            result.add(new AttributeUpdate(AttributeId.randomUUID(), ut, ++currentValue, currentValue));
-            byte[] attributeId = new byte[rnd.nextInt(AttributeId.Variable.MAX_LENGTH) + 1];
-            rnd.nextBytes(attributeId);
-            result.add(new AttributeUpdate(AttributeId.from(attributeId), ut, ++currentValue, currentValue));
+            result.add(new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX, ut.getTypeId()), ut, ++currentValue, currentValue));
+            result.add(new AttributeUpdate(AttributeId.random(AttributeId.Variable.MAX_LENGTH), ut, ++currentValue, currentValue));
         }
 
         return result;

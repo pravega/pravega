@@ -16,8 +16,6 @@
 package io.pravega.segmentstore.contracts;
 
 import io.pravega.common.util.BufferViewComparator;
-import io.pravega.common.util.ByteArraySegment;
-import java.util.Random;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -97,16 +95,12 @@ public class AttributeIdTests {
     @Test
     public void testVariableBasic() {
         val lengths = new int[]{1, Long.BYTES, AttributeId.randomUUID().byteCount(), AttributeId.MAX_LENGTH};
-        val rnd = new Random(0);
         for (val length : lengths) {
-            val baseArray = new byte[length];
-            rnd.nextBytes(baseArray);
-            val attribute = AttributeId.from(baseArray);
+            val attribute = AttributeId.random(length);
 
             Assert.assertFalse(attribute.isUUID());
-            Assert.assertEquals(baseArray.length, attribute.byteCount());
+            Assert.assertEquals(length, attribute.byteCount());
             val buf = attribute.toBuffer();
-            Assert.assertEquals(new ByteArraySegment(baseArray), buf);
             if (length > Long.BYTES) {
                 int bitGroupCount = length / Long.BYTES;
                 for (int i = 0; i < bitGroupCount; i++) {

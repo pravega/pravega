@@ -135,4 +135,15 @@ public interface SegmentMetadata extends SegmentProperties {
      * @return A {@link SegmentType} representing the type of the Segment.
      */
     SegmentType getType();
+
+    /**
+     * The length of all Extended Attributes for this Segment, as defined by the
+     * {@link io.pravega.segmentstore.contracts.Attributes#ATTRIBUTE_ID_LENGTH} attribute. Possible values:
+     * * -1 or 0: This Segment's Extended Attributes' Ids are of type {@link AttributeId.UUID}.
+     * * Larger than 0: This Segment's Extended Attributes' Ids are of type {@link AttributeId.Variable} and should all have
+     * this length.
+     *
+     * @return The length of all Extended Attributes for this Segment.
+     */
+    int getAttributeIdLength();
 }

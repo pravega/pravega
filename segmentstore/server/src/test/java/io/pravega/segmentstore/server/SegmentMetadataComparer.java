@@ -49,6 +49,8 @@ public final class SegmentMetadataComparer {
         Assert.assertEquals(idPrefix + " isMerged() mismatch.", expected.isMerged(), actual.isMerged());
         assertSameAttributes(idPrefix + " getAttributes() mismatch:", expected.getAttributes(), actual);
         Assert.assertEquals(idPrefix + " isPinned() mismatch.", expected.isPinned(), actual.isPinned());
+        Assert.assertEquals(idPrefix + " getType() mismatch.", expected.getType(), actual.getType());
+        Assert.assertEquals(idPrefix + " getAttributeIdLength() mismatch.", expected.getAttributeIdLength(), actual.getAttributeIdLength());
     }
 
     /**

@@ -376,6 +376,61 @@ public class ContainerMetadataUpdateTransactionTests {
                 ex -> ex instanceof StreamSegmentSealedException);
     }
 
+    /**
+     * Tests the ability to validate the type and lengths of Attribute Ids coming in via appends or update attributes,
+     * in accordance with the Segment's declared attribute id length.
+     */
+    @Test
+    public void testAttributeIdLengthValidation() throws Exception {
+        final AttributeId coreAttribute = Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER;
+        final AttributeId extAttributeUUID = AttributeId.randomUUID();
+        final AttributeId extAttributeShort1 = AttributeId.random(AttributeId.UUID.ATTRIBUTE_ID_LENGTH);
+        final AttributeId extAttributeShort2 = AttributeId.random(AttributeId.UUID.ATTRIBUTE_ID_LENGTH);
+        final AttributeId extAttributeLong1 = AttributeId.random(AttributeId.Variable.MAX_LENGTH);
+
+        Function<AttributeId, UpdateAttributesOperation> createOp = id -> new UpdateAttributesOperation(SEGMENT_ID,
+                AttributeUpdateCollection.from(new AttributeUpdate(id, AttributeUpdateType.Replace, 1L)));
+
+        val metadata = createMetadata();
+        val sm = metadata.getStreamSegmentMetadata(SEGMENT_ID);
+
+        // 1. All UUIDs
+        val txn1 = createUpdateTransaction(metadata);
+        txn1.preProcessOperation(createOp.apply(coreAttribute)); // Core attributes must always be allowed.
+        txn1.preProcessOperation(createOp.apply(extAttributeUUID)); // Extended UUID attribute should be allowed in this case.
+        AssertExtensions.assertThrows(
+                "Variable-Length accepted when no length declared",
+                () -> txn1.preProcessOperation(createOp.apply(extAttributeShort1)),
+                ex -> ex instanceof AttributeIdLengthMismatchException);
+
+        // 2. Declare UUID, try Variable length.
+        sm.updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_ID_LENGTH, 0L));
+        sm.refreshDerivedProperties();
+        val txn2 = createUpdateTransaction(metadata);
+        txn2.preProcessOperation(createOp.apply(coreAttribute)); // Core attributes must always be allowed.
+        txn2.preProcessOperation(createOp.apply(extAttributeUUID)); // Extended UUID attribute should be allowed in this case.
+        AssertExtensions.assertThrows(
+                "Variable-Length accepted when length declared to be 0 (UUID).",
+                () -> txn2.preProcessOperation(createOp.apply(extAttributeShort1)),
+                ex -> ex instanceof AttributeIdLengthMismatchException);
+
+        // 3. Variable Lengths declared
+        sm.updateAttributes(Collections.singletonMap(Attributes.ATTRIBUTE_ID_LENGTH, (long) extAttributeShort1.byteCount()));
+        sm.refreshDerivedProperties();
+        val txn3 = createUpdateTransaction(metadata);
+        txn3.preProcessOperation(createOp.apply(coreAttribute)); // Core attributes must always be allowed.
+        txn3.preProcessOperation(createOp.apply(extAttributeShort1));
+        txn3.preProcessOperation(createOp.apply(extAttributeShort2));
+        AssertExtensions.assertThrows(
+                "UUID accepted when length declared to be Variable.",
+                () -> txn3.preProcessOperation(createOp.apply(extAttributeUUID)),
+                ex -> ex instanceof AttributeIdLengthMismatchException);
+        AssertExtensions.assertThrows(
+                "Wrong-length accepted when length declared to be Variable.",
+                () -> txn3.preProcessOperation(createOp.apply(extAttributeLong1)),
+                ex -> ex instanceof AttributeIdLengthMismatchException);
+    }
+
     private void testWithAttributes(Function<AttributeUpdateCollection, Operation> createOperation) throws Exception {
         final AttributeId attributeNoUpdate = AttributeId.randomUUID();
         final AttributeId attributeAccumulate = AttributeId.randomUUID();
@@ -1543,18 +1598,18 @@ public class ContainerMetadataUpdateTransactionTests {
         UpdateableSegmentMetadata segmentMetadata = metadata.mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID);
         segmentMetadata.setLength(SEGMENT_LENGTH);
         segmentMetadata.setStorageLength(SEGMENT_LENGTH - 1); // Different from Length.
-        segmentMetadata.refreshType();
+        segmentMetadata.refreshDerivedProperties();
 
         segmentMetadata = metadata.mapStreamSegmentId(SEALED_SOURCE_NAME, SEALED_SOURCE_ID);
         segmentMetadata.setLength(SEALED_SOURCE_LENGTH);
         segmentMetadata.setStorageLength(SEALED_SOURCE_LENGTH);
         segmentMetadata.markSealed();
-        segmentMetadata.refreshType();
+        segmentMetadata.refreshDerivedProperties();
 
         segmentMetadata = metadata.mapStreamSegmentId(NOTSEALED_SOURCE_NAME, NOTSEALED_SOURCE_ID);
         segmentMetadata.setLength(0);
         segmentMetadata.setStorageLength(0);
-        segmentMetadata.refreshType();
+        segmentMetadata.refreshDerivedProperties();
 
         return metadata;
     }

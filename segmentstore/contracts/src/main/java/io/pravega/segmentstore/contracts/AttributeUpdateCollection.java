@@ -16,12 +16,14 @@
 package io.pravega.segmentstore.contracts;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import lombok.Getter;
 import lombok.val;
 
 /**
@@ -32,6 +34,14 @@ import lombok.val;
 public class AttributeUpdateCollection extends AbstractCollection<AttributeUpdate> implements Collection<AttributeUpdate> {
     private final ArrayList<AttributeUpdate> uuidAttributes;
     private final ArrayList<AttributeUpdate> variableAttributes;
+    /**
+     * The length of all Extended Attribute Ids in this collection.
+     * - If null, then there are no extended attributes.
+     * - If 0, then all extended attributes are of type {@link AttributeId.UUID}.
+     * - Otherwise, all extended attributes contained within have {@link AttributeId} of the given length.
+     */
+    @Getter
+    private Integer extendedAttributeIdLength;
 
     /**
      * Creates a new, empty instance of the {@link AttributeUpdateCollection} class.
@@ -39,6 +49,7 @@ public class AttributeUpdateCollection extends AbstractCollection<AttributeUpdat
     public AttributeUpdateCollection() {
         this.uuidAttributes = new ArrayList<>();
         this.variableAttributes = new ArrayList<>();
+        this.extendedAttributeIdLength = null; // Not set yet.
     }
 
     /**
@@ -99,6 +110,14 @@ public class AttributeUpdateCollection extends AbstractCollection<AttributeUpdat
 
     @Override
     public boolean add(AttributeUpdate au) {
+        // Validate that all extended Attributes have the same type and length. UUIDs are encoded as 0 length.
+        if (!Attributes.isCoreAttribute(au.getAttributeId())) {
+            int length = au.getAttributeId().isUUID() ? 0 : au.getAttributeId().byteCount();
+            Preconditions.checkArgument(this.extendedAttributeIdLength == null || this.extendedAttributeIdLength == length,
+                    "All Extended Attribute Ids must have the same type and length. Expected length %s, Attribute Update = '%s'.",
+                    this.extendedAttributeIdLength, au);
+            this.extendedAttributeIdLength = length;
+        }
         if (au.getAttributeId().isUUID()) {
             this.uuidAttributes.add(au);
         } else {

@@ -162,7 +162,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
     }
 
     private KeySerializer getKeySerializer(SegmentMetadata segmentMetadata) {
-        long keyLength = segmentMetadata.getAttributes().getOrDefault(Attributes.ATTRIBUTE_ID_LENGTH, 0L);
+        long keyLength = segmentMetadata.getAttributeIdLength();
         Preconditions.checkArgument(keyLength <= AttributeId.MAX_LENGTH, "Invalid value %s for attribute `%s` for Segment `%s'. Expected at most %s.",
                 Attributes.ATTRIBUTE_ID_LENGTH, segmentMetadata.getName(), AttributeId.MAX_LENGTH);
         return keyLength <= 0 ? new UUIDKeySerializer() : new BufferKeySerializer((int) keyLength);
@@ -933,15 +933,27 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
 
     //region Key Serializers
 
+    /**
+     * Serializer for Keys.
+     */
     private static abstract class KeySerializer {
+        /**
+         * The expected Key Length for this serializer.
+         */
         abstract int getKeyLength();
 
-        abstract ByteArraySegment serialize(AttributeId key);
+        /**
+         * Serializes the given {@link AttributeId} to a {@link ByteArraySegment} of length {@link #getKeyLength()}.
+         */
+        abstract ByteArraySegment serialize(AttributeId attributeId);
 
-        abstract AttributeId deserialize(ByteArraySegment key);
+        /**
+         * Deserializes a {@link ByteArraySegment} of length {@link #getKeyLength()} into an {@link AttributeId}.
+         */
+        abstract AttributeId deserialize(ByteArraySegment serializedId);
 
         protected void checkKeyLength(int length) {
-            Preconditions.checkArgument(length == getKeyLength(), "Expected key length %s, given %s.", getKeyLength(), length);
+            Preconditions.checkArgument(length == getKeyLength(), "Expected Attribute Id length %s, given %s.", getKeyLength(), length);
         }
     }
 
@@ -951,15 +963,15 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         private final int keyLength;
 
         @Override
-        ByteArraySegment serialize(AttributeId key) {
-            checkKeyLength(key.byteCount());
-            return key.toBuffer();
+        ByteArraySegment serialize(AttributeId attributeId) {
+            checkKeyLength(attributeId.byteCount());
+            return attributeId.toBuffer();
         }
 
         @Override
-        AttributeId deserialize(ByteArraySegment key) {
-            checkKeyLength(key.getLength());
-            return AttributeId.from(key.getCopy());
+        AttributeId deserialize(ByteArraySegment serializedId) {
+            checkKeyLength(serializedId.getLength());
+            return AttributeId.from(serializedId.getCopy());
         }
     }
 
@@ -970,21 +982,21 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         }
 
         @Override
-        ByteArraySegment serialize(AttributeId key) {
+        ByteArraySegment serialize(AttributeId attributeId) {
             // Keys are serialized using Unsigned Longs. This ensures that they will be stored in the Attribute Index in their
             // natural order (i.e., the same as the one done by AttributeId.compare()).
-            checkKeyLength(key.byteCount());
+            checkKeyLength(attributeId.byteCount());
             ByteArraySegment result = new ByteArraySegment(new byte[DEFAULT_KEY_LENGTH]);
-            result.setUnsignedLong(0, key.getBitGroup(0));
-            result.setUnsignedLong(Long.BYTES, key.getBitGroup(1));
+            result.setUnsignedLong(0, attributeId.getBitGroup(0));
+            result.setUnsignedLong(Long.BYTES, attributeId.getBitGroup(1));
             return result;
         }
 
         @Override
-        AttributeId deserialize(ByteArraySegment key) {
-            checkKeyLength(key.getLength());
-            long msb = key.getUnsignedLong(0);
-            long lsb = key.getUnsignedLong(Long.BYTES);
+        AttributeId deserialize(ByteArraySegment serializedId) {
+            checkKeyLength(serializedId.getLength());
+            long msb = serializedId.getUnsignedLong(0);
+            long lsb = serializedId.getUnsignedLong(Long.BYTES);
             return AttributeId.uuid(msb, lsb);
         }
     }

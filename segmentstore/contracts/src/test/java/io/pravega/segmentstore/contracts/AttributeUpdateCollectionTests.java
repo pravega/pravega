@@ -46,6 +46,67 @@ public class AttributeUpdateCollectionTests {
     }
 
     /**
+     * Tests {@link AttributeUpdateCollection#getExtendedAttributeIdLength()}.
+     */
+    @Test
+    public void testExtendedAttributeIdLength() {
+
+        // First check with UUID attribute ids.
+        val c1 = new AttributeUpdateCollection();
+        Assert.assertNull(c1.getExtendedAttributeIdLength());
+
+        // Adding Core Attributes should not change it.
+        c1.add(new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.None, 1L));
+        Assert.assertNull(c1.getExtendedAttributeIdLength());
+
+        // Adding an extended Attribute should set it.
+        c1.add(new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, 1), AttributeUpdateType.None, 1L));
+        c1.add(new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 2, 1), AttributeUpdateType.None, 1L));
+        c1.add(new AttributeUpdate(Attributes.CREATION_TIME, AttributeUpdateType.None, 1L));
+        Assert.assertEquals(0, (int) c1.getExtendedAttributeIdLength());
+
+        // Adding a variable extended Attribute should be rejected now (we have a UUID one set already).
+        AssertExtensions.assertThrows(
+                "add() accepted a variable Attribute Id after accepting a UUID attribute id",
+                () -> c1.add(new AttributeUpdate(AttributeId.from(new byte[AttributeId.UUID.ATTRIBUTE_ID_LENGTH]), AttributeUpdateType.None, 1L)),
+                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows(
+                "add() accepted a variable Attribute Id after accepting a UUID attribute id",
+                () -> c1.add(new AttributeUpdate(AttributeId.from(new byte[1]), AttributeUpdateType.None, 1L)),
+                ex -> ex instanceof IllegalArgumentException);
+
+        Assert.assertEquals(4, c1.size());
+
+        // Now check with variable attribute ids.
+        val c2 = new AttributeUpdateCollection();
+
+        // Start with a core attribute (should be ignored).
+        c2.add(new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.None, 1L));
+
+        // Then add a few variable ones with the same length.
+        c2.add(new AttributeUpdate(AttributeId.from(new byte[]{0, 1}), AttributeUpdateType.None, 1L));
+        c2.add(new AttributeUpdate(AttributeId.from(new byte[]{1, 2}), AttributeUpdateType.None, 1L));
+        c2.add(new AttributeUpdate(AttributeId.from(new byte[]{3, 3}), AttributeUpdateType.None, 1L));
+        Assert.assertEquals(2, (int) c2.getExtendedAttributeIdLength());
+
+        // Now add another core one - this one should work just fine.
+        c2.add(new AttributeUpdate(Attributes.CREATION_TIME, AttributeUpdateType.None, 1L));
+        Assert.assertEquals(2, (int) c2.getExtendedAttributeIdLength());
+
+        // These should be rejected.
+        AssertExtensions.assertThrows(
+                "add() accepted an Attribute Id with incompatible length",
+                () -> c2.add(new AttributeUpdate(AttributeId.from(new byte[3]), AttributeUpdateType.None, 1L)),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertThrows(
+                "add() accepted a UUID Attribute Id after a variable one",
+                () -> c2.add(new AttributeUpdate(AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX + 1, 1), AttributeUpdateType.None, 1L)),
+                ex -> ex instanceof IllegalArgumentException);
+        Assert.assertEquals(5, c2.size());
+    }
+
+    /**
      * These methods are used only for various testing purposes; there is no good reason to compare two
      * {@link AttributeUpdateCollection} instances for equality in production code.
      */

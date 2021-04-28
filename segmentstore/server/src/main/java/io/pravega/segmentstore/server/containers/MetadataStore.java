@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectBuilder;
@@ -707,6 +708,13 @@ public abstract class MetadataStore implements AutoCloseable {
                     ? new HashMap<AttributeId, Long>()
                     : attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
             attributes.put(Attributes.ATTRIBUTE_SEGMENT_TYPE, segmentType.getValue());
+
+            // Validate ATTRIBUTE_ID_LENGTH. This is an unmodifiable attribute, so this is the only time we can possibly set it.
+            // If it's not set, then this is a Stream Segment - so all attributes are UUIDs.
+            val idLength = attributes.getOrDefault(Attributes.ATTRIBUTE_ID_LENGTH, 0L);
+            Preconditions.checkArgument(idLength >= 0 && idLength <= AttributeId.MAX_LENGTH,
+                    "ATTRIBUTE_ID_LENGTH must be a value in the interval [0, %s]. Given: %s.", AttributeId.MAX_LENGTH, idLength);
+
             infoBuilder.attributes(attributes);
 
             return builder()

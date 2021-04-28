@@ -57,8 +57,10 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final long streamSegmentId;
     @Getter
     private final int containerId;
-    @GuardedBy("this")
-    private SegmentType type;
+    @Getter
+    private volatile SegmentType type;
+    @Getter
+    private volatile int attributeIdLength;
     @GuardedBy("this")
     private final Map<AttributeId, Long> coreAttributes;
     @GuardedBy("this")
@@ -123,6 +125,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.lastUsed = 0;
         this.active = true;
         this.type = SegmentType.STREAM_SEGMENT; // Uninitialized.
+        this.attributeIdLength = -1;
     }
 
     //endregion
@@ -193,11 +196,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         return getAttributes().entrySet().stream()
                 .filter(e -> filter.test(e.getKey(), e.getValue()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
-
-    @Override
-    public synchronized SegmentType getType() {
-        return this.type;
     }
 
     @Override
@@ -306,11 +304,13 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized void refreshType() {
+    public synchronized void refreshDerivedProperties() {
         this.type = SegmentType.fromAttributes(this.coreAttributes);
         if (this.type.intoAttributes(this.coreAttributes)) {
             log.info("{}: Updated Segment Type '{}' into Core Attributes.", this.traceObjectId, this.type);
         }
+
+        this.attributeIdLength = (int) (long) this.coreAttributes.getOrDefault(Attributes.ATTRIBUTE_ID_LENGTH, -1L);
     }
 
     @Override
@@ -326,7 +326,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         setStartOffset(base.getStartOffset());
         setLastModified(base.getLastModified());
         updateAttributes(base.getAttributes());
-        refreshType();
+        refreshDerivedProperties();
 
         if (base.isSealed()) {
             markSealed();

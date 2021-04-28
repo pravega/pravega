@@ -22,6 +22,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -104,6 +105,41 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
             context.getMetadataStore().createSegment(segmentName, segmentType, segmentAttributes, TIMEOUT).join();
             assertSegmentCreated(segmentName, segmentType, segmentAttributes, context);
         }
+    }
+
+    /**
+     * Verifies that {@link MetadataStore#createSegment} validates the {@link Attributes#ATTRIBUTE_ID_LENGTH} value, if
+     * passed as an argument.
+     */
+    @Test
+    public void testCreateSegmentValidateAttributeIdLength() {
+        @Cleanup
+        TestContext context = createTestContext();
+
+        // Try to create a segment with invalid values.
+        val s1 = getName(0);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "ATTRIBUTE_ID_LENGTH was accepted as negative.",
+                () -> context.getMetadataStore().createSegment(s1, SegmentType.STREAM_SEGMENT, AttributeUpdateCollection.from(new AttributeUpdate(Attributes.ATTRIBUTE_ID_LENGTH, AttributeUpdateType.None, -1L)), TIMEOUT),
+                ex -> ex instanceof IllegalArgumentException);
+
+        AssertExtensions.assertSuppliedFutureThrows(
+                "ATTRIBUTE_ID_LENGTH was accepted with too high value.",
+                () -> context.getMetadataStore().createSegment(s1, SegmentType.STREAM_SEGMENT, AttributeUpdateCollection.from(new AttributeUpdate(Attributes.ATTRIBUTE_ID_LENGTH, AttributeUpdateType.None, AttributeId.MAX_LENGTH + 1)), TIMEOUT),
+                ex -> ex instanceof IllegalArgumentException);
+
+        // Create a segment with valid values.
+        val validAttributes = AttributeUpdateCollection.from(
+                new AttributeUpdate(Attributes.ATTRIBUTE_ID_LENGTH, AttributeUpdateType.None, AttributeId.MAX_LENGTH / 2));
+        context.getMetadataStore().createSegment(s1, SegmentType.STREAM_SEGMENT, validAttributes, TIMEOUT).join();
+        assertSegmentCreated(s1, SegmentType.STREAM_SEGMENT, validAttributes, context);
+
+        // Now verify that it also works if the attribute is not set.
+        val noAttributes = new AttributeUpdateCollection();
+        val s2 = getName(1);
+        context.getMetadataStore().createSegment(s2, SegmentType.STREAM_SEGMENT, noAttributes, TIMEOUT).join();
+        assertSegmentCreated(s2, SegmentType.STREAM_SEGMENT, noAttributes, context);
+
     }
 
     /**
@@ -675,7 +711,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         Collection<AttributeUpdate> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             boolean isCore = i % 2 == 0;
-            AttributeId id = isCore ? AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX, i) : AttributeId.randomUUID();
+            AttributeId id = isCore ? AttributeId.uuid(Attributes.CORE_ATTRIBUTE_ID_PREFIX, i + 10000) : AttributeId.randomUUID();
             AttributeUpdateType ut = AttributeUpdateType.values()[i % AttributeUpdateType.values().length];
             result.add(new AttributeUpdate(id, ut, i, i));
         }
@@ -699,7 +735,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
             sm.markDeleted();
         }
 
-        sm.refreshType();
+        sm.refreshDerivedProperties();
         return sm;
     }
 
@@ -766,6 +802,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
                         sm.markPinned();
                     }
                     sm.updateAttributes(sp.getAttributes());
+                    sm.refreshDerivedProperties();
                     return CompletableFuture.completedFuture(id);
                 },
                 (id, timeout) -> {

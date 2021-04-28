@@ -16,6 +16,8 @@
 package io.pravega.segmentstore.contracts;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.util.AbstractBufferView;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
@@ -76,6 +78,20 @@ public abstract class AttributeId implements Comparable<AttributeId> {
     @VisibleForTesting
     public static AttributeId randomUUID() {
         return fromUUID(java.util.UUID.randomUUID());
+    }
+
+    /**
+     * Creates a new {@link AttributeId.Variable} with random content.
+     *
+     * @param length The length of the {@link AttributeId}, in bytes.
+     * @return A new instance of {@link AttributeId.Variable} with random content.
+     */
+    @VisibleForTesting
+    public static AttributeId random(int length) {
+        Preconditions.checkArgument(length > 0 && length <= MAX_LENGTH, "length must be a positive number less than or equal to %s.", MAX_LENGTH);
+        byte[] result = new byte[length];
+        RandomFactory.create().nextBytes(result);
+        return AttributeId.from(result);
     }
 
     /**

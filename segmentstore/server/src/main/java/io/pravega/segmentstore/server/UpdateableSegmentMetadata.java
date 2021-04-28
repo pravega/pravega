@@ -113,7 +113,8 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     void setLastUsed(long value);
 
     /**
-     * Refreshes the {@link #getType()} property based on the current {@link #getAttributes()} values.
+     * Refreshes those properties that are derived from the current {@link #getAttributes()} values. For example,
+     * {@link #getType()} and {@link #getAttributeIdLength()}.
      */
-    void refreshType();
+    void refreshDerivedProperties();
 }

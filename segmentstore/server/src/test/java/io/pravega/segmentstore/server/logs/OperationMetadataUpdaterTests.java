@@ -97,7 +97,7 @@ public class OperationMetadataUpdaterTests {
         updater.commitAll();
 
         // Refresh the source metadata (after the commit) to reflect that the ATTRIBUTE_SEGMENT_TYPE may have changed.
-        referenceMetadata.getAllStreamSegmentIds().stream().map(referenceMetadata::getStreamSegmentMetadata).forEach(UpdateableSegmentMetadata::refreshType);
+        referenceMetadata.getAllStreamSegmentIds().stream().map(referenceMetadata::getStreamSegmentMetadata).forEach(UpdateableSegmentMetadata::refreshDerivedProperties);
         ContainerMetadataUpdateTransactionTests.assertMetadataSame("After commit", referenceMetadata, metadata);
     }
 
@@ -249,7 +249,7 @@ public class OperationMetadataUpdaterTests {
                 updater.commitAll();
 
                 // Refresh the source metadata (after the commit) to reflect that the ATTRIBUTE_SEGMENT_TYPE may have changed.
-                referenceMetadata.getAllStreamSegmentIds().stream().map(referenceMetadata::getStreamSegmentMetadata).forEach(UpdateableSegmentMetadata::refreshType);
+                referenceMetadata.getAllStreamSegmentIds().stream().map(referenceMetadata::getStreamSegmentMetadata).forEach(UpdateableSegmentMetadata::refreshDerivedProperties);
                 ContainerMetadataUpdateTransactionTests.assertMetadataSame("After commit " + i, referenceMetadata, metadata);
             }
         }
