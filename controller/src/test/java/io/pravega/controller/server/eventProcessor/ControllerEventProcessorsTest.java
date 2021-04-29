@@ -102,18 +102,16 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         EventProcessorGroup<ControllerEvent> mockProcessor = spy(processor);
 
         doThrow(new CheckpointStoreException("host not found")).when(mockProcessor).notifyProcessFailure("host3");
-        try {
-            when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(mockProcessor);
-        } catch (CheckpointStoreException e) {
-            e.printStackTrace();
-        }
+
+        when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(mockProcessor);
+
 
         @Cleanup
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, 
                 kvtStore, kvtTasks, system, executorService());
-        //check for a case where init is not initalized
+        //check for a case where init is not initalized so that kvtRequestProcessors don't get initialized and will be null
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
         processors.startAsync();
         processors.awaitRunning();
