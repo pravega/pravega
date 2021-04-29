@@ -105,7 +105,6 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
 
         when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(mockProcessor);
 
-
         @Cleanup
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
