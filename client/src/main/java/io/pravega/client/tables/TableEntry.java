@@ -65,8 +65,8 @@ public class TableEntry {
      * @param value      The Entry Value.
      * @return An unversioned {@link TableEntry} (version set to {@link Version#NO_VERSION}).
      */
-    public static TableEntry unversioned(ByteBuffer primaryKey, ByteBuffer value) {
-        return unversioned(primaryKey, null, value);
+    public static TableEntry anyVersion(ByteBuffer primaryKey, ByteBuffer value) {
+        return anyVersion(primaryKey, null, value);
     }
 
     /**
@@ -77,8 +77,8 @@ public class TableEntry {
      * @param value        The Entry Value.
      * @return An unversioned {@link TableEntry} (version set to {@link Version#NO_VERSION}).
      */
-    public static TableEntry unversioned(ByteBuffer primaryKey, ByteBuffer secondaryKey, ByteBuffer value) {
-        return new TableEntry(TableKey.unversioned(primaryKey, secondaryKey), value);
+    public static TableEntry anyVersion(ByteBuffer primaryKey, ByteBuffer secondaryKey, ByteBuffer value) {
+        return new TableEntry(TableKey.anyVersion(primaryKey, secondaryKey), value);
     }
 
     /**
@@ -89,8 +89,8 @@ public class TableEntry {
      * @param value      The Entry Value.
      * @return A {@link TableEntry} with a version set to {@link Version#NOT_EXISTS}.
      */
-    public static TableEntry notExists(ByteBuffer primaryKey, ByteBuffer value) {
-        return notExists(primaryKey, null, value);
+    public static TableEntry absent(ByteBuffer primaryKey, ByteBuffer value) {
+        return absent(primaryKey, null, value);
     }
 
     /**
@@ -102,8 +102,8 @@ public class TableEntry {
      * @param value        The Entry Value.
      * @return A {@link TableEntry} with a version set to {@link Version#NOT_EXISTS}.
      */
-    public static TableEntry notExists(ByteBuffer primaryKey, ByteBuffer secondaryKey, ByteBuffer value) {
-        return new TableEntry(TableKey.notExists(primaryKey, secondaryKey), value);
+    public static TableEntry absent(ByteBuffer primaryKey, ByteBuffer secondaryKey, ByteBuffer value) {
+        return new TableEntry(TableKey.absent(primaryKey, secondaryKey), value);
     }
 
     /**

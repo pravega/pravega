@@ -299,7 +299,7 @@ public abstract class KeyValueTableCommand extends Command {
         protected void executeInternal(ScopedName kvtName, KeyValueTable kvt) throws Exception {
             val keys = getJsonArg(1, String[].class);
             Preconditions.checkArgument(keys.length > 0, "Expected at least one key.");
-            val tableKeys = Arrays.stream(keys).map(k -> TableKey.unversioned(SERIALIZER.serialize(k))).collect(Collectors.toList());
+            val tableKeys = Arrays.stream(keys).map(k -> TableKey.anyVersion(SERIALIZER.serialize(k))).collect(Collectors.toList());
             val result = kvt.getAll(tableKeys).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
 
             output("Get %s Key(s) from %s:", keys.length, kvtName);
@@ -351,7 +351,7 @@ public abstract class KeyValueTableCommand extends Command {
             val key = getArg(1);
             val value = getArg(2);
 
-            val version = kvt.put(TableEntry.unversioned(SERIALIZER.serialize(key), SERIALIZER.serialize(value))).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+            val version = kvt.put(TableEntry.anyVersion(SERIALIZER.serialize(key), SERIALIZER.serialize(value))).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
             output("Key '%s' updated successfully. New version: '%s'.", key, version);
         }
 
@@ -413,7 +413,7 @@ public abstract class KeyValueTableCommand extends Command {
             val key = getArg(1);
             val value = getArg(2);
 
-            val version = kvt.put(TableEntry.notExists(SERIALIZER.serialize(key), SERIALIZER.serialize(value)))
+            val version = kvt.put(TableEntry.absent(SERIALIZER.serialize(key), SERIALIZER.serialize(value)))
                     .get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
             output("Key '%s' inserted successfully. New version: '%s'.", key, version);
         }

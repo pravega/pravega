@@ -29,8 +29,8 @@ public class TableEntryTests {
         val pk = ByteBuffer.wrap("PrimaryKey".getBytes());
         val sk = ByteBuffer.wrap("SecondaryKey".getBytes());
         val value = ByteBuffer.wrap(new byte[]{1, 2, 3, 4});
-        val k = TableKey.notExists(pk, sk);
-        val e = TableEntry.notExists(pk, sk, value);
+        val k = TableKey.absent(pk, sk);
+        val e = TableEntry.absent(pk, sk, value);
         Assert.assertEquals(k.getVersion(), e.getKey().getVersion());
         Assert.assertEquals(k.getPrimaryKey(), e.getKey().getPrimaryKey());
         Assert.assertEquals(k.getSecondaryKey(), e.getKey().getSecondaryKey());

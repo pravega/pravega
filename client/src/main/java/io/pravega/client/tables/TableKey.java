@@ -32,7 +32,7 @@ public class TableKey {
     /**
      * The Primary Key.
      *
-     * @param primaryKey Primary Key..
+     * @param primaryKey Primary Key.
      * @return Primary Key.
      */
     @NonNull
@@ -76,8 +76,8 @@ public class TableKey {
      * @param primaryKey The Primary Key.
      * @return An unversioned {@link TableKey} made of only a Primary Key (version set to {@link Version#NO_VERSION}).
      */
-    public static TableKey unversioned(ByteBuffer primaryKey) {
-        return unversioned(primaryKey, null);
+    public static TableKey anyVersion(ByteBuffer primaryKey) {
+        return anyVersion(primaryKey, null);
     }
 
     /**
@@ -88,7 +88,7 @@ public class TableKey {
      * @return An unversioned {@link TableKey} made of a Primary Key and Secondary Key (version set to
      * {@link Version#NO_VERSION}).
      */
-    public static TableKey unversioned(ByteBuffer primaryKey, ByteBuffer secondaryKey) {
+    public static TableKey anyVersion(ByteBuffer primaryKey, ByteBuffer secondaryKey) {
         return versioned(primaryKey, secondaryKey, Version.NO_VERSION);
     }
 
@@ -98,8 +98,8 @@ public class TableKey {
      * @param primaryKey The Primary Key.
      * @return A {@link TableKey} made of a Primary Key with a version set to {@link Version#NOT_EXISTS}.
      */
-    public static TableKey notExists(ByteBuffer primaryKey) {
-        return notExists(primaryKey, null);
+    public static TableKey absent(ByteBuffer primaryKey) {
+        return absent(primaryKey, null);
     }
 
     /**
@@ -110,7 +110,7 @@ public class TableKey {
      * @param secondaryKey The Secondary Key.
      * @return A {@link TableKey} made of a Primary Key and Secondary Key with a version set to {@link Version#NOT_EXISTS}.
      */
-    public static TableKey notExists(ByteBuffer primaryKey, ByteBuffer secondaryKey) {
+    public static TableKey absent(ByteBuffer primaryKey, ByteBuffer secondaryKey) {
         return versioned(primaryKey, secondaryKey, Version.NOT_EXISTS);
     }
 

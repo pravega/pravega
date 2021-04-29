@@ -332,7 +332,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
         // NOTE: we do not support conditional updates (these are converted to unconditional updates).
         ensureRunning();
         return getKvt(tableName)
-                .put(TableEntry.unversioned(ByteBuffer.wrap(key.getCopy()), ByteBuffer.wrap(value.getCopy())))
+                .put(TableEntry.anyVersion(ByteBuffer.wrap(key.getCopy()), ByteBuffer.wrap(value.getCopy())))
                 .thenApply(v -> v.asImpl().getSegmentVersion());
     }
 
@@ -341,14 +341,14 @@ abstract class ClientAdapterBase extends StoreAdapter {
         // NOTE: we do not support conditional removals (these are converted to unconditional removals).
         ensureRunning();
         return getKvt(tableName)
-                .remove(TableKey.unversioned(ByteBuffer.wrap(key.getCopy())));
+                .remove(TableKey.anyVersion(ByteBuffer.wrap(key.getCopy())));
     }
 
     @Override
     public CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<BufferView> keys, Duration timeout) {
         ensureRunning();
         return getKvt(tableName)
-                .getAll(keys.stream().map(BufferView::getCopy).map(ByteBuffer::wrap).map(TableKey::unversioned).collect(Collectors.toList()))
+                .getAll(keys.stream().map(BufferView::getCopy).map(ByteBuffer::wrap).map(TableKey::anyVersion).collect(Collectors.toList()))
                 .thenApplyAsync(entries -> entries.stream().map(e -> e == null ? null : new ByteArraySegment(e.getValue())).collect(Collectors.toList()), this.testExecutor);
     }
 

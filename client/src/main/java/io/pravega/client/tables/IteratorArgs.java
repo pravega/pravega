@@ -19,6 +19,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
 import lombok.NonNull;
 
+/**
+ * Defines a generic argument for a {@link KeyValueTable} iterator ({@link KeyValueTable#keyIterator} or
+ * {@link KeyValueTable#entryIterator}).
+ */
 public interface IteratorArgs {
     /**
      * Serializes this {@link IteratorArgs} to a {@link ByteBuffer}. This can later be used to create a new
@@ -38,21 +42,76 @@ public interface IteratorArgs {
         throw new UnsupportedOperationException("serialization not implemented yet");
     }
 
-    // All keys with same PK. Optional sub-ranges within those PK.
+    /**
+     * Creates a new {@link IteratorArgs} instance for an iterator that returns {@link TableKey}/{@link TableEntry}
+     * instances with the same Primary Key (see {@link TableKey#getPrimaryKey()}. Depending on the arguments provided,
+     * this may iterate through all {@link TableKey}/{@link TableEntry} instances matching the given Primary Key or a
+     * sub-range.
+     *
+     * @param primaryKey       A {@link ByteBuffer} representing the full Primary Key to search.
+     * @param fromSecondaryKey A {@link ByteBuffer} that indicates the Secondary Key (see {@link TableKey#getSecondaryKey()})
+     *                         to begin the iteration at. If not provided (null), the iterator will begin with the first
+     *                         {@link TableKey}/{@link TableEntry} that has the given Primary Key. This argument is
+     *                         inclusive.
+     * @param toSecondaryKey   A {@link ByteBuffer} that indicates the Secondary Key (see {@link TableKey#getSecondaryKey()})
+     *                         to end the iteration at. If not provided (null), the iterator will end with the last
+     *                         {@link TableKey}/{@link TableEntry} that has the given Primary Key. This argument is
+     *                         inclusive.
+     * @return A new {@link IteratorArgs} that can be passed to {@link KeyValueTable#keyIterator} or to
+     * {@link KeyValueTable#entryIterator}.
+     */
     static IteratorArgs forPrimaryKey(@NonNull ByteBuffer primaryKey, @Nullable ByteBuffer fromSecondaryKey, @Nullable ByteBuffer toSecondaryKey) {
         throw new UnsupportedOperationException("PrimaryKey range iterators not supported.");
     }
 
+    /**
+     * Creates a new {@link IteratorArgs} instance for an iterator that returns {@link TableKey}/{@link TableEntry}
+     * instances with the same Primary Key (see {@link TableKey#getPrimaryKey()} and all Secondary keys (see
+     * {@link TableKey#getSecondaryKey()}) that begin with the given prefix. Depending on the arguments provided, this
+     * may iterate through all {@link TableKey}/{@link TableEntry} instances matching the given Primary Key or a sub-range.
+     *
+     * @param primaryKey         A {@link ByteBuffer} representing the full Primary Key to search.
+     * @param secondaryKeyPrefix A {@link ByteBuffer} that indicates the Secondary Key prefix for all {@link TableKey}/
+     *                           {@link TableEntry} instances to return. If not provided (null), the iterator will list
+     *                           all {@link TableKey}/{@link TableEntry} instances that match the given Primary Key.
+     * @return A new {@link IteratorArgs} that can be passed to {@link KeyValueTable#keyIterator} or to
+     * {@link KeyValueTable#entryIterator}.
+     */
     static IteratorArgs forPrimaryKey(@NonNull ByteBuffer primaryKey, @Nullable ByteBuffer secondaryKeyPrefix) {
         throw new UnsupportedOperationException("PrimaryKey prefix iterators not supported.");
     }
 
-    // Range iterator between 2 PKs (Optional)
+    /**
+     * Creates a new {@link IteratorArgs} instance for an iterator that returns {@link TableKey}/{@link TableEntry}
+     * instances with Primary Keys (see {@link TableKey#getPrimaryKey()} between the two values. Depending on the arguments
+     * provided, this may iterate through all {@link TableKey}/{@link TableEntry} instances within the {@link KeyValueTable}
+     * or a sub-range.
+     *
+     * @param fromPrimaryKey A {@link ByteBuffer} that indicates the Primary Key (see {@link TableKey#getPrimaryKey()})
+     *                       to begin the iteration at. If not provided (null), the iterator will begin with the first
+     *                       {@link TableKey}/{@link TableEntry} in the {@link KeyValueTable}. This argument is inclusive.
+     * @param toPrimaryKey   A {@link ByteBuffer} that indicates the Primary Key (see {@link TableKey#getPrimaryKey()})
+     *                       to end the iteration at. If not provided (null), the iterator will end with the last
+     *                       {@link TableKey}/{@link TableEntry} in the {@link KeyValueTable}. This argument is inclusive.
+     * @return A new {@link IteratorArgs} that can be passed to {@link KeyValueTable#keyIterator} or to
+     * {@link KeyValueTable#entryIterator}.
+     */
     static IteratorArgs forRange(@Nullable ByteBuffer fromPrimaryKey, @Nullable ByteBuffer toPrimaryKey) {
         throw new UnsupportedOperationException("Global iterators not supported.");
     }
 
-    // Prefix iterator for all keys with given prefix for primary key (Optional)
+    /**
+     * Creates a new {@link IteratorArgs} instance for an iterator that returns {@link TableKey}/{@link TableEntry}
+     * instances with Primary Keys (see {@link TableKey#getPrimaryKey()} that begin with the given prefix. Depending on
+     * the arguments provided, this may iterate through all {@link TableKey}/{@link TableEntry} instances within the
+     * {@link KeyValueTable} or a sub-range.
+     *
+     * @param primaryKeyPrefix A {@link ByteBuffer} that indicates the Primary Key prefix for all {@link TableKey}/
+     *                         {@link TableEntry} instances to return. If not provided (null), the iterator will list
+     *                         all {@link TableKey}/{@link TableEntry} instances in the {@link KeyValueTable}.
+     * @return A new {@link IteratorArgs} that can be passed to {@link KeyValueTable#keyIterator} or to
+     * {@link KeyValueTable#entryIterator}.
+     */
     static IteratorArgs forPrefix(@Nullable ByteBuffer primaryKeyPrefix) {
         throw new UnsupportedOperationException("Global iterators not supported.");
     }

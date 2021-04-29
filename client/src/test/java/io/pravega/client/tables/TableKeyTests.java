@@ -28,12 +28,12 @@ public class TableKeyTests {
     public void testConstructor() {
         val pk = ByteBuffer.wrap("PrimaryKey".getBytes());
         val sk = ByteBuffer.wrap("SecondaryKey".getBytes());
-        val ne = TableKey.notExists(pk, sk);
+        val ne = TableKey.absent(pk, sk);
         Assert.assertSame(pk, ne.getPrimaryKey());
         Assert.assertSame(sk, ne.getSecondaryKey());
         Assert.assertSame(Version.NOT_EXISTS, ne.getVersion());
 
-        val uv = TableKey.unversioned(pk, sk);
+        val uv = TableKey.anyVersion(pk, sk);
         Assert.assertSame(pk, uv.getPrimaryKey());
         Assert.assertSame(sk, uv.getSecondaryKey());
         Assert.assertSame(Version.NO_VERSION, uv.getVersion());

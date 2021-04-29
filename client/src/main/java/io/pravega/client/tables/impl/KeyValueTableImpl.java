@@ -137,7 +137,7 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
 
     @Override
     public CompletableFuture<Boolean> exists(@NonNull TableKey key) {
-        key = TableKey.notExists(key.getPrimaryKey(), key.getSecondaryKey());
+        key = TableKey.absent(key.getPrimaryKey(), key.getSecondaryKey());
         return remove(key)
                 .handle((r, ex) -> {
                     if (ex != null) {
