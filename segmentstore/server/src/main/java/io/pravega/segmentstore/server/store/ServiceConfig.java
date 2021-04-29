@@ -76,6 +76,10 @@ public class ServiceConfig {
     public static final Property<String> KEY_FILE = Property.named("security.tls.server.privateKey.location", "", "keyFile");
     public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("security.tls.certificate.autoReload.enable", false, "enableTlsReload");
 
+    // Admin Gateway-related parameters
+    public static final Property<Boolean> ENABLE_ADMIN_GATEWAY = Property.named("admin.gateway.enable", false);
+    public static final Property<Integer> ADMIN_GATEWAY_PORT = Property.named("admin.gateway.port", 9999);
+
     public static final String COMPONENT_CODE = "pravegaservice";
 
     //endregion
@@ -299,6 +303,18 @@ public class ServiceConfig {
     @Getter
     private final String instanceId;
 
+    /**
+     * Defines whether to enable the Pravega Admin Gateway.
+     */
+    @Getter
+    private final boolean enableAdminGateway;
+
+    /**
+     * Port to bing the Pravega Admin Gateway.
+     */
+    @Getter
+    private final int adminGatewayPort;
+
     //endregion
 
     //region Constructor
@@ -362,6 +378,8 @@ public class ServiceConfig {
                 Duration.ofSeconds(cachePolicyMaxTime), Duration.ofSeconds(cachePolicyGenerationTime));
         this.replyWithStackTraceOnError = properties.getBoolean(REPLY_WITH_STACK_TRACE_ON_ERROR);
         this.instanceId = properties.get(INSTANCE_ID);
+        this.enableAdminGateway = properties.getBoolean(ENABLE_ADMIN_GATEWAY);
+        this.adminGatewayPort = properties.getInt(ADMIN_GATEWAY_PORT);
     }
 
     /**
@@ -411,6 +429,8 @@ public class ServiceConfig {
                 .append(String.format("cachePolicy is %s, ", (cachePolicy != null) ? cachePolicy.toString() : "null"))
                 .append(String.format("replyWithStackTraceOnError: %b, ", replyWithStackTraceOnError))
                 .append(String.format("instanceId: %s", instanceId))
+                .append(String.format("enableAdminGateway: %b, ", enableAdminGateway))
+                .append(String.format("adminGatewayPort: %s", adminGatewayPort))
                 .append(")")
                 .toString();
     }
