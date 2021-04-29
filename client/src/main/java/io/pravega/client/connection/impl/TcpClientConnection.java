@@ -22,6 +22,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.CertificateUtils;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.EnhancedByteBufInputStream;
@@ -99,6 +100,7 @@ public class TcpClientConnection implements ClientConnection {
         private final Thread thread;
         private final FlowToBatchSizeTracker flowToBatchSizeTracker;
         private final AtomicBoolean stop = new AtomicBoolean(false);
+        private final ReusableLatch hasStopped = new ReusableLatch(false);
 
         public ConnectionReader(String name, InputStream in, ReplyProcessor callback, FlowToBatchSizeTracker flowToBatchSizeTracker) {
             this.name = name;
@@ -142,6 +144,7 @@ public class TcpClientConnection implements ClientConnection {
                     stop();
                 }
             }
+            hasStopped.release();
         }
 
         @VisibleForTesting
@@ -168,6 +171,8 @@ public class TcpClientConnection implements ClientConnection {
             if (stop.getAndSet(true)) {
                 return;
             }
+            // wait until the ConnectionReader has infact stopped.
+            Exceptions.handleInterrupted(hasStopped::await);
             closeQuietly(in, log, "Got error while shutting down reader {}. ", name);
             callback.connectionDropped();
         }
