@@ -189,7 +189,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public void createReaderGroup(String groupName, ReaderGroupConfig config) {
+    public boolean createReaderGroup(String groupName, ReaderGroupConfig config) {
         NameUtils.validateReaderGroupName(groupName);
         createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
                 StreamConfiguration.builder()
@@ -204,6 +204,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
 
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config), false));
+        return true;
     }
 
     public Position getInitialPosition(String stream) {

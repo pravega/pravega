@@ -50,6 +50,10 @@ public class SingleNodeConfig {
     public final static Property<Boolean> ENABLE_INFLUX_REPORTER = Property.named("metrics.influx.enable", false);
     public final static Property<Integer> METRICS_REPORT_INTERVAL = Property.named("metrics.reporting.interval", 60);
 
+    // Pravega Admin Gateway configuration
+    public static final Property<Boolean> ENABLE_ADMIN_GATEWAY = Property.named("admin.gateway.enable", true);
+    public static final Property<Integer> ADMIN_GATEWAY_PORT = Property.named("admin.gateway.port", 9999);
+
     private static final String COMPONENT_CODE = "singlenode";
     //end region
 
@@ -167,6 +171,18 @@ public class SingleNodeConfig {
     @Getter
     private int metricsReportInterval;
 
+    /**
+     * Defines whether to enable the Pravega Admin Gateway.
+     */
+    @Getter
+    private final boolean enableAdminGateway;
+
+    /**
+     * Port to bing the Pravega Admin Gateway.
+     */
+    @Getter
+    private final int adminGatewayPort;
+
     //end region
 
     //region constructor
@@ -190,6 +206,8 @@ public class SingleNodeConfig {
         this.enableMetrics = properties.getBoolean(ENABLE_METRICS);
         this.enableInfluxDB = properties.getBoolean(ENABLE_INFLUX_REPORTER);
         this.metricsReportInterval = properties.getInt(METRICS_REPORT_INTERVAL);
+        this.enableAdminGateway = properties.getBoolean(ENABLE_ADMIN_GATEWAY);
+        this.adminGatewayPort = properties.getInt(ADMIN_GATEWAY_PORT);
     }
 
     /**

@@ -53,7 +53,7 @@ public class MockConnectionFactoryImpl implements ConnectionFactory, ConnectionP
         ClientConnection connection = connections.get(location);
         Preconditions.checkState(connection != null, "Unexpected Endpoint");
         ReplyProcessor previous = processors.put(location, rp);
-        assertNull("Mock connection fractory does not support multiple concurrent connections to the same location", previous);
+        assertNull("Mock connection factory does not support multiple concurrent connections to the same location", previous);
         return CompletableFuture.completedFuture(new DelegateClientConnection(location, connection));
     }
 

@@ -187,7 +187,7 @@ public class ControllerCommandsTest extends SecureControllerCommandsTest {
         }
 
         @Override
-        protected SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
+        public SegmentHelper instantiateSegmentHelper(CuratorFramework zkClient) {
             HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                     .hostMonitorEnabled(false)
                     .hostContainerMap(getHostContainerMap(Collections.singletonList("localhost:" + CLUSTER.getSegmentStorePort()),

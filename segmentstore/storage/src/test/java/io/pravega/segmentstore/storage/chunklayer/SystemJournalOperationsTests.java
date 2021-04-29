@@ -23,6 +23,7 @@ import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.mocks.InMemorySnapshotInfoStore;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Builder;
 import lombok.Cleanup;
@@ -261,6 +262,140 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         instance4.validate();
         TestUtils.checkSegmentBounds(instance3.metadataStore, testSegmentName, 4, 10);
         TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance3.metadataStore, testSegmentName);
+    }
+
+    @Test
+    public void testWithSnapshots() throws Exception {
+        val testContext = new TestContext(CONTAINER_ID);
+        testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .maxJournalUpdatesPerSnapshot(3)
+                .selfCheckEnabled(true)
+                .build());
+
+        val testSegmentName = testContext.segmentNames[0];
+
+        @Cleanup
+        val instance =  new TestInstance(testContext, 1);
+        instance.bootstrap();
+        instance.validate();
+        checkJournalsNotExist(testContext, instance, 1, 1, 1);
+
+        // Add chunk.
+        instance.append(testSegmentName, "A", 0, 1);
+        checkJournalsExist(testContext, instance, 1, 1, 1);
+
+        // Add chunk.
+        instance.append(testSegmentName, "B", 1, 2);
+        checkJournalsExist(testContext, instance, 1, 1, 2);
+
+        // Add chunk.
+        instance.append(testSegmentName, "C", 3, 3);
+        checkJournalsExist(testContext, instance, 1, 1, 3);
+
+        // Add chunk.
+        instance.append(testSegmentName, "D", 6, 4);
+        checkJournalsExist(testContext, instance, 1, 1, 4);
+
+        // Add chunk.
+        instance.append(testSegmentName, "E", 10, 5);
+        checkJournalsExist(testContext, instance, 2, 2, 5);
+
+        // Add chunk.
+        instance.append(testSegmentName, "F", 15, 6);
+        checkJournalsExist(testContext, instance, 2, 2, 6);
+
+        // Bootstrap new instance.
+        @Cleanup
+        val instance2 =  new TestInstance(testContext, 2);
+        instance2.bootstrap();
+        instance2.validate();
+
+        // Validate.
+        TestUtils.checkSegmentBounds(instance2.metadataStore, testSegmentName, 0, 21);
+        TestUtils.checkSegmentLayout(instance2.metadataStore, testSegmentName, new long[] { 1, 2, 3, 4, 5, 6});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance2.metadataStore, testSegmentName);
+        val segmentMetadata = TestUtils.getSegmentMetadata(instance2.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata.getFirstChunk());
+        Assert.assertEquals("F", segmentMetadata.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata.getFirstChunkStartOffset());
+        Assert.assertEquals(15, segmentMetadata.getLastChunkStartOffset());
+    }
+
+    private void checkJournalsExist(TestContext testContext, TestInstance instance, long snapshotId, long journalIndex, long changeNumber) throws Exception {
+        Assert.assertTrue(testContext.chunkStorage.exists(NameUtils.getSystemJournalSnapshotFileName(CONTAINER_ID, instance.epoch, snapshotId)).get());
+        Assert.assertFalse(testContext.chunkStorage.exists(NameUtils.getSystemJournalSnapshotFileName(CONTAINER_ID, instance.epoch, snapshotId + 1)).get());
+        if (testContext.config.isAppendEnabled() && testContext.chunkStorage.supportsAppend()) {
+            Assert.assertTrue(testContext.chunkStorage.exists(NameUtils.getSystemJournalFileName(CONTAINER_ID, instance.epoch, journalIndex)).get());
+            Assert.assertFalse(testContext.chunkStorage.exists(NameUtils.getSystemJournalFileName(CONTAINER_ID, instance.epoch, journalIndex + 1)).get());
+        } else {
+            Assert.assertTrue(testContext.chunkStorage.exists(NameUtils.getSystemJournalFileName(CONTAINER_ID, instance.epoch, changeNumber)).get());
+            Assert.assertFalse(testContext.chunkStorage.exists(NameUtils.getSystemJournalFileName(CONTAINER_ID, instance.epoch, changeNumber + 1)).get());
+        }
+    }
+
+    private void checkJournalsNotExist(TestContext testContext, TestInstance instance, long snapshotId, long journalIndex, long changeNumber) throws Exception {
+        Assert.assertFalse(testContext.chunkStorage.exists(NameUtils.getSystemJournalSnapshotFileName(CONTAINER_ID, instance.epoch, snapshotId)).get());
+        if (testContext.config.isAppendEnabled() && testContext.chunkStorage.supportsAppend()) {
+            Assert.assertFalse(testContext.chunkStorage.exists(NameUtils.getSystemJournalFileName(CONTAINER_ID, instance.epoch, journalIndex)).get());
+        } else {
+            Assert.assertFalse(testContext.chunkStorage.exists(NameUtils.getSystemJournalFileName(CONTAINER_ID, instance.epoch, changeNumber)).get());
+        }
+    }
+
+    @Test
+    public void testWithSnapshotsAndTime() throws Exception {
+        val testContext = new TestContext(CONTAINER_ID);
+        testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .maxJournalUpdatesPerSnapshot(2)
+                .selfCheckEnabled(true)
+                .build());
+
+        val testSegmentName = testContext.segmentNames[0];
+
+        @Cleanup
+        val instance =  new TestInstance(testContext, 1);
+        instance.bootstrap();
+        instance.validate();
+        checkJournalsNotExist(testContext, instance, 1, 1, 1);
+        // Add chunk.
+        instance.append(testSegmentName, "A", 0, 1);
+        checkJournalsExist(testContext, instance, 1, 1, 1);
+        // Add chunk.
+        instance.append(testSegmentName, "B", 1, 2);
+        checkJournalsExist(testContext, instance, 1, 1, 2);
+
+        // Trigger Time and add chunk
+        testContext.addTime(testContext.config.getJournalSnapshotInfoUpdateFrequency().toMillis() + 1);
+        instance.append(testSegmentName, "C", 3, 3);
+        checkJournalsExist(testContext, instance, 2, 2, 3);
+
+        // Add chunk.
+        instance.append(testSegmentName, "D", 6, 4);
+        checkJournalsExist(testContext, instance, 2, 2, 4);
+
+        // Add chunk.
+        instance.append(testSegmentName, "E", 10, 5);
+        checkJournalsExist(testContext, instance, 2, 2, 5);
+
+        // Add chunk.
+        instance.append(testSegmentName, "F", 15, 6);
+        checkJournalsExist(testContext, instance, 3, 3, 6);
+
+        // Bootstrap new instance.
+        @Cleanup
+        val instance2 =  new TestInstance(testContext, 2);
+        instance2.bootstrap();
+        instance2.validate();
+
+        // Validate.
+        TestUtils.checkSegmentBounds(instance2.metadataStore, testSegmentName, 0, 21);
+        TestUtils.checkSegmentLayout(instance2.metadataStore, testSegmentName, new long[] { 1, 2, 3, 4, 5, 6});
+        TestUtils.checkChunksExistInStorage(testContext.chunkStorage, instance2.metadataStore, testSegmentName);
+        val segmentMetadata = TestUtils.getSegmentMetadata(instance2.metadataStore, testSegmentName);
+        Assert.assertEquals("A", segmentMetadata.getFirstChunk());
+        Assert.assertEquals("F", segmentMetadata.getLastChunk());
+        Assert.assertEquals(0, segmentMetadata.getFirstChunkStartOffset());
+        Assert.assertEquals(15, segmentMetadata.getLastChunkStartOffset());
     }
 
     /**
@@ -1101,7 +1236,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
             super.after();
         }
 
-        protected ChunkStorage getChunkStorage() throws Exception {
+        protected ChunkStorage createChunkStorage() throws Exception {
             val chunkStorage = new InMemoryChunkStorage(executorService());
             chunkStorage.setShouldSupportAppend(false);
             return chunkStorage;

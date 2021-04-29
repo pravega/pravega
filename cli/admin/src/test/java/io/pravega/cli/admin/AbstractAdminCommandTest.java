@@ -43,6 +43,7 @@ public abstract class AbstractAdminCommandTest {
         pravegaProperties.setProperty("cli.controller.grpc.uri", SETUP_UTILS.getControllerUri().toString());
         pravegaProperties.setProperty("pravegaservice.zk.connect.uri", SETUP_UTILS.getZkTestServer().getConnectString());
         pravegaProperties.setProperty("pravegaservice.container.count", "4");
+        pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(SETUP_UTILS.getAdminPort()));
         STATE.get().getConfigBuilder().include(pravegaProperties);
     }
 

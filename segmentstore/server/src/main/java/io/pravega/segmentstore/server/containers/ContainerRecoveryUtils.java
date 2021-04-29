@@ -99,7 +99,7 @@ public class ContainerRecoveryUtils {
         Map<Integer, Set<String>> existingSegmentsMap = getExistingSegments(debugStreamSegmentContainersMap, executorService,
                 timeout);
 
-        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
+        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount, true);
 
         Iterator<SegmentProperties> segmentIterator = storage.listSegments();
         Preconditions.checkNotNull(segmentIterator);
@@ -317,7 +317,7 @@ public class ContainerRecoveryUtils {
                 "back-up metadata segments and containers should match.");
 
         val args = IteratorArgs.builder().fetchTimeout(timeout).build();
-        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containersMap.size());
+        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containersMap.size(), true);
 
         // Iterate through all back up metadata segments
         for (val backUpMetadataSegmentEntry : backUpMetadataSegments.entrySet()) {
