@@ -335,7 +335,7 @@ jobs:
         uses: codecov/codecov-action@v1
 
   snapshot:
-    name: Artifactory Snapshot
+    name: Publish snapshot package to GitHub Packages
     needs: [build_and_test_complete]
     # Only run this on PUSH (no pull requests) and only on the master branch and release branches.
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/r0.') || startsWith(github.ref, 'refs/heads/r1.')) }}
@@ -362,4 +362,5 @@ jobs:
       - name: Assemble
         run: ./gradlew assemble --parallel ${{env.GRADLE_OPTS}}
       - name: Publish Shapshot
-        run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=${{secrets.BINTRAY_USER}} -PpublishPassword=${{secrets.BINTRAY_KEY}} ${{env.GRADLE_OPTS}}
+        run: ./gradlew publish -PpublishUrl=https://maven.pkg.github.com/${{github.repository}} -PpublishUsername=${{github.actor}} -PpublishPassword=${{secrets.GITHUB_TOKEN}} ${{env.GRADLE_OPTS}}dd
+:q!:
