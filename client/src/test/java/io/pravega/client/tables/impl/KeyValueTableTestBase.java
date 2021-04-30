@@ -18,12 +18,16 @@ package io.pravega.client.tables.impl;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.BadKeyVersionException;
+import io.pravega.client.tables.Insert;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.Put;
+import io.pravega.client.tables.Remove;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
+import io.pravega.client.tables.TableModification;
 import io.pravega.client.tables.Version;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
@@ -114,8 +118,8 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
 
     /**
      * Tests the ability to perform single-key conditional insertions. These methods are exercised:
-     * - {@link KeyValueTable#put} with {@link TableEntry} instances created using {@link TableEntry#absent}.
-     * - {@link KeyValueTable#get} and {@link KeyValueTable#getAll}
+     * - {@link KeyValueTable#update} with {@link Insert} instances.
+     * - {@link KeyValueTable#get} and {@link KeyValueTable#getAll}.
      */
     @Test
     public void testSingleKeyConditionalInserts() {
@@ -129,14 +133,14 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
             val value = getValue(pk, sk, iteration.get());
 
             // First one should work.
-            val entry = TableEntry.absent(pk, sk, value);
-            Version kv = kvt.put(entry).join();
+            val insert = new Insert(new TableKey(pk, sk), value);
+            Version kv = kvt.update(insert).join();
             versions.add(getUniqueKeyId(pk, sk), kv);
 
             // Second one should throw.
             AssertExtensions.assertSuppliedFutureThrows(
-                    "put(If-Not-Exists) did not throw for already existing key.",
-                    () -> kvt.put(entry),
+                    "insert() did not throw for already existing key.",
+                    () -> kvt.update(insert),
                     ex -> ex instanceof BadKeyVersionException);
         });
         checkValues(iteration.get(), versions, kvt);
@@ -144,8 +148,8 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
 
     /**
      * Tests the ability to perform single-key updates and replacements. These methods are exercised:
-     * - {@link KeyValueTable#put}
-     * - {@link KeyValueTable#get} and {@link KeyValueTable#getAll}
+     * - {@link KeyValueTable#update} with {@link Put} instances.
+     * - {@link KeyValueTable#get} and {@link KeyValueTable#getAll}.
      */
     @Test
     public void testSingleKeyUpdates() {
@@ -158,8 +162,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         forEveryKey((pk, sk) -> {
             val value = getValue(pk, sk, iteration.get());
 
-            val entry = TableEntry.anyVersion(pk, sk, value);
-            Version kv = kvt.put(entry).join();
+            Version kv = kvt.update(new Put(new TableKey(pk, sk), value)).join();
             versions.add(getUniqueKeyId(pk, sk), kv);
         });
         checkValues(iteration.get(), versions, kvt);
@@ -175,11 +178,11 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
             val pkValue = Math.abs(PK_SERIALIZER.deserialize(pk));
             Version badVersion = alterVersion(existingVersion, pkValue % 2 == 0, pkValue % 2 == 1);
             AssertExtensions.assertSuppliedFutureThrows(
-                    "replace did not throw for bad version.",
-                    () -> kvt.put(TableEntry.versioned(pk, sk, badVersion, value)),
+                    "update(Put-Conditional) did not throw for bad version.",
+                    () -> kvt.update(new Put(new TableKey(pk, sk), value, badVersion)),
                     ex -> ex instanceof BadKeyVersionException);
 
-            Version kv = kvt.put(TableEntry.versioned(pk, sk, existingVersion, value)).join();
+            Version kv = kvt.update(new Put(new TableKey(pk, sk), value, existingVersion)).join();
             versions.add(keyId, kv);
         });
         checkValues(iteration.get(), versions, kvt);
@@ -187,8 +190,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
 
     /**
      * Tests the ability to perform single-key updates and removals (conditional and unconditional). These methods are exercised:
-     * - {@link KeyValueTable#put}
-     * - {@link KeyValueTable#remove}
+     * - {@link KeyValueTable#update} with {@link Put} instances and with {@link Remove} instances.
      * - {@link KeyValueTable#get} and {@link KeyValueTable#getAll}
      */
     @Test
@@ -202,7 +204,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         forEveryKey((pk, sk) -> {
             val value = getValue(pk, sk, iteration.get());
 
-            Version kv = kvt.put(TableEntry.anyVersion(pk, sk, value)).join();
+            Version kv = kvt.update(new Put(new TableKey(pk, sk), value)).join();
             versions.add(getUniqueKeyId(pk, sk), kv);
         });
 
@@ -219,14 +221,14 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
                 // First check that a bad version will be checked.
                 Version badVersion = alterVersion(existingVersion, pkValue % 4 == 0, pkValue % 4 != 0);
                 AssertExtensions.assertSuppliedFutureThrows(
-                        "remove did not throw for bad version.",
-                        () -> kvt.remove(TableKey.versioned(pk, sk, badVersion)),
+                        "update(Remove) did not throw for bad version.",
+                        () -> kvt.update(new Remove(new TableKey(pk, sk), badVersion)),
                         ex -> ex instanceof BadKeyVersionException);
 
                 // Remove it.
-                kvt.remove(TableKey.versioned(pk, sk, existingVersion)).join();
+                kvt.update(new Remove(new TableKey(pk, sk), existingVersion)).join();
             } else {
-                kvt.remove(TableKey.anyVersion(pk, sk)).join();
+                kvt.update(new Remove(new TableKey(pk, sk))).join();
 
             }
             versions.remove(keyId);
@@ -240,7 +242,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
             val value = getValue(pk, sk, iteration.get());
 
             // First one should work.
-            Version kv = kvt.put(TableEntry.absent(pk, sk, value)).join();
+            Version kv = kvt.update(new Insert(new TableKey(pk, sk), value)).join();
             versions.add(getUniqueKeyId(pk, sk), kv);
         });
         checkValues(iteration.get(), versions, kvt);
@@ -248,8 +250,8 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
 
     /**
      * Tests the ability to perform multi-key updates, replacements and removals. These methods should be exercised:
-     * - {@link KeyValueTable#putAll}
-     * - {@link KeyValueTable#removeAll}
+     * - {@link KeyValueTable#update(Iterable)} with {@link Insert} and {@link Put} instances.
+     * - {@link KeyValueTable#update(Iterable)} with {@link Remove}.
      * - {@link KeyValueTable#getAll}
      */
     @Test
@@ -261,15 +263,15 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         // Conditional Insert.
         val iteration = new AtomicInteger(0);
         forEveryPrimaryKey((pk, secondaryKeys) -> {
-            val entries = secondaryKeys.stream()
-                    .map(sk -> TableEntry.absent(pk, sk, getValue(pk, sk, iteration.get())))
+            List<TableModification> inserts = secondaryKeys.stream()
+                    .map(sk -> new Insert(new TableKey(pk, sk), getValue(pk, sk, iteration.get())))
                     .collect(Collectors.toList());
-            val keyVersions = kvt.putAll(entries).join();
+            val keyVersions = kvt.update(inserts).join();
 
             val hint = getUniqueKeyId(pk);
-            Assert.assertEquals("Unexpected result size" + hint, entries.size(), keyVersions.size());
-            for (int i = 0; i < entries.size(); i++) {
-                versions.add(getUniqueKeyId(pk, entries.get(i).getKey().getSecondaryKey()), keyVersions.get(i));
+            Assert.assertEquals("Unexpected result size" + hint, inserts.size(), keyVersions.size());
+            for (int i = 0; i < inserts.size(); i++) {
+                versions.add(getUniqueKeyId(pk, inserts.get(i).getKey().getSecondaryKey()), keyVersions.get(i));
             }
         });
         checkValues(iteration.get(), versions, kvt);
@@ -277,15 +279,15 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         // Unconditional update.
         iteration.incrementAndGet();
         forEveryPrimaryKey((pk, secondaryKeys) -> {
-            val entries = secondaryKeys.stream()
-                    .map(sk -> TableEntry.anyVersion(pk, sk, getValue(pk, sk, iteration.get())))
+            List<TableModification> puts = secondaryKeys.stream()
+                    .map(sk -> new Put(new TableKey(pk, sk), getValue(pk, sk, iteration.get())))
                     .collect(Collectors.toList());
-            val keyVersions = kvt.putAll(entries).join();
+            val keyVersions = kvt.update(puts).join();
 
             val hint = getUniqueKeyId(pk);
-            Assert.assertEquals("Unexpected result size" + hint, entries.size(), keyVersions.size());
-            for (int i = 0; i < entries.size(); i++) {
-                versions.add(getUniqueKeyId(pk, entries.get(i).getKey().getSecondaryKey()), keyVersions.get(i));
+            Assert.assertEquals("Unexpected result size" + hint, puts.size(), keyVersions.size());
+            for (int i = 0; i < puts.size(); i++) {
+                versions.add(getUniqueKeyId(pk, puts.get(i).getKey().getSecondaryKey()), keyVersions.get(i));
             }
         });
         checkValues(iteration.get(), versions, kvt);
@@ -295,26 +297,24 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         forEveryPrimaryKey((pk, secondaryKeys) -> {
             // Failed update (bad version).
             val pkValue = Math.abs(PK_SERIALIZER.deserialize(pk));
-            val badEntries = secondaryKeys.stream()
-                    .map(sk -> TableEntry.versioned(pk, sk,
-                            alterVersion(versions.get(getUniqueKeyId(pk, sk)), pkValue % 2 == 0, pkValue % 2 == 1),
-                            getValue(pk, sk, iteration.get())))
+            List<TableModification> badPuts = secondaryKeys.stream()
+                    .map(sk -> new Put(new TableKey(pk, sk), getValue(pk, sk, iteration.get()),
+                            alterVersion(versions.get(getUniqueKeyId(pk, sk)), pkValue % 2 == 0, pkValue % 2 == 1)))
                     .collect(Collectors.toList());
-            System.out.println();
             AssertExtensions.assertSuppliedFutureThrows(
-                    "putAll did not throw for bad version.",
-                    () -> kvt.putAll(badEntries),
+                    "update(Put) did not throw for bad version.",
+                    () -> kvt.update(badPuts),
                     ex -> ex instanceof BadKeyVersionException);
 
             // Correct update.
-            val entries = secondaryKeys.stream()
-                    .map(sk -> TableEntry.versioned(pk, sk, versions.get(getUniqueKeyId(pk, sk)), getValue(pk, sk, iteration.get())))
+            List<TableModification> puts = secondaryKeys.stream()
+                    .map(sk -> new Put(new TableKey(pk, sk), getValue(pk, sk, iteration.get()), versions.get(getUniqueKeyId(pk, sk))))
                     .collect(Collectors.toList());
-            val keyVersions = kvt.putAll(entries).join();
+            val keyVersions = kvt.update(puts).join();
             val hint = getUniqueKeyId(pk);
-            Assert.assertEquals("Unexpected result size" + hint, entries.size(), keyVersions.size());
-            for (int i = 0; i < entries.size(); i++) {
-                versions.add(getUniqueKeyId(pk, entries.get(i).getKey().getSecondaryKey()), keyVersions.get(i));
+            Assert.assertEquals("Unexpected result size" + hint, puts.size(), keyVersions.size());
+            for (int i = 0; i < puts.size(); i++) {
+                versions.add(getUniqueKeyId(pk, puts.get(i).getKey().getSecondaryKey()), keyVersions.get(i));
             }
         });
         checkValues(iteration.get(), versions, kvt);
@@ -326,19 +326,19 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
 
             // Failed update (bad version).
             val pkValue = Math.abs(PK_SERIALIZER.deserialize(pk));
-            val badKeys = secondaryKeys.stream()
-                    .map(sk -> TableKey.versioned(pk, sk, alterVersion(versions.get(getUniqueKeyId(pk, sk)), pkValue % 2 == 0, pkValue % 2 == 1)))
+            List<TableModification> badRemovals = secondaryKeys.stream()
+                    .map(sk -> new Remove(new TableKey(pk, sk), alterVersion(versions.get(getUniqueKeyId(pk, sk)), pkValue % 2 == 0, pkValue % 2 == 1)))
                     .collect(Collectors.toList());
             AssertExtensions.assertSuppliedFutureThrows(
-                    "removeAll did not throw for bad version." + hint,
-                    () -> kvt.removeAll(badKeys),
+                    "update(Remove) did not throw for bad version." + hint,
+                    () -> kvt.update(badRemovals),
                     ex -> ex instanceof BadKeyVersionException);
 
             // Correct update.
-            val keysToRemove = secondaryKeys.stream()
-                    .map(sk -> TableKey.versioned(pk, sk, versions.get(getUniqueKeyId(pk, sk))))
+            List<TableModification> removals = secondaryKeys.stream()
+                    .map(sk -> new Remove(new TableKey(pk, sk), versions.get(getUniqueKeyId(pk, sk))))
                     .collect(Collectors.toList());
-            kvt.removeAll(keysToRemove).join();
+            kvt.update(removals).join();
             for (val sk : secondaryKeys) {
                 versions.remove(getUniqueKeyId(pk, sk));
             }
@@ -350,10 +350,10 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         iteration.incrementAndGet();
         forEveryPrimaryKey((pk, secondaryKeys) -> {
             val hint = getUniqueKeyId(pk);
-            val entries = secondaryKeys.stream()
-                    .map(sk -> TableEntry.absent(pk, sk, getValue(pk, sk, iteration.get())))
+            List<TableModification> entries = secondaryKeys.stream()
+                    .map(sk -> new Insert(new TableKey(pk, sk), getValue(pk, sk, iteration.get())))
                     .collect(Collectors.toList());
-            val keyVersions = kvt.putAll(entries).join();
+            val keyVersions = kvt.update(entries).join();
 
             Assert.assertEquals("Unexpected result size" + hint, entries.size(), keyVersions.size());
             for (int i = 0; i < entries.size(); i++) {
@@ -380,53 +380,53 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         rnd.nextBytes(limitValue.array());
         @Cleanup
         val kvt = createKeyValueTable();
-        kvt.put(TableEntry.anyVersion(limitPK.duplicate(), limitSK.duplicate(), limitValue.duplicate())).join();
-        val resultValue = kvt.get(TableKey.anyVersion(limitPK.duplicate(), limitSK.duplicate())).join().getValue();
+        kvt.update(new Insert(new TableKey(limitPK.duplicate(), limitSK.duplicate()), limitValue.duplicate())).join();
+        val resultValue = kvt.get(new TableKey(limitPK.duplicate(), limitSK.duplicate())).join().getValue();
         Assert.assertEquals("Unexpected value returned.", limitValue.duplicate(), resultValue.duplicate());
 
         // Wrong Key Length
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected a rejection of a PK that is too long.",
-                () -> kvt.put(TableEntry.anyVersion(longPK.duplicate(), limitSK.duplicate(), limitValue.duplicate())),
+                () -> kvt.update(new Put(new TableKey(longPK.duplicate(), limitSK.duplicate()), limitValue.duplicate())),
                 ex -> ex instanceof IllegalArgumentException);
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected a rejection of a PK that is too long.",
-                () -> kvt.remove(TableKey.anyVersion(longPK.duplicate(), limitSK.duplicate())),
+                () -> kvt.update(new Remove(new TableKey(longPK.duplicate(), limitSK.duplicate()))),
                 ex -> ex instanceof IllegalArgumentException);
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected a rejection of a PK that is too short.",
-                () -> kvt.put(TableEntry.anyVersion(shortPK.duplicate(), limitSK.duplicate(), limitValue.duplicate())),
+                () -> kvt.update(new Put(new TableKey(shortPK.duplicate(), limitSK.duplicate()), limitValue.duplicate())),
                 ex -> ex instanceof IllegalArgumentException);
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected a rejection of a PK that is too short.",
-                () -> kvt.remove(TableKey.anyVersion(shortPK.duplicate(), limitSK.duplicate())),
+                () -> kvt.update(new Remove(new TableKey(shortPK.duplicate(), limitSK.duplicate()))),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected a rejection of a SK that is too long.",
-                () -> kvt.put(TableEntry.anyVersion(limitPK.duplicate(), longSK.duplicate(), limitValue.duplicate())),
+                () -> kvt.update(new Put(new TableKey(limitPK.duplicate(), longSK.duplicate()), limitValue.duplicate())),
                 ex -> ex instanceof IllegalArgumentException);
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected a rejection of a SK that is too long.",
-                () -> kvt.remove(TableKey.anyVersion(limitPK.duplicate(), longSK.duplicate())),
+                () -> kvt.update(new Remove(new TableKey(limitPK.duplicate(), longSK.duplicate()))),
                 ex -> ex instanceof IllegalArgumentException);
 
         if (getSecondaryKeyLength() > 0) {
             val shortSK = ByteBuffer.allocate(getSecondaryKeyLength() - 1);
             AssertExtensions.assertSuppliedFutureThrows(
                     "Expected a rejection of a SK that is too short.",
-                    () -> kvt.put(TableEntry.anyVersion(limitPK.duplicate(), shortSK.duplicate(), limitValue.duplicate())),
+                    () -> kvt.update(new Put(new TableKey(limitPK.duplicate(), shortSK.duplicate()), limitValue.duplicate())),
                     ex -> ex instanceof IllegalArgumentException);
             AssertExtensions.assertSuppliedFutureThrows(
                     "Expected a rejection of a SK that is too short.",
-                    () -> kvt.remove(TableKey.anyVersion(limitPK.duplicate(), shortSK.duplicate())),
+                    () -> kvt.update(new Remove(new TableKey(limitPK.duplicate(), shortSK.duplicate()))),
                     ex -> ex instanceof IllegalArgumentException);
         }
 
         // Max Value Length exceeded.
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected a rejection of a value that is too long.",
-                () -> kvt.put(TableEntry.anyVersion(limitPK.duplicate(), limitSK.duplicate(), ByteBuffer.allocate(KeyValueTable.MAXIMUM_VALUE_LENGTH + 1))),
+                () -> kvt.update(new Put(new TableKey(limitPK.duplicate(), limitSK.duplicate()), ByteBuffer.allocate(KeyValueTable.MAXIMUM_VALUE_LENGTH + 1))),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
@@ -443,31 +443,31 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
 
         // Exceeding by batch count.
         val keys = IntStream.range(0, TableSegment.MAXIMUM_BATCH_KEY_COUNT + 1)
-                .mapToObj(i -> TableKey.anyVersion(ByteBuffer.allocate(getPrimaryKeyLength()).putLong(i), ByteBuffer.allocate(getSecondaryKeyLength()).putInt(i)))
+                .mapToObj(i -> new TableKey(ByteBuffer.allocate(getPrimaryKeyLength()).putLong(i), ByteBuffer.allocate(getSecondaryKeyLength()).putInt(i)))
                 .collect(Collectors.toList());
 
         val getBatchCountExceeded = keys.stream()
-                .map(k -> TableKey.anyVersion(k.getPrimaryKey().duplicate(), k.getSecondaryKey().duplicate()))
+                .map(k -> new TableKey(k.getPrimaryKey().duplicate(), k.getSecondaryKey().duplicate()))
                 .collect(Collectors.toList());
         AssertExtensions.assertSuppliedFutureThrows(
                 "Get batch exceeded max count.",
                 () -> kvt.getAll(getBatchCountExceeded),
                 ex -> ex instanceof IllegalArgumentException);
 
-        val putBatchCountExceeded = keys.stream()
-                .map(a -> TableEntry.anyVersion(a.getPrimaryKey().duplicate(), a.getSecondaryKey().duplicate(), a.getSecondaryKey().duplicate()))
+        List<TableModification> putBatchCountExceeded = keys.stream()
+                .map(a -> new Put(new TableKey(a.getPrimaryKey().duplicate(), a.getSecondaryKey().duplicate()), a.getSecondaryKey().duplicate()))
                 .collect(Collectors.toList());
         AssertExtensions.assertSuppliedFutureThrows(
-                "Put batch exceeded max count.",
-                () -> kvt.putAll(putBatchCountExceeded),
+                "Update batch exceeded max count.",
+                () -> kvt.update(putBatchCountExceeded),
                 ex -> ex instanceof IllegalArgumentException);
 
-        val removeBatchCountExceeded = keys.stream()
-                .map(k -> TableKey.anyVersion(k.getPrimaryKey().duplicate(), k.getSecondaryKey().duplicate()))
+        List<TableModification> removeBatchCountExceeded = keys.stream()
+                .map(k -> new Remove(new TableKey(k.getPrimaryKey().duplicate(), k.getSecondaryKey().duplicate())))
                 .collect(Collectors.toList());
         AssertExtensions.assertSuppliedFutureThrows(
                 "Remove batch exceeded max count.",
-                () -> kvt.removeAll(removeBatchCountExceeded),
+                () -> kvt.update(removeBatchCountExceeded),
                 ex -> ex instanceof IllegalArgumentException);
 
         // Exceed by serialization size.
@@ -475,21 +475,21 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         // so the only request we can verify is the update one.
         val limitValue = new byte[KeyValueTable.MAXIMUM_VALUE_LENGTH];
         rnd.nextBytes(limitValue);
-        val putBatchSizeExceeded = new ArrayList<TableEntry>();
+        val putBatchSizeExceeded = new ArrayList<TableModification>();
         int estimatedSize = 0;
         while (estimatedSize < TableSegment.MAXIMUM_BATCH_LENGTH) {
             val pk = new byte[getPrimaryKeyLength()];
             val sk = new byte[getSecondaryKeyLength()];
             rnd.nextBytes(pk);
             rnd.nextBytes(sk);
-            val e = TableEntry.anyVersion(ByteBuffer.wrap(pk), ByteBuffer.wrap(sk), ByteBuffer.wrap(limitValue));
+            val e = new Put(new TableKey(ByteBuffer.wrap(pk), ByteBuffer.wrap(sk)), ByteBuffer.wrap(limitValue));
             putBatchSizeExceeded.add(e);
             estimatedSize += pk.length + sk.length + limitValue.length;
         }
 
         AssertExtensions.assertSuppliedFutureThrows(
                 "Put batch exceeded max size.",
-                () -> kvt.putAll(putBatchSizeExceeded),
+                () -> kvt.update(putBatchSizeExceeded),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
@@ -517,8 +517,8 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
             BitConverter.writeLong(pk, 0, keyId);
             BitConverter.writeInt(sk, 0, keyId);
             val value = getValue.apply(keyId);
-            kvt.put(TableEntry.anyVersion(ByteBuffer.wrap(pk), ByteBuffer.wrap(sk), ByteBuffer.wrap(value))).join();
-            allKeys.add(TableKey.anyVersion(ByteBuffer.wrap(pk), ByteBuffer.wrap(sk)));
+            kvt.update(new Put(new TableKey(ByteBuffer.wrap(pk), ByteBuffer.wrap(sk)), ByteBuffer.wrap(value))).join();
+            allKeys.add(new TableKey(ByteBuffer.wrap(pk), ByteBuffer.wrap(sk)));
         }
 
         // Bulk-get all the keys. This should work regardless of the size of the data returned; the KeyValueTable and
@@ -529,7 +529,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
             val r = getResult.get(keyId);
             val expectedKey = allKeys.get(keyId);
 
-            Assert.assertTrue("Unexpected key at index " + keyId, areEqualExcludingVersion(expectedKey, r.getKey()));
+            Assert.assertTrue("Unexpected key at index " + keyId, areEqual(expectedKey, r.getKey()));
             val expectedValue = getValue.apply(keyId);
             Assert.assertEquals("Unexpected value at index " + keyId, ByteBuffer.wrap(expectedValue), r.getValue());
         }
@@ -565,11 +565,11 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         val iteration = new AtomicInteger(0);
         val versions = new HashMap<ByteBuffer, Version>();
         for (ByteBuffer k : keys) {
-            Version v = kvt.put(TableEntry.absent(k, getValue(k, iteration.get()))).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            Version v = kvt.update(new Insert(new TableKey(k), getValue(k, iteration.get()))).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             versions.put(k, v);
             AssertExtensions.assertSuppliedFutureThrows(
                     "Conditional insert did not fail for existing key.",
-                    () -> kvt.put(TableEntry.absent(k, getValue(k, iteration.get()))),
+                    () -> kvt.update(new Insert(new TableKey(k), getValue(k, iteration.get()))),
                     ex -> ex instanceof BadKeyVersionException);
         }
         checkValues(iteration.get(), versions, kvt);
@@ -579,10 +579,10 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         for (ByteBuffer k : keys) {
             Version v = versions.get(k);
             long pkValue = Math.abs(PK_SERIALIZER.deserialize(k));
-            TableEntry entry = pkValue % 2 == 0
-                    ? TableEntry.versioned(k, v, getValue(k, iteration.get()))
-                    : TableEntry.anyVersion(k, getValue(k, iteration.get()));
-            v = kvt.put(entry).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            Put p = pkValue % 2 == 0
+                    ? new Put(new TableKey(k), getValue(k, iteration.get()), v)
+                    : new Put(new TableKey(k), getValue(k, iteration.get()));
+            v = kvt.update(p).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             versions.put(k, v);
         }
         checkValues(iteration.get(), versions, kvt);
@@ -592,8 +592,8 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         for (ByteBuffer k : keys) {
             Version v = versions.get(k);
             long pkValue = Math.abs(PK_SERIALIZER.deserialize(k));
-            TableKey key = pkValue % 2 == 0 ? TableKey.versioned(k, v) : TableKey.anyVersion(k);
-            kvt.remove(key).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            Remove r = pkValue % 2 == 0 ? new Remove(new TableKey(k), v) : new Remove(new TableKey(k));
+            kvt.update(r).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             versions.put(k, null);
         }
         checkValues(iteration.get(), versions, kvt);
@@ -701,7 +701,7 @@ cl
             val expectedValue = getValue(pk, sk, iteration);
             val expectedVersion = versions.get(keyId);
 
-            val requestKey = TableKey.anyVersion(pk, sk);
+            val requestKey = new TableKey(pk, sk);
             val actualEntry = keyValueTable.get(requestKey).join();
             checkValue(requestKey, expectedValue, expectedVersion, actualEntry, keyId);
         });
@@ -714,7 +714,7 @@ cl
             val expectedValues = secondaryKeys.stream()
                     .map(sk -> getValue(pk, sk, iteration))
                     .collect(Collectors.toList());
-            val requestKeys = secondaryKeys.stream().map(sk -> TableKey.anyVersion(pk, sk)).collect(Collectors.toList());
+            val requestKeys = secondaryKeys.stream().map(sk -> new TableKey(pk, sk)).collect(Collectors.toList());
             val result = keyValueTable.getAll(requestKeys).join();
 
             val hint = getUniqueKeyId(pk);
@@ -728,18 +728,18 @@ cl
     private void checkValues(int iteration, Map<ByteBuffer, Version> keyVersions, KeyValueTable kvt) {
         // Using single get.
         for (val k : keyVersions.entrySet()) {
-            val expectedValue = k.getValue() == null ? null : TableEntry.versioned(k.getKey(), k.getValue(), getValue(k.getKey(), iteration));
-            val actualEntry = kvt.get(TableKey.anyVersion(k.getKey())).join();
+            val expectedValue = k.getValue() == null ? null : new TableEntry(new TableKey(k.getKey()), k.getValue(), getValue(k.getKey(), iteration));
+            val actualEntry = kvt.get(new TableKey(k.getKey())).join();
             Assert.assertTrue(areEqual(expectedValue, actualEntry));
         }
 
         // Using multi-get.
         val requestKeys = new ArrayList<>(keyVersions.entrySet());
-        val entries = kvt.getAll(requestKeys.stream().map(k -> TableKey.anyVersion(k.getKey())).collect(Collectors.toList())).join();
+        val entries = kvt.getAll(requestKeys.stream().map(k -> new TableKey(k.getKey())).collect(Collectors.toList())).join();
         Assert.assertEquals(keyVersions.size(), entries.size());
         for (int i = 0; i < requestKeys.size(); i++) {
             val k = requestKeys.get(i);
-            val expectedValue = k.getValue() == null ? null : TableEntry.versioned(k.getKey(), k.getValue(), getValue(k.getKey(), iteration));
+            val expectedValue = k.getValue() == null ? null : new TableEntry(new TableKey(k.getKey()), k.getValue(), getValue(k.getKey(), iteration));
             val actualEntry = entries.get(i);
             Assert.assertTrue(areEqual(expectedValue, actualEntry));
         }
@@ -753,12 +753,12 @@ cl
             // Key exists.
             Assert.assertEquals("Unexpected Primary Key" + hint, key.getPrimaryKey(), actualEntry.getKey().getPrimaryKey());
             Assert.assertEquals("Unexpected Secondary Key" + hint, key.getSecondaryKey(), actualEntry.getKey().getSecondaryKey());
-            Assert.assertEquals("Unexpected version" + hint, expectedVersion, actualEntry.getKey().getVersion());
+            Assert.assertEquals("Unexpected version" + hint, expectedVersion, actualEntry.getVersion());
             Assert.assertEquals("Unexpected value" + hint, expectedValue, actualEntry.getValue());
         }
     }
 
-    private boolean areEqualExcludingVersion(@Nullable TableKey k1, @Nullable TableKey k2) {
+    private boolean areEqual(@Nullable TableKey k1, @Nullable TableKey k2) {
         if (k1 == null) {
             Assert.assertNull(k2);
         }
@@ -770,11 +770,6 @@ cl
         }
 
         return k1.getSecondaryKey().equals(k2.getSecondaryKey());
-    }
-
-    private boolean areEqual(@Nullable TableKey k1, @Nullable TableKey k2) {
-        return (k1 == null && k2 == null)
-                || (k1 != null && k2 != null && areEqualExcludingVersion(k1, k2) && k1.getVersion().equals(k2.getVersion()));
     }
 
     private boolean areEqual(@Nullable TableEntry e1, @Nullable TableEntry e2) {

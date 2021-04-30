@@ -27,8 +27,12 @@ import io.pravega.client.tables.IteratorArgs;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.Put;
+import io.pravega.client.tables.Remove;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
+import io.pravega.client.tables.TableModification;
+import io.pravega.client.tables.TableEntryUpdate;
 import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -44,7 +48,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -111,34 +114,41 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
     //region KeyValueTable Implementation
 
     @Override
-    public CompletableFuture<Version> put(@NonNull TableEntry entry) {
-        TableSegment s = this.selector.getTableSegment(entry.getKey().getPrimaryKey());
-        val args = processUpdateArg(entry, e -> e.getKey().getPrimaryKey(), this::toTableSegmentEntry);
-        return updateToSegment(args.getTableSegment(), args.getAllArgs()).thenApply(r -> r.get(0));
+    public CompletableFuture<Version> update(@NonNull TableModification update) {
+        val s = this.selector.getTableSegment(update.getKey().getPrimaryKey());
+        if (update.isRemoval()) {
+            val removeArgs = new UpdateArg<TableSegmentKey>(update.getKey().getPrimaryKey(), s, Iterators.singletonIterator(toTableSegmentKey(s, (Remove) update)));
+            return removeFromSegment(removeArgs.getTableSegment(), removeArgs.getAllArgs()).thenApply(r -> null);
+        } else {
+            val updateArgs = new UpdateArg<>(update.getKey().getPrimaryKey(), s, Iterators.singletonIterator(toTableSegmentEntry(s, (TableEntryUpdate) update)));
+            return updateToSegment(updateArgs.getTableSegment(), updateArgs.getAllArgs()).thenApply(r -> r.get(0));
+        }
     }
 
     @Override
-    public CompletableFuture<List<Version>> putAll(@NonNull Iterable<TableEntry> entries) {
-        val args = processUpdateArgs(entries, e -> e.getKey().getPrimaryKey(), this::toTableSegmentEntry);
-        return updateToSegment(args.getTableSegment(), args.getAllArgs());
-    }
+    public CompletableFuture<List<Version>> update(@NonNull Iterable<TableModification> updates) {
+        val inputIterator = updates.iterator();
+        if (!inputIterator.hasNext()) {
+            // Empty input - nothing to do.
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
 
-    @Override
-    public CompletableFuture<Void> remove(@NonNull TableKey key) {
-        val args = processUpdateArg(key, TableKey::getPrimaryKey, this::toTableSegmentKey);
-        return removeFromSegment(args.getTableSegment(), args.getAllArgs());
-    }
-
-    @Override
-    public CompletableFuture<Void> removeAll(@NonNull Iterable<TableKey> keys) {
-        val args = processUpdateArgs(keys, TableKey::getPrimaryKey, this::toTableSegmentKey);
-        return removeFromSegment(args.getTableSegment(), args.getAllArgs());
+        val firstInput = inputIterator.next();
+        val ts = this.selector.getTableSegment(firstInput.getKey().getPrimaryKey());
+        if (firstInput.isRemoval()) {
+            val args = toArg(firstInput, inputIterator, ts, u -> toTableSegmentKey(ts, (Remove) u));
+            return removeFromSegment(args.getTableSegment(), args.getAllArgs()).thenApply(r -> Collections.emptyList());
+        } else {
+            val args = toArg(firstInput, inputIterator, ts, u -> toTableSegmentEntry(ts, (TableEntryUpdate) u));
+            return updateToSegment(args.getTableSegment(), args.getAllArgs());
+        }
     }
 
     @Override
     public CompletableFuture<Boolean> exists(@NonNull TableKey key) {
-        key = TableKey.absent(key.getPrimaryKey(), key.getSecondaryKey());
-        return remove(key)
+        // We attempt a removal conditioned on the key not existing (no-op if key actual exists). This is preferred to
+        // using get(key) because get() will also attempt to read and return the value (of no use in this case).
+        return update(new Remove(key, Version.NOT_EXISTS))
                 .handle((r, ex) -> {
                     if (ex != null) {
                         if (ex instanceof ConditionalTableUpdateException) {
@@ -204,31 +214,17 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
 
     //region Helpers
 
-    private <InputT, OutputT> UpdateArg<OutputT> processUpdateArg(InputT input, Function<InputT, ByteBuffer> getPrimaryKey,
-                                                                  BiFunction<TableSegment, InputT, OutputT> toOutput) {
-        val firstPrimaryKey = getPrimaryKey.apply(input);
-        val ts = this.selector.getTableSegment(firstPrimaryKey);
-        return new UpdateArg<>(firstPrimaryKey, ts, Iterators.singletonIterator(toOutput.apply(ts, input)));
-    }
-
-    private <InputT, OutputT> UpdateArg<OutputT> processUpdateArgs(Iterable<InputT> input, Function<InputT, ByteBuffer> getPrimaryKey,
-                                                                   BiFunction<TableSegment, InputT, OutputT> toOutput) {
-        val inputIterator = input.iterator();
-        if (!inputIterator.hasNext()) {
-            // Empty input.
-            return new UpdateArg<>(null, null, Collections.emptyIterator());
-        }
-        val firstInput = inputIterator.next();
-        val firstPrimaryKey = getPrimaryKey.apply(firstInput);
-        val ts = this.selector.getTableSegment(firstPrimaryKey);
-        val firstInputIterator = Iterators.singletonIterator(toOutput.apply(ts, firstInput));
+    private <T> UpdateArg<T> toArg(TableModification firstInput, Iterator<TableModification> inputIterator, TableSegment ts,
+                                   Function<TableModification, T> convert) {
+        val firstInputIterator = Iterators.singletonIterator(convert.apply(firstInput));
         val restIterator = Iterators.transform(inputIterator, i -> {
-            val pk = getPrimaryKey.apply(i);
-            Preconditions.checkArgument(firstPrimaryKey.equals(pk), "All Keys must have the same Primary Key.");
-            return toOutput.apply(ts, i);
+            val pk = i.getKey().getPrimaryKey();
+            Preconditions.checkArgument(firstInput.getKey().getPrimaryKey().equals(pk), "All Keys must have the same Primary Key.");
+            Preconditions.checkArgument(firstInput.isRemoval() == i.isRemoval(), "Cannot combine Removals with Updates.");
+            return convert.apply(i);
         });
 
-        return new UpdateArg<>(firstPrimaryKey, ts, Iterators.concat(firstInputIterator, restIterator));
+        return new UpdateArg<T>(firstInput.getKey().getPrimaryKey(), ts, Iterators.concat(firstInputIterator, restIterator));
     }
 
     private CompletableFuture<List<Version>> updateToSegment(TableSegment segment, Iterator<TableSegmentEntry> tableSegmentEntries) {
@@ -246,15 +242,17 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
         return new TableSegmentKey(key, toTableSegmentVersion(keyVersion));
     }
 
-    private TableSegmentKey toTableSegmentKey(TableSegment tableSegment, TableKey key) {
-        validateKeyVersionSegment(tableSegment, key.getVersion());
-        return toTableSegmentKey(serializeKey(key), key.getVersion());
+    private TableSegmentKey toTableSegmentKey(TableSegment tableSegment, Remove removal) {
+        validateKeyVersionSegment(tableSegment, removal.getVersion());
+        return toTableSegmentKey(serializeKey(removal.getKey()), removal.getVersion());
     }
 
-    private TableSegmentEntry toTableSegmentEntry(TableSegment tableSegment, TableEntry entry) {
-        TableKey key = entry.getKey();
-        validateKeyVersionSegment(tableSegment, key.getVersion());
-        return new TableSegmentEntry(toTableSegmentKey(serializeKey(key), key.getVersion()), serializeValue(entry.getValue()));
+    private TableSegmentEntry toTableSegmentEntry(TableSegment tableSegment, TableEntryUpdate update) {
+        TableKey key = update.getKey();
+        if (update instanceof Put) {
+            validateKeyVersionSegment(tableSegment, update.getVersion());
+        }
+        return new TableSegmentEntry(toTableSegmentKey(serializeKey(key), update.getVersion()), serializeValue(update.getValue()));
     }
 
     private TableSegmentKeyVersion toTableSegmentVersion(Version version) {
@@ -266,15 +264,11 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
             return null;
         }
 
-        TableKey segmentKey = fromTableSegmentKey(s, e.getKey());
+        DeserializedKey rawKey = deserializeKey(e.getKey().getKey());
+        Version version = new VersionImpl(s.getSegmentId(), e.getKey().getVersion());
+        TableKey key = new TableKey(rawKey.primaryKey, rawKey.secondaryKey);
         ByteBuffer value = deserializeValue(e.getValue());
-        return TableEntry.versioned(segmentKey.getPrimaryKey(), segmentKey.getSecondaryKey(), segmentKey.getVersion(), value);
-    }
-
-    private TableKey fromTableSegmentKey(TableSegment s, TableSegmentKey tableSegmentKey) {
-        DeserializedKey key = deserializeKey(tableSegmentKey.getKey());
-        Version version = new VersionImpl(s.getSegmentId(), tableSegmentKey.getVersion());
-        return TableKey.versioned(key.primaryKey, key.secondaryKey, version);
+        return new TableEntry(key, version, value);
     }
 
     private ByteBuf serializeKey(TableKey k) {
@@ -350,11 +344,6 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
         private final ByteBuffer primaryKey;
         private final TableSegment tableSegment;
         private final Iterator<T> allArgs;
-    }
-
-    @FunctionalInterface
-    private interface SegmentItemConverter<SegmentItemType, TableItemType> {
-        TableItemType apply(TableSegment ts, SegmentItemType item, String keyFamily);
     }
 
     //endregion

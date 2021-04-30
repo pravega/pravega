@@ -26,12 +26,14 @@ import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.tables.ConditionalTableUpdateException;
+import io.pravega.client.tables.Insert;
 import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
+import io.pravega.client.tables.TableModification;
 import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.AsyncIterator;
@@ -73,17 +75,17 @@ public abstract class KeyValueTableCommand extends Command {
         return new String[]{
                 SERIALIZER.deserialize(e.getKey().getPrimaryKey()),
                 e.getKey().getSecondaryKey() == null ? "[null]" : SERIALIZER.deserialize(e.getKey().getSecondaryKey()),
-                e.getKey().getVersion().toString(),
+                e.getVersion().toString(),
                 SERIALIZER.deserialize(e.getValue())};
     }
 
     protected String[] toArray(TableKey k) {
         return new String[]{
                 SERIALIZER.deserialize(k.getPrimaryKey()),
-                k.getSecondaryKey() == null ? "[null]" : SERIALIZER.deserialize(k.getSecondaryKey()), k.getVersion().toString()};
+                k.getSecondaryKey() == null ? "[null]" : SERIALIZER.deserialize(k.getSecondaryKey())};
     }
 
-    protected List<TableEntry> toEntries(String[][] rawEntries) {
+    protected List<TableModification> toUpdates(String[][] rawEntries) {
         return Arrays.stream(rawEntries).map(e -> {
             Preconditions.checkArgument(e.length == 2 || e.length == 1,
                     "TableEntry must have 2 or 3 elements ('[key, value]' or '[key, version, value]'). Found  %s.", e.length);
@@ -97,21 +99,14 @@ public abstract class KeyValueTableCommand extends Command {
                 value = e[2];
             }
 
-            return TableEntry.versioned(SERIALIZER.serialize(key), ver, SERIALIZER.serialize(value));
+            return new io.pravega.client.tables.Put(new TableKey(SERIALIZER.serialize(key)), SERIALIZER.serialize(value), ver);
         }).collect(Collectors.toList());
     }
 
-    protected List<TableKey> toKeys(String[][] rawKeys) {
+    protected List<TableModification> toRemovals(String[][] rawKeys) {
         return Arrays.stream(rawKeys).map(k -> {
-            Preconditions.checkArgument(k.length == 2 || k.length == 1,
-                    "TableKey must have 1 or 2 elements ('[key]' or '[key, version]'). Found: %s.", k.length);
-            val key = k[0];
-            Version ver = Version.NO_VERSION;
-            if (k.length == 2) {
-                ver = Version.fromString(k[1]);
-            }
-
-            return TableKey.versioned(SERIALIZER.serialize(key), ver);
+            Preconditions.checkArgument(k.length == 1, "TableKey must have 1. Found: %s.", k.length);
+            return new io.pravega.client.tables.Remove(new TableKey(SERIALIZER.serialize(k[0])));
         }).collect(Collectors.toList());
     }
 
@@ -299,7 +294,7 @@ public abstract class KeyValueTableCommand extends Command {
         protected void executeInternal(ScopedName kvtName, KeyValueTable kvt) throws Exception {
             val keys = getJsonArg(1, String[].class);
             Preconditions.checkArgument(keys.length > 0, "Expected at least one key.");
-            val tableKeys = Arrays.stream(keys).map(k -> TableKey.anyVersion(SERIALIZER.serialize(k))).collect(Collectors.toList());
+            val tableKeys = Arrays.stream(keys).map(k -> new TableKey(SERIALIZER.serialize(k))).collect(Collectors.toList());
             val result = kvt.getAll(tableKeys).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
 
             output("Get %s Key(s) from %s:", keys.length, kvtName);
@@ -351,7 +346,7 @@ public abstract class KeyValueTableCommand extends Command {
             val key = getArg(1);
             val value = getArg(2);
 
-            val version = kvt.put(TableEntry.anyVersion(SERIALIZER.serialize(key), SERIALIZER.serialize(value))).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+            val version = kvt.update(new io.pravega.client.tables.Put(new TableKey(SERIALIZER.serialize(key)), SERIALIZER.serialize(value))).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
             output("Key '%s' updated successfully. New version: '%s'.", key, version);
         }
 
@@ -381,7 +376,7 @@ public abstract class KeyValueTableCommand extends Command {
             val version = Version.fromString(getArg(2));
             val value = getArg(3);
 
-            val newVersion = kvt.put(TableEntry.versioned(SERIALIZER.serialize(key), version, SERIALIZER.serialize(value)))
+            val newVersion = kvt.update(new io.pravega.client.tables.Put(new TableKey(SERIALIZER.serialize(key)), SERIALIZER.serialize(value), version))
                     .get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
             output("Key '%s' updated successfully. New version: '%s'.", key, newVersion);
         }
@@ -413,7 +408,7 @@ public abstract class KeyValueTableCommand extends Command {
             val key = getArg(1);
             val value = getArg(2);
 
-            val version = kvt.put(TableEntry.absent(SERIALIZER.serialize(key), SERIALIZER.serialize(value)))
+            val version = kvt.update(new Insert(new TableKey(SERIALIZER.serialize(key)), SERIALIZER.serialize(value)))
                     .get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
             output("Key '%s' inserted successfully. New version: '%s'.", key, version);
         }
@@ -446,17 +441,17 @@ public abstract class KeyValueTableCommand extends Command {
         @Override
         protected void executeInternal(ScopedName kvtName, KeyValueTable kvt) throws Exception {
             val args = getJsonArg(1, String[][].class);
-            val entries = toEntries(args);
+            val entries = toUpdates(args);
             Preconditions.checkArgument(entries.size() > 0, "Expected at least one Table Entry.");
 
-            val result = kvt.putAll(entries).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
-            int conditionalCount = (int) entries.stream().filter(e -> e.getKey().getVersion() != Version.NO_VERSION).count();
+            val result = kvt.update(entries).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+            int conditionalCount = (int) entries.stream().filter(e -> e.getVersion() != Version.NO_VERSION).count();
             output("Updated %s Key(s) to %s (Conditional=%s, Unconditional=%s):",
                     entries.size(), kvtName, conditionalCount, entries.size() - conditionalCount);
             assert entries.size() == result.size() : String.format("Bad result length. Expected %s, actual %s", entries.size(), result.size());
             outputResultHeader("Key", "Version");
             for (int i = 0; i < result.size(); i++) {
-                String[] output = toArray(TableKey.versioned(entries.get(i).getKey().getPrimaryKey(), result.get(i)));
+                String[] output = toArray(new TableKey(entries.get(i).getKey().getPrimaryKey()));
                 outputResult(output);
             }
         }
@@ -489,9 +484,9 @@ public abstract class KeyValueTableCommand extends Command {
         @Override
         protected void executeInternal(ScopedName kvtName, KeyValueTable kvt) throws Exception {
             val args = getJsonArg(1, String[][].class);
-            val keys = toKeys(args);
+            val keys = toRemovals(args);
             Preconditions.checkArgument(keys.size() > 0, "Expected at least one Table Key.");
-            kvt.removeAll(keys).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+            kvt.update(keys).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
 
             int conditionalCount = (int) keys.stream().filter(e -> e.getVersion() != Version.NO_VERSION).count();
             output("Removed %s Key(s) from %s (Conditional=%s, Unconditional=%s).",

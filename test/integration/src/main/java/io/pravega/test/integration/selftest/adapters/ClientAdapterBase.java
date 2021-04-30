@@ -31,7 +31,8 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.client.tables.TableEntry;
+import io.pravega.client.tables.Put;
+import io.pravega.client.tables.Remove;
 import io.pravega.client.tables.TableKey;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -332,7 +333,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
         // NOTE: we do not support conditional updates (these are converted to unconditional updates).
         ensureRunning();
         return getKvt(tableName)
-                .put(TableEntry.anyVersion(ByteBuffer.wrap(key.getCopy()), ByteBuffer.wrap(value.getCopy())))
+                .update(new Put(new TableKey(ByteBuffer.wrap(key.getCopy())), ByteBuffer.wrap(value.getCopy())))
                 .thenApply(v -> v.asImpl().getSegmentVersion());
     }
 
@@ -340,15 +341,14 @@ abstract class ClientAdapterBase extends StoreAdapter {
     public CompletableFuture<Void> removeTableEntry(String tableName, BufferView key, Long compareVersion, Duration timeout) {
         // NOTE: we do not support conditional removals (these are converted to unconditional removals).
         ensureRunning();
-        return getKvt(tableName)
-                .remove(TableKey.anyVersion(ByteBuffer.wrap(key.getCopy())));
+        return Futures.toVoid(getKvt(tableName).update(new Remove(new TableKey(ByteBuffer.wrap(key.getCopy())))));
     }
 
     @Override
     public CompletableFuture<List<BufferView>> getTableEntries(String tableName, List<BufferView> keys, Duration timeout) {
         ensureRunning();
         return getKvt(tableName)
-                .getAll(keys.stream().map(BufferView::getCopy).map(ByteBuffer::wrap).map(TableKey::anyVersion).collect(Collectors.toList()))
+                .getAll(keys.stream().map(BufferView::getCopy).map(ByteBuffer::wrap).map(TableKey::new).collect(Collectors.toList()))
                 .thenApplyAsync(entries -> entries.stream().map(e -> e == null ? null : new ByteArraySegment(e.getValue())).collect(Collectors.toList()), this.testExecutor);
     }
 

@@ -16,34 +16,27 @@
 package io.pravega.client.tables;
 
 import java.nio.ByteBuffer;
-import lombok.Data;
-import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
+import lombok.Getter;
+import lombok.ToString;
 
 /**
- * A {@link KeyValueTable} Key with a {@link Version}.
+ * Represents an Insertion of a {@link TableKey} (with a value) into a {@link KeyValueTable}.
  */
-@Data
-@RequiredArgsConstructor
-public class TableKey {
+@Getter
+@ToString
+public final class Insert extends TableEntryUpdate {
     /**
-     * The Primary Key.
+     * Creates a new instance of the {@link Insert} class.
      *
-     * @param primaryKey Primary Key.
-     * @return Primary Key.
+     * @param key   The {@link TableKey} to insert.
+     * @param value The Value to associate with {@code key}.
      */
-    @NonNull
-    private final ByteBuffer primaryKey;
+    public Insert(TableKey key, ByteBuffer value) {
+        super(key, value);
+    }
 
-    /**
-     * The Secondary Key (Optional).
-     *
-     * @param version Secondary Key.
-     * @return Secondary Key.
-     */
-    private final ByteBuffer secondaryKey;
-
-    public TableKey(ByteBuffer primaryKey) {
-        this(primaryKey, null);
+    @Override
+    public Version getVersion() {
+        return Version.NOT_EXISTS;
     }
 }

@@ -52,7 +52,8 @@ import lombok.NonNull;
  * different from key PK2.SK1.
  *
  * <li> Multiple {@link TableKey}/{@link TableEntry} instances with the same Primary Key can be updated or removed
- * atomically (either all changes will be applied or none will).
+ * atomically (either all changes will be applied or none will). However, it is important to note that it is not possible
+ * to mix updates  with removals in the same atomic operation.
  *
  * <li> {@link TableKey}s that do not share the same Primary Key may be hashed to different Key-Value Table Partitions
  * and cannot be used for multi-key/entry atomic updates or removals.
@@ -74,45 +75,30 @@ import lombok.NonNull;
  * Types of Updates:
  * <ul>
  * <li> Unconditional Updates will update a value associated with a {@link TableKey}, regardless of whether that
- * {@link TableKey} previously existed or not, and regardless of what that {@link TableKey}'s {@link Version} is. Note
- * that Unconditional Updates will either update an existing value or insert a new {@link TableEntry} into the table
- * if the specified {@link TableKey} does not already exist.
+ * {@link TableKey} previously existed or not, or what what its {@link Version} is. Note that Unconditional Updates will
+ * either update an existing value or insert a new {@link TableEntry} into the table if the specified {@link TableKey}
+ * does not already exist. Unconditional Updates can be performed using {@link #update} by passing {@link Put} instances
+ * with a null ({@link Put#getVersion()}.
  *
- * <li> Conditional Updates will only overwrite an existing value if the specified {@link Version} matches the one that
- * is currently present on the server. Conditional updates can performed using {@link #put} or {@link #putAll} by passing
- * {@link TableEntry} instances that were either created using {@link TableEntry#versioned} or were retrieved from a
- * {@link #get}, {@link #getAll} or {@link #entryIterator} call. Conditional inserts can be performed using the same
- * methods by passing a {@link TableEntry} that was created using {@link TableEntry#absent} and will only succeed if
- * the associated {@link TableKey} does not already exist.
+ * <li> Conditional Updates will only overwrite an existing value if the specified {@link Put#getVersion()} matches the
+ * one that is currently present on the server. Conditional updates can performed using {@link #update} by passing
+ * {@link Put} instances with a non-null {@link Put#getVersion()}. Conditional inserts can be performed using the same
+ * methods by passing an {@link Insert} instance and will only succeed if the associated {@link TableKey} does not already
+ * exist.
  *
  * <li> Unconditional Removals will remove a {@link TableKey} if it exists. Such removals can be performed using
- * {@link #remove} or {@link #removeAll} by passing a {@link TableKey} created using {@link TableKey#anyVersion}. The
- * operation will also succeed (albeit with no effect) if the {@link TableKey} does not exist.
+ * {@link #update} by passing a {@link Remove} having {@link Remove#getVersion()} be null. The operation will also succeed
+ * (albeit with no effect) if the {@link Remove#getKey()} does not exist.
  *
- * <li> Conditional Removals will remove a {@link TableKey} only if the specified {@link Version} matches the one that is
- * currently present on the server. Such removals can be performed using {@link #remove} or {@link #removeAll} by passing
- * a {@link TableKey} created using {@link TableKey#versioned} or retrieved from a {@link #get}, {@link #getAll},
- * {@link #keyIterator} or {@link #entryIterator} call.
+ * <li> Conditional Removals will remove a {@link TableKey} only if the specified {@link Remove#getVersion()} matches the
+ * one that is currently present on the server. Such removals can be performed using {@link #update} by passing a
+ * {@link Remove} having {@link Remove#getVersion()} non-null.
  *
  * <li> Multi-key updates allow any number of conditions to be specified (including no conditions) in the same atomic
  * batch. All the conditions that are present in the update batch must be satisfied in order for the update batch to be
- * accepted - the condition checks and updates are performed atomically. Some entries may be conditioned on their
- * {@link TableKey}s not existing at all ({@link TableEntry#getKey()}{@link TableKey#getVersion()} equals
- * {@link Version#NOT_EXISTS}), some may be conditioned on specific versions and some may not have condition attached at
- * all ({@link TableEntry#getKey()}{@link TableKey#getVersion()} equals {@link Version#NO_VERSION}). Use
- * {@link #putAll(Iterable)} for such an update.
- *
- * <li> Multi-key removals allow any number of conditions to be specified (including no conditions) in the same atomic
- * batch. All the conditions that are present in the removal batch must be satisfied in order for the removal batch to
- * be accepted - the condition checks and updates are performed atomically. Some removals may be conditioned on their
- * affected {@link TableKey} having a specific version and some may not have a condition attached at all
- * ({@link TableKey#getVersion()} equals {@link Version#NO_VERSION}). Although unusual, it is possible to have a removal
- * conditioned on a {@link TableKey} not existing ({@link TableKey#getVersion()} equals {@link Version#NOT_EXISTS});
- * such an update will have no effect on that {@link TableKey} if it doesn't exist but it will prevent the rest of the
- * removals from the same batch from being applied - this can be used in scenarios where a set of {@link TableKey} must
- * be removed only if a particular {@link TableKey} is not present. Use {@link #removeAll(Iterable)} for such a removal.
- *
- * <li> It is not possible to mix updates (including inserts) with removals in the same atomic operation.
+ * accepted - the condition checks and updates are performed atomically. {@link Insert}s may be mixed with {@link Put}
+ * having {@link Put#getVersion()} either null or non-null. {@link Remove}s may not be mixed with anything else (i.e.,
+ * {@link Insert} or {@link Remove}). Use {@link #update(Iterable)} for such an update.
  * </ul>
  * <p>
  * Conditional Update Responses:
@@ -135,92 +121,60 @@ public interface KeyValueTable extends AutoCloseable {
     int MAXIMUM_VALUE_LENGTH = TableSegment.MAXIMUM_VALUE_LENGTH;
 
     /**
-     * Updates the value associated with a {@link TableKey} in the {@link KeyValueTable}. If the {@link TableKey} is not
-     * already present, the {@link TableEntry} will be inserted into the Table, subject to the rules below.
-     *
-     * If {@link TableEntry#isVersioned()} returns true, this will be a Conditional Update.
+     * Performs a specific {@link TableModification} to the {@link KeyValueTable}, as described below:
      * <ul>
-     * <li> If {@code entry} was created using {@link TableEntry#versioned} or retrieved via {@link #getAll}, {@link #getAll}
-     * or {@link #entryIterator}, the {@link TableEntry} will only be <strong>updated</strong> if there exists a
-     * {@link TableKey} in the {@link KeyValueTable} matching {@code entry}'s {@link TableEntry#getKey()} and both key
-     * versions match. This update will be rejected if the Key Versions do not match or if there is no matching
-     * {@link TableKey} in the Table.
+     * <li> If {@code update} is a {@link Insert}, this will be interpreted as a Conditional Insert, so the
+     * {@link Insert#getValue()} will only be inserted (and associated with {@link Insert#getKey()} if there doesn't
+     * already exist a {@link TableKey} in the {@link KeyValueTable} that matches {@link Insert#getKey()}.
      *
-     * <li> If {@code entry} was created using {@link TableKey#absent}, the {@link TableEntry} will only be
-     * <strong>inserted</strong> if there doesn't exist a {@link TableKey} in the {@link KeyValueTable} that matches the
-     * {@code entry}'s {@link TableEntry#getKey()}. This is a conditional insert.
+     * <li> If {@code update} is a {@link Put}, this will be an update. If {@link Put#getVersion()} is null, this will
+     * be interpreted as an Unconditional Update, and the {@link Put#getValue()} will be associated with {@link Put#getKey()}
+     * in the {@link KeyValueTable} regardless of whether the Key existed before or not. If {@link Put#getVersion()} is
+     * non-null, this will be interpreted as a Conditional Update, and the {@link Put#getValue()} will only be associated
+     * with {@link Put#getKey()} if there exists a {@link TableKey} in the {@link KeyValueTable} whose {@link Version}
+     * matches {@link Put#getVersion()}. NOTE: if {@link Put#getVersion()} equals {@link Version#NOT_EXISTS}, this is
+     * equivalent to {@link Insert} (i.e., it will be a Conditional Insert).
+     *
+     * <li> If {@code update} is a {@link Remove}, this will remove the {@link Remove#getKey()} from the {@link KeyValueTable}.
+     * If {@link Remove#getVersion()} is null, this will be interpreted as an Unconditional Removal, so the Key will be
+     * removed regardless of its {@link Version} (and the operation will also be successful if the {@link Remove#getKey()}
+     * does not exist). If {@link Remove#getVersion()} is non-null, this will be interpreted as a Conditional Removal,
+     * and the Key will only be removed if it exists and its {@link Version} matches {@link Remove#getVersion()}.
      * </ul>
-     * <p>
-     * All other invocations will be executed as Unconditional Updates (the entry was created using
-     * {@link TableEntry#anyVersion}).
      *
-     * @param entry The {@link TableEntry} to update.
-     * @return A CompletableFuture that, when completed, will contain the {@link Version} associated with the newly
-     * updated entry.
+     * @param update The {@link TableModification} to apply to the {@link KeyValueTable}.
+     * @return A CompletableFuture that, when completed, will contain the {@link Version} associated with any newly
+     * updated or inserted entry (for {@link Insert} or {@link Put}) or {@code null} for {@link Remove}.
      */
-    CompletableFuture<Version> put(@NonNull TableEntry entry);
+    CompletableFuture<Version> update(@NonNull TableModification update);
 
     /**
-     * Updates the values associated with multiple {@link TableKey}s that have the same {@link TableKey#getPrimaryKey()}
-     * into this {@link KeyValueTable}. All changes are performed atomically (either all or none will be accepted).
-     *
-     * See {@link #put(TableEntry)} for details on Conditional/Unconditional Updates. Conditional and unconditional
-     * updates may be mixed together in this call. Each individual {@link TableEntry} will be individually assessed
+     * Performs a batch of {@link TableModification}s to the {@link KeyValueTable} for {@link TableKey}s that have the
+     * same {@link TableKey#getPrimaryKey()}. All changes are performed atomically (either all or none will be accepted).
+     * <p>
+     * See {@link #update(TableModification)} for details on Conditional/Unconditional Updates. Conditional and unconditional
+     * updates may be mixed together in this call. Each individual {@link TableModification} will be individually assessed
      * (from a conditional point of view) and will prevent the committal of the entire batch of updates if it fails to
      * meet the condition.
      *
-     * @param entries An {@link Iterable} of {@link TableEntry} instances to update.
+     * @param updates An {@link Iterable} of {@link TableModification}s to apply to the {@link KeyValueTable}. Note that
+     *                {@link Remove} instances may not be mixed together with {@link Insert} or {@link Put} instances,
+     *                but {@link Insert}s and {@link Put}s may be mixed together.
      * @return A CompletableFuture that, when completed, will contain a List of {@link Version} instances which
-     * represent the versions for the updated keys. The size of this list will be the same as the number of items in
-     * {@code entries} and the versions will be in the same order as the {@code entries}.
+     * represent the versions for the updated or inserted keys. The size of this list will be the same as the number of
+     * items in {@code updates} and the versions will be in the same order as the {@code updates}. This list will be
+     * empty if {@code updates} contains only {@link Remove} instances.
+     * @throws IllegalArgumentException If there exist two or more {@link TableModification}s in {@code updates} that
+     *                                  refer to {@link TableKey}s with different {@link TableKey#getPrimaryKey()}.
+     * @throws IllegalArgumentException If {@code updates} contains at least one {@link Remove} instance and at least one
+     *                                  {@link TableModification} that is not {@link Remove}.
      */
-    CompletableFuture<List<Version>> putAll(@NonNull Iterable<TableEntry> entries);
-
-    /**
-     * Removes a {@link TableKey} from the {@link KeyValueTable}.
-     * <p>
-     * If {@link TableKey#isVersioned()} returns true, this will be a Conditional Removal. The {@link TableKey} will only
-     * be removed if there exists a {@link TableKey} in the {@link KeyValueTable} matching the given {@code key} and {@link Version}.
-     * <p>
-     * Otherwise, it will be executed as an Unconditional Removal ({@link TableKey#getVersion()} returns
-     * {@link Version#NO_VERSION} - such as when the key was created using {@link TableKey#anyVersion}).
-     * <p>
-     * NOTE: it is possible to invoke this method with a {@link TableKey} created using {@link TableKey#absent}. This
-     * operation will have no effect if the key does not exist, but it will fail if the key exists. While there doesn't
-     * exist a practical use case for this call, it could be used to detect if a Key exists (call will fail) or not (no error).
-     *
-     * @param key The Key to remove.
-     * @return A CompletableFuture that, when completed, will indicate the Key has been removed.
-     */
-    CompletableFuture<Void> remove(@NonNull TableKey key);
-
-    /**
-     * Removes one or more {@link TableKey} instances that have the same {@link TableKey#getPrimaryKey()} from this
-     * {@link KeyValueTable}. All removals are performed atomically (either all keys or no key will be removed).
-     * <p>
-     * See {@link #remove(TableKey)} for details on Conditional/Unconditional Removals. Conditional and Unconditional
-     * removals may be mixed together in this call. Each individual {@link TableKey} will be individually assessed (from
-     * a conditional point of view) and will prevent the committal of the entire batch of removals if it fails.
-     *
-     * @param keys An {@link Iterable} of keys to remove. If for at least one such key, {@link TableKey#getVersion()}
-     *             indicates a conditional update, this will perform an atomic Conditional Remove conditioned on the
-     *             server-side versions matching the provided ones (for all {@link TableKey} instances that have one);
-     *             otherwise an Unconditional Remove will be performed.
-     *             See {@link KeyValueTable} doc for more details on Types of Updates.
-     * @return A CompletableFuture that, when completed, will indicate that the keys have been removed. Notable exceptions:
-     * <ul>
-     * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
-     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
-     * </ul>
-     */
-    CompletableFuture<Void> removeAll(@NonNull Iterable<TableKey> keys);
+    CompletableFuture<List<Version>> update(@NonNull Iterable<TableModification> updates);
 
     /**
      * Determines if the given {@link TableKey} exists or not.
      *
-     * @param key The {@link TableKey} to check. Only the {@link TableKey#getPrimaryKey()} and {@link TableKey#getSecondaryKey()}
-     *            are considered here; {@link TableKey#getVersion()} is ignored (i.e., this only verifies if the key
-     *            exists, not that the key must be of a specific {@link Version}).
+     * @param key The {@link TableKey} to check.
      * @return A CompletableFuture that, when completed, will contain a {@link Boolean} representing the result.
      */
     CompletableFuture<Boolean> exists(@NonNull TableKey key);
@@ -228,9 +182,7 @@ public interface KeyValueTable extends AutoCloseable {
     /**
      * Gets the latest value for a {@link TableKey}.
      *
-     * @param key The {@link TableKey} to get the value for. Only the {@link TableKey#getPrimaryKey()} and
-     *            {@link TableKey#getSecondaryKey()} are considered here; {@link TableKey#getVersion()} is ignored
-     *            (i.e., this retrieves the latest value for a key).
+     * @param key The {@link TableKey} to get the value for.
      * @return A CompletableFuture that, when completed, will contain the requested result. If no such {@link TableKey}
      * exists, this will be completed with a null value.
      */
