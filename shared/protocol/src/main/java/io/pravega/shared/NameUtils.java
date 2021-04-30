@@ -161,6 +161,11 @@ public final class NameUtils {
     @Getter(AccessLevel.PUBLIC)
     private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
 
+    /**
+     * Formatting for internal Segments used for ContainerEventProcessor.
+     */
+    private static final String CONTAINER_EVENT_PROCESSOR_SEGMENT_NAME = "_system/containers/event_processor_%d_%s";
+
     //endregion
 
     /**
@@ -698,6 +703,11 @@ public final class NameUtils {
         String segmentBaseName = NameUtils.getParentStreamSegmentName(segmentQualifiedName);
         return (segmentBaseName == null) ? segmentQualifiedName : segmentBaseName;
     }
+
+    public static String getEventProcessorSegmentName(int containerId, String processorName) {
+        return String.format(CONTAINER_EVENT_PROCESSOR_SEGMENT_NAME, containerId, processorName);
+    }
+
     // endregion
 
     /**

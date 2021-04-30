@@ -49,7 +49,10 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+
 import lombok.Cleanup;
+import lombok.NonNull;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -422,6 +425,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
         @Override
         public CompletableFuture<Void> flushToStorage(Duration timeout) {
+            return null;
+        }
+
+        @Override
+        public EventProcessor forConsumer(@NonNull String name, @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler, @NonNull EventProcessorConfig config) {
             return null;
         }
 

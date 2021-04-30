@@ -23,11 +23,15 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.TypedProperties;
 import io.pravega.segmentstore.contracts.AttributeId;
+=======
+import io.pravega.common.util.*;
+>>>>>>> f3b38a027... First draft of Container Event Processor
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -48,29 +52,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
-import io.pravega.segmentstore.server.CacheManager;
-import io.pravega.segmentstore.server.CachePolicy;
-import io.pravega.segmentstore.server.ContainerOfflineException;
-import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.IllegalContainerStateException;
-import io.pravega.segmentstore.server.OperationLog;
-import io.pravega.segmentstore.server.OperationLogFactory;
-import io.pravega.segmentstore.server.ReadIndex;
-import io.pravega.segmentstore.server.ReadIndexFactory;
-import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.SegmentContainerExtension;
-import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.SegmentMetadata;
-import io.pravega.segmentstore.server.SegmentMetadataComparer;
-import io.pravega.segmentstore.server.SegmentOperation;
-import io.pravega.segmentstore.server.ServiceListeners;
-import io.pravega.segmentstore.server.TestDurableDataLogFactory;
-import io.pravega.segmentstore.server.UpdateableContainerMetadata;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.Writer;
-import io.pravega.segmentstore.server.WriterFactory;
-import io.pravega.segmentstore.server.WriterFlushResult;
-import io.pravega.segmentstore.server.WriterSegmentProcessor;
+import io.pravega.segmentstore.server.*;
 import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
@@ -139,6 +121,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -2108,6 +2091,35 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         container.stopAsync().awaitTerminated();
+    }
+
+    @Test
+    public void testContainerEventProcessor() throws Exception {
+        @Cleanup
+        TestContext context = createContext();
+        val container = (StreamSegmentContainer) context.container;
+        container.startAsync().awaitRunning();
+        ReusableLatch latch = new ReusableLatch();
+        final AtomicReference<String> userEvent = new AtomicReference<>("event1");
+        Function<List<BufferView>, CompletableFuture<Void>> handler = (l) -> {
+            l.forEach(s -> Assert.assertEquals(userEvent.get().length(), s.getLength()));
+            return CompletableFuture.runAsync(latch::release);
+        };
+        ContainerEventProcessor.EventProcessorConfig eventProcessorConfig = new ContainerEventProcessor.EventProcessorConfig(10);
+        ContainerEventProcessor.EventProcessor processor = container.forConsumer("testConsumer", handler, eventProcessorConfig);
+        // Test adding one Event to the EventProcessor and wait for the handle to get executed and unblock this thread.
+        BufferView event = BufferView.builder().add(new ByteArraySegment(userEvent.get().getBytes())).build();
+        processor.add(event, Duration.ofSeconds(10)).join();
+        latch.await();
+        latch.reset();
+        // Test the same with a larger events.
+        userEvent.set("longerEvent2");
+        event = BufferView.builder().add(new ByteArraySegment(userEvent.get().getBytes())).build();
+        processor.add(event, Duration.ofSeconds(10)).join();
+        processor.add(event, Duration.ofSeconds(10)).join();
+        processor.add(event, Duration.ofSeconds(10)).join();
+        latch.await();
+
     }
 
     /**

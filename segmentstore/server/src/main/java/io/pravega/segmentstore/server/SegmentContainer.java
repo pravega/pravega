@@ -29,7 +29,7 @@ import javax.annotation.Nullable;
 /**
  * Defines a Container for StreamSegments.
  */
-public interface SegmentContainer extends StreamSegmentStore, Container {
+public interface SegmentContainer extends StreamSegmentStore, Container, ContainerEventProcessor {
     /**
      * Gets a collection of SegmentProperties for all active Segments (Active Segment = a segment that is currently allocated
      * in the internal Container's Metadata (usually a segment with recent activity)).

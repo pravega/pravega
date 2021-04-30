@@ -37,8 +37,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.val;
 
-import static io.pravega.shared.MetricsTags.containerTag;
-import static io.pravega.shared.MetricsTags.throttlerTag;
+import static io.pravega.shared.MetricsTags.*;
 
 /**
  * General Metrics for the SegmentStore.
@@ -486,6 +485,37 @@ public final class SegmentStoreMetrics {
      */
     public static void recoveryCompleted(long duration, int containerId) {
         DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CONTAINER_RECOVERY_TIME, duration, containerTag(containerId));
+    }
+
+    //endregion
+
+    //region ContainerEventProcessor
+
+    /**
+     * EventProcessor metrics.
+     */
+    public final static class EventProcessor implements AutoCloseable {
+
+        private final OpStatsLogger processingIterationLatency;
+
+        public EventProcessor(String processorName, int containerId) {
+            String[] eventProcessorTags = eventProcessorTag(containerId, processorName);
+            this.processingIterationLatency = STATS_LOGGER.createStats(MetricsNames.CONTAINER_EVENT_PROCESSOR_BATCH_LATENCY, eventProcessorTags);
+        }
+
+        public void batchProcessingLatency(long latency) {
+            this.processingIterationLatency.reportSuccessValue(latency);
+        }
+
+        @Override
+        public void close() {
+            this.processingIterationLatency.close();
+        }
+    }
+
+    public static void outstandingEventProcessorBytes(String processorName, int containerId, long outstandingBytes) {
+        DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CONTAINER_EVENT_PROCESSOR_OUTSTANDING_BYTES, outstandingBytes,
+                eventProcessorTag(containerId, processorName));
     }
 
     //endregion

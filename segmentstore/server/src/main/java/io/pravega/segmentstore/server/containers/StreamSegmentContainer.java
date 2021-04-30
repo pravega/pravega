@@ -42,6 +42,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.AttributeIterator;
+import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
@@ -94,9 +95,11 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -126,6 +129,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final MetadataCleaner metadataCleaner;
     private final AtomicBoolean closed;
     private final SegmentStoreMetrics.Container metrics;
+    private final ContainerEventProcessor containerEventProcessor;
     private final Map<Class<? extends SegmentContainerExtension>, ? extends SegmentContainerExtension> extensions;
     private final ContainerConfig config;
 
@@ -174,6 +178,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 this.executor, this.traceObjectId);
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
+        this.containerEventProcessor = new ContainerEventProcessorImpl(streamSegmentContainerId,
+                getOrCreateContainerProcessorSegment(streamSegmentContainerId, Duration.ofSeconds(10)), this.executor);
+        shutdownWhenStopped(this.containerEventProcessor, "ContainerEventProcessor");
         this.closed = new AtomicBoolean();
     }
 
@@ -240,10 +247,21 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 () -> readStorageSnapshot(config.getStorageSnapshotTimeout()));
     }
 
+    private Function<String, CompletableFuture<DirectSegmentAccess>> getOrCreateContainerProcessorSegment(int containerId,
+                                                                                                          Duration duration) {
+        final SegmentType systemCritical = SegmentType.builder().system().critical().build();
+        return s -> Futures.exceptionallyComposeExpecting(
+                this.forSegment(NameUtils.getEventProcessorSegmentName(containerId, s), duration),
+                e -> e instanceof StreamSegmentNotExistsException,
+                () -> createStreamSegment(NameUtils.getEventProcessorSegmentName(containerId, s), systemCritical, null, duration)
+                        .thenCompose(v -> forSegment(NameUtils.getEventProcessorSegmentName(containerId, s), duration)));
+    }
+
     //endregion
 
     //region AutoCloseable Implementation
 
+    @SneakyThrows
     @Override
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
@@ -257,6 +275,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.attributeIndex.close();
             this.storage.close();
             this.metrics.close();
+            this.containerEventProcessor.close();
             log.info("{}: Closed.", this.traceObjectId);
         }
     }
@@ -333,7 +352,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> startSecondaryServicesAsync() {
         return CompletableFuture.allOf(
                 Services.startAsync(this.metadataCleaner, this.executor),
-                Services.startAsync(this.writer, this.executor));
+                Services.startAsync(this.writer, this.executor),
+                Services.startAsync(this.containerEventProcessor, this.executor));
     }
 
     @Override
@@ -356,6 +376,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         CompletableFuture.allOf(
                 Services.stopAsync(this.metadataCleaner, this.executor),
                 Services.stopAsync(this.writer, this.executor),
+                Services.stopAsync(this.containerEventProcessor, this.executor),
                 Services.stopAsync(this.durableLog, this.executor))
                 .whenCompleteAsync((r, ex) -> {
                     Throwable failureCause = getFailureCause(this.durableLog, this.writer, this.metadataCleaner);
@@ -974,6 +995,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             return desiredPriority;
         }
         return calculatedPriority;
+    }
+
+    @Override
+    public EventProcessor forConsumer(@NonNull String name, @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
+                                      @NonNull EventProcessorConfig config) {
+        return this.containerEventProcessor.forConsumer(name, handler, config);
     }
 
     //endregion
