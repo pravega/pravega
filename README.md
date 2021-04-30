@@ -72,6 +72,23 @@ For eclipse, you can generate eclipse project files by running `./gradlew eclips
 
 The latest pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
 
+## Snapshot artifacts 
+
+All snapshot artifacts from `master` and `release` branches are available in GitHUB Packages Registry 
+
+Add the following to your repositories list and import dependencies as usual. 
+
+```
+maven {
+    url "https://maven.pkg.github.com/pravega/pravega"
+    credentials {
+        username = "pravega"
+        password = "..."
+    }
+}
+```
+Note GitHub Packages requires authentication to download packages thus credentials above are required
+
 ## Quick Start
 
 Read [Getting Started](documentation/src/docs/getting-started/getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications.
