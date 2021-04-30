@@ -37,7 +37,9 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.val;
 
-import static io.pravega.shared.MetricsTags.*;
+import static io.pravega.shared.MetricsTags.containerTag;
+import static io.pravega.shared.MetricsTags.eventProcessorTag;
+import static io.pravega.shared.MetricsTags.throttlerTag;
 
 /**
  * General Metrics for the SegmentStore.
@@ -513,6 +515,13 @@ public final class SegmentStoreMetrics {
         }
     }
 
+    /**
+     * Reports the outstanding bytes for a given {@link EventProcessor}.
+     *
+     * @param processorName      Name for the {@link EventProcessor}.
+     * @param containerId        Container id where the {@link EventProcessor} is running.
+     * @param outstandingBytes   Number of outstanding bytes for the {@link EventProcessor}.
+     */
     public static void outstandingEventProcessorBytes(String processorName, int containerId, long outstandingBytes) {
         DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CONTAINER_EVENT_PROCESSOR_OUTSTANDING_BYTES, outstandingBytes,
                 eventProcessorTag(containerId, processorName));

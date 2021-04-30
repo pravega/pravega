@@ -113,6 +113,13 @@ public final class MetricsTags {
         return new String[] {TAG_SCOPE, scope, TAG_STREAM, stream, TAG_TRANSACTION, transactionId};
     }
 
+    /**
+     * Generate EventProcessor tags (String array) given the event processor name and container id.
+     *
+     * @param containerId         Container id for this EventProcessor.
+     * @param eventProcessorName  Name of the EventProcessor.
+     * @return                    String array with the EventProcessor tags.
+     */
     public static String[] eventProcessorTag(int containerId, String eventProcessorName) {
         return new String[] {TAG_CONTAINER, String.valueOf(containerId), TAG_EVENT_PROCESSOR, eventProcessorName};
     }

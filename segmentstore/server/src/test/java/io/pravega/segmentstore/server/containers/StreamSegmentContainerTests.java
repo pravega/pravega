@@ -2107,11 +2107,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         };
         ContainerEventProcessor.EventProcessorConfig eventProcessorConfig = new ContainerEventProcessor.EventProcessorConfig(10);
         ContainerEventProcessor.EventProcessor processor = container.forConsumer("testConsumer", handler, eventProcessorConfig);
+
         // Test adding one Event to the EventProcessor and wait for the handle to get executed and unblock this thread.
         BufferView event = BufferView.builder().add(new ByteArraySegment(userEvent.get().getBytes())).build();
         processor.add(event, Duration.ofSeconds(10)).join();
         latch.await();
         latch.reset();
+
         // Test the same with a larger events.
         userEvent.set("longerEvent2");
         event = BufferView.builder().add(new ByteArraySegment(userEvent.get().getBytes())).build();
@@ -2119,7 +2121,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         processor.add(event, Duration.ofSeconds(10)).join();
         processor.add(event, Duration.ofSeconds(10)).join();
         latch.await();
-
     }
 
     /**

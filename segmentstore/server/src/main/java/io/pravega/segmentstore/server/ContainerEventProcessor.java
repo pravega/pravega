@@ -38,7 +38,13 @@ public interface ContainerEventProcessor extends AutoCloseable, Service {
     EventProcessor forConsumer(@NonNull String name, @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
                                @NonNull EventProcessorConfig config);
 
-    
+    /**
+     * An {@link EventProcessor} object allows to durably append events to the {@link ContainerEventProcessor} service.
+     * Each {@link EventProcessor} instance has associated an internal Segment and is uniquely identified by its name
+     * within a Segment Container. In addition, it also allows to compute the events stored upon a successful read via
+     * the handler function. The {@link ContainerEventProcessor} is in charge to invoke the handler function for one or
+     * multiple events in FIFO order.
+     */
     @Data
     abstract class EventProcessor implements AutoCloseable {
         private final String name;
@@ -48,6 +54,9 @@ public interface ContainerEventProcessor extends AutoCloseable, Service {
         public abstract CompletableFuture<Long> add(@NonNull BufferView event, Duration timeout);
     }
 
+    /**
+     * This class provides configuration settings for {@link EventProcessor}.
+     */
     @Data
     class EventProcessorConfig {
         private final int maxItemsAtOnce;
