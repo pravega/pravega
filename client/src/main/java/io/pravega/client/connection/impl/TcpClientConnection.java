@@ -101,6 +101,7 @@ public class TcpClientConnection implements ClientConnection {
         private final FlowToBatchSizeTracker flowToBatchSizeTracker;
         private final AtomicBoolean stop = new AtomicBoolean(false);
         private final ReusableLatch hasStopped = new ReusableLatch(false);
+        private final AtomicBoolean isReadingFromSocket = new AtomicBoolean(true);
 
         public ConnectionReader(String name, InputStream in, ReplyProcessor callback, FlowToBatchSizeTracker flowToBatchSizeTracker) {
             this.name = name;
@@ -119,7 +120,14 @@ public class TcpClientConnection implements ClientConnection {
             IoBuffer buffer = new IoBuffer();
             while (!stop.get()) {
                 try {
+                    isReadingFromSocket.set(true);
+                    // This method blocks until it is able to read data from the tcp socket InputStream.
                     WireCommand command = readCommand(in, buffer);
+                    isReadingFromSocket.set(false);
+                    if (stop.get()) {
+                        // stop has already been invoked ignore the message received from the socket.
+                        break;
+                    }
                     if (command instanceof WireCommands.DataAppended) {
                         WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
                         flowToBatchSizeTracker.getAppendBatchSizeTrackerByFlowId(Flow.toFlowID(dataAppended.getRequestId())).recordAck(dataAppended.getEventNumber());
@@ -171,8 +179,11 @@ public class TcpClientConnection implements ClientConnection {
             if (stop.getAndSet(true)) {
                 return;
             }
-            // wait until the ConnectionReader has infact stopped.
-            Exceptions.handleInterrupted(hasStopped::await);
+            if (!isReadingFromSocket.get()) {
+                // wait until we have completed the current call to the reply processors.
+                Exceptions.handleInterrupted(hasStopped::await);
+            }
+            // close the input stream to ensure no further data can be received.
             closeQuietly(in, log, "Got error while shutting down reader {}. ", name);
             callback.connectionDropped();
         }
