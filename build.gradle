@@ -21,7 +21,6 @@ buildscript {
     // log the current JVM version.
     println "Build JVM Version is : " + Jvm.current()
     repositories {
-        jcenter()
         maven {
             url "https://plugins.gradle.org/m2/"
         }
@@ -89,7 +88,6 @@ allprojects {
     apply from: "$rootDir/gradle/rat.gradle"
 
     repositories {
-        jcenter()
         mavenCentral()
         mavenLocal()
     }
