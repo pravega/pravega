@@ -45,7 +45,7 @@ This launches all the components of Pravega on your local machine.
 **Note:** This is for testing/demo purposes only, **do not** use this mode of deployment
 in Production!
 
-More options and additional ways to run Pravega can be found in [Running Pravega](../deployment/deployment.md) guide.
+More options and additional ways to run Pravega can be found in [Running Pravega](deployment/deployment.md) guide.
 
 ```
 $ cd pravega-<version>
