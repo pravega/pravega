@@ -18,6 +18,7 @@ package io.pravega.segmentstore.storage.chunklayer;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -126,7 +127,7 @@ public class SystemJournal {
     /**
      * Indicates whether new chunk is required.
      */
-    final private AtomicBoolean newChunkRequired = new AtomicBoolean();
+    final private AtomicBoolean newChunkRequired = new AtomicBoolean(true);
 
     /**
      * Last successful snapshot.
@@ -303,11 +304,13 @@ public class SystemJournal {
         this.snapshotInfoStore = Preconditions.checkNotNull(snapshotInfoStore, "snapshotInfoStore");
         Preconditions.checkState(!reentryGuard.getAndSet(true), "bootstrap called multiple times.");
 
+        log.debug("SystemJournal[{}] BOOT started.", containerId);
+        Timer t = new Timer();
+
         // Start a transaction
         val txn = metadataStore.beginTransaction(false, getSystemSegments());
 
         val state = new BootstrapState();
-        val snapshotSaved = new AtomicBoolean();
 
         // Step 1: Create metadata records for system segments from latest snapshot.
         return findLatestSnapshot()
@@ -331,16 +334,9 @@ public class SystemJournal {
                     return applyFinalTruncateOffsets(txn, state);
                 }, executor)
                 .thenComposeAsync(v -> {
-                    // Step 5: Validate and save a snapshot.
-                    return validateAndSaveSnapshot(txn, true, config.isSelfCheckEnabled())
-                            .thenComposeAsync(saved -> {
-                                if (saved) {
-                                    snapshotSaved.set(true);
-                                    return writeSnapshotInfo(lastSavedSystemSnapshotId.get());
-                                } else {
-                                    return CompletableFuture.completedFuture(null);
-                                }
-                            }, executor);
+                    // Step 5: Create a snapshot record and validate it. However do not save it yet.
+                    return createSystemSnapshotRecord(txn, true, config.isSelfCheckEnabled())
+                            .thenComposeAsync(systemSnapshotRecord -> checkInvariants(systemSnapshotRecord), executor);
                 }, executor)
                 .thenAcceptAsync(v -> {
                     // Step 6: Check invariants. These should never fail.
@@ -348,9 +344,6 @@ public class SystemJournal {
                         Preconditions.checkState(currentFileIndex.get() == 0, "currentFileIndex must be zero");
                         Preconditions.checkState(systemJournalOffset.get() == 0, "systemJournalOffset must be zero");
                         Preconditions.checkState(newChunkRequired.get(), "newChunkRequired must be true");
-                        if (snapshotSaved.get()) {
-                            Preconditions.checkState(lastSavedSystemSnapshot.get() != null, "lastSavedSystemSnapshot must be initialized");
-                        }
                     }
                 }, executor)
                 .thenComposeAsync(v -> {
@@ -359,10 +352,11 @@ public class SystemJournal {
                 }, executor)
                 .whenCompleteAsync((v, e) -> {
                     txn.close();
-                    log.info("SystemJournal[{}] BOOT complete - applied {} records in {} journals.",
+                    log.info("SystemJournal[{}] BOOT complete - applied {} records in {} journals. Total time = {} ms.",
                             containerId,
                             state.recordsProcessedCount.get(),
-                            state.filesProcessedCount.get());
+                            state.filesProcessedCount.get(),
+                            t.getElapsedMillis());
                 }, executor);
     }
 
@@ -373,7 +367,7 @@ public class SystemJournal {
         if (getConfig().isSelfCheckEnabled()) {
             val snapshotFileName = NameUtils.getSystemJournalSnapshotFileName(containerId, epoch, snapshotId);
             return chunkStorage.exists(snapshotFileName)
-                    .thenAcceptAsync(exists -> Preconditions.checkState(exists, "Snapshot file must exist"), executor);
+                    .thenAcceptAsync(exists -> Preconditions.checkState(exists, "Snapshot chunk must exist"), executor);
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -427,7 +421,7 @@ public class SystemJournal {
                 () -> !done.get() && attempt.get() < config.getMaxJournalWriteAttempts(),
                 () -> writeToJournal(bytes)
                         .thenAcceptAsync(v -> {
-                            log.trace("SystemJournal[{}] Logging system log records - file={}, batch={}.",
+                            log.trace("SystemJournal[{}] Logging system log records - journal={}, batch={}.",
                                     containerId, currentHandle.get().getChunkName(), batch);
                             recordsSinceSnapshot.incrementAndGet();
                             done.set(true);
@@ -468,15 +462,26 @@ public class SystemJournal {
      * Generate a snapshot if required.
      */
     private CompletableFuture<Void> generateSnapshotIfRequired() {
-        // Generate a snapshot when threshold for either time or number batches is reached.
-        if (recordsSinceSnapshot.get() > config.getMaxJournalUpdatesPerSnapshot() ||
-                currentTimeSupplier.get() - lastSavedSnapshotTime.get() > config.getJournalSnapshotInfoUpdateFrequency().toMillis()) {
+        // Generate a snapshot if no snapshot was saved before or when threshold for either time or number batches is reached.
+        boolean shouldGenerate = true;
+        if (lastSavedSystemSnapshot.get() == null) {
+            log.debug("SystemJournal[{}] Generating first snapshot.", containerId);
+        } else if (recordsSinceSnapshot.get() > config.getMaxJournalUpdatesPerSnapshot()) {
+            log.debug("SystemJournal[{}] Generating snapshot based on update threshold. {} updates since last snapshot.", containerId, recordsSinceSnapshot.get());
+        } else if (currentTimeSupplier.get() - lastSavedSnapshotTime.get() > config.getJournalSnapshotInfoUpdateFrequency().toMillis()) {
+            log.debug("SystemJournal[{}] Generating snapshot based on time threshold. current time={} last saved ={}.",
+                    containerId, currentTimeSupplier.get(), lastSavedSnapshotTime.get());
+        } else {
+            shouldGenerate = false;
+        }
+        if (shouldGenerate) {
             // Write a snapshot.
             val txn = metadataStore.beginTransaction(true, getSystemSegments());
             return validateAndSaveSnapshot(txn, true, config.isSelfCheckEnabled())
                     .thenAcceptAsync(saved -> {
                         txn.close();
                         if (saved) {
+                            lastSavedSnapshotTime.set(currentTimeSupplier.get());
                             recordsSinceSnapshot.set(0);
                             // Always start a new journal after snapshot
                             newChunkRequired.set(true);
@@ -496,12 +501,22 @@ public class SystemJournal {
      */
     private CompletableFuture<Void> writeSnapshotInfoIfRequired() {
         // Save if we have generated newer snapshot since last time we saved.
-        if (lastSavedSystemSnapshot.get() != null && lastSavedSnapshotInfo.get() != null
-                && lastSavedSnapshotInfo.get().getSnapshotId() < lastSavedSystemSnapshotId.get()) {
-            return writeSnapshotInfo(lastSavedSystemSnapshotId.get());
-        } else {
-            return CompletableFuture.completedFuture(null);
+        if (lastSavedSystemSnapshot.get() != null) {
+            boolean shouldSave = true;
+            if (lastSavedSnapshotInfo.get() == null) {
+                log.debug("SystemJournal[{}] Saving first snapshot info new={}.", containerId, lastSavedSystemSnapshotId.get());
+            } else if (lastSavedSnapshotInfo.get().getSnapshotId() < lastSavedSystemSnapshotId.get()) {
+                log.debug("SystemJournal[{}] Saving new snapshot info new={} old={}.", containerId,
+                        lastSavedSystemSnapshotId.get(), lastSavedSnapshotInfo.get().getSnapshotId());
+            } else {
+                shouldSave = false;
+            }
+            if (shouldSave) {
+                return writeSnapshotInfo(lastSavedSystemSnapshotId.get());
+            }
         }
+
+        return CompletableFuture.completedFuture(null);
     }
 
     /**
@@ -518,7 +533,6 @@ public class SystemJournal {
                             .thenAcceptAsync(v1 -> {
                                 log.info("SystemJournal[{}] Snapshot info saved.{}", containerId, info);
                                 lastSavedSnapshotInfo.set(info);
-                                lastSavedSnapshotTime.set(currentTimeSupplier.get());
                             }, executor)
                             .exceptionally(e -> {
                                 log.error("Unable to persist snapshot info.{}", currentSnapshotIndex, e);
@@ -545,6 +559,7 @@ public class SystemJournal {
                                 // Step 4: Deserialize and return.
                                 .thenApplyAsync(contents -> readSnapshotRecord(snapshotInfo, contents), executor);
                     } else {
+                        log.info("SystemJournal[{}] No Snapshot info available. This is ok if this is new installation", containerId);
                         return CompletableFuture.completedFuture(null);
                     }
                 }, executor);
@@ -556,7 +571,7 @@ public class SystemJournal {
     private CompletableFuture<Void> checkSnapshotExists(String snapshotFileName) {
         if (getConfig().isSelfCheckEnabled()) {
             return chunkStorage.exists(snapshotFileName)
-                    .thenAcceptAsync(exists -> Preconditions.checkState(exists, "File pointed by SnapshotInfo must exist"), executor);
+                    .thenAcceptAsync(exists -> Preconditions.checkState(exists, "Chunk pointed by SnapshotInfo must exist"), executor);
         } else {
             return CompletableFuture.completedFuture(null);
         }
@@ -591,6 +606,8 @@ public class SystemJournal {
                                                                               BootstrapState state,
                                                                               SystemSnapshotRecord systemSnapshot) {
         if (null != systemSnapshot) {
+            log.debug("SystemJournal[{}] Applying snapshot that includes journals up to epoch={} journal index={}", containerId,
+                    systemSnapshot.epoch, systemSnapshot.fileIndex);
             log.trace("SystemJournal[{}] Processing system log snapshot {}.", containerId, systemSnapshot);
             // Initialize the segments and their chunks.
             for (SegmentSnapshotRecord segmentSnapshot : systemSnapshot.segmentSnapshotRecords) {
@@ -619,6 +636,7 @@ public class SystemJournal {
                 }
             }
         } else {
+            log.debug("SystemJournal[{}] No previous snapshot present.", containerId);
             // Initialize with default values.
             for (String systemSegment : systemSegments) {
                 SegmentMetadata segmentMetadata = SegmentMetadata.builder()
@@ -820,7 +838,8 @@ public class SystemJournal {
             epochToStartScanning.set(systemSnapshotRecord.epoch);
             fileIndexToRecover.set(systemSnapshotRecord.fileIndex + 1);
         }
-
+        log.debug("SystemJournal[{}] Applying journal operations. Starting at epoch={}  journal index={}", containerId,
+                epochToStartScanning.get(), fileIndexToRecover.get());
         // Linearly read and apply all the journal files after snapshot.
         val epochToRecover = new AtomicLong(epochToStartScanning.get());
         return Futures.loop(
@@ -842,6 +861,8 @@ public class SystemJournal {
                                             if (!exists) {
                                                 // File does not exist. We have reached end of our scanning.
                                                 isScanDone.set(true);
+                                                log.debug("SystemJournal[{}] Done applying journal operations for epoch={}. Last journal index={}",
+                                                        containerId, epochToRecover.get(), fileIndexToRecover.get());
                                                 return CompletableFuture.completedFuture(null);
                                             } else {
                                                 // Read contents.
@@ -870,6 +891,7 @@ public class SystemJournal {
                 () -> !isBatchDone.get(),
                 () -> {
                     try {
+                        log.debug("SystemJournal[{}] Processing journal {}.", containerId, systemLogName);
                         val batch = BATCH_SERIALIZER.deserialize(input);
 
                         return Futures.loop(
@@ -878,10 +900,10 @@ public class SystemJournal {
                                         .thenApply(r -> true),
                                 executor);
                     } catch (EOFException e) {
-                        log.debug("SystemJournal[{}] Done processing file {}.", containerId, systemLogName);
+                        log.debug("SystemJournal[{}] Done processing journal {}.", containerId, systemLogName);
                         isBatchDone.set(true);
                     } catch (Exception e) {
-                        log.error("SystemJournal[{}] Error file {}.", containerId, systemLogName, e);
+                        log.error("SystemJournal[{}] Error while processing journal {}.", containerId, systemLogName, e);
                         throw new CompletionException(e);
                     }
                     return CompletableFuture.completedFuture(null);
@@ -947,7 +969,11 @@ public class SystemJournal {
                                                     Preconditions.checkState(null != lastChunk, "lastChunk must not be null. Segment=%s", segmentMetadata);
                                                     lastChunk.setLength(length);
                                                     txn.update(lastChunk);
-                                                    segmentMetadata.setLength(segmentMetadata.getLastChunkStartOffset() + length);
+                                                    val newLength = segmentMetadata.getLastChunkStartOffset() + length;
+                                                    segmentMetadata.setLength(newLength);
+                                                    log.debug("SystemJournal[{}] Adjusting length of last chunk segment. segment={}, length={} chunk={}, chunk length={}",
+                                                            containerId, segmentMetadata.getName(), length, lastChunk.getName(), newLength);
+
                                                 }, executor);
                                     }, executor);
                         } else {
@@ -958,7 +984,7 @@ public class SystemJournal {
                             segmentMetadata.checkInvariants();
 
                             return segmentMetadata;
-                        });
+                        }, executor);
                     }, executor)
                     .thenAcceptAsync(segmentMetadata -> txn.update(segmentMetadata), executor);
             futures.add(f);

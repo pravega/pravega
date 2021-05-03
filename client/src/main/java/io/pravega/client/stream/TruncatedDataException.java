@@ -15,6 +15,9 @@
  */
 package io.pravega.client.stream;
 
+/**
+ * TruncatedDataException is thrown if the data to be read next has been truncated away and can no longer be read.
+ */
 public class TruncatedDataException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
