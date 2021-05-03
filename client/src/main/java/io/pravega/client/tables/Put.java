@@ -45,9 +45,11 @@ public final class Put extends TableEntryUpdate {
      * @param value   The Value to associate with {@link TableKey}.
      * @param version (Optional) The {@link Version} to condition the update on. This can be retrieved from
      *                {@link TableEntry#getVersion()} or it may be {@link Version#NOT_EXISTS} or {@link Version#NO_VERSION}.
+     *                If {@code null}, this will be substituted with {@link Version#NO_VERSION}, which makes this
+     *                operation an Unconditional Update.
      */
     public Put(TableKey key, ByteBuffer value, @Nullable Version version) {
         super(key, value);
-        this.version = version;
+        this.version = version == null ? Version.NO_VERSION : version;
     }
 }

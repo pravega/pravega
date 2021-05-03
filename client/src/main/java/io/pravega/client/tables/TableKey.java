@@ -21,11 +21,11 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 /**
- * A {@link KeyValueTable} Key with a {@link Version}.
+ * A {@link KeyValueTable} Key.
  */
 @Data
 @RequiredArgsConstructor
-public class TableKey {
+public final class TableKey {
     /**
      * The Primary Key.
      *

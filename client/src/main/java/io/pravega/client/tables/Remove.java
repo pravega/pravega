@@ -42,10 +42,12 @@ public final class Remove extends TableModification {
      * @param key     The {@link TableKey} to remove.
      * @param version Optional) The {@link Version} to condition the removal on. This can be retrieved from
      *                {@link TableEntry#getVersion()} or it may be {@link Version#NOT_EXISTS} or {@link Version#NO_VERSION}.
+     *                If {@code null}, this will be substituted with {@link Version#NO_VERSION}, which makes this
+     *                operation an Unconditional Update.
      */
     public Remove(TableKey key, @Nullable Version version) {
         super(key);
-        this.version = version;
+        this.version = version == null ? Version.NO_VERSION : version;
     }
 
     @Override

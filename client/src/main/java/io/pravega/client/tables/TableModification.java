@@ -42,7 +42,7 @@ public abstract class TableModification {
     /**
      * Gets a {@link Version} that may condition the modification. See {@link KeyValueTable} for details on conditional
      * updates.
-     * @return The {@link Version}, or null. If null, this modification is unconditional.
+     * @return The {@link Version}.
      */
     @Nullable
     public abstract Version getVersion();

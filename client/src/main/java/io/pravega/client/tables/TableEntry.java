@@ -23,7 +23,7 @@ import lombok.NonNull;
  * A {@link KeyValueTable} Entry.
  */
 @Data
-public class TableEntry {
+public final class TableEntry {
     /**
      * The {@link TableKey}.
      *
