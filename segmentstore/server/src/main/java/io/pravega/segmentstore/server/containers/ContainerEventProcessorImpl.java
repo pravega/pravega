@@ -70,6 +70,8 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
     private final AtomicBoolean closed;
     private final ScheduledExecutorService executor;
 
+    //region Constructor
+
     ContainerEventProcessorImpl(int containerId, @NonNull Function<String, CompletableFuture<DirectSegmentAccess>> segmentSupplier,
                                 @NonNull ScheduledExecutorService executor) {
         this.containerId = containerId;
@@ -78,6 +80,11 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
         this.closed = new AtomicBoolean(false);
     }
 
+    //endregion
+
+    //region ContainerEventProcessor Implementation
+
+    @Override
     public EventProcessor forConsumer(@NonNull String name, @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
                                @NonNull EventProcessorConfig config) {
         // If the EventProcessor is already loaded, just return it.
@@ -89,84 +96,6 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
         DirectSegmentAccess segment = segmentSupplier.apply(name).join();
         eventProcessorMap.put(name, new EventProcessorImpl(name, segment, handler, config));
         return eventProcessorMap.get(name);
-    }
-
-    @Override
-    protected void startUp() throws Exception {
-        // A ContainerEventProcessor iteration is made of the following stages:
-        // 1. For each EventProcessor registered, read at most getMaxItemsAtOnce events and invoke the appropriate handler.
-        // 2. The collected results are passed to the handler function in EventProcessor.
-        // 3. For each EventProcessor registered, truncate its internal Segment according to the last successfully processed event.
-        // 4. Report metrics for each EventProcessor registered.
-        log.info("Starting ContainerEventProcessor service.");
-        Futures.loop(
-                () -> !closed.get(),
-                () -> Futures.delayedFuture(ITERATION_SLEEP, this.executor)
-                             .thenRunAsync(this::processEvents, this.executor)
-                             .thenRunAsync(this::reportMetrics, this.executor),
-                executor);
-    }
-
-    /**
-     * Returns a {@link CompletableFuture} that results from the execution of the following tasks for each EventProcessor:
-     * i) getting the last processed event offset, ii) read at most {@link EventProcessorConfig#getMaxItemsAtOnce()}, 
-     * iii) execute the handler function for the {@link EventProcessor}, and iv) truncate the internal Segment.
-     */
-    private CompletableFuture<Void> processEvents() {
-        final Timer iterationTime = new Timer();
-        List<CompletableFuture<Object>> futures = new ArrayList<>();
-        for (EventProcessorImpl ep : eventProcessorMap.values()) {
-            // Call the EventProcessor handler with the read items.
-            futures.add(readEventsForEventProcessor(ep)
-                    .thenApplyAsync(readResult -> {
-                        try {
-                            // This executes the handler function, which is code outside this class. Let's catch any
-                            // kind of exception and re-throw it as a cause for CompletionException.
-                            ep.getHandler().apply(readResult.getEventsRead());
-                            return readResult;
-                        } catch (Exception e) {
-                            log.warn("Exception invoking handler for EventProcessor {}.", ep.getName(), e);
-                            throw new CompletionException(e);
-                        }
-                    }, this.executor)
-                    .thenApplyAsync(readResult -> truncateInternalSegment(ep, readResult, iterationTime), this.executor)
-                    .handleAsync((r, ex) -> {
-                        if (ex != null) {
-                            log.warn("Processing iteration failed for EventProcessor {}, retrying.", ep.getName(), ex);
-                            ep.lastIterationLatency.set(-1); // Do not report latency, as there has been a failure.
-                            return null;
-                        }
-                        return r;
-                    }));
-        }
-        return Futures.allOf(futures);
-    }
-
-    /**
-     * Reports the metrics for each EventProcessor once the processing iteration is complete.
-     */
-    private void reportMetrics() {
-        for (EventProcessorImpl ep : eventProcessorMap.values()) {
-            SegmentStoreMetrics.outstandingEventProcessorBytes(ep.getName(), this.containerId, ep.outstandingBytes.get());
-            // Only report the last iteration processing latency if it has been successful.
-            if (ep.lastIterationLatency.get() >= 0) {
-                ep.metrics.batchProcessingLatency(ep.lastIterationLatency.get());
-            }
-        }
-    }
-
-    @Override
-    protected void shutDown() throws Exception {
-        log.info("Shutting down ContainerEventProcessor service.");
-        eventProcessorMap.forEach((k, v) -> v.close());
-        eventProcessorMap.clear();
-        log.info("Shut down of ContainerEventProcessor service complete.");
-    }
-
-    @Override
-    public void close() {
-        log.info("Closing ContainerEventProcessor service.");
-        closed.set(true);
     }
 
     class EventProcessorImpl extends ContainerEventProcessor.EventProcessor {
@@ -198,12 +127,100 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
             // Appends may be variable in size. We encode each event as [EVENT_LENGTH + EVENT_DATA]. This is needed to
             // understand the boundaries of events in the absence of an actual notion of event.
             return segment.append(BufferView.builder().add(intToByteArraySegment(event.getLength())).add(event).build(), null, timeout)
-                          .thenApply(offset -> outstandingBytes.addAndGet(event.getLength() + Integer.BYTES));
+                    .thenApply(offset -> outstandingBytes.addAndGet(event.getLength() + Integer.BYTES));
         }
 
         @Override
         public void close() {
             metrics.close();
+        }
+    }
+
+    @Override
+    public void close() {
+        log.info("Closing ContainerEventProcessor service.");
+        closed.set(true);
+    }
+
+    //endregion
+
+    //region AbstractService Implementation
+
+    @Override
+    protected void shutDown() throws Exception {
+        log.info("Shutting down ContainerEventProcessor service.");
+        eventProcessorMap.forEach((k, v) -> v.close());
+        eventProcessorMap.clear();
+        log.info("Shut down of ContainerEventProcessor service complete.");
+    }
+
+    @Override
+    protected void startUp() throws Exception {
+        // A ContainerEventProcessor iteration is made of the following stages:
+        // 1. For each EventProcessor registered, read at most getMaxItemsAtOnce events and invoke the appropriate handler.
+        // 2. The collected results are passed to the handler function in EventProcessor.
+        // 3. For each EventProcessor registered, truncate its internal Segment according to the last successfully processed event.
+        // 4. Report metrics for each EventProcessor registered.
+        log.info("Starting ContainerEventProcessor service.");
+        Futures.loop(
+                () -> !closed.get(),
+                () -> Futures.delayedFuture(ITERATION_SLEEP, this.executor)
+                             .thenRunAsync(this::processEvents, this.executor)
+                             .thenRunAsync(this::reportMetrics, this.executor),
+                executor);
+    }
+
+    /**
+     * Returns a {@link CompletableFuture} that results from the execution of the following tasks for each EventProcessor:
+     * i) getting the last processed event offset, ii) read at most {@link EventProcessorConfig#getMaxItemsAtOnce()},
+     * iii) execute the handler function for the {@link EventProcessor}, and iv) truncate the internal Segment.
+     */
+    private CompletableFuture<Void> processEvents() {
+        final Timer iterationTime = new Timer();
+        List<CompletableFuture<Object>> futures = new ArrayList<>();
+        for (EventProcessorImpl ep : eventProcessorMap.values()) {
+            // Call the EventProcessor handler with the read items.
+            futures.add(readEventsForEventProcessor(ep)
+                    .thenApplyAsync(readResult -> applyProcessorHandler(ep, readResult), this.executor)
+                    .thenApplyAsync(readResult -> updateAndTruncateInternalSegment(ep, readResult, iterationTime), this.executor)
+                    .handleAsync((r, ex) -> {
+                        if (ex != null) {
+                            if (ex instanceof NoDataAvailableException) {
+                                log.debug("{}: Nothing else to read.", ep.getName());
+                            } else {
+                                log.warn("Processing iteration failed for EventProcessor {}, retrying.", ep.getName(), ex);
+                            }
+                            ep.lastIterationLatency.set(-1); // Do not report latency, as there has been a failure.
+                            return null;
+                        }
+                        return r;
+                    }));
+        }
+        return Futures.allOf(futures);
+    }
+
+    /**
+     * Reports the metrics for each EventProcessor once the processing iteration is complete.
+     */
+    private void reportMetrics() {
+        for (EventProcessorImpl ep : eventProcessorMap.values()) {
+            SegmentStoreMetrics.outstandingEventProcessorBytes(ep.getName(), this.containerId, ep.outstandingBytes.get());
+            // Only report the last iteration processing latency if it has been successful.
+            if (ep.lastIterationLatency.get() >= 0) {
+                ep.metrics.batchProcessingLatency(ep.lastIterationLatency.get());
+            }
+        }
+    }
+
+    private EventsReadAndTruncationPoints applyProcessorHandler(EventProcessorImpl ep, EventsReadAndTruncationPoints readResult) {
+        try {
+            // This executes the handler function, which is code outside this class. Let's catch any
+            // kind of exception and re-throw it as a cause for CompletionException.
+            ep.getHandler().apply(readResult.getEventsRead());
+            return readResult;
+        } catch (Exception e) {
+            log.warn("Exception invoking handler for EventProcessor {}.", ep.getName(), e);
+            throw new CompletionException(e);
         }
     }
 
@@ -215,8 +232,7 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
     private EventsReadAndTruncationPoints readEventsFromSegment(EventProcessorImpl eventProcessor, int currentOffset) {
         List<BufferView> readEvents = new ArrayList<>();
         int finalTruncationOffset = currentOffset;
-        boolean isThereDataToRead = true;
-        while (isThereDataToRead && readEvents.size() < eventProcessor.getConfig().getMaxItemsAtOnce()) {
+        while (readEvents.size() < eventProcessor.getConfig().getMaxItemsAtOnce()) {
             try {
                 int appendLength = bufferViewToInt(readAppendOfLength(eventProcessor.segment, finalTruncationOffset, Integer.BYTES));
                 finalTruncationOffset += Integer.BYTES;
@@ -224,22 +240,23 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
                 readEvents.add(data);
                 finalTruncationOffset += data.getLength();
             } catch (Exception e) {
-                if (e instanceof TimeoutException) {
-                    log.debug("{}: Nothing else to read.", eventProcessor.getName());
-                } else {
-                    log.warn("{}: Unexpected exception reading from internal Segment.", eventProcessor.getName(), e);
+                // We got some data, do not throw, just stop looping.
+                if (!readEvents.isEmpty()) {
+                    break;
                 }
-                isThereDataToRead = false;
+                // TimeoutException is expected if there is no data in the Segment. Otherwise it may be a problem.
+                throw (e instanceof TimeoutException) ? new NoDataAvailableException() : new CompletionException(e);
             }
         }
         return new EventsReadAndTruncationPoints(readEvents, currentOffset, finalTruncationOffset);
     }
 
-    private CompletableFuture<Void> truncateInternalSegment(EventProcessorImpl ep, EventsReadAndTruncationPoints readResult,
-                                                            Timer iterationTime) {
+    private CompletableFuture<Void> updateAndTruncateInternalSegment(EventProcessorImpl ep,
+                                                                     EventsReadAndTruncationPoints readResult,
+                                                                     Timer iterationTime) {
         return updateLastProcessedEventOffset(ep.segment, readResult.getFinalTruncationOffset())
                 .thenCompose(v -> ep.segment.truncate(readResult.getFinalTruncationOffset(), OPERATION_TIMEOUT))
-                .thenAccept(v ->{
+                .thenAccept(v -> {
                     // Decrement outstanding bytes and publish the last latency value after successful truncation.
                     ep.outstandingBytes.addAndGet(-readResult.getReadBytes());
                     ep.lastIterationLatency.set(iterationTime.getElapsedMillis());
@@ -248,10 +265,10 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
 
     private BufferView readAppendOfLength(DirectSegmentAccess segment, int offset, int length) throws Exception {
         @Cleanup
-        ReadResult readResult = segment.read(offset, length, Duration.ofMillis(10));
+        ReadResult readResult = segment.read(offset, length, OPERATION_TIMEOUT);
         ReadResultEntry entry = readResult.next();
-        entry.requestContent(Duration.ofMillis(10));
-        return entry.getContent().get(10, TimeUnit.MILLISECONDS);
+        entry.requestContent(OPERATION_TIMEOUT);
+        return entry.getContent().get(OPERATION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private int bufferViewToInt(BufferView appendLengthContent) throws IOException {
@@ -278,12 +295,12 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
         private final int initialTruncationOffset;
         private final int finalTruncationOffset;
 
-        public boolean hasReadEvents() {
-            return eventsRead != null && eventsRead.size() > 0;
-        }
-
         public int getReadBytes() {
             return finalTruncationOffset - initialTruncationOffset;
         }
     }
+
+    private static class NoDataAvailableException extends RuntimeException {}
+
+    //endregion
 }

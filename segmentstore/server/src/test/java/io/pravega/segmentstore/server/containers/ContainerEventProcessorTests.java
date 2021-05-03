@@ -72,7 +72,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         // Ensure that no batch processed more than maxItemsProcessed.
         Assert.assertFalse(failedAssertion.get());
         // Ensure that the outstanding bytes metric has been set to 0.
-        BufferView event = BufferView.builder().add(new ByteArraySegment(("event").getBytes())).build();
+        BufferView event = BufferView.builder().add(new ByteArraySegment("event".getBytes())).build();
         Assert.assertEquals(0, processor.add(event, Duration.ofSeconds(10)).join().intValue() - (event.getLength() + Integer.BYTES));
     }
 
@@ -97,7 +97,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         ContainerEventProcessor.EventProcessor processor = eventProcessorService.forConsumer("testSegment", handler, config);
 
         // Write an event and wait for the event to be processed.
-        BufferView event = BufferView.builder().add(new ByteArraySegment(("event").getBytes())).build();
+        BufferView event = BufferView.builder().add(new ByteArraySegment("event".getBytes())).build();
         processor.add(event, Duration.ofSeconds(10)).join();
 
         // Wait until the processor perform  10 retries of the same event.
@@ -171,8 +171,8 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         boolean foundMaxOutstandingLimit = false;
 
         // Write a lot of data with the ContainerEventProcessor not started, so we ensure we get the max outstanding exception.
-        BufferView event = BufferView.builder().add(new ByteArraySegment(("This needs to be a long string to reach the limit sooner!!!").getBytes())).build();
-        while (!foundMaxOutstandingLimit){
+        BufferView event = BufferView.builder().add(new ByteArraySegment("This needs to be a long string to reach the limit sooner!!!".getBytes())).build();
+        while (!foundMaxOutstandingLimit) {
             try {
                 processor.add(event, Duration.ofSeconds(10)).join();
                 processorResults.decrementAndGet();
