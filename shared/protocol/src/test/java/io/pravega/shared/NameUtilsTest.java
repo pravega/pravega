@@ -178,4 +178,20 @@ public class NameUtilsTest {
         Assert.assertTrue(NameUtils.getSegmentChunkName("segment", 8, 9).startsWith("segment.E-8-O-9"));
         Assert.assertEquals(NameUtils.getSegmentReadIndexBlockName("segment", 10), "segment.B-10");
     }
+
+    @Test
+    public void testIsContainerMetadataSegmentName() {
+        Assert.assertTrue(NameUtils.isMetadataSegmentName("_system/containers/metadata_1"));
+        Assert.assertTrue(NameUtils.isMetadataSegmentName("_system/containers/metadata_99"));
+        Assert.assertFalse(NameUtils.isMetadataSegmentName("_system/containers/_metadata_1"));
+        Assert.assertFalse(NameUtils.isMetadataSegmentName("system/containers/metadata_1"));
+    }
+
+    @Test
+    public void testIsStorageMetadataSegmentName() {
+        Assert.assertTrue(NameUtils.isStorageMetadataSegmentName("_system/containers/storage_metadata_1"));
+        Assert.assertTrue(NameUtils.isStorageMetadataSegmentName("_system/containers/storage_metadata_99"));
+        Assert.assertFalse(NameUtils.isStorageMetadataSegmentName("_system/containers/_storage_metadata_1"));
+        Assert.assertFalse(NameUtils.isStorageMetadataSegmentName("system/containers/storage_metadata_1"));
+    }
 }

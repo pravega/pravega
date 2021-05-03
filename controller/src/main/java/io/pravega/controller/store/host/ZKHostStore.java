@@ -74,7 +74,7 @@ public class ZKHostStore implements HostControllerStore {
 
         zkClient = client;
         zkPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
-        segmentMapper = new SegmentToContainerMapper(containerCount);
+        segmentMapper = new SegmentToContainerMapper(containerCount, true);
         hostContainerMapNode = new NodeCache(zkClient, zkPath);
         hostContainerMap = new AtomicReference<>(HostContainerMap.EMPTY);
         listenerRef = new AtomicReference<>();

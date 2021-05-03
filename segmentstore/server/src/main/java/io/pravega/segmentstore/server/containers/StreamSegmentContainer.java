@@ -653,7 +653,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 new AttributeUpdate(ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH, AttributeUpdateType.Replace, checkpoint.getEpoch()));
         return this.metadataStore.getOrAssignSegmentId(NameUtils.getMetadataSegmentName(this.metadata.getContainerId()), timer.getRemaining(),
                 streamSegmentId -> updateAttributesForSegment(streamSegmentId, attributeUpdates, timer.getRemaining()))
-                .thenRunAsync(() -> log.debug("{}: Save SLTS snapshot. {}", this.traceObjectId, checkpoint));
+                .thenRun(() -> log.debug("{}: Save SLTS snapshot. {}", this.traceObjectId, checkpoint));
     }
 
     //region SegmentContainer Implementation

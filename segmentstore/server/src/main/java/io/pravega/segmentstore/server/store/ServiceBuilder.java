@@ -259,7 +259,7 @@ public class ServiceBuilder implements AutoCloseable {
     //region Component Builders
 
     protected SegmentToContainerMapper createSegmentToContainerMapper(ServiceConfig serviceConfig) {
-        return new SegmentToContainerMapper(serviceConfig.getContainerCount());
+        return new SegmentToContainerMapper(serviceConfig.getContainerCount(), serviceConfig.isEnableAdminGateway());
     }
 
     protected WriterFactory createWriterFactory() {
@@ -420,7 +420,7 @@ public class ServiceBuilder implements AutoCloseable {
 
         @Override
         protected SegmentToContainerMapper createSegmentToContainerMapper(ServiceConfig serviceConfig) {
-            return new SegmentToContainerMapper(READONLY_CONTAINER_COUNT);
+            return new SegmentToContainerMapper(READONLY_CONTAINER_COUNT, serviceConfig.isEnableAdminGateway());
         }
 
         @Override
