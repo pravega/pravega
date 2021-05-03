@@ -68,6 +68,8 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mockito.Mock;
 
@@ -83,27 +85,25 @@ public abstract class TimeoutServiceTest {
     private final static long LEASE = 2000;
     private final static int RETRY_DELAY = 1000;
 
-    protected ScheduledExecutorService executor;
-    protected CuratorFramework client;
+    protected static ScheduledExecutorService executor;
+    protected static CuratorFramework client;
     protected SegmentHelper segmentHelper;
 
     private StreamMetadataStore streamStore;
     private TimerWheelTimeoutService timeoutService;
     private ControllerService controllerService;
-    private TestingServer zkTestServer;
+    private static TestingServer zkTestServer;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private StoreClient storeClient;
+    private static StoreClient storeClient;
     private RequestTracker requestTracker = new RequestTracker(true);
     @Mock
     private KVTableMetadataStore kvtStore;
     @Mock
     private TableMetadataTasks kvtMetadataTasks;
 
-    @Before
-    public void setUp() throws Exception {
-        final String hostId = "host";
-
+    @BeforeClass
+    public static void setUpOnce() throws Exception {
         // Instantiate test ZK service.
         zkTestServer = new TestingServerStarter().start();
         String connectionString = zkTestServer.getConnectString();
@@ -113,9 +113,22 @@ public abstract class TimeoutServiceTest {
         // Initialize ZK client.
         client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
         client.start();
+        storeClient = StoreClientFactory.createZKStoreClient(client);
+    }
+
+    @AfterClass
+    public static void tearDownOnce() throws Exception {
+        ExecutorServiceHelpers.shutdown(executor);
+        client.close();
+        storeClient.close();
+        zkTestServer.close();
+    }
+
+    @Before
+    public void setUp() throws Exception {
+        final String hostId = "host";
 
         // Create STREAM store, host store, and task metadata store.
-        storeClient = StoreClientFactory.createZKStoreClient(client);
         segmentHelper = getSegmentHelper();
         streamStore = getStore();
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
@@ -156,12 +169,8 @@ public abstract class TimeoutServiceTest {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         streamStore.close();
-        ExecutorServiceHelpers.shutdown(executor);
         timeoutService.stopAsync();
         timeoutService.awaitTerminated();
-        client.close();
-        storeClient.close();
-        zkTestServer.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();
     }
