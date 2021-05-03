@@ -24,9 +24,11 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
+import lombok.Cleanup;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -40,8 +42,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -49,11 +51,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+/**
+ * Implementation for {@link ContainerEventProcessor}. This class stores a map of {@link ContainerEventProcessor.EventProcessor}
+ * identified by name. Once this service is started, it will continuously perform processing iterations tailing the
+ * internal Segments of the registered {@link ContainerEventProcessor.EventProcessor}s (every ITERATION_SLEEP ms) and
+ * (safely) invoking their respective handler functions.
+ */
 @Slf4j
 public final class ContainerEventProcessorImpl extends AbstractIdleService implements ContainerEventProcessor {
 
-    private static final UUID LAST_PROCESSED_EVENT_OFFSET = new UUID(0, 0); //TODO: What is a good AttributeID here?
-    private static final Duration OPERATION_TIMEOUT = Duration.ofMillis(500);
+    private static final UUID LAST_PROCESSED_EVENT_OFFSET = new UUID(0, 0);
+    private static final Duration ITERATION_SLEEP = Duration.ofMillis(100); // Execute 10 iterations per second at most.
+    private static final Duration OPERATION_TIMEOUT = Duration.ofMillis(20);
 
     private final int containerId;
     private final Map<String, EventProcessorImpl> eventProcessorMap = new ConcurrentHashMap<>();
@@ -92,41 +101,55 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
         log.info("Starting ContainerEventProcessor service.");
         Futures.loop(
                 () -> !closed.get(),
-                () -> Futures.delayedFuture(OPERATION_TIMEOUT, this.executor)
+                () -> Futures.delayedFuture(ITERATION_SLEEP, this.executor)
                              .thenRunAsync(this::processEvents, this.executor)
                              .thenRunAsync(this::reportMetrics, this.executor),
                 executor);
-
     }
 
+    /**
+     * Returns a {@link CompletableFuture} that results from the execution of the following tasks for each EventProcessor:
+     * i) getting the last processed event offset, ii) read at most {@link EventProcessorConfig#getMaxItemsAtOnce()}, 
+     * iii) execute the handler function for the {@link EventProcessor}, and iv) truncate the internal Segment.
+     */
     private CompletableFuture<Void> processEvents() {
         final Timer iterationTime = new Timer();
         List<CompletableFuture<Object>> futures = new ArrayList<>();
         for (EventProcessorImpl ep : eventProcessorMap.values()) {
-            EventsReadAndTruncationPoints readResult = readEventsForEventProcessor(ep);
-            if (readResult.hasReadEvents()) {
-                // Call the EventProcessor handler with the read items.
-                futures.add(ep.getHandler()
-                       .apply(readResult.getEventsRead())
-                       .handleAsync((r, ex) -> {
-                           if (ex == null) {
-                               // Truncate the Segment to the last successfully processed event.
-                               return truncateInternalSegment(ep, readResult, iterationTime);
-                           }
-                           log.warn("Exception when invoking handler, retrying.", ex);
-                           ep.lastIterationLatency.set(0);
-                           return CompletableFuture.completedFuture(null);
-                       }));
-            }
+            // Call the EventProcessor handler with the read items.
+            futures.add(readEventsForEventProcessor(ep)
+                    .thenApplyAsync(readResult -> {
+                        try {
+                            // This executes the handler function, which is code outside this class. Let's catch any
+                            // kind of exception and re-throw it as a cause for CompletionException.
+                            ep.getHandler().apply(readResult.getEventsRead());
+                            return readResult;
+                        } catch (Exception e) {
+                            log.warn("Exception invoking handler for EventProcessor {}.", ep.getName(), e);
+                            throw new CompletionException(e);
+                        }
+                    }, this.executor)
+                    .thenApplyAsync(readResult -> truncateInternalSegment(ep, readResult, iterationTime), this.executor)
+                    .handleAsync((r, ex) -> {
+                        if (ex != null) {
+                            log.warn("Processing iteration failed for EventProcessor {}, retrying.", ep.getName(), ex);
+                            ep.lastIterationLatency.set(-1); // Do not report latency, as there has been a failure.
+                            return null;
+                        }
+                        return r;
+                    }));
         }
         return Futures.allOf(futures);
     }
 
+    /**
+     * Reports the metrics for each EventProcessor once the processing iteration is complete.
+     */
     private void reportMetrics() {
         for (EventProcessorImpl ep : eventProcessorMap.values()) {
             SegmentStoreMetrics.outstandingEventProcessorBytes(ep.getName(), this.containerId, ep.outstandingBytes.get());
             // Only report the last iteration processing latency if it has been successful.
-            if (ep.lastIterationLatency.get() > 0) {
+            if (ep.lastIterationLatency.get() >= 0) {
                 ep.metrics.batchProcessingLatency(ep.lastIterationLatency.get());
             }
         }
@@ -172,10 +195,10 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
             Preconditions.checkState(outstandingBytes.get() < MAX_OUTSTANDING_BYTES,
                     "Too many outstanding events for {}.", this.getName());
 
-            // Appends may be of variable size. We encode each event as [EVENT_LENGTH + EVENT_DATA]. This is needed to
-            // understand the boundaries of events in the absence of serialization and an actual notion of event.
+            // Appends may be variable in size. We encode each event as [EVENT_LENGTH + EVENT_DATA]. This is needed to
+            // understand the boundaries of events in the absence of an actual notion of event.
             return segment.append(BufferView.builder().add(intToByteArraySegment(event.getLength())).add(event).build(), null, timeout)
-                          .thenApply(outstandingBytes::addAndGet);
+                          .thenApply(offset -> outstandingBytes.addAndGet(event.getLength() + Integer.BYTES));
         }
 
         @Override
@@ -184,25 +207,32 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
         }
     }
 
-    private EventsReadAndTruncationPoints readEventsForEventProcessor(EventProcessorImpl eventProcessor) {
+    private CompletableFuture<EventsReadAndTruncationPoints> readEventsForEventProcessor(EventProcessorImpl eventProcessor) {
+        return getLastProcessedEventOffset(eventProcessor.segment)
+                .thenApplyAsync(currentOffset -> readEventsFromSegment(eventProcessor, currentOffset), this.executor);
+    }
+
+    private EventsReadAndTruncationPoints readEventsFromSegment(EventProcessorImpl eventProcessor, int currentOffset) {
         List<BufferView> readEvents = new ArrayList<>();
-        int finalTruncationOffset, initialTruncationOffset;
-        finalTruncationOffset = initialTruncationOffset = getLastProcessedEventOffset(eventProcessor.segment);
+        int finalTruncationOffset = currentOffset;
         boolean isThereDataToRead = true;
-        while (isThereDataToRead && readEvents.size() <= eventProcessor.getConfig().getMaxItemsAtOnce()) {
+        while (isThereDataToRead && readEvents.size() < eventProcessor.getConfig().getMaxItemsAtOnce()) {
             try {
                 int appendLength = bufferViewToInt(readAppendOfLength(eventProcessor.segment, finalTruncationOffset, Integer.BYTES));
                 finalTruncationOffset += Integer.BYTES;
                 BufferView data = readAppendOfLength(eventProcessor.segment, finalTruncationOffset, appendLength);
                 readEvents.add(data);
                 finalTruncationOffset += data.getLength();
-            } catch (ExecutionException | InterruptedException | TimeoutException | IOException e) {
-                log.debug("{}: Nothing else to read.", eventProcessor.getName());
+            } catch (Exception e) {
+                if (e instanceof TimeoutException) {
+                    log.debug("{}: Nothing else to read.", eventProcessor.getName());
+                } else {
+                    log.warn("{}: Unexpected exception reading from internal Segment.", eventProcessor.getName(), e);
+                }
                 isThereDataToRead = false;
             }
         }
-
-        return new EventsReadAndTruncationPoints(readEvents, initialTruncationOffset, finalTruncationOffset);
+        return new EventsReadAndTruncationPoints(readEvents, currentOffset, finalTruncationOffset);
     }
 
     private CompletableFuture<Void> truncateInternalSegment(EventProcessorImpl ep, EventsReadAndTruncationPoints readResult,
@@ -210,36 +240,36 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
         return updateLastProcessedEventOffset(ep.segment, readResult.getFinalTruncationOffset())
                 .thenCompose(v -> ep.segment.truncate(readResult.getFinalTruncationOffset(), OPERATION_TIMEOUT))
                 .thenAccept(v ->{
-                    ep.outstandingBytes.addAndGet(-readResult.getReadBytes()); // Decrement outstanding bytes
+                    // Decrement outstanding bytes and publish the last latency value after successful truncation.
+                    ep.outstandingBytes.addAndGet(-readResult.getReadBytes());
                     ep.lastIterationLatency.set(iterationTime.getElapsedMillis());
                 });
     }
 
-    private BufferView readAppendOfLength(DirectSegmentAccess segment, int offset, int length) throws ExecutionException,
-            InterruptedException, TimeoutException {
+    private BufferView readAppendOfLength(DirectSegmentAccess segment, int offset, int length) throws Exception {
+        @Cleanup
         ReadResult readResult = segment.read(offset, length, Duration.ofMillis(10));
-        BufferView content = readResult.next().getContent().get(10, TimeUnit.MILLISECONDS);
-        readResult.close();
-        return content;
+        ReadResultEntry entry = readResult.next();
+        entry.requestContent(Duration.ofMillis(10));
+        return entry.getContent().get(10, TimeUnit.MILLISECONDS);
     }
 
     private int bufferViewToInt(BufferView appendLengthContent) throws IOException {
-        byte[] appendLengthArray = appendLengthContent.getReader().readAllBytes();
-        return ByteBuffer.wrap(appendLengthArray).getInt();
+        return ByteBuffer.wrap(appendLengthContent.getReader().readAllBytes()).getInt();
     }
 
     private ByteArraySegment intToByteArraySegment(int intValue) {
         return new ByteArraySegment(ByteBuffer.allocate(Integer.BYTES).putInt(intValue).array());
     }
 
-    private int getLastProcessedEventOffset(DirectSegmentAccess segment) {
-        Map<UUID, Long> attributes = segment.getAttributes(Collections.singletonList(LAST_PROCESSED_EVENT_OFFSET), true, Duration.ofSeconds(1)).join();
-        return attributes.getOrDefault(LAST_PROCESSED_EVENT_OFFSET, 0L).intValue();
+    private CompletableFuture<Integer> getLastProcessedEventOffset(DirectSegmentAccess segment) {
+        return segment.getAttributes(Collections.singletonList(LAST_PROCESSED_EVENT_OFFSET), true, OPERATION_TIMEOUT)
+                      .thenApply(attributes -> attributes.getOrDefault(LAST_PROCESSED_EVENT_OFFSET, 0L).intValue());
     }
 
     private CompletableFuture<Void> updateLastProcessedEventOffset(DirectSegmentAccess segment, int offset) {
         AttributeUpdate update = new AttributeUpdate(LAST_PROCESSED_EVENT_OFFSET, AttributeUpdateType.ReplaceIfGreater, offset);
-        return segment.updateAttributes(Collections.singletonList(update), Duration.ofSeconds(1));
+        return segment.updateAttributes(Collections.singletonList(update), OPERATION_TIMEOUT);
     }
 
     @Data

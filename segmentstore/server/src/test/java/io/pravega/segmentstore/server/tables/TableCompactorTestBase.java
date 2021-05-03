@@ -24,6 +24,12 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.DataCorruptionException;
+<<<<<<< HEAD:segmentstore/server/src/test/java/io/pravega/segmentstore/server/tables/TableCompactorTestBase.java
+=======
+import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentMock;
+>>>>>>> a67a8f5e1... Added tests and improvements to ContainerEventProcessor:segmentstore/server/src/test/java/io/pravega/segmentstore/server/tables/TableCompactorTests.java
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
