@@ -22,6 +22,7 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.reading.StreamSegmentStorageReaderTests;
 import io.pravega.segmentstore.storage.Storage;
@@ -132,6 +133,8 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         assertUnsupported("truncateStreamSegment", () -> context.container.truncateStreamSegment(SEGMENT_NAME, 0, TIMEOUT));
         assertUnsupported("deleteStreamSegment", () -> context.container.deleteStreamSegment(SEGMENT_NAME, TIMEOUT));
         assertUnsupported("mergeTransaction", () -> context.container.mergeStreamSegment(SEGMENT_NAME, SEGMENT_NAME, TIMEOUT));
+        assertUnsupported("forConsumer", () -> CompletableFuture.completedFuture(context.container.forConsumer(SEGMENT_NAME,
+                l -> null, new ContainerEventProcessor.EventProcessorConfig(0))));
     }
 
     private byte[] populate(int length, int truncationOffset, TestContext context) {

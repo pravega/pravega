@@ -2158,6 +2158,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         processor.add(event, Duration.ofSeconds(10)).join();
         processor.add(event, Duration.ofSeconds(10)).join();
         latch.await();
+
+        // Check that if the same EventProcessor name is used, the same object is retrieved.
+        Assert.assertEquals(processor, container.forConsumer("testConsumer", handler, eventProcessorConfig));
     }
 
     /**
