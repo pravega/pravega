@@ -90,7 +90,7 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
 
     @Override
     public EventProcessor forConsumer(@NonNull String name, @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
-                               @NonNull EventProcessorConfig config) {
+                                      @NonNull EventProcessorConfig config) {
         // If the EventProcessor is already loaded, just return it.
         if (eventProcessorMap.containsKey(name)) {
             return eventProcessorMap.get(name);
@@ -301,7 +301,8 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
         }
     }
 
-    private static class NoDataAvailableException extends RuntimeException {}
+    private static class NoDataAvailableException extends RuntimeException {
+    }
 
     //endregion
 }
