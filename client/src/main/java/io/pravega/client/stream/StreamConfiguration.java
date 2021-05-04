@@ -16,9 +16,15 @@
 package io.pravega.client.stream;
 
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
+import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Singular;
 
 /**
  * The configuration of a Stream.
@@ -26,8 +32,10 @@ import lombok.Data;
 @Data
 @Builder
 public class StreamConfiguration implements Serializable {
-    
+
     private static final long serialVersionUID = 1L;
+    private static final int MAX_TAG_COUNT = 128;
+    private static final int MAX_TAG_LENGTH = 256;
 
     /**
      * API to return scaling policy.
@@ -59,7 +67,41 @@ public class StreamConfiguration implements Serializable {
      */
     private final long timestampAggregationTimeout;
 
+    /**
+     * API to return the configured tags for the Stream.
+     * @param tag The tag(s) for the Stream.
+     * @return List of tag(s) for the Stream.
+     */
+    @Singular
+    private final Set<String> tags;
+
     public static final class StreamConfigurationBuilder {
         private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
+
+        public StreamConfiguration build() {
+            Set<String> tagSet = validateTags(this.tags);
+            return new StreamConfiguration(this.scalingPolicy, this.retentionPolicy, this.timestampAggregationTimeout, tagSet);
+        }
+
+        private Set<String> validateTags(List<String> tags) {
+            Set<String> tagsSet;
+            if (tags != null) {
+                Preconditions.checkArgument(tags.size() < MAX_TAG_COUNT, "Maximum number of tags allowed is 128");
+                tags.forEach(tag -> Preconditions.checkArgument(tag.length() < MAX_TAG_LENGTH, "Maximum length of a tag allowed is 256"));
+            }
+            switch (tags == null ? 0 : tags.size()) {
+                case 0:
+                    tagsSet = Collections.emptySet();
+                    break;
+                case 1:
+                    tagsSet = Collections.singleton(this.tags.get(0));
+                    break;
+                default:
+                    tagsSet = new HashSet<>(this.tags.size());
+                    tagsSet.addAll(this.tags);
+                    tagsSet = java.util.Collections.unmodifiableSet(tagsSet);
+            }
+            return tagsSet;
+        }
     }
 }
