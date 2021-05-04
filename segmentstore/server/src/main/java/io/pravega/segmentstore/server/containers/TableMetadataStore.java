@@ -97,10 +97,8 @@ class TableMetadataStore extends MetadataStore {
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
 
-        // Container Metadata Segment is a System Table Segment. It is Internal, but it is not Critical (i.e., does not
-        // prevent the good functioning of the Segment Store). It is OK if "modify" operations on this segment are
-        // throttled as that would not prevent the Segment Store from making forward progress.
-        val segmentType = SegmentType.builder().tableSegment().system().internal().build();
+        // Container Metadata Segment is a System Table Segment. It is System, Internal, and Critical.
+        val segmentType = SegmentType.builder().tableSegment().system().critical().internal().build();
         return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, segmentType, attributeUpdates), true, timeout)
                 .thenAccept(segmentId -> {
                     this.initialized.set(true);
