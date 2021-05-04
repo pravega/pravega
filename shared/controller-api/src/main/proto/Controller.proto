@@ -375,6 +375,7 @@ message StreamConfig {
     StreamInfo streamInfo = 1;
     ScalingPolicy scalingPolicy = 2;
     RetentionPolicy retentionPolicy = 3;
+    repeated string tag = 4;
 }
 
 message StreamCut {
