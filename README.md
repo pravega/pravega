@@ -82,8 +82,8 @@ Add the following to your repositories list and import dependencies as usual.
 maven {
     url "https://maven.pkg.github.com/pravega/pravega"
     credentials {
-        username = "pravega"
-        password = "..."
+        username = "pravega-public"
+        password = "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"
     }
 }
 ```
