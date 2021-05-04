@@ -2131,13 +2131,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * @throws Exception
      */
     @Test
-    public void testContainerEventProcessor() throws Exception {
+    public void testBasicContainerEventProcessor() throws Exception {
         @Cleanup
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
         container.startAsync().awaitRunning();
-
-        Thread.sleep(30000);
         ReusableLatch latch = new ReusableLatch();
         final AtomicReference<String> userEvent = new AtomicReference<>("event1");
         Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
@@ -2160,6 +2158,55 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         processor.add(event, Duration.ofSeconds(10)).join();
         processor.add(event, Duration.ofSeconds(10)).join();
         latch.await();
+    }
+
+    /**
+     * Test the behavior of the {@link StreamSegmentContainer} when multiple {@link ContainerEventProcessor.EventProcessor}
+     * objects are registered, including one with a faulty handler.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testMultipleEventProcessors() throws Exception {
+        @Cleanup
+        TestContext context = createContext();
+        val container = (StreamSegmentContainer) context.container;
+        container.startAsync().awaitRunning();
+
+        int allEventsToProcess = 100;
+        AtomicLong processorResults1 = new AtomicLong(0);
+        Function<List<BufferView>, CompletableFuture<Void>> handler1 = l -> {
+            processorResults1.addAndGet(l.size());
+            return null;
+        };
+        AtomicLong processorResults2 = new AtomicLong(0);
+        Function<List<BufferView>, CompletableFuture<Void>> handler2 = l -> {
+            processorResults2.addAndGet(l.size());
+            return null;
+        };
+        AtomicLong processorResults3 = new AtomicLong(0);
+        Function<List<BufferView>, CompletableFuture<Void>> handler3 = l -> {
+            Object o = null;
+            o.toString(); // We should expect NPE here, so the results counter would not be incremented.
+            processorResults3.addAndGet(1);
+            return null;
+        };
+        ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(10);
+        ContainerEventProcessor.EventProcessor processor1 = container.forConsumer("testSegment1", handler1, config);
+        ContainerEventProcessor.EventProcessor processor2 = container.forConsumer("testSegment2", handler2, config);
+        ContainerEventProcessor.EventProcessor processor3 = container.forConsumer("testSegment3", handler3, config);
+
+        for (int i = 0; i < allEventsToProcess; i++) {
+            BufferView event = BufferView.builder().add(new ByteArraySegment(("event" + i).getBytes())).build();
+            processor1.add(event, Duration.ofSeconds(10)).join();
+            processor2.add(event, Duration.ofSeconds(10)).join();
+            processor3.add(event, Duration.ofSeconds(10)).join();
+        }
+
+        // Wait for all items to be processed.
+        AssertExtensions.assertEventuallyEquals(true, () -> processorResults1.get() == allEventsToProcess, 10000);
+        AssertExtensions.assertEventuallyEquals(true, () -> processorResults2.get() == allEventsToProcess, 10000);
+        AssertExtensions.assertEventuallyEquals(true, () -> processorResults3.get() == 0, 10000);
     }
 
     /**

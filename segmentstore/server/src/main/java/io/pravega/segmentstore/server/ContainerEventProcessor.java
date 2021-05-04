@@ -29,8 +29,8 @@ import java.util.function.Function;
  * The {@link ContainerEventProcessor} is a sub-service running in a Segment Container that aims at providing a durable,
  * FIFO-like queue abstraction over an internal, system-critical Segment. The {@link ContainerEventProcessor} service
  * can manage one or more {@link EventProcessor}s, which are the ones that append events to the queue and handle events
- * read. The {@link ContainerEventProcessor} tails each of the Segments registered for each {@link EventProcessor}. When
- * it has at least 1 Event to read on an {@link EventProcessor}'s Segment, it invokes its handler. If there are multiple
+ * read. The {@link ContainerEventProcessor} tails the internal Segments related to each {@link EventProcessor}. When
+ * it has at least 1 event to read on an {@link EventProcessor}'s Segment, it invokes its handler. If there are multiple
  * events available, up to {@link EventProcessorConfig#getMaxItemsAtOnce()} should be used as input for the handler.
  *
  * If the handler completes normally, the items will be removed from the queue (i.e., the {@link EventProcessor}'s

@@ -55,7 +55,11 @@ import java.util.function.Function;
  * Implementation for {@link ContainerEventProcessor}. This class stores a map of {@link ContainerEventProcessor.EventProcessor}
  * identified by name. Once this service is started, it will continuously perform processing iterations tailing the
  * internal Segments of the registered {@link ContainerEventProcessor.EventProcessor}s (every ITERATION_SLEEP ms) and
- * (safely) invoking their respective handler functions.
+ * (safely) invoking their respective handler functions. This class durably stores the point at which the last successful
+ * events has been processed in the form of an attribute in the internal Segment (i.e., LAST_PROCESSED_EVENT_OFFSET).
+ * That is, before reading new events this attribute is read and after a successful processing of events this attribute
+ * is updated with the value of the next position to read. This class also truncates the internal Segments of the registered
+ * {@link ContainerEventProcessor.EventProcessor} based on that attribute.
  */
 @Slf4j
 public final class ContainerEventProcessorImpl extends AbstractIdleService implements ContainerEventProcessor {
@@ -156,11 +160,12 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
 
     @Override
     protected void startUp() throws Exception {
-        // A ContainerEventProcessor iteration is made of the following stages:
-        // 1. For each EventProcessor registered, read at most getMaxItemsAtOnce events and invoke the appropriate handler.
+        // A ContainerEventProcessor iteration is made of the following stages (for each EventProcessor registered):
+        // 1. Read the LAST_PROCESSED_EVENT_OFFSET attribute to know the starting read offset and read at most getMaxItemsAtOnce events.
         // 2. The collected results are passed to the handler function in EventProcessor.
-        // 3. For each EventProcessor registered, truncate its internal Segment according to the last successfully processed event.
-        // 4. Report metrics for each EventProcessor registered.
+        // 3. If the handler function has been successfully executed, truncate the internal Segment of the EventProcessor
+        // according to the last successfully processed event. If an error occurs, throw and re-try.
+        // 4. Report metrics for each EventProcessor registered and wait for ITERATION_SLEEP until the next iteration.
         log.info("Starting ContainerEventProcessor service.");
         Futures.loop(
                 () -> !closed.get(),
@@ -179,17 +184,13 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
         final Timer iterationTime = new Timer();
         List<CompletableFuture<Object>> futures = new ArrayList<>();
         for (EventProcessorImpl ep : eventProcessorMap.values()) {
-            // Call the EventProcessor handler with the read items.
             futures.add(readEventsForEventProcessor(ep)
                     .thenApplyAsync(readResult -> applyProcessorHandler(ep, readResult), this.executor)
                     .thenApplyAsync(readResult -> updateAndTruncateInternalSegment(ep, readResult, iterationTime), this.executor)
                     .handleAsync((r, ex) -> {
-                        if (ex != null) {
-                            if (ex instanceof NoDataAvailableException) {
-                                log.debug("{}: Nothing else to read.", ep.getName());
-                            } else {
-                                log.warn("Processing iteration failed for EventProcessor {}, retrying.", ep.getName(), ex);
-                            }
+                        // If we got an exception different from NoDataAvailableException, report it as something is off.
+                        if (ex != null && !(ex instanceof NoDataAvailableException)) {
+                            log.warn("Processing iteration failed for EventProcessor {}, retrying.", ep.getName(), ex);
                             ep.lastIterationLatency.set(-1); // Do not report latency, as there has been a failure.
                             return null;
                         }
@@ -214,8 +215,8 @@ public final class ContainerEventProcessorImpl extends AbstractIdleService imple
 
     private EventsReadAndTruncationPoints applyProcessorHandler(EventProcessorImpl ep, EventsReadAndTruncationPoints readResult) {
         try {
-            // This executes the handler function, which is code outside this class. Let's catch any
-            // kind of exception and re-throw it as a cause for CompletionException.
+            // This executes the handler function, which is code outside this class. Let's catch any kind of exception
+            // and re-throw it as a cause for CompletionException.
             ep.getHandler().apply(readResult.getEventsRead());
             return readResult;
         } catch (Exception e) {

@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMock;
@@ -33,6 +34,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+
 public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
 
     /**
@@ -40,7 +48,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
      *
      * @throws Exception
      */
-    @Test
+    @Test(timeout = 10000)
     public void testContainerMaxItemsRespected() throws Exception {
         @Cleanup
         ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(), this.executorService());
@@ -82,7 +90,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
      *
      * @throws Exception
      */
-    @Test
+    @Test(timeout = 10000)
     public void testFaultyHandler() throws Exception {
         @Cleanup
         ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(), this.executorService());
@@ -110,7 +118,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
      *
      * @throws Exception
      */
-    @Test
+    @Test(timeout = 10000)
     public void testMultipleProcessors() throws Exception {
         @Cleanup
         ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(), this.executorService());
@@ -157,7 +165,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
      *
      * @throws Exception
      */
-    @Test
+    @Test(timeout = 30000)
     public void testEventRejectionOnMaxOutstanding() throws Exception {
         @Cleanup
         ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(), this.executorService());
@@ -191,6 +199,49 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
 
         // Check that we cannot add empty events.
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> processor.add(BufferView.empty(), Duration.ofSeconds(10)));
+    }
+
+    @Test
+    public void testAppendWithFailingSegment() throws Exception {
+        DirectSegmentAccess faultySegment = mock(SegmentMock.class);
+        when(faultySegment.append(any(), any(), any())).thenThrow(NullPointerException.class);
+        Function<String, CompletableFuture<DirectSegmentAccess>> faultySegmentSupplier = s -> CompletableFuture.completedFuture(faultySegment);
+        @Cleanup
+        ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, faultySegmentSupplier, this.executorService());
+        eventProcessorService.startAsync().awaitRunning();
+        ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(10);
+        Function<List<BufferView>, CompletableFuture<Void>> doNothing = l -> null;
+        ContainerEventProcessor.EventProcessor processor = eventProcessorService.forConsumer("testSegmentMax", doNothing, config);
+
+        // Verify that the client gets the exception if there is some issue on add().
+        BufferView event = BufferView.builder().add(new ByteArraySegment("Test".getBytes())).build();
+        AssertExtensions.assertThrows(NullPointerException.class, () -> processor.add(event, Duration.ofSeconds(10)).join());
+    }
+
+    @Test
+    public void testReadWithFailingSegment() throws Exception {
+        DirectSegmentAccess faultySegment = spy(new SegmentMock(this.executorService()));
+        Function<String, CompletableFuture<DirectSegmentAccess>> faultySegmentSupplier = s -> CompletableFuture.completedFuture(faultySegment);
+        @Cleanup
+        ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, faultySegmentSupplier, this.executorService());
+        eventProcessorService.startAsync().awaitRunning();
+        ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(10);
+        ReusableLatch latch = new ReusableLatch();
+        Function<List<BufferView>, CompletableFuture<Void>> doNothing = l -> {
+            latch.release();
+            return null;
+        };
+        ContainerEventProcessor.EventProcessor processor = eventProcessorService.forConsumer("testSegmentMax", doNothing, config);
+
+        // This should work.
+        BufferView event = BufferView.builder().add(new ByteArraySegment("Test".getBytes())).build();
+        processor.add(event, Duration.ofSeconds(10)).join();
+
+        // Give some time for read errors to be retried and then emulate that the Segment starts working again.
+        when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenThrow(NullPointerException.class);
+        Thread.sleep(3000);
+        when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenCallRealMethod();
+        latch.await();
     }
 
     private Function<String, CompletableFuture<DirectSegmentAccess>> mockSegmentSupplier() {
