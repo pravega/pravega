@@ -30,12 +30,12 @@ import lombok.extern.slf4j.Slf4j;
 public class TimeoutServicePravegaTableStoreTest extends TimeoutServiceTest {
     @Override
     SegmentHelper getSegmentHelper() {
-        return SegmentHelperMock.getSegmentHelperMockForTables(executor);
+        return SegmentHelperMock.getSegmentHelperMockForTables(EXECUTOR);
     }
 
     @Override
     protected StreamMetadataStore getStore() {
-        return StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), client, executor);
+        return StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), CLIENT, EXECUTOR);
     }
 
     @Override
