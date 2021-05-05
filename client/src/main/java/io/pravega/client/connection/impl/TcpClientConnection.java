@@ -101,7 +101,6 @@ public class TcpClientConnection implements ClientConnection {
         private final FlowToBatchSizeTracker flowToBatchSizeTracker;
         private final AtomicBoolean stop = new AtomicBoolean(false);
         private final ReusableLatch hasStopped = new ReusableLatch(false);
-        private final AtomicBoolean isReadingFromSocket = new AtomicBoolean(false);
         private final AtomicBoolean isCallbackExecuting = new AtomicBoolean(false);
 
         public ConnectionReader(String name, InputStream in, ReplyProcessor callback, FlowToBatchSizeTracker flowToBatchSizeTracker) {
@@ -121,10 +120,8 @@ public class TcpClientConnection implements ClientConnection {
             IoBuffer buffer = new IoBuffer();
             while (!stop.get()) {
                 try {
-                    isReadingFromSocket.set(true);
                     // This method blocks until it is able to read data from the tcp socket InputStream.
                     WireCommand command = readCommand(in, buffer);
-                    isReadingFromSocket.set(false);
                     if (stop.get()) {
                         // stop has already been invoked ignore the message received from the socket.
                         break;
@@ -148,25 +145,16 @@ public class TcpClientConnection implements ClientConnection {
                     } else {
                         log.warn("Error in reading from socket.", e);
                     }
-                    stopInternal();
+                    stop();
                 } catch (EOFException e) {
                     log.info("Closing TcpClientConnection.Reader because end of input reached.");
-                    stopInternal();
+                    stop();
                 } catch (Exception e) {
                     log.warn("Error processing data from from server " + name, e);
-                    stopInternal();
+                    stop();
                 }
             }
             hasStopped.release();
-        }
-
-        private void stopInternal() {
-            if (stop.getAndSet(true)) {
-                return;
-            }
-            // close the input stream to ensure no further data can be received.
-            closeQuietly(in, log, "Got error while shutting down reader {}. ", name);
-            callback.connectionDropped();
         }
 
         @VisibleForTesting
@@ -193,12 +181,12 @@ public class TcpClientConnection implements ClientConnection {
             if (stop.getAndSet(true)) {
                 return;
             }
-            if (!isReadingFromSocket.get() && !isCallbackExecuting.get()) {
+            // close the input stream to ensure no further data can be received.
+            closeQuietly(in, log, "Got error while shutting down reader {}. ", name);
+            if (!isCallbackExecuting.get()) {
                 // wait until we have completed the current call to the reply processors.
                 Exceptions.handleInterrupted(hasStopped::await);
             }
-            // close the input stream to ensure no further data can be received.
-            closeQuietly(in, log, "Got error while shutting down reader {}. ", name);
             callback.connectionDropped();
         }
     }
