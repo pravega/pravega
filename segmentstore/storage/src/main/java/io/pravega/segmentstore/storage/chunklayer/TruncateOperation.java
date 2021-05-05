@@ -152,16 +152,13 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     private CompletableFuture<Void> commit(MetadataTransaction txn) {
         // Commit system logs.
         if (chunkedSegmentStorage.isStorageSystemSegment(segmentMetadata)) {
-            txn.setExternalCommitStep(() -> {
-                chunkedSegmentStorage.getSystemJournal().commitRecord(
-                        SystemJournal.TruncationRecord.builder()
-                                .segmentName(handle.getSegmentName())
-                                .offset(offset)
-                                .firstChunkName(segmentMetadata.getFirstChunk())
-                                .startOffset(startOffset.get())
-                                .build());
-                return null;
-            });
+            txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecord(
+                                                SystemJournal.TruncationRecord.builder()
+                                                        .segmentName(handle.getSegmentName())
+                                                        .offset(offset)
+                                                        .firstChunkName(segmentMetadata.getFirstChunk())
+                                                        .startOffset(startOffset.get())
+                                                        .build()));
         }
 
         // Finally commit.

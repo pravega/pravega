@@ -24,6 +24,7 @@ import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
+import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -60,6 +61,7 @@ public final class ServiceStarter {
     private final ServiceBuilder serviceBuilder;
     private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
+    private AdminConnectionListener adminListener;
     private AutoScaleMonitor autoScaleMonitor;
     private CuratorFramework zkClient;
     private boolean closed;
@@ -131,6 +133,14 @@ public final class ServiceStarter {
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
+
+        if (serviceConfig.isEnableAdminGateway()) {
+            this.adminListener = new AdminConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.isEnableTlsReload(),
+                    this.serviceConfig.getListeningIPAddress(), this.serviceConfig.getAdminGatewayPort(), service, tableStoreService,
+                    tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile());
+            this.adminListener.startListening();
+            log.info("AdminConnectionListener started successfully.");
+        }
         log.info("StreamSegmentService started.");
     }
 
@@ -142,6 +152,11 @@ public final class ServiceStarter {
             if (this.listener != null) {
                 this.listener.close();
                 log.info("PravegaConnectionListener closed.");
+            }
+
+            if (this.adminListener != null) {
+                this.adminListener.close();
+                log.info("AdminConnectionListener closed.");
             }
 
             if (this.statsProvider != null) {

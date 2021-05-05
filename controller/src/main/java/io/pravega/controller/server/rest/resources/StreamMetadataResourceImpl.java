@@ -20,8 +20,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.LoggerHelpers;
@@ -343,8 +343,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     new ArrayList<>(readerGroup.getStreamNames()));
             return Response.status(Status.OK).entity(readerGroupProperty).build();
         }, controllerService.getExecutor()).exceptionally(exception -> {
-            log.warn(requestId, "getReaderGroup for {} failed with exception: ", readerGroupName, exception);
-            if (exception.getCause() instanceof InvalidStreamException) {
+                log.warn(requestId, "getReaderGroup for {} failed with exception: ", readerGroupName, exception);
+            if (exception.getCause() instanceof ReaderGroupNotFoundException) {
                 return Response.status(Status.NOT_FOUND).build();
             } else {
                 return Response.status(Status.INTERNAL_SERVER_ERROR).build();

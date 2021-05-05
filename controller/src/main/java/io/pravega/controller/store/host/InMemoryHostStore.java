@@ -41,7 +41,7 @@ public class InMemoryHostStore implements HostControllerStore {
     InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap, int containerCount) {
         Preconditions.checkNotNull(hostContainerMap, "hostContainerMap");
         this.hostContainerMap = hostContainerMap;
-        segmentMapper = new SegmentToContainerMapper(containerCount);
+        segmentMapper = new SegmentToContainerMapper(containerCount, true);
     }
 
     @Override
@@ -59,12 +59,12 @@ public class InMemoryHostStore implements HostControllerStore {
 
     private Host getHostForContainer(int containerId) {
         Optional<Host> host = hostContainerMap.entrySet().stream()
-                .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
+                .filter(x -> x.getValue().contains(containerId)).map(Map.Entry::getKey).findAny();
         if (host.isPresent()) {
             log.debug("Found owning host: {} for containerId: {}", host.get(), containerId);
             return host.get();
         } else {
-            throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
+            throw new HostStoreException("Could not find host for container id: " + containerId);
         }
     }
 

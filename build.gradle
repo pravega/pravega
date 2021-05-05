@@ -1023,6 +1023,7 @@ project('test:system') {
         environment "desiredBookkeeperCMVersion", System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
         environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
         environment "skipServiceInstallation", System.getProperty("skipServiceInstallation", "false")
+        environment "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
 
         commandLine './kubernetes/setupTestPod.sh'
     }

@@ -20,21 +20,56 @@ import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.Parser;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.control.impl.Controller;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.common.cluster.Host;
+import io.pravega.controller.store.host.ZKHostStore;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.demo.ClusterWrapper;
+import lombok.Cleanup;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.junit.Assert;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 /**
  * Class to contain convenient utilities for writing test cases.
  */
+@Slf4j
 public final class TestUtils {
+
+    private static final int NUM_EVENTS = 10;
+    private static final String EVENT = "12345";
+    private static final Duration READ_TIMEOUT = Duration.ofMillis(1000);
 
     /**
      * Invoke any command and get the result by using a mock PrintStream object (instead of System.out). The returned
@@ -54,7 +89,7 @@ public final class TestUtils {
             cmd.setOut(ps);
             cmd.execute();
         }
-        return new String(baos.toByteArray(), StandardCharsets.UTF_8);
+        return baos.toString(StandardCharsets.UTF_8);
     }
 
     /**
@@ -136,5 +171,91 @@ public final class TestUtils {
 
     public static String getCLIControllerRestUri(String uri) {
         return uri.replace("http://", "").replace("https://", "");
+    }
+
+    /**
+     * This method creates a dummy Host-Container mapping, given that it is not created in Pravega standalone.
+     *
+     * @param zkConnectString   Connection endpoint for Zookeeper.
+     * @param hostIp            Name of the host to connect to.
+     * @param hostPort          Port of the host to connect to.
+     */
+    public static void createDummyHostContainerAssignment(String zkConnectString, String hostIp, int hostPort) {
+        @Cleanup
+        CuratorFramework curatorFramework = CuratorFrameworkFactory.builder().namespace("pravega/pravega-cluster")
+                .connectString(zkConnectString)
+                .retryPolicy(new RetryOneTime(5000)).build();
+        curatorFramework.start();
+        ZKHostStore zkHostStore = new ZKHostStore(curatorFramework, 4);
+        Map<Host, Set<Integer>> dummyHostContainerAssignment = new HashMap<>();
+        dummyHostContainerAssignment.put(new Host(hostIp, hostPort, ""), new HashSet<>(Arrays.asList(0, 1, 2, 3)));
+        zkHostStore.updateHostContainersMap(dummyHostContainerAssignment);
+    }
+
+    /**
+     * Creates the given scope and stream using the given controller instance.
+     *
+     * @param controller    Controller instance to use to create the Scope and Stream.
+     * @param scopeName     Name of the Scope.
+     * @param streamName    Name of the Stream.
+     * @param streamConfig  Configuration for the Stream to be created.
+     */
+    public static void createScopeStream(Controller controller, String scopeName, String streamName, StreamConfiguration streamConfig) {
+        ClientConfig clientConfig = ClientConfig.builder().build();
+        @Cleanup
+        ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        StreamManager streamManager = new StreamManagerImpl(controller, cp);
+        //create scope
+        Boolean createScopeStatus = streamManager.createScope(scopeName);
+        log.info("Create scope status {}", createScopeStatus);
+        //create stream
+        Boolean createStreamStatus = streamManager.createStream(scopeName, streamName, streamConfig);
+        log.info("Create stream status {}", createStreamStatus);
+    }
+
+    /**
+     * Write events to the given stream.
+     *
+     * @param streamName     Name of the Stream.
+     * @param clientFactory  Client factory to create writers.
+     */
+    public static void writeEvents(String streamName, ClientFactoryImpl clientFactory) {
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
+                new UTF8StringSerializer(),
+                EventWriterConfig.builder().build());
+        for (int i = 0; i < NUM_EVENTS; i++) {
+            writer.writeEvent(EVENT).join();
+        }
+        writer.flush();
+    }
+
+    /**
+     * Read all events from the given stream.
+     *
+     * @param scope               Scope of the targeted Stream.
+     * @param streamName          Name of the Stream.
+     * @param clientFactory       ClientFactory to instantiate readers.
+     * @param readerGroupManager  ReaderGroupManager to create the ReaderGroup.
+     * @param readerGroupName     Name of the ReadeGroup to be created.
+     * @param readerName          Name of the Reader to instantiate.
+     */
+    public static void readAllEvents(String scope, String streamName, ClientFactoryImpl clientFactory, ReaderGroupManager readerGroupManager,
+                               String readerGroupName, String readerName) {
+        readerGroupManager.createReaderGroup(readerGroupName,
+                ReaderGroupConfig
+                        .builder()
+                        .stream(Stream.of(scope, streamName))
+                        .build());
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(readerName,
+                readerGroupName,
+                new UTF8StringSerializer(),
+                ReaderConfig.builder().build());
+
+        for (int q = 0; q < NUM_EVENTS; q++) {
+            String eventRead = reader.readNextEvent(READ_TIMEOUT.toMillis()).getEvent();
+            Assert.assertEquals("Event written and read back don't match", EVENT, eventRead);
+        }
     }
 }

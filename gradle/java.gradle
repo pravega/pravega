@@ -116,7 +116,9 @@ plugins.withId('java') {
         afterTest { descriptor, result ->
             if (result.resultType == TestResult.ResultType.FAILURE && outputCache.size() > 0) {
                 println()
-                println("${styler['red'](${descriptor.getClassName()}.${descriptor.getDisplayName()} + " FAILED" )} Output (Last 300 lines):")
+                def red = new String((char) 27) + "[31m"
+                def black = new String((char) 27) + "[0m"
+                println("${red}${descriptor.getClassName()}.${descriptor.getDisplayName()} FAILED. Output (Last 300 lines):${black}")
                 outputCache.each { print(" > $it") }
             }
         }

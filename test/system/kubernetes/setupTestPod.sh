@@ -162,7 +162,7 @@ spec:
        claimName: task-pv-claim
   containers:
     - name: task-pv-container
-      image: openjdk:8u181-jre-alpine
+      image: $testPodImage
       command: ["/bin/sh"]
       args: ["-c", "sleep 60000"]
       volumeMounts:

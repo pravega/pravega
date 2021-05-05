@@ -16,6 +16,7 @@
 package io.pravega.controller.server;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ClientConnection;
@@ -58,6 +59,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import io.pravega.test.common.ThreadPooledTestSuite;
+import lombok.Cleanup;
 import lombok.Getter;
 import lombok.val;
 import org.junit.Test;
@@ -377,6 +379,93 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
                 "", System.nanoTime());
         validateProcessingFailureCFE(factory, futureSupplier);
 
+        testConnectionFailure(factory, futureSupplier);
+    }
+
+    @Test
+    public void testGetSegmentAttribute() {
+        MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
+        CompletableFuture<WireCommands.SegmentAttribute> retVal = helper.getSegmentAttribute("",
+                new UUID(Long.MIN_VALUE, 0), new PravegaNodeUri("localhost", 12345),
+                "");
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
+        AssertExtensions.assertThrows("",
+                retVal::join,
+                ex -> Exceptions.unwrap(ex) instanceof WireCommandFailedException
+        );
+
+        CompletableFuture<WireCommands.SegmentAttribute> result = helper.getSegmentAttribute("",
+                new UUID(Long.MIN_VALUE, 0), new PravegaNodeUri("localhost", 12345),
+                "");
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentAttribute(requestId, 0L));
+        result.join();
+
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.getSegmentAttribute("",
+                new UUID(Long.MIN_VALUE, 0), new PravegaNodeUri("localhost", 12345),
+                "");
+        validateProcessingFailureCFE(factory, futureSupplier);
+        testConnectionFailure(factory, futureSupplier);
+    }
+
+    @Test
+    public void testUpdateSegmentAttribute() {
+        MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
+        CompletableFuture<WireCommands.SegmentAttributeUpdated> retVal = helper.updateSegmentAttribute("",
+                new UUID(Long.MIN_VALUE, 0), 0, 1, new PravegaNodeUri("localhost", 12345),
+                "");
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
+        AssertExtensions.assertThrows("",
+                retVal::join,
+                ex -> Exceptions.unwrap(ex) instanceof WireCommandFailedException
+        );
+
+        CompletableFuture<WireCommands.SegmentAttributeUpdated> result = helper.updateSegmentAttribute("",
+                new UUID(Long.MIN_VALUE, 0), 0, 1, new PravegaNodeUri("localhost", 12345),
+                "");
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentAttributeUpdated(requestId, true));
+        result.join();
+
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.updateSegmentAttribute("",
+                new UUID(Long.MIN_VALUE, 0), 0, 1, new PravegaNodeUri("localhost", 12345),
+                "");
+        validateProcessingFailureCFE(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
+    }
+
+    @Test
+    public void testReadSegment() {
+        MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
+        CompletableFuture<WireCommands.SegmentRead> retVal = helper.readSegment("", 0, 10,
+                new PravegaNodeUri("localhost", 12345), "");
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
+        AssertExtensions.assertThrows("",
+                retVal::join,
+                ex -> Exceptions.unwrap(ex) instanceof WireCommandFailedException
+                        && ((WireCommandFailedException) ex).getReason().equals(WireCommandFailedException.Reason.AuthFailed)
+        );
+
+        CompletableFuture<WireCommands.SegmentRead> result = helper.readSegment("", 0, 10,
+                new PravegaNodeUri("localhost", 12345), "");
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentRead("", 0, true, true,
+                Unpooled.wrappedBuffer(new byte[10]), requestId));
+        result.join();
+
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readSegment("", 0, 10,
+                new PravegaNodeUri("localhost", 12345), "");
+        validateProcessingFailureCFE(factory, futureSupplier);
         testConnectionFailure(factory, futureSupplier);
     }
 
