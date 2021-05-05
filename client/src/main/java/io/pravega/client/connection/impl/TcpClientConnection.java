@@ -101,7 +101,6 @@ public class TcpClientConnection implements ClientConnection {
         private final FlowToBatchSizeTracker flowToBatchSizeTracker;
         private final AtomicBoolean stop = new AtomicBoolean(false);
         private final ReusableLatch hasStopped = new ReusableLatch(false);
-        private final AtomicBoolean isCallbackExecuting = new AtomicBoolean(false);
 
         public ConnectionReader(String name, InputStream in, ReplyProcessor callback, FlowToBatchSizeTracker flowToBatchSizeTracker) {
             this.name = name;
@@ -130,14 +129,10 @@ public class TcpClientConnection implements ClientConnection {
                         WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) command;
                         flowToBatchSizeTracker.getAppendBatchSizeTrackerByFlowId(Flow.toFlowID(dataAppended.getRequestId())).recordAck(dataAppended.getEventNumber());
                     }
-
                     try {
-                        isCallbackExecuting.set(true);
                         callback.process((Reply) command);
                     } catch (Exception e) {
                         callback.processingFailure(e);
-                    } finally {
-                        isCallbackExecuting.set(false);
                     }
                 } catch (SocketException e) {
                     if (e.getMessage().equals("Socket closed")) {
@@ -183,7 +178,8 @@ public class TcpClientConnection implements ClientConnection {
             }
             // close the input stream to ensure no further data can be received.
             closeQuietly(in, log, "Got error while shutting down reader {}. ", name);
-            if (!isCallbackExecuting.get()) {
+            // No need to await termination if stop is invoked by the callback method.
+            if (Thread.currentThread().getId() != this.thread.getId()) {
                 // wait until we have completed the current call to the reply processors.
                 Exceptions.handleInterrupted(hasStopped::await);
             }
