@@ -33,7 +33,7 @@ and Apache Spark for computation over the streams.
 interfaces for [Apache Hadoop](https://hadoop.apache.org/). It leverages Pravega batch client to read existing events in parallel; 
 and uses write API to write events to Pravega streams.
 
-- [Presto Connector](https://github.com/pravega/presto-connector): [Presto](ttps://prestodb.io) is a distributed SQL 
+- [Presto Connector](https://github.com/pravega/presto-connector): [Presto](https://prestodb.io) is a distributed SQL
 query engine for big data. Presto uses connectors to query storage from different storage sources. 
 This connector allows Presto to query storage from Pravega streams.
 

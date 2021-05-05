@@ -51,7 +51,7 @@ nav:
   - Overview: 'index.md'
   - Quick Start: 'getting-started/quick-start.md'
   - Getting Started:
-    - 'Running a Sample Application': 'getting-started/getting-started.md'
+    - 'Running a Sample Application': 'getting-started.md'
     - 'Deploying Pravega on Kubernetes': 'getting-started/pravega-on-kubernetes-101.md'
   - Understanding Pravega:
     - 'Concepts': 'pravega-concepts.md'
