@@ -309,7 +309,6 @@ project ('shared:rest') {
         compile project(":shared:authplugin")
         compile project(":shared:basic-authplugin")
         compile project(":shared:security")
-        compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
     }
 }
