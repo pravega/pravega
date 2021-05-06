@@ -828,6 +828,45 @@ public final class WireCommands {
     @ToString
     @EqualsAndHashCode(callSuper = false)
     @NotThreadSafe
+    public static final class FlushToStorage extends ReleasableCommand implements Reply {
+        final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
+        @ToString.Exclude
+        final String delegationToken;
+        final long requestId;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand flushToStorage(ByteBufInputStream in, int i) throws IOException {
+            String delegationToken = in.readUTF();
+            long requestId = in.available()  >= Long.BYTES ? in.readLong() : -1L;
+            return new FlushToStorage(delegationToken, requestId).requireRelease();
+        }
+
+        @Override
+        public long getRequestId() {
+            return requestId;
+        }
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.flushToStorage(this);
+        }
+
+        @Override
+        void releaseInternal() {
+
+        }
+    }
+
+    @RequiredArgsConstructor
+    @Getter
+    @ToString
+    @EqualsAndHashCode(callSuper = false)
+    @NotThreadSafe
     public static final class SegmentRead extends ReleasableCommand implements Reply {
         final WireCommandType type = WireCommandType.SEGMENT_READ;
         final String segment;

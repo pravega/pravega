@@ -197,6 +197,20 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     //region RequestProcessor Implementation
 
     @Override
+    public void flushToStorage(WireCommands.FlushToStorage flushToStorage) {
+        Timer timer = new Timer();
+        final String operation = "flushToStorage";
+
+        long trace = LoggerHelpers.traceEnter(log, operation);
+        segmentStore.flushToStorage(TIMEOUT)
+                .thenAccept(flushResult -> {
+                    LoggerHelpers.traceLeave(log, operation, trace, flushResult);
+                    this.statsRecorder.readComplete(timer.getElapsed());
+                })
+                .exceptionally(ex -> handleException(flushToStorage.getRequestId(), null, -1, operation, wrapCancellationException(ex)));
+    }
+
+    @Override
     public void readSegment(ReadSegment readSegment) {
         Timer timer = new Timer();
         final String segment = readSegment.getSegment();
