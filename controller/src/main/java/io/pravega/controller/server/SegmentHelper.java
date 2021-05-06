@@ -613,7 +613,7 @@ public class SegmentHelper implements AutoCloseable {
                 });
     }
 
-    public CompletableFuture<WireCommands.FlushToStorage> flushToStorage(PravegaNodeUri uri, String delegationToken) {
+    public CompletableFuture<WireCommands.FlushedStorage> flushToStorage(PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
@@ -624,8 +624,8 @@ public class SegmentHelper implements AutoCloseable {
         return sendRequest(connection, requestId, request)
                 .thenApply(r -> {
                     handleReply(requestId, r, connection, null, WireCommands.FlushToStorage.class, type);
-                    assert r instanceof WireCommands.FlushToStorage;
-                    return (WireCommands.FlushToStorage) r;
+                    assert r instanceof WireCommands.FlushedStorage;
+                    return (WireCommands.FlushedStorage) r;
                 });
     }
 

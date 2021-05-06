@@ -48,9 +48,9 @@ public class FlushToStorageCommand extends SegmentStoreCommand {
         CuratorFramework zkClient = createZKClient();
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
-        CompletableFuture<WireCommands.FlushToStorage> reply = segmentHelper.flushToStorage(
+        CompletableFuture<WireCommands.FlushedStorage> reply = segmentHelper.flushToStorage(
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
-        WireCommands.FlushToStorage flushToStorage = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        WireCommands.FlushedStorage flushToStorage = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         output("Flushed durable log to the storage.");
     }
 

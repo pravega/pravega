@@ -823,16 +823,17 @@ public final class WireCommands {
         }
     }
 
-    @RequiredArgsConstructor
-    @Getter
-    @ToString
-    @EqualsAndHashCode(callSuper = false)
-    @NotThreadSafe
-    public static final class FlushToStorage extends ReleasableCommand implements Reply {
+    @Data
+    public static final class FlushToStorage implements Request, WireCommand {
         final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
         @ToString.Exclude
         final String delegationToken;
         final long requestId;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.flushToStorage(this);
+        }
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
@@ -843,22 +844,46 @@ public final class WireCommands {
         public static WireCommand flushToStorage(ByteBufInputStream in, int i) throws IOException {
             String delegationToken = in.readUTF();
             long requestId = in.available()  >= Long.BYTES ? in.readLong() : -1L;
-            return new FlushToStorage(delegationToken, requestId).requireRelease();
+            return new FlushToStorage(delegationToken, requestId);
         }
 
         @Override
         public long getRequestId() {
             return requestId;
         }
+    }
+
+    @RequiredArgsConstructor
+    @Getter
+    @ToString
+    @EqualsAndHashCode(callSuper = false)
+    @NotThreadSafe
+    public static final class FlushedStorage extends ReleasableCommand implements Reply {
+        final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
+        final long requestId;
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.flushToStorage(this);
+            cp.flushedStorage(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand flushToStorage(EnhancedByteBufInputStream in, int length) throws IOException {
+            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            return new FlushedStorage(requestId).requireRelease();
         }
 
         @Override
         void releaseInternal() {
+        }
 
+        @Override
+        public long getRequestId() {
+            return requestId;
         }
     }
 
