@@ -77,6 +77,21 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
     }
 
     @Test
+    public void testFlushToStorageCommand() throws Exception {
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "flushToStorage", StreamConfiguration.builder().build());
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(SETUP_UTILS.getControllerUri()).build();
+        @Cleanup
+        EventStreamClientFactory factory = EventStreamClientFactory.withScope("segmentstore", clientConfig);
+        @Cleanup
+        EventStreamWriter<String> writer = factory.createEventWriter("readsegment", new JavaSerializer<>(), EventWriterConfig.builder().build());
+        writer.writeEvents("rk", Arrays.asList("a", "2", "3"));
+        writer.flush();
+        String commandResult = TestUtils.executeCommand("segmentstore flushToStorage localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("Flushed"));
+        Assert.assertNotNull(FlushToStorageCommand.descriptor());
+    }
+
+    @Test
     public void testGetSegmentAttributeCommand() throws Exception {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getattribute", StreamConfiguration.builder().build());
         String commandResult = TestUtils.executeCommand("segmentstore get-segment-attribute segmentstore/getattribute/0.#epoch.0 "
