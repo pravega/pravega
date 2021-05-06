@@ -556,26 +556,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
     }
 
-    private void validateAttributeIdLengths(AttributeUpdateCollection c) throws AttributeIdLengthMismatchException {
-        Integer actualLength = c.getExtendedAttributeIdLength();
-        if (actualLength == null) {
-            // No extended attributes to validate.
-            return;
-        }
-        int expectedLength = getAttributeIdLength();
-        if (expectedLength <= 0 && actualLength > 0) {
-            // We expect AttributeId.UUIDs, but we have AttributeId.Variable.
-            throw new AttributeIdLengthMismatchException(this.containerId, String.format(
-                    "Segment %s must have extended attributes of type UUID; tried to update with variable attributes of length %s.",
-                    this.id, actualLength));
-        } else if (expectedLength > 0 && expectedLength != actualLength) {
-            // We have length mismatch.
-            throw new AttributeIdLengthMismatchException(this.containerId, String.format(
-                    "Segment %s must have extended attributes of length %s; tried to update with attributes of length %s.",
-                    this.id, expectedLength, actualLength));
-        }
-    }
-
     //endregion
 
     //region AcceptOperation
