@@ -76,7 +76,7 @@ public class AttributeUpdate {
     public boolean equals(Object obj) {
         if (obj instanceof AttributeUpdate) {
             AttributeUpdate other = (AttributeUpdate) obj;
-            return this.attributeId == other.attributeId
+            return this.attributeId.equals(other.attributeId)
                     && this.updateType == other.updateType
                     && this.value == other.value
                     && this.comparisonValue == other.comparisonValue;
