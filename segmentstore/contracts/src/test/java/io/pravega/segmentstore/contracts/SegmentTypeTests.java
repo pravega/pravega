@@ -18,7 +18,6 @@ package io.pravega.segmentstore.contracts;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.UUID;
 import java.util.function.Predicate;
 import lombok.val;
 import org.junit.Assert;
@@ -51,7 +50,7 @@ public class SegmentTypeTests {
         Assert.assertEquals("Empty attributes. ", SegmentType.FORMAT_BASIC, empty.getValue());
 
         val baseType = SegmentType.builder().critical().internal().system().build();
-        val segmentAttributes = new HashMap<UUID, Long>();
+        val segmentAttributes = new HashMap<AttributeId, Long>();
         Assert.assertTrue(baseType.intoAttributes(segmentAttributes));
         Assert.assertFalse(baseType.intoAttributes(segmentAttributes));
 

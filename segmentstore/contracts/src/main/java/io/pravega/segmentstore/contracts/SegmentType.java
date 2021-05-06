@@ -18,7 +18,6 @@ package io.pravega.segmentstore.contracts;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import java.util.Map;
-import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
@@ -173,7 +172,7 @@ public class SegmentType {
      * @param segmentAttributes A {@link Map} containing the Segment's Attributes to load from.
      * @return A {@link SegmentType}.
      */
-    public static SegmentType fromAttributes(Map<UUID, Long> segmentAttributes) {
+    public static SegmentType fromAttributes(Map<AttributeId, Long> segmentAttributes) {
         long type = segmentAttributes.getOrDefault(Attributes.ATTRIBUTE_SEGMENT_TYPE, FORMAT_BASIC);
         Builder builder = new Builder(type);
         if (segmentAttributes.containsKey(TableAttributes.INDEX_OFFSET)) {
@@ -190,7 +189,7 @@ public class SegmentType {
      * @param segmentAttributes A {@link Map} representing the segment attributes to update.
      * @return True if the value was inserted or modified, false if an identical value already existed.
      */
-    public boolean intoAttributes(Map<UUID, Long> segmentAttributes) {
+    public boolean intoAttributes(Map<AttributeId, Long> segmentAttributes) {
         Long previous = segmentAttributes.put(Attributes.ATTRIBUTE_SEGMENT_TYPE, this.flags);
         return previous == null || previous != this.flags;
     }

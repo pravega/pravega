@@ -21,6 +21,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -32,7 +33,6 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -335,8 +335,8 @@ class TableCompactor {
      * @param candidates The Candidates for compaction.
      * @return The result.
      */
-    private Collection<AttributeUpdate> generateAttributeUpdates(CompactionArgs candidates) {
-        return Arrays.asList(
+    private AttributeUpdateCollection generateAttributeUpdates(CompactionArgs candidates) {
+        return AttributeUpdateCollection.from(
                 new AttributeUpdate(TableAttributes.COMPACTION_OFFSET, AttributeUpdateType.ReplaceIfEquals, candidates.endOffset, candidates.startOffset),
                 new AttributeUpdate(TableAttributes.TOTAL_ENTRY_COUNT, AttributeUpdateType.Accumulate, -candidates.count));
     }

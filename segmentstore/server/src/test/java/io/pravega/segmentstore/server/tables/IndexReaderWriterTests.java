@@ -19,6 +19,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -77,7 +78,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected value for ENTRY_COUNT when attribute is not present.",
                 0, ir.getEntryCount(StreamSegmentInformation.builder().name("s").build()));
         val si = StreamSegmentInformation.builder().name("s")
-                                         .attributes(ImmutableMap.<UUID, Long>builder()
+                                         .attributes(ImmutableMap.<AttributeId, Long>builder()
                                                  .put(TableAttributes.INDEX_OFFSET, 123456L)
                                                  .put(TableAttributes.ENTRY_COUNT, 2345L)
                                                  .put(TableAttributes.TOTAL_ENTRY_COUNT, 4567L)

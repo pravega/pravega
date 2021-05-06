@@ -13,15 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.segmentstore.server;
-
-import io.pravega.common.util.AsyncIterator;
-import io.pravega.segmentstore.contracts.AttributeId;
-import java.util.List;
-import java.util.Map;
+package io.pravega.segmentstore.server.logs;
 
 /**
- * Defines an {@link AsyncIterator} over a Segment's Attributes, processing them in batches.
+ * {@link MetadataUpdateException} that is thrown whenever a Segment's Extended Attributes are attempted to be modified
+ * with Attributes of the wrong type and/or length.
  */
-public interface AttributeIterator extends AsyncIterator<List<Map.Entry<AttributeId, Long>>> {
+public class AttributeIdLengthMismatchException extends MetadataUpdateException {
+    /**
+     *
+     */
+    private static final long serialVersionUID = 1L;
+
+    AttributeIdLengthMismatchException(int containerId, String message) {
+        super(containerId, message);
+    }
 }

@@ -16,7 +16,6 @@
 package io.pravega.segmentstore.contracts;
 
 import java.util.Map;
-import java.util.UUID;
 import lombok.Data;
 
 @Data
@@ -43,6 +42,6 @@ public class MergeStreamSegmentResult {
      *
      * @return The source segment attributes
      */
-    private final Map<UUID, Long> attributes;
+    private final Map<AttributeId, Long> attributes;
     
 }
