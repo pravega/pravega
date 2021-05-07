@@ -16,6 +16,7 @@
 package io.pravega.client.connection.impl;
 
 import io.netty.buffer.Unpooled;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.EnhancedByteBufInputStream;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
@@ -51,7 +52,8 @@ public class TcpClientConnectionTest {
      */
     private static class TestInputStream extends InputStream {
         int numAvailable = 0;
-        ReusableLatch lastbyteLatch = new ReusableLatch(false);
+        ReusableLatch readInvokedLatch = new ReusableLatch(false);
+        ReusableLatch lastByteLatch = new ReusableLatch(false);
         private final InputStream out;
 
         @SneakyThrows
@@ -66,9 +68,14 @@ public class TcpClientConnectionTest {
 
         @Override
         public int read() throws IOException {
-            // read from the inputstream.
+            // Read from the inputstream.
             int data = out.read();
-            lastbyteLatch.release();
+            // Indicate that the read has been invoked.
+            readInvokedLatch.release();
+            if (out.available() == 0) {
+                // Block on the latch before returning the last byte.
+                Exceptions.handleInterrupted(() -> lastByteLatch.await());
+            }
             return data;
         }
 
@@ -81,7 +88,7 @@ public class TcpClientConnectionTest {
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
             msg.writeFields(new DataOutputStream(bout));
             byte[] msgBytes = bout.toByteArray();
-            // Insert type and length to the wirecommand msg.
+            // Insert type and length to the wireCommand msg.
             byte[] networkBytes = new byte[Integer.BYTES + Integer.BYTES + msgBytes.length];
             ByteBuffer buf = ByteBuffer.wrap(networkBytes);
             buf.putInt(msg.getType().getCode());
@@ -99,9 +106,9 @@ public class TcpClientConnectionTest {
         // Trigger a read.
         reader.start();
         // Await until the read from the Socket Input stream has started.
-        tcpStream.lastbyteLatch.await();
-        //invoke stop
-        reader.stop();
+        tcpStream.readInvokedLatch.await();
+        // Invoke stop and verify it is blocked.
+        assertBlocks(reader::stop, () -> tcpStream.lastByteLatch.release());
         // Verify that segment sealed callback is not invoked since stop() has already been invoked.
         verify(rp, times(0)).process(any(WireCommands.SegmentIsSealed.class));
         // Ensure a connection dropped is invoked as part of the stop().
