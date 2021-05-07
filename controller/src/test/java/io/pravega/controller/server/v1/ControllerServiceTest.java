@@ -262,6 +262,26 @@ public class ControllerServiceTest {
 
         status = consumer.abortTransaction(SCOPE, stream1, txnId).join();
         assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
+
+        doThrow(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Data Not Found"))
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
+                any(), any());
+
+        status = consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L).join();
+        assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
+
+        status = consumer.abortTransaction(SCOPE, stream1, txnId).join();
+        assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
+
+        doThrow(StoreException.create(StoreException.Type.ILLEGAL_STATE, "Data Not Found"))
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
+                any(), any());
+
+        status = consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L).join();
+        assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
+
+        status = consumer.abortTransaction(SCOPE, stream1, txnId).join();
+        assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
         reset(streamStore);
     }
     
