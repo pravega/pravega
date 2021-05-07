@@ -142,8 +142,10 @@ public class TcpClientConnectionTest {
         TcpClientConnection.ConnectionReader reader = new TcpClientConnection.ConnectionReader("reader", tcpStream, rp, mock(FlowToBatchSizeTracker.class));
         // Trigger a read.
         reader.start();
+        tcpStream.lastByteLatch.release();
         // Wait until the ReplyProcessor callback is invoked.
         isCallbackInvokedLatch.await();
+
         // Verify if ConnectionReader.stop() is blocked until the ReplyProcessor callback finish its execution.
         assertBlocks(reader::stop, blockCallbackLatch::release);
         verify(rp, times(1)).process(any(WireCommands.SegmentIsSealed.class));
