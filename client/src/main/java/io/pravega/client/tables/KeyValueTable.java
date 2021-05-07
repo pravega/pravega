@@ -59,17 +59,20 @@ import lombok.NonNull;
  * and cannot be used for multi-key/entry atomic updates or removals.
  *
  * <li> {@link TableKey}s sharing the same Primary Key are grouped into the same Table Segment; as such, the choice of
- * Primary Keys can have performance implications. An ideally balanced Key-Value Table is one where there the load on each
- * Table Segment is approximately the same; this can be achieved by not having any Secondary Keys at all or where each
- * Primary Key has approximately the same number of Secondary Keys. To enable a uniform distribution of Keys over the
- * Key-Value Table, consider not using Secondary Keys at all. If this situation cannot be avoided (i.e., multi-entry
- * atomic updates are required), then it is recommended to use a sufficiently large number of Primary Keys compared to
- * the number of Partitions configured on the Key-Value Table (the higher the ratio of Primary Keys to Partitions, the
- * better). Such an approach will ensure that the Key-Value Table load will be spread across all its Table Segments.
- * An undesirable situation is an extreme case where all the Keys in the Key-Value Table are associated with a single
- * Primary Key; in this case the entire Key-Value Table load will be placed on a single backing Table Segment instead of
- * spreading it across many Table Segments, limiting the performance of the whole Key-Value Table to that of a single
- * Table Segment.
+ * Table Key can have performance implications. As Primary Keys are hashed to Table Segments, a large number of Primary
+ * Keys (larger than the number of Table Segments) and a uniform distribution of operations across keys leads to an even
+ * distribution of load across Table Segments. Many realistic workloads are skewed, however, and can lead to an uneven
+ * load distribution across Table Segments.
+ *
+ * The use of Secondary Keys also has implications to the load balance. All keys containing a given Primary Key map to
+ * the same Table Segment independent of Secondary Key. In the presence of Secondary Keys, the total load for a given
+ * Primary Key depends on the load aggregate across all of its Secondary Keys. When the load distribution is highly
+ * skewed, one option to consider is eliminating Secondary Keys and only using Primary Keys. The application must be
+ * able to encode the key into a single one rather than split into two parts. To illustrate, if we have two Table Keys
+ * "A.B" and "A.C", "." representing the separation between Primary and Secondary Keys, then they map to the same Table
+ * Segment because they have the same Primary Key "A". If instead, we use "AB" and "AC" as keys, eliminating the Secondary
+ * Keys but retaining the necessary information in the Primary Key, then we should be able to map those keys to different
+ * Table Segments depending on the hashing.
  * </ul>
  * <p>
  * Types of Updates:
@@ -154,8 +157,7 @@ public interface KeyValueTable extends AutoCloseable {
      * <p>
      * See {@link #update(TableModification)} for details on Conditional/Unconditional Updates. Conditional and unconditional
      * updates may be mixed together in this call. Each individual {@link TableModification} will be individually assessed
-     * (from a conditional point of view) and will prevent the committal of the entire batch of updates if it fails to
-     * meet the condition.
+     * (from a conditional point of view) and will prevent the entire batch from committing if it fails to meet the condition.
      *
      * @param updates An {@link Iterable} of {@link TableModification}s to apply to the {@link KeyValueTable}. Note that
      *                {@link Remove} instances may not be mixed together with {@link Insert} or {@link Put} instances,
@@ -203,23 +205,24 @@ public interface KeyValueTable extends AutoCloseable {
      * if all that is needed is the {@link TableKey}s as less I/O is involved both server-side and between the server
      * and client.
      *
-     * @param maxKeysAtOnce The maximum number of {@link TableKey}s to return with each call to {@link AsyncIterator#getNext()}.
-     * @param args          (Optional) An {@link IteratorArgs} instance that represents the args to pass to the iterator.
+     * @param maxIterationSize The maximum number of {@link TableKey}s to return with each call to
+     *                         {@link AsyncIterator#getNext()}.
+     * @param args             (Optional) An {@link IteratorArgs} instance that represents the args to pass to the iterator.
      * @return An {@link AsyncIterator} that can be used to iterate over Keys in this {@link KeyValueTable}.
      */
-    AsyncIterator<IteratorItem<TableKey>> keyIterator(int maxKeysAtOnce, @NonNull IteratorArgs args);
+    AsyncIterator<IteratorItem<TableKey>> keyIterator(int maxIterationSize, @NonNull IteratorArgs args);
 
     /**
      * Creates a new Iterator over {@link TableEntry} instances in this {@link KeyValueTable}. This should be used if
      * both the Keys and their associated Values are needed and is preferred to using {@link #keyIterator} to get the Keys
      * and then issuing {@link #get}/{@link #getAll} to retrieve the Values.
      *
-     * @param maxEntriesAtOnce The maximum number of {@link TableEntry} instances to return with each call to
+     * @param maxIterationSize The maximum number of {@link TableEntry} instances to return with each call to
      *                         {@link AsyncIterator#getNext()}.
-     * @param args          (Optional) An {@link IteratorArgs} instance that represents the args to pass to the iterator.
+     * @param args             (Optional) An {@link IteratorArgs} instance that represents the args to pass to the iterator.
      * @return An {@link AsyncIterator} that can be used to iterate over Entries in this {@link KeyValueTable}.
      */
-    AsyncIterator<IteratorItem<TableEntry>> entryIterator(int maxEntriesAtOnce, @NonNull IteratorArgs args);
+    AsyncIterator<IteratorItem<TableEntry>> entryIterator(int maxIterationSize, @NonNull IteratorArgs args);
 
     /**
      * Closes the {@link KeyValueTable}. No more updates, removals, retrievals or iterators may be performed using it.

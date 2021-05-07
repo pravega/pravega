@@ -199,13 +199,13 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
     }
 
     @Override
-    public AsyncIterator<IteratorItem<TableKey>> keyIterator(int maxKeysAtOnce, @NonNull IteratorArgs args) {
+    public AsyncIterator<IteratorItem<TableKey>> keyIterator(int maxIterationSize, @NonNull IteratorArgs args) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public AsyncIterator<IteratorItem<TableEntry>> entryIterator(int maxEntriesAtOnce, @Nullable IteratorArgs args) {
+    public AsyncIterator<IteratorItem<TableEntry>> entryIterator(int maxIterationSize, @Nullable IteratorArgs args) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         throw new UnsupportedOperationException();
     }
