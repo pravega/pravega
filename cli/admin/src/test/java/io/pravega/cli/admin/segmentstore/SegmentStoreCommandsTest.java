@@ -83,7 +83,7 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         @Cleanup
         EventStreamClientFactory factory = EventStreamClientFactory.withScope("segmentstore", clientConfig);
         @Cleanup
-        EventStreamWriter<String> writer = factory.createEventWriter("readsegment", new JavaSerializer<>(), EventWriterConfig.builder().build());
+        EventStreamWriter<String> writer = factory.createEventWriter("flushToStorage", new JavaSerializer<>(), EventWriterConfig.builder().build());
         writer.writeEvents("rk", Arrays.asList("a", "2", "3"));
         writer.flush();
         String commandResult = TestUtils.executeCommand("segmentstore flushToStorage localhost", STATE.get());
