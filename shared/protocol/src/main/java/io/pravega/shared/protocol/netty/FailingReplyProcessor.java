@@ -110,6 +110,11 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     public void segmentRead(SegmentRead data) {
         throw new IllegalStateException("Unexpected operation: " + data);
     }
+
+    @Override
+    public void flushedStorage(WireCommands.FlushedStorage flushedStorage) {
+        throw new IllegalStateException("Unexpected operation: " + flushedStorage);
+    }
     
     @Override
     public void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated) {

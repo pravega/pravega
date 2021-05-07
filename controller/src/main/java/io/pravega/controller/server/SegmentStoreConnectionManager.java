@@ -216,7 +216,7 @@ class SegmentStoreConnectionManager implements AutoCloseable {
      *  different calls.
      */
     @VisibleForTesting
-    static class ReusableReplyProcessor implements ReplyProcessor {
+            static class ReusableReplyProcessor implements ReplyProcessor {
         private final AtomicReference<ReplyProcessor> replyProcessor = new AtomicReference<>();
 
         // initialize the reusable reply processor class with a new reply processor
@@ -301,6 +301,11 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         @Override
         public void segmentRead(WireCommands.SegmentRead segmentRead) {
             execute(ReplyProcessor::segmentRead, segmentRead);
+        }
+
+        @Override
+        public void flushedStorage(WireCommands.FlushedStorage flushedStorage) {
+            execute(ReplyProcessor::flushedStorage, flushedStorage);
         }
 
         @Override

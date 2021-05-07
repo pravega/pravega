@@ -149,7 +149,7 @@ public interface StreamSegmentStore {
      */
     CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout);
 
-    CompletableFuture<ReadResult> flushToStorage(Duration timeout);
+    CompletableFuture<Void> flushToStorage(Duration timeout);
 
     /**
      * Gets information about a StreamSegment.

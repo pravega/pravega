@@ -94,6 +94,11 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     }
 
     @Override
+    public CompletableFuture<Void> flushToStorage(Duration timeout) {
+        return invokeFlush(timeout);
+    }
+
+    @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         return invoke(
                 streamSegmentName,

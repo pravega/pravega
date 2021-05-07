@@ -77,6 +77,13 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
+    public CompletableFuture<Void> flushToStorage(Duration timeout) {
+        CompletableFuture<Void> result = impl.flushToStorage(timeout);
+        Futures.await(result);
+        return result;
+    }
+
+    @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         CompletableFuture<SegmentProperties> result = impl.getStreamSegmentInfo(streamSegmentName, timeout);
         Futures.await(result);

@@ -22,9 +22,13 @@ import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Base class for any wrapper that deals with multiple Segment Containers.
@@ -81,5 +85,20 @@ public abstract class SegmentContainerCollection {
         }
 
         return resultFuture;
+    }
+
+    protected CompletableFuture<Void> invokeFlush(Duration timeout) {
+        int containerCount = this.segmentContainerRegistry.getContainerCount();
+        SegmentContainer container;
+        val futures = new ArrayList<CompletableFuture<Void>>();
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            try {
+                container = this.segmentContainerRegistry.getContainer(containerId);
+                futures.add(container.flushToStorage(timeout));
+            } catch (ContainerNotFoundException ex) {
+                return Futures.failedFuture(ex);
+            }
+        }
+        return Futures.allOf(futures);
     }
 }
