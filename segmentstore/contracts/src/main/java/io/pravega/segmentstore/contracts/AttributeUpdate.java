@@ -16,7 +16,6 @@
 package io.pravega.segmentstore.contracts;
 
 import com.google.common.base.Preconditions;
-import java.util.UUID;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -35,7 +34,7 @@ public class AttributeUpdate {
     /**
      * The ID of the Attribute to update.
      */
-    private final UUID attributeId;
+    private final AttributeId attributeId;
 
     /**
      * The UpdateType of the attribute.
@@ -60,7 +59,7 @@ public class AttributeUpdate {
      * @param updateType  The UpdateType. All update types except ReplaceIfEquals work with this method.
      * @param value       The new value to set.
      */
-    public AttributeUpdate(UUID attributeId, AttributeUpdateType updateType, long value) {
+    public AttributeUpdate(AttributeId attributeId, AttributeUpdateType updateType, long value) {
         this(attributeId, updateType, value, Long.MIN_VALUE);
         Preconditions.checkArgument(updateType != AttributeUpdateType.ReplaceIfEquals,
                 "Cannot use this constructor with ReplaceIfEquals.");
@@ -68,6 +67,10 @@ public class AttributeUpdate {
 
     @Override
     public String toString() {
-        return String.format("AttributeId = %s, Value = %s, UpdateType = %s", this.attributeId, this.value, this.updateType);
+        if (this.updateType == AttributeUpdateType.ReplaceIfEquals) {
+            return String.format("AttributeId = %s, UpdateType = %s, Value = %s, Compare = %s", this.attributeId, this.updateType, this.value, this.comparisonValue);
+        } else {
+            return String.format("AttributeId = %s, UpdateType = %s, Value = %s", this.attributeId, this.updateType, this.value);
+        }
     }
 }
