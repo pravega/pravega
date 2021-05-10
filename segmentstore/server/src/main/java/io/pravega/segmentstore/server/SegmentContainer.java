@@ -96,8 +96,8 @@ public interface SegmentContainer extends StreamSegmentStore, Container {
      * @param streamSegmentName The name of the Segment to get for.
      * @param desiredPriority   The desired {@link OperationPriority}. If null, the priority will be calculated in
      *                          accordance with the rules defined internally in the Segment Container. Note that even if
-     *                          provided, the Segment Container may choose to not alter this priority if the type of
-     *                          operation or Segment Type demands a higher priority.
+     *                          provided, the Segment Container may choose a higher priority (but not lower) if the Segment
+     *                          Type or Operation Type demand a higher one.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the desired result. If the operation
      * failed, the future will be failed with the causing exception.
