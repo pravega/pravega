@@ -16,34 +16,32 @@
 package io.pravega.client.tables;
 
 import java.nio.ByteBuffer;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 
 /**
- * A {@link KeyValueTable} Key.
+ * Defines a {@link TableModification} that updates a {@link TableKey} with a new value.
  */
-@Data
-@RequiredArgsConstructor
-public final class TableKey {
+public abstract class TableEntryUpdate extends TableModification {
     /**
-     * The Primary Key.
-     *
-     * @param primaryKey Primary Key.
-     * @return Primary Key.
+     * The new value to associate the {@link TableKey} with.
      */
-    @NonNull
-    private final ByteBuffer primaryKey;
+    @Getter
+    private final ByteBuffer value;
 
     /**
-     * The Secondary Key (Optional).
+     * Creates a new instance of the {@link TableEntryUpdate} class.
      *
-     * @param version Secondary Key.
-     * @return Secondary Key.
+     * @param key   The {@link TableKey}.
+     * @param value The Value to associate with the {@link TableKey}.
      */
-    private final ByteBuffer secondaryKey;
+    TableEntryUpdate(TableKey key, @NonNull ByteBuffer value) {
+        super(key);
+        this.value = value;
+    }
 
-    public TableKey(ByteBuffer primaryKey) {
-        this(primaryKey, null);
+    @Override
+    public boolean isRemoval() {
+        return false;
     }
 }

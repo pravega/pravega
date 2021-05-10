@@ -186,7 +186,7 @@ class TableSegmentImpl implements TableSegment {
     }
 
     @Override
-    public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(@NonNull IteratorArgs args) {
+    public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(@NonNull SegmentIteratorArgs args) {
         return new TableSegmentIterator<>(
                 s -> fetchIteratorItems(args, s, WireCommands.ReadTableKeys::new, WireCommands.TableKeysRead.class,
                         WireCommands.TableKeysRead::getContinuationToken, this::fromWireCommand),
@@ -195,7 +195,7 @@ class TableSegmentImpl implements TableSegment {
     }
 
     @Override
-    public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(@NonNull IteratorArgs args) {
+    public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(@NonNull SegmentIteratorArgs args) {
         return new TableSegmentIterator<>(
                 s -> fetchIteratorItems(args, s, WireCommands.ReadTableEntries::new, WireCommands.TableEntriesRead.class,
                         WireCommands.TableEntriesRead::getContinuationToken, reply -> fromWireCommand(reply.getEntries())),
@@ -206,7 +206,7 @@ class TableSegmentImpl implements TableSegment {
     /**
      * Fetches a collection of items as part of an async iterator.
      *
-     * @param args               A {@link IteratorArgs} that contains initial arguments to the iterator.
+     * @param args               A {@link SegmentIteratorArgs} that contains initial arguments to the iterator.
      * @param iteratorState      Iterator State. See {@link TableSegment#keyIterator} or {@link TableSegment#entryIterator}
      *                           for more details.
      * @param newIteratorRequest Creates a {@link WireCommand} for the iterator items.
@@ -220,7 +220,7 @@ class TableSegmentImpl implements TableSegment {
      * Future will be failed with the appropriate exception.
      */
     private <ItemT, RequestT extends Request & WireCommand, ReplyT extends Reply & WireCommand> CompletableFuture<IteratorItem<ItemT>> fetchIteratorItems(
-            IteratorArgs args, IteratorState iteratorState, CreateIteratorRequest<RequestT> newIteratorRequest,
+            SegmentIteratorArgs args, IteratorState iteratorState, CreateIteratorRequest<RequestT> newIteratorRequest,
             Class<ReplyT> replyClass, Function<ReplyT, ByteBuf> getStateToken, Function<ReplyT, List<ItemT>> getResult) {
         val token = (iteratorState == null) ? IteratorStateImpl.EMPTY : iteratorState;
         val prefixFilter = args.getKeyPrefixFilter() == null ? Unpooled.EMPTY_BUFFER : args.getKeyPrefixFilter();

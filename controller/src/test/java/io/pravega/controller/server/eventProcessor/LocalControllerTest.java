@@ -51,6 +51,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
@@ -670,24 +671,25 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
 
     @Test
     public void testCreateKeyValueTable() {
+        val kvtConfig = KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(4).secondaryKeyLength(4).build();
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
                         .setStatus(Controller.CreateKeyValueTableStatus.Status.SUCCESS).build()));
         Assert.assertTrue(this.testController.createKeyValueTable("scope", "kvtable",
-                KeyValueTableConfiguration.builder().partitionCount(1).build()).join());
+                kvtConfig).join());
 
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
                         .setStatus(Controller.CreateKeyValueTableStatus.Status.TABLE_EXISTS).build()));
         Assert.assertFalse(this.testController.createKeyValueTable("scope", "kvtable",
-                KeyValueTableConfiguration.builder().partitionCount(1).build()).join());
+                kvtConfig).join());
 
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateKeyValueTableStatus.newBuilder()
                         .setStatus(Controller.CreateKeyValueTableStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.createKeyValueTable("scope", "kvtable",
-                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                        kvtConfig).join(),
                 ex -> ex instanceof ControllerFailureException);
 
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
@@ -695,7 +697,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                         .setStatus(Controller.CreateKeyValueTableStatus.Status.INVALID_TABLE_NAME).build()));
         assertThrows("Expected IllegalArgumentException",
                 () -> this.testController.createKeyValueTable("scope", "kvtable",
-                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                        kvtConfig).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
@@ -703,7 +705,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                         .setStatus(Controller.CreateKeyValueTableStatus.Status.SCOPE_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
                 () -> this.testController.createKeyValueTable("scope", "kvtable",
-                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                        kvtConfig).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
         when(this.mockControllerService.createKeyValueTable(any(), any(), any(), anyLong())).thenReturn(
@@ -711,7 +713,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.createKeyValueTable("scope", "kvtable1",
-                        KeyValueTableConfiguration.builder().partitionCount(1).build()).join(),
+                        kvtConfig).join(),
                 ex -> ex instanceof ControllerFailureException);
     }
 

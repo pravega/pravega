@@ -21,56 +21,56 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.BadKeyVersionException;
+import io.pravega.client.tables.ConditionalTableUpdateException;
+import io.pravega.client.tables.IteratorArgs;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTable;
-import io.pravega.client.tables.KeyValueTableMap;
+import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.Put;
+import io.pravega.client.tables.Remove;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
+import io.pravega.client.tables.TableModification;
+import io.pravega.client.tables.TableEntryUpdate;
 import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
+import lombok.Data;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.commons.lang3.SerializationException;
 
 /**
  * Implementation for {@link KeyValueTable}.
- *
- * @param <KeyT>   Type for Key.
- * @param <ValueT> Type for Value.
  */
 @Slf4j
-public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, ValueT>, AutoCloseable {
+public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
     //region Members
 
-    private static final KeyFamilySerializer KEY_FAMILY_SERIALIZER = new KeyFamilySerializer();
     private final KeyValueTableInfo kvt;
-    private final Serializer<KeyT> keySerializer;
-    private final Serializer<ValueT> valueSerializer;
     private final SegmentSelector selector;
     private final String logTraceId;
     private final AtomicBoolean closed;
+    private final KeyValueTableConfiguration config;
+    private final int totalKeyLength;
 
     //endregion
 
@@ -80,20 +80,21 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
      * Creates a new instance of the {@link KeyValueTableImpl} class.
      *
      * @param kvt                 A {@link KeyValueTableInfo} containing information about the Key-Value Table.
+     * @param config              A {@link KeyValueTableConfiguration} representing the config for the Key-Value Table.
      * @param tableSegmentFactory Factory to create {@link TableSegment} instances.
      * @param controller          Controller client.
-     * @param keySerializer       Serializer for keys.
-     * @param valueSerializer     Serializer for values.
      */
-    KeyValueTableImpl(@NonNull KeyValueTableInfo kvt, @NonNull TableSegmentFactory tableSegmentFactory, @NonNull Controller controller,
-                      @NonNull Serializer<KeyT> keySerializer, @NonNull Serializer<ValueT> valueSerializer) {
+    KeyValueTableImpl(@NonNull KeyValueTableInfo kvt, @NonNull KeyValueTableConfiguration config,
+                      @NonNull TableSegmentFactory tableSegmentFactory, @NonNull Controller controller) {
         this.kvt = kvt;
-        this.keySerializer = keySerializer;
-        this.valueSerializer = valueSerializer;
+        this.config = config;
         this.selector = new SegmentSelector(this.kvt, controller, tableSegmentFactory);
         this.logTraceId = String.format("KeyValueTable[%s]", this.kvt.getScopedName());
         this.closed = new AtomicBoolean(false);
-        log.info("{}: Initialized. SegmentCount={}.", this.logTraceId, this.selector.getSegmentCount());
+        Preconditions.checkArgument(config.getPartitionCount() == this.selector.getSegmentCount(),
+                "Inconsistent Segment Count. Expected %s, actual %s.", config.getPartitionCount(), this.selector.getSegmentCount());
+        log.info("{}: Initialized. Config: {}.", this.logTraceId, this.config);
+        this.totalKeyLength = this.config.getPrimaryKeyLength() + this.config.getSecondaryKeyLength();
     }
 
     //endregion
@@ -113,147 +114,69 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     //region KeyValueTable Implementation
 
     @Override
-    public KeyValueTableMap<KeyT, ValueT> getMapFor(String keyFamily) {
-        return new KeyValueTableMapImpl<>(this, keyFamily);
-    }
-
-    @Override
-    public CompletableFuture<Version> put(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value) {
-        ByteBuf keySerialization = serializeKey(keyFamily, key);
-        TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
-        return updateToSegment(s, toTableSegmentEntry(keySerialization, serializeValue(value), Version.NO_VERSION));
-    }
-
-    @Override
-    public CompletableFuture<Version> putIfAbsent(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value) {
-        ByteBuf keySerialization = serializeKey(keyFamily, key);
-        TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
-        return updateToSegment(s, toTableSegmentEntry(keySerialization, serializeValue(value), Version.NOT_EXISTS));
-    }
-
-    @Override
-    public CompletableFuture<List<Version>> putAll(@NonNull String keyFamily, @NonNull Iterable<Map.Entry<KeyT, ValueT>> entries) {
-        TableSegment s = this.selector.getTableSegment(keyFamily);
-        return updateToSegment(s, toTableSegmentEntries(s, keyFamily, entries, e -> TableEntry.unversioned(e.getKey(), e.getValue())));
-    }
-
-    /**
-     * Same as {@link #putAll(String, Iterable)}, but accepts an iterator.
-     *
-     * @param keyFamily The Key Family for the all provided Table Entries.
-     * @param entries   An {@link Iterable} of {@link java.util.Map.Entry} instances to insert or update.
-     * @return A CompletableFuture that, when completed, will contain a List of {@link Version} instances which
-     * represent the versions for the inserted/updated keys. The size of this list will be the same as the number of
-     * items in entries and the versions will be in the same order as the entries.
-     */
-    public CompletableFuture<List<Version>> putAll(@NonNull String keyFamily, @NonNull Iterator<Map.Entry<KeyT, ValueT>> entries) {
-        TableSegment s = this.selector.getTableSegment(keyFamily);
-        return updateToSegment(s, toTableSegmentEntries(s, keyFamily, entries, e -> TableEntry.unversioned(e.getKey(), e.getValue())));
-    }
-
-    @Override
-    public CompletableFuture<Version> replace(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value,
-                                              @NonNull Version version) {
-        ByteBuf keySerialization = serializeKey(keyFamily, key);
-        TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
-        validateKeyVersionSegment(s, version);
-        return updateToSegment(s, toTableSegmentEntry(keySerialization, serializeValue(value), version));
-    }
-
-    @Override
-    public CompletableFuture<List<Version>> replaceAll(@NonNull String keyFamily, @NonNull Iterable<TableEntry<KeyT, ValueT>> entries) {
-        TableSegment s = this.selector.getTableSegment(keyFamily);
-        return updateToSegment(s, toTableSegmentEntries(s, keyFamily, entries, e -> e));
-    }
-
-    @Override
-    public CompletableFuture<Void> remove(@Nullable String keyFamily, @NonNull KeyT key) {
-        ByteBuf keySerialization = serializeKey(keyFamily, key);
-        TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
-        return removeFromSegment(s, Iterators.singletonIterator(toTableSegmentKey(keySerialization, Version.NO_VERSION)));
-    }
-
-    @Override
-    public CompletableFuture<Void> remove(@Nullable String keyFamily, @NonNull KeyT key, @NonNull Version version) {
-        ByteBuf keySerialization = serializeKey(keyFamily, key);
-        TableSegment s = this.selector.getTableSegment(keyFamily, keySerialization);
-        validateKeyVersionSegment(s, version);
-        return removeFromSegment(s, Iterators.singletonIterator(toTableSegmentKey(keySerialization, version)));
-    }
-
-    @Override
-    public CompletableFuture<Void> removeAll(@NonNull String keyFamily, @NonNull Iterable<TableKey<KeyT>> keys) {
-        TableSegment s = this.selector.getTableSegment(keyFamily);
-        return removeFromSegment(s, toTableSegmentKeys(s, keyFamily, keys));
-    }
-
-    @Override
-    public CompletableFuture<TableEntry<KeyT, ValueT>> get(@Nullable String keyFamily, @NonNull KeyT key) {
-        return getAll(keyFamily, Collections.singleton(key))
-                .thenApply(r -> r.get(0));
-    }
-
-    @Override
-    public CompletableFuture<List<TableEntry<KeyT, ValueT>>> getAll(@Nullable String keyFamily, @NonNull Iterable<KeyT> keys) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        Iterator<ByteBuf> serializedKeys = StreamSupport.stream(keys.spliterator(), false)
-                .map(k -> serializeKey(keyFamily, k))
-                .iterator();
-        if (keyFamily == null) {
-            // We are dealing with multiple segments.
-            return getFromMultiSegments(serializedKeys);
+    public CompletableFuture<Version> update(@NonNull TableModification update) {
+        val s = this.selector.getTableSegment(update.getKey().getPrimaryKey());
+        if (update.isRemoval()) {
+            val removeArgs = new UpdateArg<TableSegmentKey>(update.getKey().getPrimaryKey(), s, Iterators.singletonIterator(toTableSegmentKey(s, (Remove) update)));
+            return removeFromSegment(removeArgs.getTableSegment(), removeArgs.getAllArgs()).thenApply(r -> null);
         } else {
-            // Everything goes into a single segment.
-            TableSegment s = this.selector.getTableSegment(keyFamily);
-            return getFromSingleSegment(s, serializedKeys, keyFamily);
+            val updateArgs = new UpdateArg<>(update.getKey().getPrimaryKey(), s, Iterators.singletonIterator(toTableSegmentEntry(s, (TableEntryUpdate) update)));
+            return updateToSegment(updateArgs.getTableSegment(), updateArgs.getAllArgs()).thenApply(r -> r.get(0));
         }
     }
 
     @Override
-    public AsyncIterator<IteratorItem<TableKey<KeyT>>> keyIterator(@NonNull String keyFamily, int maxKeysAtOnce,
-                                                                   @Nullable IteratorState state) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        TableSegment ts = this.selector.getTableSegment(keyFamily);
-        IteratorArgs args = getIteratorArgs(ts, keyFamily, maxKeysAtOnce, state);
-        return ts.keyIterator(args).thenApply(si -> fromSegmentIteratorItem(ts, keyFamily, si, this::fromTableSegmentKey));
+    public CompletableFuture<List<Version>> update(@NonNull Iterable<TableModification> updates) {
+        val inputIterator = updates.iterator();
+        if (!inputIterator.hasNext()) {
+            // Empty input - nothing to do.
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+
+        val firstInput = inputIterator.next();
+        val ts = this.selector.getTableSegment(firstInput.getKey().getPrimaryKey());
+        if (firstInput.isRemoval()) {
+            val args = toArg(firstInput, inputIterator, ts, u -> toTableSegmentKey(ts, (Remove) u));
+            return removeFromSegment(args.getTableSegment(), args.getAllArgs()).thenApply(r -> Collections.emptyList());
+        } else {
+            val args = toArg(firstInput, inputIterator, ts, u -> toTableSegmentEntry(ts, (TableEntryUpdate) u));
+            return updateToSegment(args.getTableSegment(), args.getAllArgs());
+        }
     }
 
     @Override
-    public AsyncIterator<IteratorItem<TableEntry<KeyT, ValueT>>> entryIterator(@NonNull String keyFamily, int maxEntriesAtOnce,
-                                                                               @Nullable IteratorState state) {
+    public CompletableFuture<Boolean> exists(@NonNull TableKey key) {
+        // We attempt a removal conditioned on the key not existing (no-op if key actual exists). This is preferred to
+        // using get(key) because get() will also attempt to read and return the value (of no use in this case).
+        return update(new Remove(key, Version.NOT_EXISTS))
+                .handle((r, ex) -> {
+                    if (ex != null) {
+                        if (ex instanceof ConditionalTableUpdateException) {
+                            return true;
+                        } else {
+                            throw new CompletionException(ex);
+                        }
+                    }
+                    return false;
+                });
+    }
+
+    @Override
+    public CompletableFuture<TableEntry> get(@NonNull TableKey key) {
+        return getAll(Collections.singleton(key))
+                .thenApply(r -> r.get(0));
+    }
+
+    @Override
+    public CompletableFuture<List<TableEntry>> getAll(@NonNull Iterable<TableKey> keys) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        TableSegment ts = this.selector.getTableSegment(keyFamily);
-        IteratorArgs args = getIteratorArgs(ts, keyFamily, maxEntriesAtOnce, state);
-        return ts.entryIterator(args).thenApply(si -> fromSegmentIteratorItem(ts, keyFamily, si, this::fromTableSegmentEntry));
-    }
 
-    //endregion
-
-    //region Helpers
-
-    private CompletableFuture<Version> updateToSegment(TableSegment segment, TableSegmentEntry tableSegmentEntry) {
-        return updateToSegment(segment, Iterators.singletonIterator(tableSegmentEntry)).thenApply(r -> r.get(0));
-    }
-
-    private CompletableFuture<List<Version>> updateToSegment(TableSegment segment, Iterator<TableSegmentEntry> tableSegmentEntries) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return segment.put(tableSegmentEntries)
-                .thenApply(versions -> versions.stream().map(v -> new VersionImpl(segment.getSegmentId(), v)).collect(Collectors.toList()));
-    }
-
-    private CompletableFuture<Void> removeFromSegment(TableSegment segment, Iterator<TableSegmentKey> tableSegmentKeys) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return segment.remove(tableSegmentKeys);
-    }
-
-    @SuppressWarnings("unchecked")
-    private CompletableFuture<List<TableEntry<KeyT, ValueT>>> getFromMultiSegments(Iterator<ByteBuf> serializedKeys) {
         val bySegment = new HashMap<TableSegment, KeyGroup>();
         val count = new AtomicInteger(0);
-        serializedKeys.forEachRemaining(k -> {
-            TableSegment ts = this.selector.getTableSegment(null, k);
+        keys.forEach(k -> {
+            TableSegment ts = this.selector.getTableSegment(k.getPrimaryKey());
             KeyGroup g = bySegment.computeIfAbsent(ts, t -> new KeyGroup());
-            g.add(k, count.getAndIncrement());
+            g.add(serializeKey(k), count.getAndIncrement());
         });
 
         val futures = new HashMap<TableSegment, CompletableFuture<List<TableSegmentEntry>>>();
@@ -268,146 +191,119 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
                         assert segmentResult.size() == kg.ordinals.size() : "segmentResult count mismatch";
                         for (int i = 0; i < kg.ordinals.size(); i++) {
                             assert r[kg.ordinals.get(i)] == null : "overlapping ordinals";
-                            r[kg.ordinals.get(i)] = fromTableSegmentEntry(ts, segmentResult.get(i), null);
+                            r[kg.ordinals.get(i)] = fromTableSegmentEntry(ts, segmentResult.get(i));
                         }
                     });
                     return Arrays.asList(r);
                 });
     }
 
-    private CompletableFuture<List<TableEntry<KeyT, ValueT>>> getFromSingleSegment(TableSegment s, Iterator<ByteBuf> serializedKeys,
-                                                                                   String expectedKeyFamily) {
-        return s.get(serializedKeys)
-                .thenApply(entries -> entries.stream().map(e -> fromTableSegmentEntry(s, e, expectedKeyFamily)).collect(Collectors.toList()));
+    @Override
+    public AsyncIterator<IteratorItem<TableKey>> keyIterator(int maxIterationSize, @NonNull IteratorArgs args) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        throw new UnsupportedOperationException();
     }
 
-    private IteratorArgs getIteratorArgs(TableSegment ts, String keyFamily, int maxItemsAtOnce, IteratorState state) {
-        IteratorState segmentIteratorState = null;
-        if (state != null) {
-            val kvtState = KeyValueTableIteratorState.fromBytes(state.toBytes());
-            Preconditions.checkArgument(this.kvt.getScopedName().equals(kvtState.getKeyValueTableName()),
-                    "IteratorState refers to a different Key-ValueTable (%s) than this one (%s).",
-                    kvtState.getKeyValueTableName(), this.kvt.getScopedName());
-            Preconditions.checkArgument(ts.getSegmentId() == kvtState.getSegmentId(),
-                    "IteratorState refers to a different Segment (%s) than assigned to KeyFamily '%s' (%s).",
-                    kvtState.getSegmentId(), keyFamily, ts.getSegmentId());
-            segmentIteratorState = IteratorStateImpl.fromBytes(kvtState.getSegmentIteratorState());
-        }
-
-        return IteratorArgs.builder()
-                .keyPrefixFilter(Unpooled.wrappedBuffer(KEY_FAMILY_SERIALIZER.serialize(keyFamily)))
-                .maxItemsAtOnce(maxItemsAtOnce)
-                .state(segmentIteratorState)
-                .build();
+    @Override
+    public AsyncIterator<IteratorItem<TableEntry>> entryIterator(int maxIterationSize, @Nullable IteratorArgs args) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        throw new UnsupportedOperationException();
     }
 
-    private <T, V> IteratorItem<V> fromSegmentIteratorItem(TableSegment ts, String keyFamily, IteratorItem<T> segmentIteratorItem,
-                                                           SegmentItemConverter<T, V> converter) {
-        IteratorState segmentState = segmentIteratorItem.getState();
-        IteratorState state;
-        if (segmentState.isEmpty()) {
-            state = IteratorStateImpl.EMPTY;
-        } else {
-            val kvtState = new KeyValueTableIteratorState(this.kvt.getScopedName(), ts.getSegmentId(), Unpooled.wrappedBuffer(segmentState.toBytes()));
-            state = IteratorStateImpl.fromBytes(kvtState.toBytes());
-        }
+    //endregion
 
-        val items = segmentIteratorItem.getItems().stream().map(k -> converter.apply(ts, k, keyFamily)).collect(Collectors.toList());
-        return new IteratorItem<>(state, items);
+    //region Helpers
+
+    private <T> UpdateArg<T> toArg(TableModification firstInput, Iterator<TableModification> inputIterator, TableSegment ts,
+                                   Function<TableModification, T> convert) {
+        val firstInputIterator = Iterators.singletonIterator(convert.apply(firstInput));
+        val restIterator = Iterators.transform(inputIterator, i -> {
+            val pk = i.getKey().getPrimaryKey();
+            Preconditions.checkArgument(firstInput.getKey().getPrimaryKey().equals(pk), "All Keys must have the same Primary Key.");
+            Preconditions.checkArgument(firstInput.isRemoval() == i.isRemoval(), "Cannot combine Removals with Updates.");
+            return convert.apply(i);
+        });
+
+        return new UpdateArg<T>(firstInput.getKey().getPrimaryKey(), ts, Iterators.concat(firstInputIterator, restIterator));
     }
 
-    private Iterator<TableSegmentKey> toTableSegmentKeys(TableSegment tableSegment, String keyFamily, Iterable<TableKey<KeyT>> keys) {
-        return StreamSupport.stream(keys.spliterator(), false)
-                .map(k -> {
-                    validateKeyVersionSegment(tableSegment, k.getVersion());
-                    return toTableSegmentKey(serializeKey(keyFamily, k.getKey()), k.getVersion());
-                })
-                .iterator();
+    private CompletableFuture<List<Version>> updateToSegment(TableSegment segment, Iterator<TableSegmentEntry> tableSegmentEntries) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        return segment.put(tableSegmentEntries)
+                .thenApply(versions -> versions.stream().map(v -> new VersionImpl(segment.getSegmentId(), v)).collect(Collectors.toList()));
+    }
+
+    private CompletableFuture<Void> removeFromSegment(TableSegment segment, Iterator<TableSegmentKey> tableSegmentKeys) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        return segment.remove(tableSegmentKeys);
     }
 
     private TableSegmentKey toTableSegmentKey(ByteBuf key, Version keyVersion) {
         return new TableSegmentKey(key, toTableSegmentVersion(keyVersion));
     }
 
-    private <T> Iterator<TableSegmentEntry> toTableSegmentEntries(TableSegment tableSegment, String keyFamily, Iterator<T> entries,
-                                                                  Function<T, TableEntry<KeyT, ValueT>> getEntry) {
-        return Iterators.transform(entries, e -> toTableSegmentEntry(tableSegment, keyFamily, e, getEntry));
+    private TableSegmentKey toTableSegmentKey(TableSegment tableSegment, Remove removal) {
+        validateKeyVersionSegment(tableSegment, removal.getVersion());
+        return toTableSegmentKey(serializeKey(removal.getKey()), removal.getVersion());
     }
 
-    private <T> Iterator<TableSegmentEntry> toTableSegmentEntries(TableSegment tableSegment, String keyFamily, Iterable<T> entries,
-                                                                  Function<T, TableEntry<KeyT, ValueT>> getEntry) {
-        return StreamSupport.stream(entries.spliterator(), false)
-                .map(e -> toTableSegmentEntry(tableSegment, keyFamily, e, getEntry))
-                .iterator();
-    }
-
-    private <T> TableSegmentEntry toTableSegmentEntry(TableSegment tableSegment, String keyFamily, T fromEntry,
-                                                      Function<T, TableEntry<KeyT, ValueT>> getEntry) {
-        TableEntry<KeyT, ValueT> entry = getEntry.apply(fromEntry);
-        TableKey<KeyT> key = entry.getKey();
-        validateKeyVersionSegment(tableSegment, key.getVersion());
-        return toTableSegmentEntry(serializeKey(keyFamily, key.getKey()), serializeValue(entry.getValue()), key.getVersion());
-    }
-
-    private TableSegmentEntry toTableSegmentEntry(ByteBuf keySerialization, ByteBuf valueSerialization, Version keyVersion) {
-        return new TableSegmentEntry(toTableSegmentKey(keySerialization, keyVersion), valueSerialization);
+    private TableSegmentEntry toTableSegmentEntry(TableSegment tableSegment, TableEntryUpdate update) {
+        TableKey key = update.getKey();
+        if (update instanceof Put) {
+            validateKeyVersionSegment(tableSegment, update.getVersion());
+        }
+        return new TableSegmentEntry(toTableSegmentKey(serializeKey(key), update.getVersion()), serializeValue(update.getValue()));
     }
 
     private TableSegmentKeyVersion toTableSegmentVersion(Version version) {
         return version == null ? TableSegmentKeyVersion.NO_VERSION : TableSegmentKeyVersion.from(version.asImpl().getSegmentVersion());
     }
 
-    private TableEntry<KeyT, ValueT> fromTableSegmentEntry(TableSegment s, TableSegmentEntry e, String expectedKeyFamily) {
+    private TableEntry fromTableSegmentEntry(TableSegment s, TableSegmentEntry e) {
         if (e == null) {
             return null;
         }
 
-        TableKey<KeyT> segmentKey = fromTableSegmentKey(s, e.getKey(), expectedKeyFamily);
-        ValueT value = deserializeValue(e.getValue());
-        return TableEntry.versioned(segmentKey.getKey(), segmentKey.getVersion(), value);
+        DeserializedKey rawKey = deserializeKey(e.getKey().getKey());
+        Version version = new VersionImpl(s.getSegmentId(), e.getKey().getVersion());
+        TableKey key = new TableKey(rawKey.primaryKey, rawKey.secondaryKey);
+        ByteBuffer value = deserializeValue(e.getValue());
+        return new TableEntry(key, version, value);
     }
 
-    private TableKey<KeyT> fromTableSegmentKey(TableSegment s, TableSegmentKey tableSegmentKey, String expectedKeyFamily) {
-        DeserializedKey key = deserializeKey(tableSegmentKey.getKey());
-        validateKeyFamily(expectedKeyFamily, key.keyFamily);
-        Version version = new VersionImpl(s.getSegmentId(), tableSegmentKey.getVersion());
-        return TableKey.versioned(key.key, version);
-    }
-
-    private ByteBuf serializeKey(String keyFamily, KeyT k) {
-        ByteBuf keyFamilySerialization = KEY_FAMILY_SERIALIZER.serialize(keyFamily);
-        ByteBuf keySerialization = Unpooled.wrappedBuffer(this.keySerializer.serialize(k));
-        Preconditions.checkArgument(keySerialization.readableBytes() <= KeyValueTable.MAXIMUM_SERIALIZED_KEY_LENGTH,
-                "Key Too Long. Expected at most %s, actual %s.", KeyValueTable.MAXIMUM_SERIALIZED_KEY_LENGTH, keySerialization.readableBytes());
-        return Unpooled.wrappedBuffer(keyFamilySerialization, keySerialization);
+    private ByteBuf serializeKey(TableKey k) {
+        Preconditions.checkArgument(k.getPrimaryKey().remaining() == this.config.getPrimaryKeyLength(),
+                "Invalid Primary Key Length. Expected %s, actual %s.", this.config.getPrimaryKeyLength(), k.getPrimaryKey().remaining());
+        if (this.config.getSecondaryKeyLength() == 0) {
+            Preconditions.checkArgument(k.getSecondaryKey() == null || k.getSecondaryKey().remaining() == this.config.getSecondaryKeyLength(),
+                    "Not expecting a Secondary Key.");
+            return Unpooled.wrappedBuffer(k.getPrimaryKey());
+        } else {
+            Preconditions.checkArgument(k.getSecondaryKey().remaining() == this.config.getSecondaryKeyLength(),
+                    "Invalid Secondary Key Length. Expected %s, actual %s.", this.config.getSecondaryKeyLength(), k.getSecondaryKey().remaining());
+            return Unpooled.wrappedBuffer(k.getPrimaryKey(), k.getSecondaryKey());
+        }
     }
 
     private DeserializedKey deserializeKey(ByteBuf keySerialization) {
-        String keyFamily = KEY_FAMILY_SERIALIZER.deserialize(keySerialization);
-        KeyT key = this.keySerializer.deserialize(keySerialization.nioBuffer());
-        keySerialization.release();
-        return new DeserializedKey(key, keyFamily);
+        Preconditions.checkArgument(keySerialization.readableBytes() == this.totalKeyLength,
+                "Unexpected key length read back. Expected %s, found %s.", this.totalKeyLength, keySerialization.readableBytes());
+        val pk = keySerialization.slice(0, this.config.getPrimaryKeyLength()).copy().nioBuffer();
+        val sk = keySerialization.slice(this.config.getPrimaryKeyLength(), this.config.getSecondaryKeyLength()).copy().nioBuffer();
+        keySerialization.release(); // Safe to do so now - we made copies of the original buffer.
+        return new DeserializedKey(pk, sk);
     }
 
-    private ByteBuf serializeValue(ValueT v) {
-        ByteBuf valueSerialization = Unpooled.wrappedBuffer(this.valueSerializer.serialize(v));
-        Preconditions.checkArgument(valueSerialization.readableBytes() <= KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH,
-                "Value Too Long. Expected at most %s, actual %s.", KeyValueTable.MAXIMUM_SERIALIZED_VALUE_LENGTH, valueSerialization.readableBytes());
-        return valueSerialization;
+    private ByteBuf serializeValue(ByteBuffer v) {
+        Preconditions.checkArgument(v.remaining() <= KeyValueTable.MAXIMUM_VALUE_LENGTH,
+                "Value Too Long. Expected at most %s, actual %s.", KeyValueTable.MAXIMUM_VALUE_LENGTH, v.remaining());
+        return Unpooled.wrappedBuffer(v);
     }
 
-    private ValueT deserializeValue(ByteBuf s) {
-        ValueT result = this.valueSerializer.deserialize(s.nioBuffer());
+    private ByteBuffer deserializeValue(ByteBuf s) {
+        val result = s.copy().nioBuffer();
         s.release();
         return result;
-    }
-
-    private void validateKeyFamily(String expected, String actual) {
-        boolean valid = (expected == null && actual == null) || (expected != null && expected.equals(actual));
-        if (!valid) {
-            throw new SerializationException(String.format(
-                    "Unexpected Key Family deserialized. Expected '%s', actual '%s'.", expected, actual));
-        }
     }
 
     @SneakyThrows(BadKeyVersionException.class)
@@ -428,9 +324,9 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
     //region Helper classes
 
     @RequiredArgsConstructor
-    private class DeserializedKey {
-        final KeyT key;
-        final String keyFamily;
+    private static class DeserializedKey {
+        final ByteBuffer primaryKey;
+        final ByteBuffer secondaryKey;
     }
 
     private static class KeyGroup {
@@ -443,9 +339,11 @@ public class KeyValueTableImpl<KeyT, ValueT> implements KeyValueTable<KeyT, Valu
         }
     }
 
-    @FunctionalInterface
-    private interface SegmentItemConverter<SegmentItemType, TableItemType> {
-        TableItemType apply(TableSegment ts, SegmentItemType item, String keyFamily);
+    @Data
+    private static class UpdateArg<T> {
+        private final ByteBuffer primaryKey;
+        private final TableSegment tableSegment;
+        private final Iterator<T> allArgs;
     }
 
     //endregion

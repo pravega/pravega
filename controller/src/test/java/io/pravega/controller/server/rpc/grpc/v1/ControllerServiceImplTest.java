@@ -257,7 +257,7 @@ public abstract class ControllerServiceImplTest {
 
     @Test
     public void kvtablesInScopeTest() {
-        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).build();
+        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).primaryKeyLength(4).secondaryKeyLength(4).build();
 
         // Test Create KeyValueTable
         ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
@@ -352,7 +352,7 @@ public abstract class ControllerServiceImplTest {
                 DeleteKVTableStatus.Status.TABLE_NOT_FOUND, deleteKVTStatus1.getStatus());
 
         //Create a test KeyValueTable
-        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).build();
+        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(3).primaryKeyLength(4).secondaryKeyLength(4).build();
         ResultObserver<CreateKeyValueTableStatus> result1 = new ResultObserver<>();
         this.controllerService.createKeyValueTable(ModelHelper.decode(SCOPE4, KVTABLE1, config1), result1);
         CreateKeyValueTableStatus createStatus = result1.get();
@@ -1203,8 +1203,8 @@ public abstract class ControllerServiceImplTest {
 
     @Test(timeout = 30000L)
     public void createKeyValueTableTests() {
-        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(5).build();
-        KeyValueTableConfiguration config2 = KeyValueTableConfiguration.builder().partitionCount(3).build();
+        KeyValueTableConfiguration config1 = KeyValueTableConfiguration.builder().partitionCount(5).primaryKeyLength(4).secondaryKeyLength(4).build();
+        KeyValueTableConfiguration config2 = KeyValueTableConfiguration.builder().partitionCount(3).primaryKeyLength(4).secondaryKeyLength(4).build();
 
         // Test Create KeyValueTable
         ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
@@ -1247,7 +1247,7 @@ public abstract class ControllerServiceImplTest {
 
     @Test
     public void getCurrentSegmentsKeyValueTableTest() {
-        KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(2).build();
+        KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
         createScopeAndKVTable(SCOPE5, KVTABLE3, config);
 
         ResultObserver<SegmentRanges> result2 = new ResultObserver<>();

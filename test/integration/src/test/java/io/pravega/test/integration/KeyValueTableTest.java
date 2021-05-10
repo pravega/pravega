@@ -22,7 +22,6 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
@@ -44,9 +43,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -61,10 +59,15 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
  *
  */
 @Slf4j
+@Ignore("https://github.com/pravega/pravega/issues/5942") // TODO revert and fix once 5942 and issues leading up to it are done.
 public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final String ENDPOINT = "localhost";
     private static final String SCOPE = "Scope";
-    private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder().partitionCount(5).build();
+    private static final KeyValueTableConfiguration DEFAULT_CONFIG = KeyValueTableConfiguration.builder()
+            .partitionCount(5)
+            .primaryKeyLength(Long.BYTES)
+            .secondaryKeyLength(Integer.BYTES)
+            .build();
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private ServiceBuilder serviceBuilder;
     private TableStore tableStore;
@@ -215,17 +218,16 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     }
 
     @Override
-    protected KeyValueTable<Integer, String> createKeyValueTable() {
-        return createKeyValueTable(KEY_SERIALIZER, VALUE_SERIALIZER);
+    protected KeyValueTable createKeyValueTable() {
+        val kvt = newKeyValueTableName();
+        return createKeyValueTable(kvt, DEFAULT_CONFIG);
     }
 
     @Override
-    protected <K, V> KeyValueTable<K, V> createKeyValueTable(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
-        val kvt = newKeyValueTableName();
-        boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), DEFAULT_CONFIG).join();
+    protected KeyValueTable createKeyValueTable(KeyValueTableInfo kvt, KeyValueTableConfiguration configuration) {
+        boolean created = this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), configuration).join();
         Assert.assertTrue(created);
-        return this.keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), keySerializer, valueSerializer,
-                KeyValueTableClientConfiguration.builder().build());
+        return this.keyValueTableFactory.forKeyValueTable(kvt.getKeyValueTableName(), KeyValueTableClientConfiguration.builder().build());
     }
 
     private KeyValueTableInfo newKeyValueTableName() {
