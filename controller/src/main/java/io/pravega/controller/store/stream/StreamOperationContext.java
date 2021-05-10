@@ -22,13 +22,6 @@ import lombok.Getter;
 @AllArgsConstructor
 class StreamOperationContext implements OperationContext {
     @Getter
-    
-    
-    
-    
-    
-    
-    
     private final Scope scope;
     @Getter
     private final Stream stream;

@@ -19,7 +19,6 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.security.JKSHelper;
-import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.resources.PingImpl;
