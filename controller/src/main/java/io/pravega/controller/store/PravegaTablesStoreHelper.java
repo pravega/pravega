@@ -767,7 +767,22 @@ public class PravegaTablesStoreHelper {
             ReferenceCountUtil.safeRelease(e.getValue());
         }
     }
-    
+
+    /**
+     * Helper method to load the value from a table into the cache. It first attempts to 
+     * load the value by using the table name which may already be cached. 
+     * It handles table (data container) not found exception
+     * and automatically invokes tablename supplier with "ignore cached" value to fetch the latest table name and uses
+     * that to read the specified key and load the value into the cache and return the value to the caller.
+     * 
+     * @param tableNameSupplier a bifunction tht takes a flag for whether to ignore cached table name.
+     *                         It also takes an operation context and returns a table name.
+     * @param key Key to load
+     * @param valueFunction deserializer for value.
+     * @param context operation context
+     * @param <T> type of value. 
+     * @return CompletableFuture which when completed will hold the value which is loaded into the cache. 
+     */
     public <T> CompletableFuture<VersionedMetadata<T>> loadFromTableHandleStaleTableName(
             BiFunction<Boolean, OperationContext, CompletableFuture<String>> tableNameSupplier, 
                          String key, Function<byte[], T> valueFunction, OperationContext context) {
