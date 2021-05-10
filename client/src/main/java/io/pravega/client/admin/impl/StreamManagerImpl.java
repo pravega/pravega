@@ -30,6 +30,8 @@ import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.InvalidStreamException;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -197,7 +199,7 @@ public class StreamManagerImpl implements StreamManager {
             }
 
             Iterator<KeyValueTableInfo> kvtIterator = controller.listKeyValueTables(scopeName).asIterator();
-            while (iterator.hasNext()) {
+            while (kvtIterator.hasNext()) {
                 KeyValueTableInfo kvt = kvtIterator.next();
                 try {
                     Futures.getThrowingException(controller.deleteKeyValueTable(scopeName, kvt.getKeyValueTableName()));
@@ -213,6 +215,9 @@ public class StreamManagerImpl implements StreamManager {
                             .thenCompose(conf -> controller.deleteReaderGroup(scopeName, groupName,
                                     conf.getReaderGroupId())));
                 } catch (Exception e) {
+                    if (Exceptions.unwrap(e) instanceof ReaderGroupNotFoundException) {
+                        continue;
+                    }
                     String message = String.format("Failed to delete reader group %s", groupName);
                     throw new DeleteScopeFailedException(message, e);
                 }
