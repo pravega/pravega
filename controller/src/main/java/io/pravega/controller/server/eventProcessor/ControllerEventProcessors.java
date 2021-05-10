@@ -226,6 +226,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         if (this.requestEventProcessors != null) {
             futures.add(handleOrphanedReaders(this.requestEventProcessors, processes));
         }
+        if (this.kvtRequestEventProcessors != null) {
+            futures.add(handleOrphanedReaders(this.kvtRequestEventProcessors, processes));
+        }
         return Futures.allOf(futures);
     }
 
@@ -256,6 +259,15 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             futures.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
                     requestEventProcessors.notifyProcessFailure(process);
+                } catch (CheckpointStoreException e) {
+                    throw new CompletionException(e);
+                }
+            }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
+        }
+        if (kvtRequestEventProcessors != null) {
+            futures.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+                try {
+                    kvtRequestEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }

@@ -55,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Rule;
@@ -89,7 +90,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testHandleOrphaned() {
+    public void testHandleOrphaned() throws CheckpointStoreException {
         Controller localController = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
@@ -103,22 +104,24 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
         EventProcessorGroup<ControllerEvent> processor = getProcessor();
+        EventProcessorGroup<ControllerEvent> mockProcessor = spy(processor);
 
-        try {
-            when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(processor);
-        } catch (CheckpointStoreException e) {
-            e.printStackTrace();
-        }
+        doThrow(new CheckpointStoreException("host not found")).when(mockProcessor).notifyProcessFailure("host3");
+
+        when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(mockProcessor);
 
         @Cleanup
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, 
                 kvtStore, kvtTasks, system, executorService());
+        //check for a case where init is not initalized so that kvtRequestProcessors don't get initialized and will be null
+        assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
         assertTrue(Futures.await(processors.handleFailedProcess("host1")));
+        AssertExtensions.assertFutureThrows("host not found", processors.handleFailedProcess("host3"), e -> e instanceof CheckpointStoreException);
         processors.shutDown();
     }
     
