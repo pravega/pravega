@@ -27,7 +27,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 
-public class StreamRequestProcessorWithPravegaTablesStore extends StreamRequestProcessorTest {
+public class StreamRequestProcessorWithPravegaTablesStoreTest extends StreamRequestProcessorTest {
     private StreamMetadataStore store;
     private CuratorFramework client;
     private TestingServer zkServer;

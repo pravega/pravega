@@ -162,14 +162,8 @@ class PravegaTablesStream extends PersistentStreamBase {
             // first get the scope id from the cache.
             // if the cache does not contain scope id then we load it from the supplier. 
             // if cache contains the scope id then we load the streamid. if not found, we start with the scope id
-            return Futures.exceptionallyComposeExpecting(
-                    streamsInScopeTableNameSupplier.apply(false, context).thenCompose(streamsInScopeTable ->
-                            storeHelper.getCachedOrLoad(streamsInScopeTable, getName(),
-                                    BYTES_TO_UUID_FUNCTION, context.getOperationStartTime(), context.getRequestId())),
-                    e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException,
-                    () -> streamsInScopeTableNameSupplier.apply(true, context).thenCompose(streamsInScopeTable ->
-                            storeHelper.getCachedOrLoad(streamsInScopeTable, getName(),
-                                    BYTES_TO_UUID_FUNCTION, context.getOperationStartTime(), context.getRequestId())))
+            return storeHelper.loadFromTableHandleStaleTableName(streamsInScopeTableNameSupplier, getName(),
+                    BYTES_TO_UUID_FUNCTION, context)
                           .thenComposeAsync(data -> {
                 idRef.compareAndSet(null, data.getObject().toString());
                 return getId(context);

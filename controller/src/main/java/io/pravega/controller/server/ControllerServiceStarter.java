@@ -349,7 +349,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                         controllerService,
                         grpcServer.getAuthHandlerManager(),
                         serviceConfig.getRestServerConfig().get(),
-                        connectionFactory, requestTracker);
+                        connectionFactory);
                 restServer.startAsync();
                 log.info("Awaiting start of REST server");
                 restServer.awaitRunning();

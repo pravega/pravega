@@ -19,7 +19,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.Version;
@@ -28,7 +27,6 @@ import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
 import io.pravega.controller.store.kvtable.records.KVTConfigurationRecord;
 import io.pravega.controller.store.kvtable.records.KVTStateRecord;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.StoreException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -60,7 +58,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
     private static final String EPOCH_RECORD_KEY_FORMAT = "epochRecord-%d";
 
     private final PravegaTablesStoreHelper storeHelper;
-    private final BiFunction<Boolean, OperationContext, CompletableFuture<String>> metadataTableName;
+    private final BiFunction<Boolean, OperationContext, CompletableFuture<String>> metadataTableNameSupplier;
     private final AtomicReference<String> idRef;
 
     @VisibleForTesting
@@ -69,7 +67,7 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
                          ScheduledExecutorService executor) {
         super(scopeName, kvtName);
         this.storeHelper = storeHelper;
-        this.metadataTableName = tableName;
+        this.metadataTableNameSupplier = tableName;
         this.idRef = new AtomicReference<>(null);
     }
 
@@ -82,19 +80,13 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
         } else {
             // first get the scope id from the cache.
             // if the cache does not contain scope id then we load it from the supplier. 
-            // if cache contains the scope id then we load the streamid. if not found, we load the whole shit
-            return Futures.exceptionallyComposeExpecting(
-                    metadataTableName.apply(false, context).thenCompose(streamsInScopeTable ->
-                            storeHelper.getCachedOrLoad(streamsInScopeTable, getName(),
-                                    BYTES_TO_UUID_FUNCTION, context.getOperationStartTime(), context.getRequestId())),
-                    e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException,
-                    () -> metadataTableName.apply(true, context).thenCompose(streamsInScopeTable ->
-                            storeHelper.getCachedOrLoad(streamsInScopeTable, getName(),
-                                    BYTES_TO_UUID_FUNCTION, context.getOperationStartTime(), context.getRequestId())))
-                                                  .thenComposeAsync(data -> {
-                                                      idRef.compareAndSet(null, data.getObject().toString());
-                                                      return getId(context);
-                                                  });
+            // if cache contains the scope id then we load the kvtid. if not found, we load the scopeid first. 
+            return storeHelper.loadFromTableHandleStaleTableName(metadataTableNameSupplier, getName(),
+                    BYTES_TO_UUID_FUNCTION, context)
+                              .thenComposeAsync(data -> {
+                                  idRef.compareAndSet(null, data.getObject().toString());
+                                  return getId(context);
+                              });
         }
     }
 

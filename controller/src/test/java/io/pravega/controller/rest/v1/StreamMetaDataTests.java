@@ -196,7 +196,7 @@ public class StreamMetaDataTests {
                                                                         .controllerURI(URI.create("tcp://localhost"))
                                                                         .build());
         restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,
-                connectionFactory, null);
+                connectionFactory);
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();

@@ -668,14 +668,15 @@ public class SegmentHelper implements AutoCloseable {
                 });
     }
 
-    public CompletableFuture<WireCommands.SegmentAttributeUpdated> updateSegmentAttribute(String qualifiedName, UUID attributeId,
-                                                                                long newValue, long existingValue, PravegaNodeUri uri,
-                                                                                String delegationToken) {
+    public CompletableFuture<WireCommands.SegmentAttributeUpdated> updateSegmentAttribute(
+            String qualifiedName, UUID attributeId, long newValue, long existingValue, PravegaNodeUri uri, 
+            String delegationToken) {
         final WireCommandType type = WireCommandType.UPDATE_SEGMENT_ATTRIBUTE;
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        WireCommands.UpdateSegmentAttribute request = new WireCommands.UpdateSegmentAttribute(requestId, qualifiedName, attributeId,
+        WireCommands.UpdateSegmentAttribute request = new WireCommands.UpdateSegmentAttribute(
+                requestId, qualifiedName, attributeId,
                 newValue, existingValue, delegationToken);
 
         return sendRequest(connection, requestId, request)
@@ -749,23 +750,23 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     @VisibleForTesting
-    <T extends Request & WireCommand> void processAndRethrowException(long requestId, T request, Throwable e) {
+    <T extends Request & WireCommand> void processAndRethrowException(long callerRequestId, T request, Throwable e) {
         Throwable unwrap = Exceptions.unwrap(e);
         WireCommandFailedException ex = null;
         if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
-            log.warn(requestId, "Connection dropped {}", request.getRequestId());
+            log.warn(callerRequestId, "Connection dropped {}", request.getRequestId());
             throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
         } else if (unwrap instanceof AuthenticationException) {
-            log.warn(requestId, "Authentication Exception {}", request.getRequestId());
+            log.warn(callerRequestId, "Authentication Exception {}", request.getRequestId());
             throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
         } else if (unwrap instanceof TokenExpiredException) {
-            log.warn(requestId, "Token expired {}", request.getRequestId());
+            log.warn(callerRequestId, "Token expired {}", request.getRequestId());
             throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
         } else if (unwrap instanceof TimeoutException) {
-            log.warn(requestId, "Request timed out. {}", request.getRequestId());
+            log.warn(callerRequestId, "Request timed out. {}", request.getRequestId());
             throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
         } else {
-            log.error(requestId, "Request failed {}", request.getRequestId(), e);
+            log.error(callerRequestId, "Request failed {}", request.getRequestId(), e);
             throw new CompletionException(e);
         }
     }

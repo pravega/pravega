@@ -76,15 +76,9 @@ class PravegaTablesReaderGroup extends AbstractReaderGroup {
         } else {
             // first get the scope id from the cache.
             // if the cache does not contain scope id then we load it from the supplier. 
-            // if cache contains the scope id then we load the streamid. if not found, we load the whole shit
-            return Futures.exceptionallyComposeExpecting(
-                    readerGroupsInScopeTableNameSupplier.apply(false, context).thenCompose(streamsInScopeTable ->
-                            storeHelper.getCachedOrLoad(streamsInScopeTable, getName(),
-                                    BYTES_TO_UUID_FUNCTION, context.getOperationStartTime(), context.getRequestId())),
-                    e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException,
-                    () -> readerGroupsInScopeTableNameSupplier.apply(true, context).thenCompose(streamsInScopeTable ->
-                            storeHelper.getCachedOrLoad(streamsInScopeTable, getName(),
-                                    BYTES_TO_UUID_FUNCTION, context.getOperationStartTime(), context.getRequestId())))
+            // if cache contains the scope id then we load the readergroup id. if not found, we load the scopeid first.
+            return storeHelper.loadFromTableHandleStaleTableName(readerGroupsInScopeTableNameSupplier, getName(),
+                    BYTES_TO_UUID_FUNCTION, context)
                     .thenComposeAsync(data -> {
                         idRef.compareAndSet(null, data.getObject().toString());
                         return getId(context);

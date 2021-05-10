@@ -37,6 +37,7 @@ import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostStoreException;
 import io.pravega.controller.store.stream.Cache;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.util.RetryHelper;
 
@@ -51,6 +52,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -764,5 +766,18 @@ public class PravegaTablesStoreHelper {
             ReferenceCountUtil.safeRelease(e.getKey().getKey());
             ReferenceCountUtil.safeRelease(e.getValue());
         }
+    }
+    
+    public <T> CompletableFuture<VersionedMetadata<T>> loadFromTableHandleStaleTableName(
+            BiFunction<Boolean, OperationContext, CompletableFuture<String>> tableNameSupplier, 
+                         String key, Function<byte[], T> valueFunction, OperationContext context) {
+        return Futures.exceptionallyComposeExpecting(
+                tableNameSupplier.apply(false, context).thenCompose(tableName ->
+                        getCachedOrLoad(tableName, key,
+                                valueFunction, context.getOperationStartTime(), context.getRequestId())),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException,
+                () -> tableNameSupplier.apply(true, context).thenCompose(tableName ->
+                        getCachedOrLoad(tableName, key,
+                                valueFunction, context.getOperationStartTime(), context.getRequestId())));
     }
 }
