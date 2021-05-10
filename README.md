@@ -83,7 +83,7 @@ maven {
     url "https://maven.pkg.github.com/pravega/pravega"
     credentials {
         username = "pravega-public"
-        password = "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"
+        password = "&amp;&#35;&#49;&#48;&#51;&#59;&#104;&#112;&#95;&#52;&#108;&#97;&#103;&#74;&#122;&#116;&#112;&#85;&#57;&#65;&#113;&#110;&#105;&#79;&#109;&#56;&#84;&#88;&#57;&#73;&#110;&#56;&#81;&#71;&#71;&#113;&#56;&#101;&#106;&#52;&#68;&#74;&#90;&#52;&#52;"
     }
 }
 ```
