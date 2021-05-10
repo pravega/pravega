@@ -20,6 +20,8 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
+import io.grpc.netty.NettyServerBuilder;
+import io.netty.channel.ChannelOption;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
@@ -56,8 +58,9 @@ public class GRPCServer extends AbstractIdleService {
         this.config = serverConfig;
         GrpcAuthHelper authHelper = new GrpcAuthHelper(serverConfig.isAuthorizationEnabled(),
                 serverConfig.getTokenSigningKey(), serverConfig.getAccessTokenTTLInSeconds());
-        ServerBuilder<?> builder = ServerBuilder
+        ServerBuilder<?> builder = NettyServerBuilder
                 .forPort(serverConfig.getPort())
+                .withChildOption(ChannelOption.SO_REUSEADDR, true)
                 .addService(ServerInterceptors.intercept(new ControllerServiceImpl(controllerService, authHelper, requestTracker,
                                 serverConfig.isReplyWithStackTraceOnError(), serverConfig.isRGWritesWithReadPermEnabled()),
                         RPCTracingHelpers.getServerInterceptor(requestTracker)));

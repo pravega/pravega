@@ -53,6 +53,7 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.Builder;
 import lombok.Cleanup;
 import lombok.Synchronized;
@@ -133,11 +134,16 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String keyPasswordFile;
     private String jksKeyFile;
 
+    private boolean enableAdminGateway;
+    private int adminGatewayPort;
+    private boolean replyWithStackTraceOnError;
+
     public static final class InProcPravegaClusterBuilder {
 
         // default values
         private int containerCount = 4;
         private boolean enableRestServer = true;
+        private boolean replyWithStackTraceOnError = true;
 
         public InProcPravegaCluster build() {
             //Check for valid combinations of flags
@@ -162,13 +168,14 @@ public class InProcPravegaCluster implements AutoCloseable {
                             && !Strings.isNullOrEmpty(this.keyPasswordFile)),
                     "TLS enabled, but not all parameters set");
 
-            this.isInProcHDFS = this.isInMemStorage ? false : true;
+            this.isInProcHDFS = !this.isInMemStorage;
             return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, enableTlsReload,
                     enableMetrics, enableInfluxDB, metricsReportInterval,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
-                    enableRestServer, userName, passwd, certFile, keyFile, jksTrustFile, passwdFile, secureZK, keyPasswordFile, jksKeyFile);
+                    enableRestServer, userName, passwd, certFile, keyFile, jksTrustFile, passwdFile, secureZK, keyPasswordFile,
+                    jksKeyFile, enableAdminGateway, adminGatewayPort, replyWithStackTraceOnError);
         }
     }
 
@@ -292,8 +299,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.KEY_FILE, this.keyFile)
                         .with(ServiceConfig.CERT_FILE, this.certFile)
                         .with(ServiceConfig.ENABLE_TLS_RELOAD, this.enableTlsReload)
-                        .with(ServiceConfig.LISTENING_IP_ADDRESS, this.enableTls ? LOCALHOST : "")
-                        .with(ServiceConfig.PUBLISHED_IP_ADDRESS, this.enableTls ? LOCALHOST : "")
+                        .with(ServiceConfig.LISTENING_IP_ADDRESS, LOCALHOST)
+                        .with(ServiceConfig.PUBLISHED_IP_ADDRESS, LOCALHOST)
                         .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 60)
                         .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
@@ -302,7 +309,10 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.STORAGE_LAYOUT, StorageLayoutType.ROLLING_STORAGE)
                         .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
                                 ServiceConfig.StorageType.INMEMORY :
-                                ServiceConfig.StorageType.FILESYSTEM))
+                                ServiceConfig.StorageType.FILESYSTEM)
+                        .with(ServiceConfig.ENABLE_ADMIN_GATEWAY, this.enableAdminGateway)
+                        .with(ServiceConfig.ADMIN_GATEWAY_PORT, this.adminGatewayPort)
+                        .with(ServiceConfig.REPLY_WITH_STACK_TRACE_ON_ERROR, this.replyWithStackTraceOnError))
                 .include(DurableLogConfig.builder()
                         .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                         .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)

@@ -273,6 +273,7 @@ project ('shared:metrics') {
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-influx/<micrometerVersion>
         compile project(':common')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(':test:testcommon')
     }
 
     javadoc {
@@ -970,6 +971,8 @@ project('test:system') {
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
+        (includes, excludes) = subsetSystemTests()
+
         description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
@@ -1019,6 +1022,8 @@ project('test:system') {
         environment "desiredPravegaCMVersion", System.getProperty("desiredPravegaCMVersion", "0.9.0")
         environment "desiredBookkeeperCMVersion", System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
         environment "tlsEnabled", System.getProperty("tlsEnabled", "false")
+        environment "skipServiceInstallation", System.getProperty("skipServiceInstallation", "false")
+        environment "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
 
         commandLine './kubernetes/setupTestPod.sh'
     }
@@ -1038,8 +1043,11 @@ project('test:system') {
     task startK8SystemTests(type: Test) {
         dependsOn 'copyTestsToK8sCluster', 'runFluentBitInstall' // ensure test artifacts are copied to the cluster.
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
+
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
+
+        (includes, excludes) = subsetSystemTests()
 
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
         systemProperty "execType", "KUBERNETES"
@@ -1048,6 +1056,8 @@ project('test:system') {
         if (System.getProperty("dockerRegistryUrl") != null) { // docker images are pulled from dockerhub if dockerRegistryUrl is not specified.
             systemProperty "dockerRegistryUrl", System.getProperty("dockerRegistryUrl") + "/"
         }
+        systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation", "false")
+        systemProperty "skipLogDownload", System.getProperty("skipLogDownload", "false")
         systemProperty "imagePrefix", System.getProperty("imagePrefix", "pravega")  // the default value of imagePrefix is pravega.
         systemProperty "pravegaImageName", System.getProperty("pravegaImageName", "pravega") // pravega image name
         systemProperty "bookkeeperImageName", System.getProperty("bookkeeperImageName", "bookkeeper") // bookkeeper image name
@@ -1058,25 +1068,35 @@ project('test:system') {
         systemProperty "bookkeeperImageVersion", System.getProperty("bookkeeperImageVersion", "imageVersion") // // bookkeeper image version
         // tier2Type , default is NFS.
         systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
-        // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
+        // tier2 configuration, specified as comma separated key values k1=v1,k2=v2
         systemProperty "tier2Config", System.getProperty("tier2Config")
-        systemProperty "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest")
-        systemProperty "bookkeeperOperatorVersion", System.getProperty("bookkeeperOperatorVersion", "latest")
-        systemProperty "zookeeperOperatorVersion", System.getProperty("zookeeperOperatorVersion", "latest")
-        systemProperty "desiredPravegaCMVersion", System.getProperty("desiredPravegaCMVersion", "0.9.0")
-        systemProperty "desiredBookkeeperCMVersion", System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
-        systemProperty "publishedChartName", System.getProperty("publishedChartName", "pravega")
-        systemProperty "helmRepository", System.getProperty("helmRepository", "pravega")
+        systemProperty "pravegaOperatorVersion",System.getProperty("pravegaOperatorVersion", "latest")
+        systemProperty "bookkeeperOperatorVersion",System.getProperty("bookkeeperOperatorVersion", "latest")
+        systemProperty "zookeeperOperatorVersion",System.getProperty("zookeeperOperatorVersion", "latest")
+        systemProperty "desiredPravegaCMVersion",System.getProperty("desiredPravegaCMVersion", "0.9.0")
+        systemProperty "desiredBookkeeperCMVersion",System.getProperty("desiredBookkeeperCMVersion", "0.9.0")
+        systemProperty "publishedChartName",System.getProperty("publishedChartName", "pravega")
+        systemProperty "helmRepository",System.getProperty("helmRepository", "pravega")
 
         // target versions wrt Upgrade for all operators & clusters
-        systemProperty "targetPravegaOperatorVersion", System.getProperty("targetPravegaOperatorVersion", "latest")
-        systemProperty "targetBookkeeperOperatorVersion", System.getProperty("targetBookkeeperOperatorVersion", "latest")
-        systemProperty "targetZookeeperOperatorVersion", System.getProperty("targetZookeeperOperatorVersion", "latest")
-        systemProperty "targetPravegaVersion", System.getProperty("targetPravegaVersion", "latest")
-        systemProperty "targetBookkeeperVersion", System.getProperty("targetBookkeeperVersion", "latest")
-        systemProperty "targetZookeeperVersion", System.getProperty("targetZookeeperVersion", "latest")
+        systemProperty "controllerLabel", System.getProperty("controllerLabel", "pravega-controller");
+        systemProperty "segmentstoreLabel", System.getProperty("segmentstoreLabel", "pravega-segmentstore");
+        systemProperty "tlsSecretName", System.getProperty("tlsSecretName", "selfsigned-cert-tls");
+        systemProperty "bookkeeperLabel", System.getProperty("bookkeeperLabel", "bookie");
+        systemProperty "pravegaID", System.getProperty("pravegaID", "pravega");
+        systemProperty "bookkeeperID", System.getProperty("bookkeeperID", "pravega-bk");
+        systemProperty "bookkeeperConfigMap", System.getProperty("bookkeeperConfigMap", "bk-config-map");
+
+        systemProperty "targetPravegaOperatorVersion",System.getProperty("targetPravegaOperatorVersion", "latest")
+        systemProperty "targetBookkeeperOperatorVersion",System.getProperty("targetBookkeeperOperatorVersion", "latest")
+        systemProperty "targetZookeeperOperatorVersion",System.getProperty("targetZookeeperOperatorVersion", "latest")
+        systemProperty "targetPravegaVersion",System.getProperty("targetPravegaVersion", "latest")
+        systemProperty "targetBookkeeperVersion",System.getProperty("targetBookkeeperVersion", "latest")
+        systemProperty "targetZookeeperVersion",System.getProperty("targetZookeeperVersion", "latest")
         //testPodImage , default is openjdk:8u181-jre-alpine
         systemProperty "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
+        systemProperty "testServiceAccount", System.getProperty("testServiceAccount", "test-framework");
+        systemProperty "testClusterRoleBinding", System.getProperty("testClusterRoleBinding", "cluster-admin-testFramework");
 
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
@@ -1207,6 +1227,37 @@ def getProjectVersion() {
 def getDefaultJavaVersion() {
     return "11"
 }
+
+def getSystemTestClass(arg) {
+    if (arg == null || arg.contains("*")) {
+        return arg
+    }
+
+    def str = arg.trim()
+    def separator = System.getProperty("file.separator", "/")
+    if (!str.contains(separator)) {
+        str = "**" +  separator + str
+    }
+    if (!str.endsWith('.class')) {
+        str += '.class'
+    }
+    return str
+}
+
+def subsetSystemTests() {
+    def excludedTests = System.getProperty('excludeSystemTests')
+    def includedTests = System.getProperty('includeSystemTests')
+    def (includes, excludes) = [[], []]
+    // Let included tests take precedence if both are specified.
+    if (includedTests != null && !includedTests.isEmpty()) {
+        includes = includedTests.split(',').collect { getSystemTestClass(it) }
+    } else if (excludedTests != null && !excludedTests.isEmpty()) {
+        excludes = excludedTests.split(',').collect { getSystemTestClass(it) }
+    }
+
+    return [includes, excludes]
+}
+
 
 subprojects {
     task allDeps(type: DependencyReportTask) {}

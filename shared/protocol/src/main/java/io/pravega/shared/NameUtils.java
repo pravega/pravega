@@ -101,19 +101,34 @@ public final class NameUtils {
     private static final String BLOCK_INDEX_NAME_FORMAT_WITH_OFFSET = "%s.B-%d";
 
     /**
+     * Prefix for Container Metadata Segment name.
+     */
+    private static final String METADATA_SEGMENT_NAME_PREFIX = "_system/containers/metadata_";
+
+    /**
      * Format for Container Metadata Segment name.
      */
-    private static final String METADATA_SEGMENT_NAME_FORMAT = "_system/containers/metadata_%d";
+    private static final String METADATA_SEGMENT_NAME_FORMAT = METADATA_SEGMENT_NAME_PREFIX + "%d";
+
+    /**
+     * Prefix for Storage Metadata Segment name.
+     */
+    private static final String STORAGE_METADATA_SEGMENT_NAME_PREFIX = "_system/containers/storage_metadata_";
 
     /**
      * Format for Storage Metadata Segment name.
      */
-    private static final String STORAGE_METADATA_SEGMENT_NAME_FORMAT = "_system/containers/storage_metadata_%d";
+    private static final String STORAGE_METADATA_SEGMENT_NAME_FORMAT = STORAGE_METADATA_SEGMENT_NAME_PREFIX + "%d";
 
     /**
      * Format for Container System Journal file name.
      */
     private static final String SYSJOURNAL_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.file%d";
+
+    /**
+     * Format for Container System snapshot file name.
+     */
+    private static final String SYSJOURNAL_SNAPSHOT_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.snapshot%d";
 
     /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -279,7 +294,7 @@ public final class NameUtils {
      */
     public static String getSegmentChunkName(String segmentName, long offset) {
         Preconditions.checkArgument(!segmentName.contains(OFFSET_SUFFIX), "segmentName is already a SegmentChunk name");
-        return segmentName + OFFSET_SUFFIX + Long.toString(offset);
+        return segmentName + OFFSET_SUFFIX + offset;
     }
 
     /**
@@ -307,6 +322,16 @@ public final class NameUtils {
     }
 
     /**
+     * Checks whether given name is a Container Metadata Segment.
+     *
+     * @param segmentName The name of the segment.
+     * @return true if the name is Container Metadata Segment. False otherwise
+     */
+    public static boolean isMetadataSegmentName(String segmentName) {
+        return segmentName.startsWith(METADATA_SEGMENT_NAME_PREFIX);
+    }
+
+    /**
      * Gets the name of the Segment that is used to store the Container's Segment Metadata. There is one such Segment
      * per container.
      *
@@ -316,6 +341,16 @@ public final class NameUtils {
     public static String getMetadataSegmentName(int containerId) {
         Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative number.");
         return String.format(METADATA_SEGMENT_NAME_FORMAT, containerId);
+    }
+
+    /**
+     * Checks whether given name is a Storage Metadata Segment.
+     *
+     * @param segmentName The name of the segment.
+     * @return true if the name is Storage Metadata Segment. False otherwise
+     */
+    public static boolean isStorageMetadataSegmentName(String segmentName) {
+        return segmentName.startsWith(STORAGE_METADATA_SEGMENT_NAME_PREFIX);
     }
 
     /**
@@ -339,6 +374,18 @@ public final class NameUtils {
      */
     public static String getSystemJournalFileName(int containerId, long epoch, long currentFileIndex) {
         return String.format(SYSJOURNAL_NAME_FORMAT, epoch, containerId, currentFileIndex);
+    }
+
+
+    /**
+     * Gets file name of SystemJournal snapshot for given container instance.
+     * @param containerId The Id of the Container.
+     * @param epoch Epoch of the container instance.
+     * @param currentSnapshotIndex Current index for journal file.
+     * @return File name of SystemJournal for given container instance
+     */
+    public static String getSystemJournalSnapshotFileName(int containerId, long epoch, long currentSnapshotIndex) {
+        return String.format(SYSJOURNAL_SNAPSHOT_NAME_FORMAT, epoch, containerId, currentSnapshotIndex);
     }
 
     /**

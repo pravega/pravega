@@ -92,6 +92,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
+import io.pravega.segmentstore.storage.chunklayer.SnapshotInfo;
 import io.pravega.segmentstore.storage.chunklayer.SystemJournal;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
@@ -184,6 +185,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
             .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, 10 * 60)
+            .with(ContainerConfig.STORAGE_SNAPSHOT_TIMEOUT_SECONDS, 60)
             .build();
 
     // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
@@ -1531,6 +1533,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 .builder()
                 .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS, (int) DEFAULT_CONFIG.getSegmentMetadataExpiration().getSeconds())
                 .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, maxSegmentCount + EXPECTED_PINNED_SEGMENT_COUNT)
+                .with(ContainerConfig.STORAGE_SNAPSHOT_TIMEOUT_SECONDS, (int) DEFAULT_CONFIG.getStorageSnapshotTimeout().getSeconds())
                 .build();
 
         // We need a special DL config so that we can force truncations after every operation - this will speed up metadata
@@ -1939,6 +1942,61 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             entryContents.copyTo(ByteBuffer.wrap(readBuffer));
             AssertExtensions.assertArrayEquals("Unexpected data read back.", appendData, 1, readBuffer, 0, readBuffer.length);
         }
+    }
+
+
+    /**
+     * Tests the ability to save and read {@link SnapshotInfo}
+     */
+    @Test
+    public void testSnapshotInfo() throws Exception {
+        @Cleanup
+        TestContext context = createContext();
+        val container = (StreamSegmentContainer) context.container;
+        container.startAsync().awaitRunning();
+        val snapshotInfoStore = container.getStorageSnapshotInfoStore();
+        Assert.assertNotNull(snapshotInfoStore);
+        Assert.assertNull(snapshotInfoStore.readSnapshotInfo().get());
+        snapshotInfoStore.writeSnapshotInfo(SnapshotInfo.builder()
+                .snapshotId(1)
+                .epoch(2)
+                .build()).get();
+        for (int i = 0; i < 3; i++) {
+            val v = snapshotInfoStore.readSnapshotInfo().get();
+            Assert.assertNotNull(v);
+            Assert.assertEquals(1, v.getSnapshotId());
+            Assert.assertEquals(2, v.getEpoch());
+        }
+
+        for (int i = 0; i < 3; i++) {
+            snapshotInfoStore.writeSnapshotInfo(SnapshotInfo.builder()
+                    .snapshotId(i)
+                    .epoch(2)
+                    .build()).get();
+            val v = snapshotInfoStore.readSnapshotInfo().get();
+            Assert.assertNotNull(v);
+            Assert.assertEquals(i, v.getSnapshotId());
+            Assert.assertEquals(2, v.getEpoch());
+        }
+
+        snapshotInfoStore.writeSnapshotInfo(SnapshotInfo.builder()
+                .snapshotId(1)
+                .epoch(0)
+                .build()).get();
+        Assert.assertNull(snapshotInfoStore.readSnapshotInfo().get());
+
+        for (int i = 1; i < 4; i++) {
+            snapshotInfoStore.writeSnapshotInfo(SnapshotInfo.builder()
+                    .snapshotId(1)
+                    .epoch(i)
+                    .build()).get();
+            val v = snapshotInfoStore.readSnapshotInfo().get();
+            Assert.assertNotNull(v);
+            Assert.assertEquals(1, v.getSnapshotId());
+            Assert.assertEquals(i, v.getEpoch());
+        }
+
+        container.stopAsync().awaitTerminated();
     }
 
     /**

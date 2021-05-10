@@ -28,7 +28,6 @@ import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import javax.ws.rs.core.UriBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.glassfish.grizzly.GrizzlyFuture;
 import org.glassfish.grizzly.http.server.HttpServer;
@@ -55,8 +54,8 @@ public class RESTServer extends AbstractIdleService {
     public RESTServer(LocalController localController, ControllerService controllerService, AuthHandlerManager pravegaAuthManager, RESTServerConfig restServerConfig, ConnectionFactory connectionFactory) {
         this.objectId = "RESTServer";
         this.restServerConfig = restServerConfig;
-        final String serverURI = "http://" + restServerConfig.getHost() + "/";
-        this.baseUri = UriBuilder.fromUri(serverURI).port(restServerConfig.getPort()).build();
+        final String serverURI = "http://" + restServerConfig.getHost();
+        this.baseUri = URI.create(serverURI + ":" + restServerConfig.getPort() + "/");
 
         final Set<Object> resourceObjs = new HashSet<>();
         resourceObjs.add(new PingImpl());

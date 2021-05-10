@@ -50,9 +50,10 @@ import static org.apache.commons.lang.RandomStringUtils.randomAlphanumeric;
 @Slf4j
 public class K8SequentialExecutor implements TestExecutor {
 
-    private static final String NAMESPACE = "default"; // KUBERNETES namespace where the tests run.
     private static final String APP = "pravega-system-tests";
-    private static final String SERVICE_ACCOUNT = "test-framework"; //Service Account used by the test pod.
+    private static final String NAMESPACE = "default"; // KUBERNETES namespace where the tests run.
+    private static final String SERVICE_ACCOUNT = System.getProperty("testServiceAccount", "test-framework"); //Service Account used by the test pod.
+    private static final String CLUSTER_ROLE_BINDING = System.getProperty("testClusterRoleBinding", "cluster-admin-testFramework");
     private static final String TEST_POD_IMAGE = System.getProperty("testPodImage", "openjdk:8u181-jre-alpine");
     private static final String LOG_LEVEL = System.getProperty("logLevel", "DEBUG");
 
@@ -73,8 +74,11 @@ public class K8SequentialExecutor implements TestExecutor {
                 .thenCompose(v -> client.createClusterRoleBinding(getClusterRoleBinding())) // ensure test pod has cluster admin rights.
                 .thenCompose(v -> client.deployPod(NAMESPACE, pod)) // deploy test pod.
                 .thenCompose(v -> {
+                    CompletableFuture<Void> logDownload = CompletableFuture.completedFuture(null);
                     // start download of logs.
-                    CompletableFuture<Void> logDownload = client.downloadLogs(pod, "./build/test-results/" + podName);
+                    if (!Utils.isSkipLogDownloadEnabled()) {
+                        logDownload = client.downloadLogs(pod, "./build/test-results/" + podName);
+                    }
                     return client.waitUntilPodCompletes(NAMESPACE, podName).thenCombine(logDownload, (status, v1) -> status);
                 }).handle((s, t) -> {
                     if (t == null) {
@@ -129,10 +133,19 @@ public class K8SequentialExecutor implements TestExecutor {
                 .withImage(TEST_POD_IMAGE)
                 .withImagePullPolicy("IfNotPresent")
                 .withCommand("/bin/sh")
-                .withArgs("-c", "java -DexecType=KUBERNETES -DsecurityEnabled=" + Utils.AUTH_ENABLED + " -Dlog.level=" + LOG_LEVEL
-                                  + " -DtlsEnabled=" + Utils.TLS_AND_AUTH_ENABLED
-                                  + " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "
-                                  + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
+                .withArgs("-c", "java -DexecType=KUBERNETES" +
+                            " -DsecurityEnabled=" + Utils.AUTH_ENABLED  +
+                            " -Dlog.level=" + LOG_LEVEL  +
+                            " -DtlsEnabled=" + Utils.TLS_AND_AUTH_ENABLED +
+                            " -DtestServiceAccount=" + SERVICE_ACCOUNT +
+                            " -DtestClusterRoleBinding=" + CLUSTER_ROLE_BINDING +
+                            " -DbookkeeperLabel=" + Utils.getConfig("bookkeeperLabel", "") +
+                            " -DbookkeeperID=" + Utils.getConfig("bookkeeperID", "") +
+                            " -DpravegaID=" + Utils.getConfig("pravegaID", "") +
+                            " -DcontrollerLabel=" + Utils.getConfig("controllerLabel", "") +
+                            " -DsegmentstoreLabel=" + Utils.getConfig("segmentstoreLabel", "") +
+                            " -DbookkeeperConfigMap=" + Utils.getConfig("bookkeeperConfigMap", "") +
+                            " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
                 .withVolumeMounts(new V1VolumeMountBuilder().withMountPath("/data").withName("task-pv-storage").build())
                 .endContainer()
                 .withRestartPolicy("Never")
@@ -171,7 +184,7 @@ public class K8SequentialExecutor implements TestExecutor {
         return new V1beta1ClusterRoleBindingBuilder().withKind("ClusterRoleBinding")
                 .withApiVersion("rbac.authorization.k8s.io/v1beta1")
                 .withMetadata(new V1ObjectMetaBuilder()
-                        .withName("cluster-admin-testFramework")
+                        .withName(CLUSTER_ROLE_BINDING)
                         .withNamespace(NAMESPACE)
                         .build())
                 .withSubjects(new V1beta1SubjectBuilder().withKind("ServiceAccount")

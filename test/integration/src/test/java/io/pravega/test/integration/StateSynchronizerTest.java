@@ -36,8 +36,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.val;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -46,17 +46,16 @@ import static org.mockito.Mockito.mock;
 
 public class StateSynchronizerTest extends LeakDetectorTestSuite {
 
-    private ServiceBuilder serviceBuilder;
+    private static final ServiceBuilder SERVICE_BUILDER = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
 
-    @Before
-    public void setup() throws Exception {
-        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.initialize();
+    @BeforeClass
+    public static void setup() throws Exception {
+        SERVICE_BUILDER.initialize();
     }
 
-    @After
-    public void teardown() {
-        this.serviceBuilder.close();
+    @AfterClass
+    public static void teardown() {
+        SERVICE_BUILDER.close();
     }
     
     @Data
@@ -86,12 +85,12 @@ public class StateSynchronizerTest extends LeakDetectorTestSuite {
     @Test(timeout = 20000)
     public void testStateTracker() {
         String endpoint = "localhost";
-        String stateName = "abc";
+        String stateName = "testStateTracker";
         int port = TestUtils.getAvailableListenPort();
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                this.serviceBuilder.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -141,12 +140,12 @@ public class StateSynchronizerTest extends LeakDetectorTestSuite {
     @Test(timeout = 20000)
     public void testReadsAllAvailable() {
         String endpoint = "localhost";
-        String stateName = "abc";
+        String stateName = "testReadsAllAvailable";
         int port = TestUtils.getAvailableListenPort();
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                this.serviceBuilder.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -169,12 +168,12 @@ public class StateSynchronizerTest extends LeakDetectorTestSuite {
     @Test(timeout = 10000)
     public void testSetSynchronizer() {
         String endpoint = "localhost";
-        String stateName = "abc";
+        String stateName = "testSetSynchronizer";
         int port = TestUtils.getAvailableListenPort();
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                this.serviceBuilder.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor());
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);

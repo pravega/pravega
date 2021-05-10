@@ -29,6 +29,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.UUID;
@@ -39,6 +40,7 @@ import lombok.Cleanup;
 import lombok.val;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
@@ -51,6 +53,7 @@ import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@RunWith(SerializedClassRunner.class)
 public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
     private static final String STREAM_SEGMENT_NAME_BASE = "scope/stream/";
     private static final long NO_COUNTER_VALUE = Long.MIN_VALUE;

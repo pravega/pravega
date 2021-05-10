@@ -26,7 +26,6 @@ import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
@@ -34,25 +33,15 @@ import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.io.StreamHelpers;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.LeakDetectorTestSuite;
-import io.pravega.test.common.TestUtils;
-import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
 import java.io.IOException;
 import java.util.Arrays;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -64,68 +53,17 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class ByteStreamTest extends LeakDetectorTestSuite {
 
-    private TestingServer zkTestServer = null;
-    private PravegaConnectionListener server = null;
-    private ControllerWrapper controllerWrapper = null;
-    private Controller controller = null;
-    private ServiceBuilder serviceBuilder;
-
-    @Before
-    public void setup() throws Exception {
-        super.before();
-        final int controllerPort = TestUtils.getAvailableListenPort();
-        final String serviceHost = "localhost";
-        final int servicePort = TestUtils.getAvailableListenPort();
-        final int containerCount = 4;
-
-        // 1. Start ZK
-        this.zkTestServer = new TestingServerStarter().start();
-
-        // 2. Start Pravega SegmentStore service.
-        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
-
-        this.server = new PravegaConnectionListener(false, servicePort, store,  tableStore, serviceBuilder.getLowPriorityExecutor());
-        this.server.startListening();
-
-        // 3. Start Pravega Controller service
-        this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, controllerPort,
-                                                       serviceHost, servicePort, containerCount);
-        this.controllerWrapper.awaitRunning();
-        this.controller = controllerWrapper.getController();
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        super.after();
-        if (this.controllerWrapper != null) {
-            this.controllerWrapper.close();
-            this.controllerWrapper = null;
-        }
-        if (this.server != null) {
-            this.server.close();
-            this.server = null;
-        }
-        if (this.serviceBuilder != null) {
-            this.serviceBuilder.close();
-            this.serviceBuilder = null;
-        }
-        if (this.zkTestServer != null) {
-            this.zkTestServer.close();
-            this.zkTestServer = null;
-        }
-    }
+    @ClassRule
+    public static final PravegaResource PRAVEGA = new PravegaResource();
 
     @Test(timeout = 30000)
     public void readWriteTest() throws IOException {
         String scope = "ByteStreamTest";
-        String stream = "ReadWriteTest";
+        String stream = "readWriteTest";
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller, Mockito.mock(ConnectionPool.class));
+        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), Mockito.mock(ConnectionPool.class));
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -166,11 +104,11 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
     @Test(timeout = 30000)
     public void readWriteTestTruncate() throws IOException {
         String scope = "ByteStreamTest";
-        String stream = "ReadWriteTest";
+        String stream = "readWriteTestTruncate";
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller, Mockito.mock(ConnectionPool.class));
+        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), Mockito.mock(ConnectionPool.class));
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -219,11 +157,11 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
     @Test(timeout = 30000)
     public void readLargeWrite() throws IOException {
         String scope = "ByteStreamTest";
-        String stream = "ReadWriteTest";
+        String stream = "readLargeWrite";
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller, Mockito.mock(ConnectionPool.class));
+        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), Mockito.mock(ConnectionPool.class));
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -260,11 +198,11 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
     @Test(timeout = 30000)
     public void testBlockingRead() throws IOException {
         String scope = "ByteStreamTest";
-        String stream = "ReadWriteTest";
+        String stream = "testBlockingRead";
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller, Mockito.mock(ConnectionPool.class));
+        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), Mockito.mock(ConnectionPool.class));
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -306,13 +244,13 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
     @Test(timeout = 30000)
     public void testRecreateStream() {
         String scope = "ByteStreamTest";
-        String stream = "stream";
+        String stream = "testRecreateStream";
 
         StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller, Mockito.mock(ConnectionPool.class));
+        StreamManager streamManager = new StreamManagerImpl(PRAVEGA.getLocalController(), Mockito.mock(ConnectionPool.class));
         // create a scope
-        assertTrue("Create scope failed", streamManager.createScope(scope));
+        streamManager.createScope(scope);
         // create a stream
         assertTrue("Create stream failed", streamManager.createStream(scope, stream, config));
         // verify read and write.
@@ -350,10 +288,10 @@ public class ByteStreamTest extends LeakDetectorTestSuite {
         ClientConfig config = ClientConfig.builder().build();
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(config);
         ConnectionPool pool = new ConnectionPoolImpl(config, connectionFactory);
-        val inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, pool);
-        val outputStreamFactory = new SegmentOutputStreamFactoryImpl(controller, pool);
-        val metaStreamFactory = new SegmentMetadataClientFactoryImpl(controller, pool);
-        return new ByteStreamClientImpl(scope, controller, pool, inputStreamFactory, outputStreamFactory, metaStreamFactory);
+        val inputStreamFactory = new SegmentInputStreamFactoryImpl(PRAVEGA.getLocalController(), pool);
+        val outputStreamFactory = new SegmentOutputStreamFactoryImpl(PRAVEGA.getLocalController(), pool);
+        val metaStreamFactory = new SegmentMetadataClientFactoryImpl(PRAVEGA.getLocalController(), pool);
+        return new ByteStreamClientImpl(scope, PRAVEGA.getLocalController(), pool, inputStreamFactory, outputStreamFactory, metaStreamFactory);
     }
 
 }

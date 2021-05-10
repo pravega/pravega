@@ -54,6 +54,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.junit.rules.Timeout;
 
 /**
@@ -64,14 +65,14 @@ public class HDFSStorageTest extends StorageTestBase {
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
-    private File baseDir = null;
+    @Rule
+    public TemporaryFolder baseDir = new TemporaryFolder();
     private MiniDFSCluster hdfsCluster = null;
     private HDFSStorageConfig adapterConfig;
 
     @Before
     public void setUp() throws Exception {
-        this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
-        this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
+        this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getRoot().getAbsolutePath());
         this.adapterConfig = HDFSStorageConfig
                 .builder()
                 .with(HDFSStorageConfig.REPLICATION, 1)
@@ -84,7 +85,7 @@ public class HDFSStorageTest extends StorageTestBase {
         if (hdfsCluster != null) {
             hdfsCluster.shutdown();
             hdfsCluster = null;
-            FileHelpers.deleteFileOrDirectory(baseDir);
+            FileHelpers.deleteFileOrDirectory(baseDir.getRoot());
             baseDir = null;
         }
     }

@@ -30,6 +30,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.time.Duration;
+
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
@@ -82,7 +84,11 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withStorageFactory(setup -> useChunkedSegmentStorage ?
-                        new HDFSSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG,
+                        new HDFSSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                                .journalSnapshotInfoUpdateFrequency(Duration.ofMillis(10))
+                                .maxJournalUpdatesPerSnapshot(5)
+                                .selfCheckEnabled(true)
+                                .build(),
                                 setup.getConfig(HDFSStorageConfig::builder),
                                 setup.getStorageExecutor())
                         : new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor()))
@@ -95,7 +101,7 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
      * properties are matched for verification after the restoration.
      * @throws Exception If an exception occurred.
      */
-    @Test
+    @Test(timeout = 120000)
     public void testDataRecovery() throws Exception {
         testSegmentRestoration();
     }

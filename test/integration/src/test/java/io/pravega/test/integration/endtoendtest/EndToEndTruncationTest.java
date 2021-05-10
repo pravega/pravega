@@ -50,24 +50,13 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
-import io.pravega.client.stream.mock.MockClientFactory;
-import io.pravega.client.stream.mock.MockController;
-import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.LocalController;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import io.pravega.test.integration.PravegaResource;
 import io.pravega.test.integration.ReadWriteUtils;
-import io.pravega.test.integration.demo.ControllerWrapper;
-import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,9 +68,7 @@ import java.util.concurrent.TimeoutException;
 import lombok.Cleanup;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
@@ -99,70 +86,31 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class EndToEndTruncationTest extends ThreadPooledTestSuite {
 
-    private final String serviceHost = "localhost";
-    private final int containerCount = 4;
-    private int controllerPort;
-    private URI controllerURI; 
-    private TestingServer zkTestServer;
-    private PravegaConnectionListener server;
-    private ControllerWrapper controllerWrapper;
-    private ServiceBuilder serviceBuilder;
+    @ClassRule
+    public static final PravegaResource PRAVEGA = new PravegaResource();
+
     @Override
     protected int getThreadPoolSize() {
         return 1;
-    }
-
-    @Before
-    public void setUp() throws Exception {
-        zkTestServer = new TestingServerStarter().start();
-
-        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
-        controllerPort = TestUtils.getAvailableListenPort();
-        controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
-        int servicePort = TestUtils.getAvailableListenPort();
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, this.serviceBuilder.getLowPriorityExecutor());
-        server.startListening();
-
-        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
-                false,
-                controllerPort,
-                serviceHost,
-                servicePort,
-                containerCount);
-        controllerWrapper.awaitRunning();
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        controllerWrapper.close();
-        server.close();
-        serviceBuilder.close();
-        zkTestServer.close();
     }
     
     @Test(timeout = 7000)
     public void testTruncationOffsets() throws InterruptedException, ExecutionException, TimeoutException,
                                         TruncatedDataException, ReinitializationRequiredException {
-        String endpoint = "localhost";
         String scope = "scope";
-        String streamName = "abc";
-        int port = TestUtils.getAvailableListenPort();
+        String streamName = "testTruncationOffsets";
         String testString = "Hello world\n";
-        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        controller.createScope(scope).join();
+        controller.createStream(scope, streamName, StreamConfiguration.builder().build()).join();
+        
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                this.serviceBuilder.getLowPriorityExecutor());
-        server.startListening();
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
-        @Cleanup
-        MockClientFactory clientFactory = streamManager.getClientFactory();
-        streamManager.createScope(scope);
-        streamManager.createStream(scope, streamName, null);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        
         Serializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
@@ -170,9 +118,10 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         Future<Void> ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
 
-        MockController controller = new MockController(endpoint, port, streamManager.getConnectionPool(), true);
         SegmentMetadataClientFactory metadataClientFactory = new SegmentMetadataClientFactoryImpl(controller,
-                                                                                                  streamManager.getConnectionPool());
+                                                                                                  clientFactory.getConnectionPool());
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
         Segment segment = new Segment(scope, streamName, 0);
         @Cleanup
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segment,
@@ -188,14 +137,14 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
 
         ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
-
+        String group = "testTruncationOffsets-group";        
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .disableAutomaticCheckpoints()
                                                          .stream(new StreamImpl(scope, streamName))
                                                          .build();
-        streamManager.createReaderGroup("ReaderGroup", groupConfig);
+        readerGroupManager.createReaderGroup(group, groupConfig);
         @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader("reader", "ReaderGroup", serializer,
+        EventStreamReader<String> reader = clientFactory.createReader("reader", group, serializer,
                                                                       ReaderConfig.builder().build());
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(2000));
         EventRead<String> event = reader.readNextEvent(2000);
@@ -204,31 +153,35 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         assertEquals(null, event.getEvent());
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testTruncation() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                                         .build();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream("test", "test", config).get();
+        String streamName = "testTruncation";
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                                                                                    .controllerURI(URI.create("tcp://" + serviceHost))
-                                                                                    .build());
+        StreamManager streamManager = StreamManager.create(PRAVEGA.getControllerURI());
+        String scope = "test";
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, config);
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build();
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope,
+                ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
         writer.writeEvent("0", "truncationTest1").get();
 
         // scale
-        Stream stream = new StreamImpl("test", "test");
+        Stream stream = new StreamImpl("test", streamName);
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 0.33);
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
         Boolean result = controller.scaleStream(stream, Lists.newArrayList(0L, 1L), map, executorService()).getFuture().get();
 
         assertTrue(result);
@@ -239,15 +192,15 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         streamCutPositions.put(computeSegmentId(3, 1), 0L);
         streamCutPositions.put(computeSegmentId(4, 1), 0L);
 
-        controller.truncateStream(stream.getStreamName(), stream.getStreamName(), streamCutPositions).join();
+        controller.truncateStream(stream.getScope(), stream.getStreamName(), streamCutPositions).join();
+        String group = "testTruncation-group";
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", clientConfig, connectionFactory);
+        groupManager.createReaderGroup(group, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                                                  .stream("test/" + streamName).build());
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
-        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                  .stream("test/test").build());
-
-        @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", group, new JavaSerializer<>(),
                 ReaderConfig.builder().build());
 
         EventRead<String> event = reader.readNextEvent(10000);
@@ -262,30 +215,31 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                 .build();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream("test", "test", config).get();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        String streamName = "testWriteDuringTruncationAndDeletion";
+        controller.createScope("test").get();
+        controller.createStream("test", streamName, config).get();
         
         config = StreamConfiguration.builder()
                                     .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                     .build();
-        controller.updateStream("test", "test", config).get();
+        controller.updateStream("test", streamName, config).get();
 
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(URI.create("tcp://" + serviceHost))
+                .controllerURI(PRAVEGA.getControllerURI())
                 .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
         // routing key "0" translates to key 0.8. This write happens to segment 1.
         writer.writeEvent("0", "truncationTest1").get();
 
         // scale down to one segment.
-        Stream stream = new StreamImpl("test", "test");
+        Stream stream = new StreamImpl("test", streamName);
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 1.0);
         assertTrue("Stream Scale down", controller.scaleStream(stream, Lists.newArrayList(0L, 1L), map, executorService()).getFuture().get());
@@ -293,20 +247,21 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         // truncate stream at segment 2, offset 0.
         Map<Long, Long> streamCutPositions = new HashMap<>();
         streamCutPositions.put(computeSegmentId(2, 1), 0L);
-        assertTrue("Truncate stream", controller.truncateStream("test", "test", streamCutPositions).get());
+        assertTrue("Truncate stream", controller.truncateStream("test", streamName, streamCutPositions).get());
 
         // routing key "2" translates to key 0.2.
         // this write translates to a write to Segment 0, but since segment 0 is truncated the write should happen on segment 2.
         // write to segment 0
         writer.writeEvent("2", "truncationTest2").get();
 
+        String group = "testWriteDuringTruncationAndDeletion-group";
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
-        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                .stream("test/test").build());
+        groupManager.createReaderGroup(group, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                .stream("test/" + streamName).build());
 
         @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", group, new JavaSerializer<>(),
                 ReaderConfig.builder().build());
 
         EventRead<String> event = reader.readNextEvent(10000);
@@ -314,8 +269,8 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         assertEquals("truncationTest2", event.getEvent());
 
         //Seal and Delete stream.
-        assertTrue(controller.sealStream("test", "test").get());
-        assertTrue(controller.deleteStream("test", "test").get());
+        assertTrue(controller.sealStream("test", streamName).get());
+        assertTrue(controller.deleteStream("test", streamName).get());
 
         //write by an existing writer to a deleted stream should complete exceptionally.
         assertFutureThrows("Should throw NoSuchSegmentException",
@@ -331,12 +286,12 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         JavaSerializer<String> serializer = new JavaSerializer<>();
         EventWriterConfig writerConfig = EventWriterConfig.builder().build();
         String scope = "testSeal";
-        String streamName = "test";
+        String streamName = "testWriteOnSealedStream";
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                                         .build();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(scope).get();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        controller.createScope(scope).get();
         controller.createStream(scope, streamName, config).get();
 
         config = StreamConfiguration.builder()
@@ -346,7 +301,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
 
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                                                                                    .controllerURI(URI.create("tcp://" + serviceHost))
+                                                                                    .controllerURI(PRAVEGA.getControllerURI())
                                                                                     .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
@@ -373,26 +328,27 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 50000)
     public void testWriteDuringScaleAndTruncation() throws Exception {
-        Stream stream = new StreamImpl("test", "test");
+        String streamName = "testWriteDuringScaleAndTruncation";
+        Stream stream = new StreamImpl("test", streamName);
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                                         .build();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream("test", "test", config).get();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        controller.createScope("test").get();
+        controller.createStream("test", streamName, config).get();
         config = StreamConfiguration.builder()
                                     .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                     .build();
-        controller.updateStream("test", "test", config).get();
+        controller.updateStream("test", streamName, config).get();
 
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                                                                                    .controllerURI(URI.create("tcp://" + serviceHost))
+                                                                                    .controllerURI(PRAVEGA.getControllerURI())
                                                                                     .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
         // routing key "0" translates to key 0.8. This write happens to segment 1.
@@ -417,28 +373,29 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         Map<Long, Long> streamCutPositions = new HashMap<>();
         streamCutPositions.put(computeSegmentId(3, 2), 0L);
         streamCutPositions.put(computeSegmentId(4, 2), 0L);
-        assertTrue("Truncate stream", controller.truncateStream("test", "test", streamCutPositions).get());
+        assertTrue("Truncate stream", controller.truncateStream("test", streamName, streamCutPositions).get());
 
         //write an event.
         writer.writeEvent("0", "truncationTest3");
         writer.flush();
 
         //Read the event back.
+        String group = "testWriteDuringScaleAndTruncation-group";
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
-        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
-                                                                  .stream("test/test").build());
+        groupManager.createReaderGroup(group, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
+                                                                  .stream("test/" + streamName).build());
         @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", group, new JavaSerializer<>(),
                 ReaderConfig.builder().build());
         EventRead<String> event = reader.readNextEvent(200);
         assertNull(event.getEvent());
-        groupManager.getReaderGroup("reader").initiateCheckpoint("cp1", executorService());
+        groupManager.getReaderGroup(group).initiateCheckpoint("cp1", executorService());
         event = reader.readNextEvent(2000);
         assertEquals("cp1", event.getCheckpointName());
         event = reader.readNextEvent(200);
         assertNull(event.getEvent());
-        groupManager.getReaderGroup("reader").initiateCheckpoint("cp2", executorService());
+        groupManager.getReaderGroup(group).initiateCheckpoint("cp2", executorService());
         event = reader.readNextEvent(2000);
         assertEquals("cp2", event.getCheckpointName());
         event = reader.readNextEvent(10000);
@@ -461,17 +418,18 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                                                                      .scalingPolicy(ScalingPolicy.fixed(1)).build();
         @Cleanup
-        StreamManager streamManager = StreamManager.create(controllerURI);
+        StreamManager streamManager = StreamManager.create(PRAVEGA.getControllerURI());
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, streamConfiguration);
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope,
-                ClientConfig.builder().controllerURI(controllerURI).build());
+                ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, PRAVEGA.getControllerURI());
         groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                          .stream(scope + "/" + streamName)
                                                                          .build());
+        @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 
         // Write two events to the Stream.
@@ -515,11 +473,11 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         final int truncatedEvents = 25;
         StreamConfiguration streamConf = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(parallelism)).build();
         @Cleanup
-        StreamManager streamManager = StreamManager.create(controllerURI);
+        StreamManager streamManager = StreamManager.create(PRAVEGA.getControllerURI());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, PRAVEGA.getControllerURI());
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
         streamManager.createScope(scope);
 
         // Test truncation in new and re-created tests.
@@ -528,6 +486,7 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
             streamManager.createStream(scope, streamName, streamConf);
             groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                              .stream(Stream.of(scope, streamName)).build());
+            @Cleanup
             ReaderGroup readerGroup = groupManager.getReaderGroup(readerGroupName);
 
             // Write events to the Stream.
@@ -570,11 +529,11 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(scope).join();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        controller.createScope(scope).join();
         controller.createStream(scope, streamName, config).join();
         @Cleanup
-        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI)
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI())
                                                                                     .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
@@ -666,18 +625,18 @@ public class EndToEndTruncationTest extends ThreadPooledTestSuite {
                                                                      .scalingPolicy(ScalingPolicy.fixed(parallelism))
                                                                      .build();
         @Cleanup
-        StreamManager streamManager = StreamManager.create(controllerURI);
+        StreamManager streamManager = StreamManager.create(PRAVEGA.getControllerURI());
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, streamConfiguration);
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
 
         // Write totalEvents to the Stream.
         writeEvents(clientFactory, streamName, totalEvents);
 
         // Instantiate readers to consume from Stream.
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, PRAVEGA.getControllerURI());
         groupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().automaticCheckpointIntervalMillis(500).stream(Stream.of(scope, streamName)).build());
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(String.valueOf(0), readerGroup, new UTF8StringSerializer(), ReaderConfig.builder().build());

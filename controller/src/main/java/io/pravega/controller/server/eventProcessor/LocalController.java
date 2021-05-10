@@ -17,18 +17,19 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.admin.KeyValueTableInfo;
-import io.pravega.client.control.impl.ReaderGroupConfigRejectedException;
-import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.Transaction;
 import io.pravega.client.control.impl.CancellableRequest;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.control.impl.ReaderGroupConfigRejectedException;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReaderGroupNotFoundException;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
@@ -36,14 +37,10 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
-import io.pravega.client.stream.impl.ReaderGroupNotFoundException;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.impl.KeyValueTableSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.task.Stream.StreamMetadataTasks;
-import io.pravega.shared.NameUtils;
-import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
@@ -51,7 +48,10 @@ import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.security.auth.AccessOperation;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,7 +67,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
@@ -161,11 +160,11 @@ public class LocalController implements Controller {
         return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis()).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
-                throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
+                throw new ControllerFailureException("Failed to create stream: " + streamConfig);
             case INVALID_STREAM_NAME:
-                throw new IllegalArgumentException("Illegal stream name: " + streamConfig);
+                throw new IllegalArgumentException("Illegal stream name: " + streamName + " config: " + streamConfig);
             case SCOPE_NOT_FOUND:
-                throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
+                throw new IllegalArgumentException("Scope does not exist: " + scope + " config: " + streamConfig);
             case STREAM_EXISTS:
                 return false;
             case SUCCESS:
@@ -184,9 +183,9 @@ public class LocalController implements Controller {
             case FAILURE:
                 throw new ControllerFailureException("Failed to update stream: " + streamConfig);
             case SCOPE_NOT_FOUND:
-                throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
+                throw new IllegalArgumentException("Scope does not exist: " + scope + " config: " + streamConfig);
             case STREAM_NOT_FOUND:
-                throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
+                throw new IllegalArgumentException("Stream does not exist: " + streamName + " in scope: " + scope + " config: "  + streamConfig);
             case SUCCESS:
                 return true;
             default:
@@ -208,7 +207,7 @@ public class LocalController implements Controller {
                 case INVALID_RG_NAME:
                     throw new IllegalArgumentException("Illegal ReaderGroup name: " + rgName);
                 case SCOPE_NOT_FOUND:
-                    throw new IllegalArgumentException("Scope does not exist: " + scopeName);
+                    throw new IllegalArgumentException("Scope does not exist: " + scopeName + " config: " + scopeName);
                 case SUCCESS:
                     return ModelHelper.encode(x.getConfig());
                 default:
@@ -228,7 +227,7 @@ public class LocalController implements Controller {
                 case INVALID_CONFIG:
                     throw new ReaderGroupConfigRejectedException("Invalid Reader Group Config: " + config.toString());
                 case RG_NOT_FOUND:
-                    throw new ReaderGroupNotFoundException("Scope does not exist: " + scopedRGName);
+                    throw new ReaderGroupNotFoundException("Scope does not exist: " + scopeName + " config: "  + scopedRGName);
                 case SUCCESS:
                     return x.getGeneration();
                 default:
@@ -330,7 +329,7 @@ public class LocalController implements Controller {
             case SCOPE_NOT_FOUND:
                 throw new IllegalArgumentException("Scope does not exist: " + scope);
             case STREAM_NOT_FOUND:
-                throw new IllegalArgumentException("Stream does not exist: " + stream);
+                throw new IllegalArgumentException("Stream does not exist: " + stream + " in scope: " + scope);
             case SUCCESS:
                 return true;
             default:
@@ -349,7 +348,7 @@ public class LocalController implements Controller {
             case SCOPE_NOT_FOUND:
                 throw new IllegalArgumentException("Scope does not exist: " + scope);
             case STREAM_NOT_FOUND:
-                throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                throw new IllegalArgumentException("Stream does not exist: " + streamName + " in scope: " + scope);
             case SUCCESS:
                 return true;
             default:

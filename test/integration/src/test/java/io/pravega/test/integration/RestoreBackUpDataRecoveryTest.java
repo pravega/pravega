@@ -168,11 +168,14 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
 
     private final AtomicLong timer = new AtomicLong();
 
-    private StorageFactory storageFactory;
+    private InMemoryStorageFactory storageFactory;
     private InMemoryDurableDataLogFactory dataLogFactory;
 
     @After
     public void tearDown() throws Exception {
+        if (this.storageFactory != null) {
+            this.storageFactory.close();
+        }
         if (this.dataLogFactory != null) {
             this.dataLogFactory.close();
         }
