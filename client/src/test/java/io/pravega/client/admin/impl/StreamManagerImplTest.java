@@ -26,7 +26,6 @@ import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
-import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.tables.KeyValueTableConfiguration;

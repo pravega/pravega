@@ -23,13 +23,7 @@ import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.control.impl.ReaderGroupConfigRejectedException;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReaderGroupNotFoundException;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.*;
 import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
@@ -346,9 +340,9 @@ public class LocalController implements Controller {
             case FAILURE:
                 throw new ControllerFailureException("Failed to seal stream: " + streamName);
             case SCOPE_NOT_FOUND:
-                throw new IllegalArgumentException("Scope does not exist: " + scope);
+                throw new InvalidStreamException("Scope does not exist: " + scope);
             case STREAM_NOT_FOUND:
-                throw new IllegalArgumentException("Stream does not exist: " + streamName + " in scope: " + scope);
+                throw new InvalidStreamException("Stream does not exist: " + streamName + " in scope: " + scope);
             case SUCCESS:
                 return true;
             default:
