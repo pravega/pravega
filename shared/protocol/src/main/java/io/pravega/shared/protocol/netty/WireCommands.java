@@ -841,25 +841,16 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand flushToStorage(ByteBufInputStream in, int i) throws IOException {
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
             String delegationToken = in.readUTF();
-            long requestId = in.available()  >= Long.BYTES ? in.readLong() : -1L;
             return new FlushToStorage(delegationToken, requestId);
-        }
-
-        @Override
-        public long getRequestId() {
-            return requestId;
         }
     }
 
-    @RequiredArgsConstructor
-    @Getter
-    @ToString
-    @EqualsAndHashCode(callSuper = false)
-    @NotThreadSafe
-    public static final class FlushedStorage extends ReleasableCommand implements Reply {
-        final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
+    @Data
+    public static final class FlushedStorage implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.FLUSHED_TO_STORAGE;
         final long requestId;
 
         @Override
@@ -872,18 +863,9 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand flushToStorage(EnhancedByteBufInputStream in, int length) throws IOException {
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new FlushedStorage(requestId).requireRelease();
-        }
-
-        @Override
-        void releaseInternal() {
-        }
-
-        @Override
-        public long getRequestId() {
-            return requestId;
+            return new FlushedStorage(requestId);
         }
     }
 

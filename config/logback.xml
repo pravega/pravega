@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <configuration scan="true" scanPeriod="30 seconds">
-    <logger name="org.apache.zookeeper" level="WARN"/>
+    <logger name="org.apache.zookeeper" level="DEBUG"/>
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>

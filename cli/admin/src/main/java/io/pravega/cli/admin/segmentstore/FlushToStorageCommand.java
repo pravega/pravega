@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public class FlushToStorageCommand extends SegmentStoreCommand {
-    private static final int REQUEST_TIMEOUT_SECONDS = 10;
+    private static final int REQUEST_TIMEOUT_SECONDS = 100;
 
     /**
      * Creates a new instance of the FlushToStorageCommand.

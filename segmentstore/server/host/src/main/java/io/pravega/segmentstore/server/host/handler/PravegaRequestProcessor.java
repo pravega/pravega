@@ -139,7 +139,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     //region Members
 
-    static final Duration TIMEOUT = Duration.ofMinutes(1);
+    static final Duration TIMEOUT = Duration.ofMinutes(2);
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final String EMPTY_STACK_TRACE = "";
@@ -198,15 +198,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void flushToStorage(WireCommands.FlushToStorage flushToStorage) {
-        Timer timer = new Timer();
         final String operation = "flushToStorage";
 
         long trace = LoggerHelpers.traceEnter(log, operation);
         segmentStore.flushToStorage(TIMEOUT)
-                .thenAccept(flushResult -> {
-                    LoggerHelpers.traceLeave(log, operation, trace, flushResult);
-                    this.statsRecorder.readComplete(timer.getElapsed());
-                })
+                .thenAccept(v -> connection.send(new WireCommands.FlushedStorage(flushToStorage.getRequestId())))
                 .exceptionally(ex -> handleException(flushToStorage.getRequestId(), null, -1, operation, wrapCancellationException(ex)));
     }
 

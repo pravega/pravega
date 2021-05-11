@@ -95,7 +95,7 @@ public abstract class SegmentContainerCollection {
             try {
                 container = this.segmentContainerRegistry.getContainer(containerId);
                 futures.add(container.flushToStorage(timeout));
-            } catch (ContainerNotFoundException ex) {
+            } catch (Exception ex) {
                 return Futures.failedFuture(ex);
             }
         }

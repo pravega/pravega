@@ -85,6 +85,8 @@ public final class SetupUtils {
     @Getter
     private final int servicePort = TestUtils.getAvailableListenPort();
     @Getter
+    ServiceBuilder serviceBuilder = null;
+    @Getter
     private final int adminPort = TestUtils.getAvailableListenPort();
     private final ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + controllerRPCPort)).build();
     
@@ -118,9 +120,9 @@ public final class SetupUtils {
         this.zkTestServer.start();
 
         // Start Pravega Service.
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
 
-        serviceBuilder.initialize();
+        this.serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
         this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
