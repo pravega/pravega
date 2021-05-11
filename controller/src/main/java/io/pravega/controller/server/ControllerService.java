@@ -504,10 +504,7 @@ public class ControllerService {
                         log.error("Transaction commit failed for txn {} on stream {}. Cause: {}", txId.toString(),
                                 NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
-                        if (unwrap instanceof StoreException.DataNotFoundException || unwrap instanceof StoreException.IllegalStateException || unwrap instanceof StoreException.UnknownException) {
-                            // if its a retryable exception (it could be either write conflict or store exception)
-                            // let it be thrown and translated to appropriate error code so that the client
-                            // retries upon failure.
+                        if (unwrap instanceof StoreException.DataNotFoundException || unwrap instanceof StoreException.IllegalStateException) {
                             TransactionMetrics.getInstance().commitTransactionFailed(scope, stream, txId.toString());
                             return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                         }
@@ -538,10 +535,7 @@ public class ControllerService {
                         log.error("Transaction abort failed for txn {} on Stream {}", txId.toString(),
                                 NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
-                        if (unwrap instanceof StoreException.DataNotFoundException || unwrap instanceof StoreException.IllegalStateException || unwrap instanceof StoreException.UnknownException) {
-                            // if its a retryable exception (it could be either write conflict or store exception)
-                            // let it be thrown and translated to appropriate error code so that the client
-                            // retries upon failure.
+                        if (unwrap instanceof StoreException.DataNotFoundException || unwrap instanceof StoreException.IllegalStateException) {
                             TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, txId.toString());
                             return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                         }
