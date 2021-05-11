@@ -36,7 +36,6 @@ import java.util.Arrays;
 import java.util.UUID;
 
 public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
-    private static final Duration TIMEOUT = Duration.ofMillis(30 * 1000);
     @Test
     public void testGetSegmentInfoCommand() throws Exception {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getinfo", StreamConfiguration.builder().build());
@@ -88,10 +87,6 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         EventStreamWriter<String> writer = factory.createEventWriter("flushToStorage", new JavaSerializer<>(), EventWriterConfig.builder().build());
         writer.writeEvents("rk", Arrays.asList("a", "2", "3"));
         writer.flush();
-//        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(SETUP_UTILS.getServiceBuilder());
-//        for (int containerId = 0; containerId < 1; containerId++) {
-//            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
-//        }
 
         String commandResult = TestUtils.executeCommand("segmentstore flushToStorage localhost", STATE.get());
         Assert.assertTrue(commandResult.contains("Flushed"));

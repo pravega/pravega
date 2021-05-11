@@ -15,8 +15,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <configuration scan="true" scanPeriod="30 seconds">
-    <logger name="io.pravega.cli.admin.dataRecovery" level="DEBUG">
-        <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <logger name="io.pravega.cli.admin.dataRecovery" level="INFO">
+        <appender name="FILE" class="ch.qos.logback.core.FileAppender">
             <file>dataRecovery.log</file>
             <encoder>
                 <charset>UTF-8</charset>
@@ -25,8 +25,8 @@ limitations under the License.
         </appender>
     </logger>
 
-    <logger name="io.pravega.segmentstore.server.containers" level="DEBUG">
-        <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <logger name="io.pravega.segmentstore.server.containers" level="INFO">
+        <appender name="FILE" class="ch.qos.logback.core.FileAppender">
             <file>containers.log</file>
             <encoder>
                 <charset>UTF-8</charset>
@@ -35,8 +35,8 @@ limitations under the License.
         </appender>
     </logger>
 
-    <logger name="io.pravega.segmentstore.storage" level="DEBUG">
-        <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <logger name="io.pravega.segmentstore.storage" level="INFO">
+        <appender name="FILE" class="ch.qos.logback.core.FileAppender">
             <file>storage.log</file>
             <encoder>
                 <charset>UTF-8</charset>
@@ -45,8 +45,8 @@ limitations under the License.
         </appender>
     </logger>
 
-    <logger name="org.apache.curator.framework" level="DEBUG">
-        <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <logger name="org.apache.curator.framework" level="INFO">
+        <appender name="FILE" class="ch.qos.logback.core.FileAppender">
             <file>ZooKeeper.log</file>
             <encoder>
                 <charset>UTF-8</charset>

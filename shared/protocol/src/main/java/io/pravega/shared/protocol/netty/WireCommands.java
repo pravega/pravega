@@ -841,9 +841,9 @@ public final class WireCommands {
             out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             String delegationToken = in.readUTF();
+            long requestId = in.available()  >= Long.BYTES ? in.readLong() : -1L;
             return new FlushToStorage(delegationToken, requestId);
         }
     }

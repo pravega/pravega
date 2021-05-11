@@ -620,10 +620,10 @@ public class SegmentHelper implements AutoCloseable {
 
         WireCommands.FlushToStorage request = new WireCommands.FlushToStorage(delegationToken,
                 requestId);
-
+        log.info("Request: {}", request);
         return sendRequest(connection, requestId, request)
                 .thenApply(r -> {
-                    handleReply(requestId, r, connection, null, WireCommands.FlushToStorage.class, type);
+                    //handleReply(requestId, r, connection, null, WireCommands.FlushToStorage.class, type);
                     assert r instanceof WireCommands.FlushedStorage;
                     return (WireCommands.FlushedStorage) r;
                 });

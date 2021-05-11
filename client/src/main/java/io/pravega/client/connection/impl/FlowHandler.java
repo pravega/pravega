@@ -85,7 +85,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkState(!disableFlow.get(), "Ensure flows are enabled.");
         final int flowID = flow.getFlowId();
-        log.debug("Creating Flow {} for endpoint {}. ", flow.getFlowId(), location);
+        log.error("Creating Flow {} for endpoint {}. ", flow.getFlowId(), location);
         if (flowIdReplyProcessorMap.put(flowID, rp) != null) {
             throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flowID);
         }

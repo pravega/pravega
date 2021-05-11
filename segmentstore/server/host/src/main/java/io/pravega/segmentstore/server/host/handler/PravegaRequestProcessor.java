@@ -91,6 +91,7 @@ import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import io.pravega.shared.protocol.netty.WireCommands.FlushToStorage;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -139,7 +140,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     //region Members
 
-    static final Duration TIMEOUT = Duration.ofMinutes(2);
+    static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final String EMPTY_STACK_TRACE = "";
@@ -197,13 +198,18 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     //region RequestProcessor Implementation
 
     @Override
-    public void flushToStorage(WireCommands.FlushToStorage flushToStorage) {
+    public void flushToStorage(FlushToStorage flushToStorage) {
         final String operation = "flushToStorage";
 
         long trace = LoggerHelpers.traceEnter(log, operation);
         segmentStore.flushToStorage(TIMEOUT)
-                .thenAccept(v -> connection.send(new WireCommands.FlushedStorage(flushToStorage.getRequestId())))
-                .exceptionally(ex -> handleException(flushToStorage.getRequestId(), null, -1, operation, wrapCancellationException(ex)));
+                .thenAccept(v -> {
+                    LoggerHelpers.traceLeave(log, operation, trace);
+                    //connection.send(new WrongHost(flushToStorage.getRequestId(), null));
+                    //connection.send(new WrongHost(flushToStorage.getRequestId(), "", "",""));
+                    connection.send(new WireCommands.FlushedStorage(flushToStorage.getRequestId()));
+                })
+                .exceptionally(ex -> handleException(flushToStorage.getRequestId(), null, operation, ex));
     }
 
     @Override
