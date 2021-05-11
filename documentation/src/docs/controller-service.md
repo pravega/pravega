@@ -137,11 +137,11 @@ Upon creating Transactions, Controller also tracks Transaction timeouts
 and aborts transactions whose timeouts have elapsed. Details of
 Transaction management can be found later in the [Transactions](#transaction-manager) section.
 
-  4. [**Watermarks**](http://pravega.io/docs/v0.8.0/watermarking/): Watermarks are a data structure produced by Controller that refer to a unique position in the Stream and associates time information corresponding to that position. The watermark is computed by Controller by coordinating the time and position information reported by different writer applications and generating a time window. 
+  4. [**Watermarks**](http://pravega.io/docs/latest/watermarking/): Watermarks are a data structure produced by Controller that refer to a unique position in the Stream and associates time information corresponding to that position. The watermark is computed by Controller by coordinating the time and position information reported by different writer applications and generating a time window. 
 
 ## Key-Value-Tables Management
 
-Apart from Stream abstraction Controller is also the source of truth for the other storage primitive offered by pravega - [Key Value Tables](https://github.com/pravega/pravega/wiki/PDP-39-Key-Value-Tables-(Beta-1)). Just like a Stream, a Key Value Table (KVT) is also distributed and paritioned using a Table Segment. A Table Segment has same properties as a Stream Segment, but with the data is formatted as keys and values and indexed on the keys. It provides APIs to perform CRUD operations on keys. Controller uses Table Segments to create a higher level abstraction which creates a distributed Key Value Table. Each Table is partitioned and the user data is distributed across different partitions using a hashing scheme. It also introduces a concept of _key family_ which is used to ensure that all keys from the same key family are always mapped to the same partition.  
+Apart from Stream abstraction Controller is also the source of truth for the other storage primitive offered by Pravega - [Key Value Tables](https://github.com/pravega/pravega/wiki/PDP-39-Key-Value-Tables-(Beta-1)). Just like a Stream, a Key Value Table (KVT) is also distributed and paritioned using a Table Segment. A Table Segment has same properties as a Stream Segment, but with the data is formatted as keys and values and indexed on the keys. It provides APIs to perform CRUD operations on keys. Controller uses Table Segments to create a higher level abstraction which creates a distributed Key Value Table. Each Table is partitioned and the user data is distributed across different partitions using a hashing scheme. It also introduces a concept of _key family_ which is used to ensure that all keys from the same key family are always mapped to the same partition.  
 Controller maintains the metadata about the key value tables and is responsible for its lifecycle. Presently key value tables do not support any user defined policies like scaling or retention. So Controller's role is limited to provisioning Table Segments for the Table and managing its lifecycle which includes operations like create seal and delete tables.   
 
 ## Cluster Management
@@ -379,7 +379,7 @@ The following are the Transaction Related metadata records:
  Writers report their positions and times in the form of writer marks to Controller service which are then stored in the metadata table. One of the Controller instances then looks at these marks and consolidates them to produce watermarks. 
 
 #### Subscribers
- As part of 0.9, a new experimental feature has been included in Pravega to keep track of subscriber readergroups and the Stream automatically purges the data only after it has been consumed by all subscribers. To achieve this, readergroups report their positions to Controller and Controller stores their subscriber StreamCuts in subscriber metadata for the Stream. It then consolidates these StreamCuts to compute a lower bound and truncate at such a lowerbound. 
+ As part of 0.9, a new experimental feature called [Consumption Based Retention](https://github.com/pravega/pravega/wiki/PDP-47:-Pravega-Streams:-Consumption-Based-Retention) has been included in Pravega to keep track of subscriber readergroups and the Stream automatically purges the data only after it has been consumed by all subscribers. To achieve this, readergroups report their positions to Controller and Controller stores their subscriber StreamCuts in subscriber metadata for the Stream. It then consolidates these StreamCuts to compute a lower bound and truncate at such a lowerbound. 
 Users explicitly have to opt in for subscription and the default mode of using Pravega Streams do not enable a subscription. 
 
 ### Stream Store Caching
@@ -387,7 +387,7 @@ Users explicitly have to opt in for subscription and the default mode of using P
 #### In-memory Cache
 Since there could be multiple concurrent requests for a given Stream
 being processed by the same Controller instance, it is suboptimal to read
-the value by querying pravega Table Segments every time. So we have introduced an
+the value by querying Pravega Table Segments every time. So we have introduced an
 **in-memory cache** that each Stream store maintains. It caches retrieved
 metadata per Stream so that there is maximum one copy of the data per
 Stream in the cache. There are two in-memory caches:
@@ -405,7 +405,7 @@ invalidated in the cache so that other concurrent read/update operations
 on the Stream get the new value for their subsequent steps.  
 
 ### Key Value Table Metadata Store
-Just like Stream metadata store, pravega Key Value Tables have (KVT) their own metadata which is accessed using Key Value Table metadata store (kvt metadata store). Although KVT  presently only support static partitioning, we have defined the metadata schema which can support scaling in future. This means we maintain KVT Epoch Records which include KVT Segments. All of this is stored in dedicated metadata tables (Table Segments) per key value table.
+Just like Stream metadata store, Pravega Key Value Tables have (KVT) their own metadata which is accessed using Key Value Table metadata store (kvt metadata store). Although KVT  presently only support static partitioning, we have defined the metadata schema which can support scaling in future. This means we maintain KVT Epoch Records which include KVT Segments. All of this is stored in dedicated metadata tables (Table Segments) per key value table.
 
 - **KVT Epoch Records:**  
 _KVTEpoch: ⟨time, list-of-segments-in-epoch⟩_.
