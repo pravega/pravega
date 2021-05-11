@@ -30,7 +30,6 @@ import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.InvalidStreamException;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;

@@ -22,11 +22,12 @@ import io.pravega.client.control.impl.ControllerFailureException;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.control.impl.ReaderGroupConfigRejectedException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.InvalidStreamException;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -572,16 +573,16 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         when(this.mockControllerService.sealStream(any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
                         .setStatus(Controller.UpdateStreamStatus.Status.STREAM_NOT_FOUND).build()));
-        assertThrows("Expected IllegalArgumentException",
+        assertThrows("Expected InvalidStreamException",
                 () -> this.testController.sealStream("scope", "stream").join(),
-                ex -> ex instanceof IllegalArgumentException);
+                ex -> ex instanceof InvalidStreamException);
 
         when(this.mockControllerService.sealStream(any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
                         .setStatus(Controller.UpdateStreamStatus.Status.SCOPE_NOT_FOUND).build()));
-        assertThrows("Expected IllegalArgumentException",
+        assertThrows("Expected InvalidStreamException",
                 () -> this.testController.sealStream("scope", "stream").join(),
-                ex -> ex instanceof IllegalArgumentException);
+                ex -> ex instanceof InvalidStreamException);
 
         when(this.mockControllerService.sealStream(any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
