@@ -55,6 +55,7 @@ public class FlushToStorageCommand extends SegmentStoreCommand {
     }
 
     public static AdminCommand.CommandDescriptor descriptor() {
-        return new AdminCommand.CommandDescriptor(COMPONENT, "flushToStorage", "Flushes durable log to the storage.");
+        return new AdminCommand.CommandDescriptor(COMPONENT, "flushToStorage", "Flushes durable log to the storage.",
+                new ArgDescriptor("segmentstore-endpoint", "Address of the Segment Store we want to send this request."));
     }
 }

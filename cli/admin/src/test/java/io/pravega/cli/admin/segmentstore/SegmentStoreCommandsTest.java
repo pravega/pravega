@@ -25,13 +25,11 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.UUID;
 
