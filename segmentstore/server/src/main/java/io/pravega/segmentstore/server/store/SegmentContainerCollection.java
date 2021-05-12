@@ -87,6 +87,13 @@ public abstract class SegmentContainerCollection {
         return resultFuture;
     }
 
+    /**
+     * Executes flushToStorage method on all the containers.
+     *
+     * @param timeout   TimeOut in executing flushToStorage for each container.
+     * @return Either the result of flushToStorage or a CompletableFuture completed exceptionally with a ContainerNotFoundException
+     * in case the SegmentContainer that the Segment maps to does not exist in this StreamSegmentService.
+     */
     protected CompletableFuture<Void> invokeFlush(Duration timeout) {
         int containerCount = this.segmentContainerRegistry.getContainerCount();
         SegmentContainer container;

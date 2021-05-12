@@ -201,6 +201,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void flushToStorage(FlushToStorage flushToStorage) {
         final String operation = "flushToStorage";
         long trace = LoggerHelpers.traceEnter(log, operation);
+
         segmentStore.flushToStorage(TIMEOUT)
                 .thenAccept(v -> {
                     LoggerHelpers.traceLeave(log, operation, trace);

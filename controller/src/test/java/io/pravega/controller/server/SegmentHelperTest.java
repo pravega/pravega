@@ -435,6 +435,18 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testFlushToStorage() {
+        MockConnectionFactory factory = new MockConnectionFactory();
+        @Cleanup
+        SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
+        CompletableFuture<WireCommands.FlushedStorage> result = helper.flushToStorage(new PravegaNodeUri("localhost",
+                12345), "");
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.FlushedStorage(requestId));
+        result.join();
+    }
+
+    @Test
     public void testReadSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
         @Cleanup
