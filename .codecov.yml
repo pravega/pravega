@@ -7,6 +7,9 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
+codecov:
+  max_report_age: off
+
 coverage:
   status:
     project:

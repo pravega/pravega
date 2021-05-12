@@ -33,6 +33,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -162,7 +163,7 @@ class MockSegmentContainer implements SegmentContainer {
     }
 
     @Override
-    public CompletableFuture<DirectSegmentAccess> forSegment(String segmentName, Duration timeout) {
+    public CompletableFuture<DirectSegmentAccess> forSegment(String segmentName, OperationPriority priority, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         SegmentMock segment = this.segment.get();
         if (segment == null) {
