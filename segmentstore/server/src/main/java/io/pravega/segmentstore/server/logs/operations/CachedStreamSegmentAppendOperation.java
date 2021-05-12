@@ -54,6 +54,7 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation impleme
         }
 
         this.attributeUpdates = baseOperation.getAttributeUpdates();
+        setDesiredPriority(baseOperation.getDesiredPriority());
     }
 
     //endregion

@@ -20,7 +20,9 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.segmentstore.contracts.SequencedElement;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 
 /**
  * Base class for a Log Operation.
@@ -30,6 +32,12 @@ public abstract class Operation implements SequencedElement {
 
     public static final long NO_SEQUENCE_NUMBER = Long.MIN_VALUE;
     private long sequenceNumber;
+    /**
+     * Requested priority. This field is not serialized.
+     */
+    @Getter
+    @Setter
+    private OperationPriority desiredPriority;
 
     //endregion
 
