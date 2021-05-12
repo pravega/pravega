@@ -21,9 +21,11 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.NameUtils;
@@ -337,6 +339,20 @@ public class ContainerRecoveryUtils {
 
             // Get the iterator to iterate through all segments in the back up metadata segment
             val tableExtension = containerForBackUpMetadataSegment.getExtension(ContainerTableExtension.class);
+
+            val bmsInfo = container.getStreamSegmentInfo(backUpMetadataSegment, timeout)
+                    .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            if (bmsInfo.getAttributes().getOrDefault(TableAttributes.INDEX_OFFSET, Attributes.NULL_ATTRIBUTE_VALUE) == Attributes.NULL_ATTRIBUTE_VALUE) {
+                log.info("Back up container metadata segment name: {} does not have INDEX_OFFSET set; setting to segment length.", backUpMetadataSegment);
+                container.updateAttributes(backUpMetadataSegment,
+                        AttributeUpdateCollection.from(new AttributeUpdate(TableAttributes.INDEX_OFFSET, AttributeUpdateType.Replace, bmsInfo.getLength())), timeout)
+                        .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+                val bmsMetadata = container.getMetadata().getStreamSegmentMetadata(container.getMetadata().getStreamSegmentId(backUpMetadataSegment, false));
+                if (bmsMetadata != null) {
+                    bmsMetadata.refreshDerivedProperties();
+                }
+            }
+
             val entryIterator = tableExtension.entryIterator(backUpMetadataSegment, args)
                     .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 

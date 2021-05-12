@@ -93,7 +93,7 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), anyString());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTableSegment(
-                anyString(), anyString(), anyLong(), anyBoolean());
+                anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).deleteTableSegment(
                 anyString(), anyBoolean(), anyString(), anyLong());
@@ -128,7 +128,7 @@ public class SegmentHelperMock {
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTableSegment(
-                anyString(), anyString(), anyLong(), anyBoolean());
+                anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
 
         return helper;
     }
@@ -148,7 +148,7 @@ public class SegmentHelperMock {
                     mapOfTablesPosition.putIfAbsent(tableName, new HashMap<>());
                 }
             }, executor);
-        }).when(helper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean());
+        }).when(helper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
         // endregion
         
         // region delete table

@@ -176,8 +176,9 @@ public class TableContext implements AutoCloseable {
                     SegmentMock segment = this.segmentCreator.get();
                     Assert.assertTrue(this.segment.compareAndSet(null, segment));
                 }, executorService)
-                .thenCompose(v -> this.segment.get().updateAttributes(attributes == null ? new AttributeUpdateCollection() : AttributeUpdateCollection.from(attributes), timeout));
-        }
+                .thenCompose(v -> this.segment.get().updateAttributes(attributes == null ? new AttributeUpdateCollection() : AttributeUpdateCollection.from(attributes), timeout))
+                .thenRun(() -> this.segment.get().getMetadata().refreshDerivedProperties());
+    }
 
         @Override
         public CompletableFuture<Void> deleteStreamSegment(String segmentName, Duration timeout) {

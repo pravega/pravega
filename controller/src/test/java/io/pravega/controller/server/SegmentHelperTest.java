@@ -380,20 +380,20 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         long requestId = Long.MIN_VALUE;
 
         // On receiving SegmentAlreadyExists true should be returned.
-        CompletableFuture<Void> result = helper.createTableSegment("", "", requestId, false);
+        CompletableFuture<Void> result = helper.createTableSegment("", "", requestId, false, 0);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
 
         factory.rp.process(new WireCommands.SegmentAlreadyExists(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
         result.join();
 
         // On Receiving SegmentCreated true should be returned.
-        result = helper.createTableSegment("", "", requestId, false);
+        result = helper.createTableSegment("", "", requestId, false, 0);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentCreated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         result.join();
 
         // Validate failure conditions.
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", 0L, true);
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", 0L, false, 0);
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);

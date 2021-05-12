@@ -143,7 +143,7 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Void> createTable(String tableName) {
         log.debug("create table called for table: {}", tableName);
 
-        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(tableName, authToken.get(), RequestTag.NON_EXISTENT_ID, false),
+        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(tableName, authToken.get(), RequestTag.NON_EXISTENT_ID, false, 0),
                 () -> String.format("create table: %s", tableName)))
                 .whenCompleteAsync((r, e) -> {
                     if (e != null) {

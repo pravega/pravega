@@ -46,6 +46,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.anyBoolean;
@@ -198,19 +199,19 @@ public class PravegaTablesStoreHelperTest {
 
         CompletableFuture<Void> connectionDropped = Futures.failedFuture(
                 new WireCommandFailedException(WireCommandType.CREATE_TABLE_SEGMENT, WireCommandFailedException.Reason.ConnectionDropped));
-        doAnswer(x -> connectionDropped).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean());
+        doAnswer(x -> connectionDropped).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
         AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.createTable("table"),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
 
         CompletableFuture<Void> connectionFailed = Futures.failedFuture(
                 new WireCommandFailedException(WireCommandType.CREATE_TABLE_SEGMENT, WireCommandFailedException.Reason.ConnectionFailed));
-        doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean());
+        doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
         AssertExtensions.assertFutureThrows("ConnectionFailed", storeHelper.createTable("table"),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
 
         CompletableFuture<Void> authFailed = Futures.failedFuture(
                 new WireCommandFailedException(WireCommandType.CREATE_TABLE_SEGMENT, WireCommandFailedException.Reason.AuthFailed));
-        doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean());
+        doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean(), anyInt());
         AssertExtensions.assertFutureThrows("AuthFailed", storeHelper.createTable("table"),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
     }
