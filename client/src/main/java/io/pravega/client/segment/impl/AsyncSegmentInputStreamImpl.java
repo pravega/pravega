@@ -131,11 +131,6 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             }
         }
 
-        @Override
-        public void flushedStorage(WireCommands.FlushedStorage flushedStorage) {
-
-        }
-
         private CompletableFuture<SegmentRead> grabFuture(String segment, long offset) {
             checkSegment(segment);
             synchronized (lock) {

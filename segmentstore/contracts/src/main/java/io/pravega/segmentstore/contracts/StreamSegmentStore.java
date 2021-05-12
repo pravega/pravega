@@ -149,6 +149,28 @@ public interface StreamSegmentStore {
      */
     CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout);
 
+    /**
+     * Applies all outstanding operations from the DurableLog into the underlying Storage.
+     *
+     * After this method completes:
+     * - Any operation that was initiated on this {@link StreamSegmentStore} prior to invoking this method will be applied
+     * to Storage.
+     * - The effect of applying such operations (i.e., Table Segment indices) will be applied to Storage as well.
+     * - The in-memory state of any active Segments will be persisted in the Container's Metadata, which, in turn, will
+     * be persisted entirely in Storage.
+     *
+     * Non-guarantees:
+     * - Any Operations that were initiated after this method was invoked are not guaranteed to be persisted to Storage.
+     * - If this request is interrupted (due to a Container shutdown or system failure), the request may not have been
+     * fully executed and may require a reinvocation.
+     * - This method is provided to aid testing. Its goal is to guarantee the transfer of data to Storage after all external
+     * traffic to the {@link StreamSegmentStore} has subsided. It is not intended to be used for production environments
+     * and/or where continuous traffic is still expected.
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the operation completed successfully. If the
+     * operation failed, it will be completed with the appropriate exception.
+     */
     CompletableFuture<Void> flushToStorage(Duration timeout);
 
     /**

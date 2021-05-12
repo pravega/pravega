@@ -216,7 +216,7 @@ class SegmentStoreConnectionManager implements AutoCloseable {
      *  different calls.
      */
     @VisibleForTesting
-            static class ReusableReplyProcessor implements ReplyProcessor {
+    static class ReusableReplyProcessor implements ReplyProcessor {
         private final AtomicReference<ReplyProcessor> replyProcessor = new AtomicReference<>();
 
         // initialize the reusable reply processor class with a new reply processor

@@ -200,13 +200,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void flushToStorage(FlushToStorage flushToStorage) {
         final String operation = "flushToStorage";
-
         long trace = LoggerHelpers.traceEnter(log, operation);
         segmentStore.flushToStorage(TIMEOUT)
                 .thenAccept(v -> {
                     LoggerHelpers.traceLeave(log, operation, trace);
-                    //connection.send(new WrongHost(flushToStorage.getRequestId(), null));
-                    //connection.send(new WrongHost(flushToStorage.getRequestId(), "", "",""));
                     connection.send(new WireCommands.FlushedStorage(flushToStorage.getRequestId()));
                 })
                 .exceptionally(ex -> handleException(flushToStorage.getRequestId(), null, operation, ex));
