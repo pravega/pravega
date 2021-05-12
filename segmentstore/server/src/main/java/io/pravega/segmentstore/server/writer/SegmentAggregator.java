@@ -256,6 +256,26 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         assert this.handle.get() == null : "non-null handle but state == " + this.state.get();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "initialize");
 
+        if (this.metadata.isDeleted()) {
+            // Segment is dead on arrival. Delete it from Storage (if it exists) and do not bother to do anything else with it).
+            // This is a rather uncommon case, but it can happen in one of two cases: 1) the segment has been deleted
+            // immediately after creation or 2) after a container recovery.
+            log.info("{}: Segment '{}' is marked as Deleted in Metadata. Attempting Storage delete.",
+                    this.traceObjectId, this.metadata.getName());
+            return Futures.exceptionallyExpecting(
+                    this.storage.openWrite(this.metadata.getName())
+                            .thenComposeAsync(handle -> this.storage.delete(handle, timeout), this.executor),
+                    ex -> ex instanceof StreamSegmentNotExistsException, null) // It's OK if already deleted.
+                    .thenRun(() -> {
+                        updateMetadataPostDeletion(this.metadata);
+                        log.info("{}: Segment '{}' is marked as Deleted in Metadata and has been deleted from Storage. Ignoring all further operations on it.",
+                                this.traceObjectId, this.metadata.getName());
+                        setState(AggregatorState.Writing);
+                        LoggerHelpers.traceLeave(log, this.traceObjectId, "initialize", traceId);
+                    });
+        }
+
+        // Segment not deleted.
         return openWrite(this.metadata.getName(), this.handle, timeout)
                 .thenAcceptAsync(segmentInfo -> {
                     // Check & Update StorageLength in metadata.
