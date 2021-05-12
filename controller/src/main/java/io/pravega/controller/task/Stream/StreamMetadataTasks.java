@@ -128,6 +128,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.concurrent.GuardedBy;
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
+import static io.pravega.controller.util.RetryHelper.NON_RETRYABLE_PREDICATE;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -140,6 +141,7 @@ public class StreamMetadataTasks extends TaskBase {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final int SUBSCRIBER_OPERATION_RETRIES = 10;
     private static final int READER_GROUP_OPERATION_MAX_RETRIES = 10;
+
     private final AtomicLong retentionFrequencyMillis;
 
     private final StreamMetadataStore streamMetadataStore;
@@ -310,7 +312,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 .setConfig(getRGConfigurationFromRecord(scope, rgName, configRecord.getObject(), rgId.toString()))
                                 .setStatus(ReaderGroupConfigResponse.Status.SUCCESS).build()));
        });
-      }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+      }, NON_RETRYABLE_PREDICATE, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
     private ReaderGroupConfiguration getRGConfigurationFromRecord(final String scope, final String rgName,
@@ -371,7 +373,7 @@ public class StreamMetadataTasks extends TaskBase {
                      return buildCreateSuccessResponse(scope, rgName);
                  });
          });
-        }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+        }, NON_RETRYABLE_PREDICATE, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
     private CompletableFuture<ReaderGroupConfig> validateReaderGroupId(ReaderGroupConfig config) {
@@ -493,7 +495,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     return buildCreateSuccessResponse(scope, rgName);
                                 });
                     });
-        }, e -> Exceptions.unwrap(e) instanceof RetryableException, 10, executor);
+        }, NON_RETRYABLE_PREDICATE, 10, executor);
     }
 
     private CompletableFuture<Boolean> isRGCreated(String scope, String rgName, Executor executor) {
@@ -571,7 +573,7 @@ public class StreamMetadataTasks extends TaskBase {
                         }
                       });
                });
-        }, e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+        }, NON_RETRYABLE_PREDICATE, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
     private boolean isTransitionToOrFromSubscriber(final ReaderGroupConfigRecord currentConfig,
@@ -667,7 +669,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                        .thenCompose(x -> eventHelper.checkDone(() -> isRGDeleted(scope, rgName))
                                                                .thenApply(done -> DeleteReaderGroupStatus.Status.SUCCESS)))));
                            });
-                }), e -> Exceptions.unwrap(e) instanceof RetryableException, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+                }), NON_RETRYABLE_PREDICATE, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
     private CompletableFuture<Boolean> isRGDeleted(String scope, String rgName) {
@@ -854,7 +856,7 @@ public class StreamMetadataTasks extends TaskBase {
                                           });
                                    });
                         });
-        }), e -> Exceptions.unwrap(e) instanceof RetryableException, SUBSCRIBER_OPERATION_RETRIES, executor);
+        }), NON_RETRYABLE_PREDICATE, SUBSCRIBER_OPERATION_RETRIES, executor);
     }
 
     /**
@@ -1412,7 +1414,7 @@ public class StreamMetadataTasks extends TaskBase {
                     } else {
                         return streamMetadataStore.updateVersionedState(scope, stream, State.SEALING, state, context, executor);
                     }
-                }), RetryHelper.RETRYABLE_PREDICATE.or(e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException), retryCount, executor))
+                }), NON_RETRYABLE_PREDICATE, retryCount, executor))
                 // 3. return with seal initiated.
                 .thenCompose(result -> {
                     if (result.getObject().equals(State.SEALED) || result.getObject().equals(State.SEALING)) {

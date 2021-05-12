@@ -23,10 +23,12 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.metrics.TransactionMetrics;
+import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -57,6 +59,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.Synchronized;
@@ -64,7 +67,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
-import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
+import static io.pravega.controller.util.RetryHelper.NON_RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
 
 /**
@@ -85,6 +88,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * should rarely be triggered.
      */
     private static final int MAX_EXECUTION_TIME_MULTIPLIER = 1000;
+    private static final Predicate<Throwable> CREATE_TXN_RETRYABLE_PREDICATE = e -> {
+        Throwable unwrap = Exceptions.unwrap(e);
+        return unwrap instanceof StoreException.WriteConflictException || unwrap instanceof StoreException.DataNotFoundException;
+    };
 
     protected final String hostId;
     protected final ScheduledExecutorService executor;
@@ -261,7 +268,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                  final OperationContext contextOpt) {
         final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
         return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, version, context),
-                RETRYABLE_PREDICATE, 3, executor);
+                NON_RETRYABLE_PREDICATE, 3, executor);
     }
 
     /**
@@ -277,7 +284,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                   final OperationContext contextOpt) {
         final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
         return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, "", Long.MIN_VALUE, context),
-                RETRYABLE_PREDICATE, 3, executor);
+                NON_RETRYABLE_PREDICATE, 10, executor);
     }
 
     /**
@@ -296,7 +303,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                   final OperationContext contextOpt) {
         final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
         return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, writerId, timestamp, context),
-                RETRYABLE_PREDICATE, 3, executor);
+                NON_RETRYABLE_PREDICATE, 10, executor);
     }
 
     /**
@@ -362,7 +369,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                             // Method notifyTxnCreation ensures that notification completes
                             // even in the presence of n/w or segment store failures.
                             log.trace("Txn={}, notified segments stores", txnId));
-
                     // Step 5. Start tracking txn in timeout service
                     return notify.whenCompleteAsync((result, ex) -> {
                         addTxnToTimeoutService(scope, stream, lease, maxExecutionPeriod, txnId, txnFuture);
@@ -377,10 +383,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
                         return new ImmutablePair<>(txnFuture.join(), segments);
                     }, executor);
-                }), e -> {
-            Throwable unwrap = Exceptions.unwrap(e);
-            return unwrap instanceof StoreException.WriteConflictException || unwrap instanceof StoreException.DataNotFoundException;
-        }, 5, executor));
+                }), NON_RETRYABLE_PREDICATE, 10, executor));
     }
 
     private void addTxnToTimeoutService(String scope, String stream, long lease, long maxExecutionPeriod, UUID txnId,
