@@ -20,9 +20,11 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.logs.MetadataUpdateException;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
+import javax.annotation.Nullable;
 
 /**
  * Defines a Container for StreamSegments.
@@ -79,7 +81,29 @@ public interface SegmentContainer extends StreamSegmentStore, Container {
      * @return A CompletableFuture that, when completed normally, will contain the desired result. If the operation
      * failed, the future will be failed with the causing exception.
      */
-    CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout);
+    default CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout) {
+        return forSegment(streamSegmentName, null, timeout);
+    }
+
+    /**
+     * See {@link #forSegment(String, Duration)}.
+     *
+     * The difference from that one is that this one creates a {@link DirectSegmentAccess} where all modify operations
+     * ({@link DirectSegmentAccess#append}, {@link DirectSegmentAccess#updateAttributes}, {@link DirectSegmentAccess#seal}
+     * and {@link DirectSegmentAccess#truncate}} will be attempted with the requested {@code desiredPriority} instead
+     * of the default one.
+     *
+     * @param streamSegmentName The name of the Segment to get for.
+     * @param desiredPriority   The desired {@link OperationPriority}. If null, the priority will be calculated in
+     *                          accordance with the rules defined internally in the Segment Container. Note that even if
+     *                          provided, the Segment Container may choose a higher priority (but not lower) if the Segment
+     *                          Type or Operation Type demand a higher one.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the desired result. If the operation
+     * failed, the future will be failed with the causing exception.
+     */
+    CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, @Nullable OperationPriority desiredPriority,
+                                                      Duration timeout);
 
     /**
      * Gets a registered {@link SegmentContainerExtension} of the given type.
