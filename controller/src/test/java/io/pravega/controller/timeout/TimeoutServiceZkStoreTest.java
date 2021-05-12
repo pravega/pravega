@@ -43,7 +43,7 @@ public class TimeoutServiceZkStoreTest extends TimeoutServiceTest {
 
     @Override
     protected StreamMetadataStore getStore() {
-        return StreamStoreFactory.createZKStore(CLIENT, EXECUTOR);
+        return StreamStoreFactory.createZKStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, PRAVEGA_ZK_CURATOR_RESOURCE.executor);
     }
 
     @Override
