@@ -598,6 +598,21 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentAttribute(9, WireCommands.NULL_ATTRIBUTE_VALUE));
     }
 
+    @Test(timeout = 200000)
+    public void testFlush() throws Exception {
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection);
+
+        // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
+        processor.flushToStorage(new WireCommands.FlushToStorage("", 1));
+        order.verify(connection).send(new WireCommands.FlushedStorage(1));
+    }
+
     @Test(timeout = 20000)
     public void testCreateSealTruncateDelete() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against.
