@@ -197,6 +197,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static final int EVICTION_SEGMENT_EXPIRATION_MILLIS_LONG = 4 * EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT; // For heavy tests.
     private static final Duration TIMEOUT = Duration.ofMillis(TEST_TIMEOUT_MILLIS);
     private static final SegmentType BASIC_TYPE = SegmentType.STREAM_SEGMENT;
+    private static final int EVENT_PROCESSOR_EVENTS_AT_ONCE = 10;
+    private static final int EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES = 4 * 1024 * 1024;
     private static final SegmentType[] SEGMENT_TYPES = new SegmentType[]{
             BASIC_TYPE,
             SegmentType.builder(BASIC_TYPE).build(),
@@ -260,6 +262,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 100L)
             .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 500L)
             .build();
+
+    private static final Duration TIMEOUT_FUTURE = Duration.ofSeconds(10);
 
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
@@ -2142,25 +2146,29 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             l.forEach(s -> Assert.assertEquals(userEvent.get().length(), s.getLength()));
             return CompletableFuture.runAsync(latch::release);
         };
-        ContainerEventProcessor.EventProcessorConfig eventProcessorConfig = new ContainerEventProcessor.EventProcessorConfig(10);
-        ContainerEventProcessor.EventProcessor processor = container.forConsumer("testConsumer", handler, eventProcessorConfig);
+        ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
+                new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
+        @Cleanup
+        ContainerEventProcessor.EventProcessor processor = container.forConsumer("testConsumer", handler, eventProcessorConfig)
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
 
         // Test adding one Event to the EventProcessor and wait for the handle to get executed and unblock this thread.
-        BufferView event = BufferView.builder().add(new ByteArraySegment(userEvent.get().getBytes())).build();
-        processor.add(event, Duration.ofSeconds(10)).join();
+        BufferView event = new ByteArraySegment(userEvent.get().getBytes());
+        processor.add(event, TIMEOUT_FUTURE).join();
         latch.await();
         latch.reset();
 
         // Test the same with a larger events.
         userEvent.set("longerEvent2");
-        event = BufferView.builder().add(new ByteArraySegment(userEvent.get().getBytes())).build();
-        processor.add(event, Duration.ofSeconds(10)).join();
-        processor.add(event, Duration.ofSeconds(10)).join();
-        processor.add(event, Duration.ofSeconds(10)).join();
+        event = new ByteArraySegment(userEvent.get().getBytes());
+        processor.add(event, TIMEOUT_FUTURE).join();
+        processor.add(event, TIMEOUT_FUTURE).join();
+        processor.add(event, TIMEOUT_FUTURE).join();
         latch.await();
 
         // Check that if the same EventProcessor name is used, the same object is retrieved.
-        Assert.assertEquals(processor, container.forConsumer("testConsumer", handler, eventProcessorConfig));
+        Assert.assertEquals(processor, container.forConsumer("testConsumer", handler, eventProcessorConfig)
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS));
     }
 
     /**
@@ -2194,16 +2202,23 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             processorResults3.addAndGet(1);
             return null;
         };
-        ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(10);
-        ContainerEventProcessor.EventProcessor processor1 = container.forConsumer("testSegment1", handler1, config);
-        ContainerEventProcessor.EventProcessor processor2 = container.forConsumer("testSegment2", handler2, config);
-        ContainerEventProcessor.EventProcessor processor3 = container.forConsumer("testSegment3", handler3, config);
+        ContainerEventProcessor.EventProcessorConfig config =
+                new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
+        @Cleanup
+        ContainerEventProcessor.EventProcessor processor1 = container.forConsumer("testSegment1", handler1, config)
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
+        @Cleanup
+        ContainerEventProcessor.EventProcessor processor2 = container.forConsumer("testSegment2", handler2, config)
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
+        @Cleanup
+        ContainerEventProcessor.EventProcessor processor3 = container.forConsumer("testSegment3", handler3, config)
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
 
         for (int i = 0; i < allEventsToProcess; i++) {
-            BufferView event = BufferView.builder().add(new ByteArraySegment(("event" + i).getBytes())).build();
-            processor1.add(event, Duration.ofSeconds(10)).join();
-            processor2.add(event, Duration.ofSeconds(10)).join();
-            processor3.add(event, Duration.ofSeconds(10)).join();
+            BufferView event = new ByteArraySegment(("event" + i).getBytes());
+            processor1.add(event, TIMEOUT_FUTURE).join();
+            processor2.add(event, TIMEOUT_FUTURE).join();
+            processor3.add(event, TIMEOUT_FUTURE).join();
         }
 
         // Wait for all items to be processed.

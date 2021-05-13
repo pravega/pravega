@@ -20,6 +20,11 @@ import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import java.time.Duration;
+import java.time.Period;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
+import java.util.concurrent.TimeUnit;
+
 import lombok.Getter;
 
 /**
@@ -36,6 +41,8 @@ public class ContainerConfig {
     public static final Property<Integer> MAX_ACTIVE_SEGMENT_COUNT = Property.named("segment.active.count.max", 25000, "maxActiveSegmentCount");
     public static final Property<Integer> MAX_CONCURRENT_SEGMENT_EVICTION_COUNT = Property.named("segment.eviction.concurrent.count.max", 2500, "maxConcurrentSegmentEvictionCount");
     public static final Property<Integer> MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT = Property.named("extended.attribute.cached.count.max", 4096, "maxCachedExtendedAttributeCount");
+    public static final Property<Integer> EVENT_PROCESSOR_ITERATION_DELAY_MS = Property.named("eventprocessor.iteration.delay.ms", 100);
+    public static final Property<Integer> EVENT_PROCESSOR_OPERATION_TIMEOUT_MS = Property.named("eventprocessor.operation.timeout.ms", 20);
     private static final String COMPONENT_CODE = "containers";
 
     /**
@@ -74,6 +81,18 @@ public class ContainerConfig {
     @Getter
     private final Duration storageSnapshotTimeout;
 
+    /**
+     * Default delay between consecutive processing iterations of ContainerEventProcessor.
+     */
+    @Getter
+    private final Duration eventProcessorIterationDelay;
+
+    /**
+     * Default timeout for EventProcessor operations against SegmentContainer.
+     */
+    @Getter
+    private final Duration eventProcessorOperationTimeout;
+
     //endregion
 
     //region Constructor
@@ -90,35 +109,13 @@ public class ContainerConfig {
                     SEGMENT_METADATA_EXPIRATION_SECONDS, MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS));
         }
         this.segmentMetadataExpiration = Duration.ofSeconds(segmentMetadataExpirationSeconds);
-
-        int metadataStoreInitSeconds = properties.getInt(METADATA_STORE_INIT_TIMEOUT_SECONDS);
-        if (metadataStoreInitSeconds <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.",
-                    METADATA_STORE_INIT_TIMEOUT_SECONDS));
-        }
-        this.metadataStoreInitTimeout = Duration.ofSeconds(metadataStoreInitSeconds);
-
-        int storageSnapshotTimeout = properties.getInt(STORAGE_SNAPSHOT_TIMEOUT_SECONDS);
-        if (storageSnapshotTimeout <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.",
-                    STORAGE_SNAPSHOT_TIMEOUT_SECONDS));
-        }
-        this.storageSnapshotTimeout = Duration.ofSeconds(storageSnapshotTimeout);
-
-        this.maxActiveSegmentCount = properties.getInt(MAX_ACTIVE_SEGMENT_COUNT);
-        if (this.maxActiveSegmentCount <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_ACTIVE_SEGMENT_COUNT));
-        }
-
-        this.maxConcurrentSegmentEvictionCount = properties.getInt(MAX_CONCURRENT_SEGMENT_EVICTION_COUNT);
-        if (this.maxConcurrentSegmentEvictionCount <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_CONCURRENT_SEGMENT_EVICTION_COUNT));
-        }
-
-        this.maxCachedExtendedAttributeCount = properties.getInt(MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT);
-        if (this.maxCachedExtendedAttributeCount <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT));
-        }
+        this.metadataStoreInitTimeout = getDurationFromPositivePropertyValue(properties, METADATA_STORE_INIT_TIMEOUT_SECONDS, ChronoUnit.SECONDS);
+        this.storageSnapshotTimeout = getDurationFromPositivePropertyValue(properties, STORAGE_SNAPSHOT_TIMEOUT_SECONDS, ChronoUnit.SECONDS);
+        this.maxActiveSegmentCount = getPositivePropertyValue(properties, MAX_ACTIVE_SEGMENT_COUNT);
+        this.maxConcurrentSegmentEvictionCount = getPositivePropertyValue(properties, MAX_CONCURRENT_SEGMENT_EVICTION_COUNT);
+        this.maxCachedExtendedAttributeCount = getPositivePropertyValue(properties, MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT);
+        this.eventProcessorIterationDelay = getDurationFromPositivePropertyValue(properties, EVENT_PROCESSOR_ITERATION_DELAY_MS, ChronoUnit.MILLIS);
+        this.eventProcessorOperationTimeout = getDurationFromPositivePropertyValue(properties, EVENT_PROCESSOR_OPERATION_TIMEOUT_MS, ChronoUnit.MILLIS);
     }
 
     /**
@@ -128,6 +125,18 @@ public class ContainerConfig {
      */
     public static ConfigBuilder<ContainerConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, ContainerConfig::new);
+    }
+
+    private int getPositivePropertyValue(TypedProperties properties, Property<Integer> property) {
+        int value = properties.getInt(property);
+        if (value <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", property));
+        }
+        return value;
+    }
+
+    private Duration getDurationFromPositivePropertyValue(TypedProperties properties, Property<Integer> property, TemporalUnit unit) {
+        return Duration.of(getPositivePropertyValue(properties, property), unit);
     }
 
     //endregion

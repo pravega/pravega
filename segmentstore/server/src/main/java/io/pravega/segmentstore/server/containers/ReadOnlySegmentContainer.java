@@ -221,11 +221,6 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
         return unsupported("forSegment");
     }
 
-    @Override
-    public EventProcessor forConsumer(@NonNull String name, @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler, @NonNull EventProcessorConfig config) {
-        throw new UnsupportedOperationException("forConsumer is not supported on " + getClass().getSimpleName());
-    }
-
     private <T> CompletableFuture<T> unsupported(String methodName) {
         return Futures.failedFuture(new UnsupportedOperationException(methodName + " is unsupported on " + getClass().getSimpleName()));
     }

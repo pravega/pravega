@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server;
 
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import lombok.Data;
 import lombok.NonNull;
 
@@ -48,10 +49,12 @@ public interface ContainerEventProcessor extends AutoCloseable, Service {
      * @param name     Name of the {@link EventProcessor} object.
      * @param handler  Function that will be invoked when one or more events have been read from the internal Segment.
      * @param config   {@link EventProcessorConfig} for this {@link EventProcessor}.
-     * @return A new {@link EventProcessor} object associated to its own internal Segment.
+     * @return A {@link CompletableFuture} that, when completed, returns a new {@link EventProcessor} object associated
+     * to its own internal Segment.
      */
-    EventProcessor forConsumer(@NonNull String name, @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
-                               @NonNull EventProcessorConfig config);
+    CompletableFuture<EventProcessor> forConsumer(@NonNull String name,
+                                                  @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
+                                                  @NonNull EventProcessorConfig config);
 
     /**
      * An {@link EventProcessor} object allows to durably append events to the {@link ContainerEventProcessor} service.
@@ -62,11 +65,36 @@ public interface ContainerEventProcessor extends AutoCloseable, Service {
      */
     @Data
     abstract class EventProcessor implements AutoCloseable {
+        @NonNull
         private final String name;
+        @NonNull
         private final Function<List<BufferView>, CompletableFuture<Void>> handler;
+        @NonNull
         private final EventProcessorConfig config;
+        @NonNull
+        private final Runnable onClose;
 
+        /**
+         * Persist a new event to the {@link EventProcessor}'s durable queue. Once the return future completes, it
+         * returns the amount of outstanding byes for this {@link EventProcessor} object.
+         *
+         * @param event     Event to be added to the {@link EventProcessor}'s durable queue.
+         * @param timeout   Maximum amount of time for this operation to be completed.
+         * @return          A {@link CompletableFuture} that, when completed, will acknowledge that the event has been
+         *                  durably stored and returns the amount of outstanding bytes for this {@link EventProcessor}.
+         */
         public abstract CompletableFuture<Long> add(@NonNull BufferView event, Duration timeout);
+
+        /**
+         * When an {@link EventProcessor} is closed, it should be auto-unregistered from the existing set of active
+         * {@link EventProcessor} objects.
+         *
+         * @throws Exception
+         */
+        @Override
+        public void close() throws Exception {
+            this.onClose.run();
+        }
     }
 
     /**
@@ -74,6 +102,51 @@ public interface ContainerEventProcessor extends AutoCloseable, Service {
      */
     @Data
     class EventProcessorConfig {
+        /**
+         * Maximum number of events to be processed at once per processing iteration.
+         */
         private final int maxItemsAtOnce;
+
+        /**
+         * Maximum number of outstanding bytes that can be accumulated for a given {@link EventProcessor}.
+         */
+        private final long maxProcessorOutstandingBytes;
+    }
+
+    @Data
+    class ProcessorEventData {
+        private final byte version;
+        private final int length;
+        private final BufferView data;
+    }
+
+    class ProcessorEventSerializer {
+
+        // Serialization Version (1 byte), Entry Length (4 bytes)
+        public static final int HEADER_LENGTH = Byte.BYTES + Integer.BYTES;
+
+        // Set a maximum length to individual events to be processed by EventProcessor.
+        public static final int MAX_TOTAL_EVENT_SIZE = 1 * 1024;
+
+        private static final byte CURRENT_SERIALIZATION_VERSION = 0;
+        private static final int VERSION_POSITION = 0;
+        private static final int EVENT_LENGTH_POSITION = VERSION_POSITION + 1;
+
+        static BufferView serializeHeader(int eventLength) {
+            ByteArraySegment data = new ByteArraySegment(new byte[HEADER_LENGTH]);
+            data.set(VERSION_POSITION, CURRENT_SERIALIZATION_VERSION);
+            data.setInt(EVENT_LENGTH_POSITION, eventLength);
+            return data;
+        }
+
+        public static BufferView serializeEvent(BufferView eventData) {
+            return BufferView.builder().add(serializeHeader(eventData.getLength())).add(eventData).build();
+        }
+
+        public static ProcessorEventData deserializeEvent(BufferView.Reader inputData) {
+            byte version = inputData.readByte();
+            int length = inputData.readInt();
+            return new ProcessorEventData(version, length, inputData.readSlice(length)); // TODO: Is this the right way?
+        }
     }
 }

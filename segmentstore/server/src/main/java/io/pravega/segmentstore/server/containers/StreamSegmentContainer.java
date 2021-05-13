@@ -178,8 +178,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 this.executor, this.traceObjectId);
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
-        this.containerEventProcessor = new ContainerEventProcessorImpl(streamSegmentContainerId,
-                getOrCreateContainerProcessorSegment(streamSegmentContainerId, Duration.ofSeconds(10)), this.executor);
+        this.containerEventProcessor = new ContainerEventProcessorImpl(this, config.getEventProcessorIterationDelay(),
+                config.getEventProcessorOperationTimeout(), this.executor);
         shutdownWhenStopped(this.containerEventProcessor, "ContainerEventProcessor");
         this.closed = new AtomicBoolean();
     }
@@ -245,16 +245,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return new SnapshotInfoStore(this.metadata.getContainerId(),
                 snapshotInfo -> saveStorageSnapshot(snapshotInfo, config.getStorageSnapshotTimeout()),
                 () -> readStorageSnapshot(config.getStorageSnapshotTimeout()));
-    }
-
-    private Function<String, CompletableFuture<DirectSegmentAccess>> getOrCreateContainerProcessorSegment(int containerId,
-                                                                                                          Duration duration) {
-        final SegmentType systemCritical = SegmentType.builder().system().critical().build();
-        return s -> Futures.exceptionallyComposeExpecting(
-                this.forSegment(NameUtils.getEventProcessorSegmentName(containerId, s), duration),
-                e -> e instanceof StreamSegmentNotExistsException,
-                () -> createStreamSegment(NameUtils.getEventProcessorSegmentName(containerId, s), systemCritical, null, duration)
-                        .thenCompose(v -> forSegment(NameUtils.getEventProcessorSegmentName(containerId, s), duration)));
     }
 
     //endregion
@@ -997,9 +987,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return calculatedPriority;
     }
 
-    @Override
-    public EventProcessor forConsumer(@NonNull String name, @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
-                                      @NonNull EventProcessorConfig config) {
+    public CompletableFuture<ContainerEventProcessor.EventProcessor> forConsumer(@NonNull String name,
+                                                                                 @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
+                                                                                 @NonNull ContainerEventProcessor.EventProcessorConfig config) {
         return this.containerEventProcessor.forConsumer(name, handler, config);
     }
 
