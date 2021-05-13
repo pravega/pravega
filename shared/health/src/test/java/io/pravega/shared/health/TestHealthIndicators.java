@@ -100,8 +100,6 @@ public class TestHealthIndicators {
     }
 
     private static void setBuilder(Health.HealthBuilder builder, boolean flag, Status status) {
-        builder.ready(flag);
-        builder.alive(flag);
         builder.status(status);
     }
 }

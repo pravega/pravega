@@ -20,6 +20,7 @@ import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.TestHealthIndicators.SampleHealthyIndicator;
 import io.pravega.shared.health.Status;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -81,8 +82,11 @@ public class HealthComponentTests {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
 
         // Should fail registration.
-        HealthContributor result = registry.register(child, parent);
-        Assert.assertEquals("Returned HealthContributor should be 'null'.", null, result);
+        AssertExtensions.assertThrows(
+                "Exception not thrown when registering under a non-existent component.",
+                () -> registry.register(child, parent),
+                ex -> ex instanceof IllegalStateException
+        );
         // Now register in proper order.
         registry.register(parent);
         registry.register(child, parent);
@@ -101,7 +105,7 @@ public class HealthComponentTests {
         Assert.assertEquals("HealthIndicator should not list its exported details.", true,
                 health.getChildren().isEmpty());
         // Verify that the only (direct) dependency on the 'root' component is 'parent'.
-        Collection<HealthContributor> dependencies = registry.dependencies();
+        Collection<HealthContributor> dependencies = registry.getDependencies();
         Assert.assertEquals("Dependency size should be 1.", 1, dependencies.size());
         Assert.assertEquals("That dependency should have name 'parent'.", parent.getName(), dependencies.stream().findFirst().get().getName());
     }

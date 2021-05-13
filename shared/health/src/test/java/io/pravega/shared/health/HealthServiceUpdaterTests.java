@@ -41,7 +41,8 @@ public class HealthServiceUpdaterTests {
     @Before
     public void before() {
         factory = new HealthServiceFactory();
-        service = factory.createHealthService("health-service", true);
+        service = factory.createHealthService("health-service");
+        service.getHealthServiceUpdater().startAsync();
         healthServiceUpdater = service.getHealthServiceUpdater();
         healthServiceUpdater.awaitRunning();
     }
@@ -61,21 +62,16 @@ public class HealthServiceUpdaterTests {
 
     @Test
     public void testServiceUpdaterProperlyUpdates() throws Exception {
-        service.registry().register(new SampleHealthyIndicator());
+        service.getRegistry().register(new SampleHealthyIndicator());
         // First Update.
         assertHealthServiceStatus(Status.UP);
         // We register an indicator that will return a failing result, so the next health check should contain a 'DOWN' Status.
-        service.registry().register(new SampleFailingIndicator());
+        service.getRegistry().register(new SampleFailingIndicator());
         assertHealthServiceStatus(Status.DOWN);
     }
 
-    private void assertHealthServiceStatus(Status expected) {
-        try {
+    private void assertHealthServiceStatus(Status expected) throws Exception {
             AssertExtensions.assertEventuallyEquals(expected,
-                    () -> healthServiceUpdater.getLatestHealth().getStatus(),
-                    (healthServiceUpdater.getInterval() + 1) * 1000);
-        } catch (Exception e) {
-            Assert.fail(e.getMessage());
-        }
+                    () -> healthServiceUpdater.getLatestHealth().getStatus(), healthServiceUpdater.getInterval().toMillis() + 1);
     }
 }

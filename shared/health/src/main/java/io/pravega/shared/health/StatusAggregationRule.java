@@ -43,7 +43,7 @@ public class StatusAggregationRule {
         int isAliveStatus = 0;
         // Should be a strict majority.
         for (Status status : statuses) {
-            isAliveStatus = Status.isAlive(status) ? isAliveStatus + 1 : isAliveStatus - 1;
+            isAliveStatus = status.isAlive() ? isAliveStatus + 1 : isAliveStatus - 1;
         }
         return isAliveStatus > 0 ? Status.UP : Status.DOWN;
     }

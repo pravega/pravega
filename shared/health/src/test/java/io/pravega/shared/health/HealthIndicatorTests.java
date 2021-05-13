@@ -31,7 +31,7 @@ public class HealthIndicatorTests {
     public void testHealthWithoutDetails() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
         Health health = indicator.getHealthSnapshot();
-        Assert.assertEquals("A HealthIndicator should not have any child contributors.", indicator.contributors().size(), 0);
+        Assert.assertEquals("A HealthIndicator should not have any child contributors.", indicator.getContributors().size(), 0);
         Assert.assertEquals("Should exactly one detail entry.", 0, health.getDetails().size());
         Assert.assertEquals("HealthIndicator should report an 'UP' Status.", Status.UP, health.getStatus());
     }

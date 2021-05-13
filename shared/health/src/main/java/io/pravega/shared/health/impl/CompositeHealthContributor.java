@@ -15,7 +15,6 @@
  */
 package io.pravega.shared.health.impl;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.Health;
@@ -24,11 +23,11 @@ import io.pravega.shared.health.Status;
 import io.pravega.shared.health.StatusAggregator;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 import javax.annotation.concurrent.ThreadSafe;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -62,6 +61,7 @@ public abstract class CompositeHealthContributor implements HealthContributor {
      * Requests the {@link Health} without fetching any details from it's dependencies.
      * @return The {@link Health} result.
      */
+    @Override
     public Health getHealthSnapshot() {
         return getHealthSnapshot(false);
     }
@@ -76,26 +76,25 @@ public abstract class CompositeHealthContributor implements HealthContributor {
      * @param includeDetails Whether or not to request details from each of the {@link HealthContributor}.
      * @return The {@link Health} result of the {@link CompositeHealthContributor}.
      */
+    @Override
     public Health getHealthSnapshot(boolean includeDetails) {
         Health.HealthBuilder builder = Health.builder().name(getName());
         Collection<Status> statuses = new ArrayList<>();
+        List<Health> children = new ArrayList<>();
         // Fetch the Health Status of all dependencies.
-        val children =  contributors().stream()
+        getContributors().stream()
                 .filter(Objects::nonNull)
-                .map(contributor -> {
+                .forEach(contributor -> {
                     Health health = contributor.getHealthSnapshot(includeDetails);
                     statuses.add(health.getStatus());
-                    if (health.getStatus() == Status.UNKNOWN) {
-                        log.warn("{} has a Status of 'UNKNOWN'. This indicates `doHealthCheck` does not set a status" +
-                                " or is an empty HealthComponent.", health.getName());
+                    if (includeDetails) {
+                        children.add(health);
                     }
-                    return health;
-                })
-                .collect(ImmutableList.toImmutableList());
+                });
         // Get the aggregate health status.
         Status status = aggregator.aggregate(statuses);
 
-        return builder.status(status).children(includeDetails ? children : ImmutableList.of()).build();
+        return builder.status(status).children(children).build();
     }
 
     /**
@@ -109,9 +108,10 @@ public abstract class CompositeHealthContributor implements HealthContributor {
      *
      * @return The {@link Collection} of {@link HealthContributor}.
      */
-    public Collection<HealthContributor> contributors() {
+    @Override
+    public Collection<HealthContributor> getContributors() {
         if (registry != null) {
-            return registry.dependencies(getName());
+            return registry.getDependencies(getName());
         }
         return this.contributors;
     }

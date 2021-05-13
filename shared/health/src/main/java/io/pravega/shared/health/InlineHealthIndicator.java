@@ -56,6 +56,6 @@ public class InlineHealthIndicator extends HealthIndicator {
      */
     @Override
     final public void doHealthCheck(Health.HealthBuilder builder) {
-        doHealthCheck.accept(builder, this.provider);
+        doHealthCheck.accept(builder, this.getProvider());
     }
 }

@@ -15,7 +15,6 @@
  */
 package io.pravega.shared.health;
 
-import io.pravega.test.common.AssertExtensions;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -25,7 +24,6 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.rules.Timeout;
@@ -49,45 +47,25 @@ public class HealthServiceTests {
 
     HealthServiceFactory factory;
 
-    private void start() {
+    @Before
+    @SneakyThrows
+    public void before() {
         factory = new HealthServiceFactory();
-        service = factory.createHealthService(ROOT_NAME, true);
+        service = factory.createHealthService(ROOT_NAME);
     }
 
-    private void stop() {
+    @After
+    public void after() {
         service.close();
         factory.close();
         // Except its root.
         Assert.assertEquals("The HealthService should not maintain any references to HealthContributors.",
                 1,
-                service.components().size());
+                service.getComponents().size());
         // Except its root.
         Assert.assertEquals("The ContributorRegistry should not maintain any references to HealthContributors",
                 1,
-                service.registry().contributors().size());
-    }
-
-    @Before
-    @SneakyThrows
-    public void before() {
-        start();
-    }
-
-    @After
-    public void after() {
-        stop();
-    }
-
-    /**
-     * Test that the {@link HealthService} is able to be stopped and restarted.
-     */
-    @Test
-    public void testLifecycle() {
-        // Perform a start-up and shutdown sequence (implicit start() with @Before).
-        stop();
-        // Verify that it is repeatable.
-        start();
-        stop();
+                service.getRegistry().getContributors().size());
     }
 
     /**
@@ -97,25 +75,23 @@ public class HealthServiceTests {
     @Test
     public void testHealth() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.registry().register(indicator);
+        service.getRegistry().register(indicator);
 
-        Health health = service.endpoint().getHealth(indicator.getName());
+        Health health = service.getEndpoint().getHealth(indicator.getName());
         Assert.assertTrue("Status of the default/root component is expected to be 'UP'", health.getStatus() == Status.UP);
 
-        health = service.endpoint().getHealth(true);
+        health = service.getEndpoint().getHealth(true);
         Assert.assertEquals("There should be exactly one child (SimpleIndicator)", health.getChildren().size(), 1);
     }
 
     /**
-     * Tests that an appropriate exception is thrown when an invalid {@link HealthContributor} id/name is provided.
+     * Tests that a null value is returned when an invalid {@link HealthContributor} id/name is provided.
      */
     @Test
     public void testHealthInvalidName() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.registry().register(indicator);
-        AssertExtensions.assertThrows("Health endpoint should throw upon non-existent contributor.",
-                () -> service.endpoint().getHealth("unknown-indicator-name"),
-                ex -> ex instanceof ContributorNotFoundException);
+        service.getRegistry().register(indicator);
+        Assert.assertNull(service.getEndpoint().getHealth("unknown-indicator-name"));
     }
 
 
@@ -127,11 +103,11 @@ public class HealthServiceTests {
     @Test
     public void testComponents() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.registry().register(indicator);
+        service.getRegistry().register(indicator);
 
-        Collection<String> components = service.components();
+        Collection<String> components = service.getComponents();
         // Only the 'ROOT' HealthComponent should be registered.
-        Assert.assertEquals("No non-root components have been defined.", service.components().size(), 1);
+        Assert.assertEquals("No non-root components have been defined.", service.getComponents().size(), 1);
         // Assert that it is indeed the 'ROOT'
         Assert.assertEquals("Expected the name of the returned component to match the ROOT's given name.",
                 ROOT_NAME,
@@ -147,14 +123,14 @@ public class HealthServiceTests {
     @Test
     public void testDependencies() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.registry().register(indicator);
+        service.getRegistry().register(indicator);
 
         // Test 'service level' endpoint.
-        List<String> dependencies = service.endpoint().getDependencies();
+        Collection<String> dependencies = service.getEndpoint().getDependencies();
         Assert.assertEquals("There should be exactly one dependency.", 1, dependencies.size());
         Assert.assertEquals("That dependency should be named 'sample-healthy-indicator'.", indicator.getName(), dependencies.stream().findFirst().get());
         // Test Contributor level endpoint.
-        dependencies = service.endpoint().getDependencies(indicator.getName());
+        dependencies = service.getEndpoint().getDependencies(indicator.getName());
         Assert.assertEquals("The HealthIndicator should not have any dependencies.", 0, dependencies.size());
     }
 
@@ -168,9 +144,9 @@ public class HealthServiceTests {
     @Test
     public void testDetailsEndpoints() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.registry().register(indicator);
+        service.getRegistry().register(indicator);
 
-        Health health = service.endpoint().getHealth(true);
+        Health health = service.getEndpoint().getHealth(true);
         Assert.assertTrue("There should be at least one child (SimpleIndicator)", health.getChildren().size() >= 1);
 
         // Tests that the Details object(s) are reachable via the 'service level' endpoint.
@@ -184,7 +160,7 @@ public class HealthServiceTests {
                 sample.getDetails().entrySet().stream().findFirst().get().getValue());
 
         // Directly query the HealthContributor endpoint.
-        health = service.endpoint().getHealth(indicator.getName(), true);
+        health = service.getEndpoint().getHealth(indicator.getName(), true);
         Assert.assertEquals(String.format("Key should equal \"%s\"", SampleHealthyIndicator.DETAILS_KEY),
                 SampleHealthyIndicator.DETAILS_KEY,
                 health.getDetails().keySet().stream().findFirst().get());
@@ -200,13 +176,13 @@ public class HealthServiceTests {
     @Test
     public void testStatusEndpoints() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.registry().register(indicator);
+        service.getRegistry().register(indicator);
 
-        Status status = service.endpoint().getStatus();
+        Status status = service.getEndpoint().getStatus();
         // Test the 'service level' endpoint.
         Assert.assertEquals("Status should be UP.", Status.UP, status);
         // Test the Contributor level endpoint.
-        status = service.endpoint().getStatus(indicator.getName());
+        status = service.getEndpoint().getStatus(indicator.getName());
         Assert.assertEquals("Status should be UP.", Status.UP, status);
     }
 
@@ -216,11 +192,11 @@ public class HealthServiceTests {
     @Test
     public void testLivenessEndpoints() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.registry().register(indicator);
+        service.getRegistry().register(indicator);
 
-        boolean alive = service.endpoint().isAlive();
+        boolean alive = service.getEndpoint().isAlive();
         Assert.assertEquals("The HealthService should produce an 'alive' result.", true, alive);
-        alive = service.endpoint().isAlive(indicator.getName());
+        alive = service.getEndpoint().isAlive(indicator.getName());
         Assert.assertEquals("The HealthIndicator should produce an 'alive' result.", true, alive);
     }
 
@@ -230,11 +206,11 @@ public class HealthServiceTests {
     @Test
     public void testReadinessEndpoints() {
         SampleHealthyIndicator indicator = new SampleHealthyIndicator();
-        service.registry().register(indicator);
+        service.getRegistry().register(indicator);
 
-        boolean ready = service.endpoint().isReady();
+        boolean ready = service.getEndpoint().isReady();
         Assert.assertEquals("The HealthService should produce a 'ready' result.", true, ready);
-        ready = service.endpoint().isReady(indicator.getName());
+        ready = service.getEndpoint().isReady(indicator.getName());
         Assert.assertEquals("The SampleIndicator should produce a 'ready' result.", true, ready);
     }
 }

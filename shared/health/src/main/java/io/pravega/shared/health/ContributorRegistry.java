@@ -23,7 +23,7 @@ import java.util.Collection;
  * Holds the set of {@link HealthContributor} objects that will be tracked to determine
  * the overall state of some {@link HealthService}.
  */
-public interface ContributorRegistry extends Registry<HealthContributor> {
+public interface ContributorRegistry extends HealthRegistry<HealthContributor> {
 
     /**
      * Supplies the top most {@link HealthContributor} (root). For all other {@link HealthContributor} instances registered,
@@ -107,7 +107,7 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      * Provides a {@link Collection} of all the {@link HealthContributor} objects belonging to this registry.
      * @return A {@link Collection} of {@link HealthContributor} that some {@link HealthContributor} with id 'name' depends on.
      */
-    Collection<HealthContributor> dependencies();
+    Collection<HealthContributor> getDependencies();
 
     /**
      * Provides a {@link Collection} of all the {@link HealthContributor} objects belonging to this registry.
@@ -116,19 +116,19 @@ public interface ContributorRegistry extends Registry<HealthContributor> {
      *             objects from.
      * @return A {@link Collection} of {@link HealthContributor} that some {@link HealthContributor} with id 'name' depends on.
      */
-    Collection<HealthContributor> dependencies(String name);
+    Collection<HealthContributor> getDependencies(String name);
 
     /**
      * Provides a {@link Collection} of all the {@link HealthContributor} ids tracked by this {@link ContributorRegistry}.
      *
      * @return The {@link Collection}.
      */
-    Collection<String> contributors();
+    Collection<String> getContributors();
 
     /**
      * Provides a {@link Collection} of all the {@link HealthComponent} ids tracked by this {@link ContributorRegistry}.
      *
      * @return The {@link Collection}.
      */
-    Collection<String> components();
+    Collection<String> getComponents();
 }

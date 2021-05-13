@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -54,8 +55,8 @@ public class ContributorRegistryTests {
     @After
     public void after() {
         registry.clear();
-        Assert.assertTrue(registry.components().size() == 1);
-        Assert.assertTrue(registry.contributors().size() == 1);
+        Assert.assertTrue(registry.getComponents().size() == 1);
+        Assert.assertTrue(registry.getContributors().size() == 1);
     }
 
     /**
@@ -64,11 +65,11 @@ public class ContributorRegistryTests {
      */
     @Test
     public void testRegisterUnderNonExistingParent() {
-        int before = registry.contributors().size();
+        int before = registry.getContributors().size();
         registry.register(new SampleHealthyIndicator(), "NULL");
         Assert.assertEquals("Expected the registration to fail, contributor count should not increase.",
                 before,
-                registry.contributors().size());
+                registry.getContributors().size());
     }
 
     /**
@@ -94,18 +95,18 @@ public class ContributorRegistryTests {
     @Test
     public void testUnregisterComponent() {
         // Sanity check.
-        int beforeContributors = registry.contributors().size();
-        int beforeComponents = registry.components().size();
+        int beforeContributors = registry.getContributors().size();
+        int beforeComponents = registry.getComponents().size();
         Assert.assertEquals("Number of HealthComponents and HealthContributors should be equal.", beforeComponents, beforeContributors);
         // Attempt HealthComponent removal.
         registry.unregister(ROOT_NAME);
         Assert.assertEquals("Expected the de-registration to fail, HealthComponents should not be allowed to be removed.",
                 beforeContributors,
-                registry.contributors().size());
+                registry.getContributors().size());
         // Ensure same information is conveyed by components list.
         Assert.assertEquals("Expected the de-registration to fail, HealthComponents should not be allowed to be removed.",
                 beforeComponents,
-                registry.components().size());
+                registry.getComponents().size());
     }
 
     /**
@@ -136,12 +137,12 @@ public class ContributorRegistryTests {
     @Test
     public void testUnregisterInternalContributor() {
         // Create the contributors to register.
-        ArrayList<HealthContributor> contributors = new ArrayList<>(Arrays.asList(
+        List<HealthContributor> contributors = Arrays.asList(
                 new HealthComponent("CONTAINER", StatusAggregatorImpl.DEFAULT, registry),
                 new SampleHealthyIndicator("ONE"),
                 new SampleHealthyIndicator("TWO"),
                 new SampleFailingIndicator("THREE")
-        ));
+        );
 
         HealthContributor container = contributors.get(0);
         // Register said contributors.
@@ -153,25 +154,25 @@ public class ContributorRegistryTests {
         // Validate the registration process.
         Assert.assertEquals("Only one HealthComponent should be recognized (ROOT).",
                 1,
-                registry.components().size());
+                registry.getComponents().size());
         // Four contributors should exist (3 + root).
         Assert.assertEquals("The three contributors and the root should have been recognized.",
                 contributors.size() + 1,
-                registry.contributors().size());
+                registry.getContributors().size());
         // Remove internal node ('container').
         registry.unregister(container);
         // This should removes three contributors: the internal node (container) and the leaf nodes (one, two), leaving
         // the root and 'three'.
-        Assert.assertEquals("Three HealthContributors should be remaining.", 3, registry.contributors().size());
-        Assert.assertEquals("One HealthComponent should remain.", 1, registry.components().size());
+        Assert.assertEquals("Three HealthContributors should be remaining.", 3, registry.getContributors().size());
+        Assert.assertEquals("One HealthComponent should remain.", 1, registry.getComponents().size());
         // The component should be the 'root'.
         Assert.assertEquals("The HealthComponent should be the root.",
-                registry.components().stream().findFirst().get(),
+                registry.getComponents().stream().findFirst().get(),
                 ROOT_NAME);
         // The contributors should be the 'root' and 'three'.
         Assert.assertArrayEquals("The HealthContributors should be the 'root' and 'THREE'.",
                 new String[]{ ROOT_NAME, contributors.get(2).getName(), contributors.get(3).getName() },
-                registry.contributors().toArray());
+                registry.getContributors().toArray());
     }
 
 
@@ -181,28 +182,28 @@ public class ContributorRegistryTests {
     @Test
     public void testUnregisterLeafContributor() {
         // Create the contributors to register.
-        ArrayList<HealthContributor> contributors = new ArrayList<>(Arrays.asList(
+        List<HealthContributor> contributors = Arrays.asList(
                 new SampleHealthyIndicator("one"),
                 new SampleHealthyIndicator("two"),
                 new SampleFailingIndicator("three")
-        ));
+        );
         // Register them to the root.
         for (HealthContributor contributor : contributors) {
             registry.register(contributor);
         }
         Assert.assertEquals("Only one HealthComponent should be recognized (ROOT).",
                 1,
-                registry.components().size());
+                registry.getComponents().size());
         // Four contributors should exist (3 + root).
         Assert.assertEquals("The three contributors and the root should have been recognized.",
                 contributors.size() + 1,
-                registry.contributors().size());
+                registry.getContributors().size());
         for (HealthContributor contributor : contributors) {
             registry.unregister(contributor);
         }
         Assert.assertEquals("Only one HealthContributor should be recognized (ROOT).",
                 1,
-                registry.contributors().size());
+                registry.getContributors().size());
     }
 
     /**
@@ -213,11 +214,11 @@ public class ContributorRegistryTests {
     public void testRegisterOverwrite() {
         // Register SampleHealthyIndicator.
         simpleRegister();
-        int before = registry.contributors().size();
+        int before = registry.getContributors().size();
         // Try to replace it with a SampleFailingIndicator.
         SampleFailingIndicator failing = new SampleFailingIndicator("sample-healthy-indicator");
         registry.register(failing);
-        int after = registry.contributors().size();
+        int after = registry.getContributors().size();
         Assert.assertEquals("The number of contributors should remain the same.", after, before);
         // The indicator should not have been replaced.
         HealthContributor contributor = registry.get(failing.getName());
@@ -235,9 +236,9 @@ public class ContributorRegistryTests {
     @Test
     public void testUnregisterNonExisting() {
        simpleRegister();
-       int before = registry.contributors().size();
+       int before = registry.getContributors().size();
        HealthContributor result = registry.unregister("non-existing-contributor");
-       int after = registry.contributors().size();
+       int after = registry.getContributors().size();
        Assert.assertEquals("No changes to the contributor list should have happened.", before, after);
        Assert.assertNull(result);
     }
@@ -306,21 +307,21 @@ public class ContributorRegistryTests {
     }
 
     private void simpleRegister() {
-        int before = registry.contributors().size();
+        int before = registry.getContributors().size();
         registry.register(new SampleHealthyIndicator());
         Assert.assertEquals("Expected the registration to succeed, contributor count should have increased by one.",
                 before + 1,
-                registry.contributors().size());
+                registry.getContributors().size());
     }
 
     private void simpleUnregister() {
         HealthContributor sample = new SampleHealthyIndicator();
-        int before = registry.contributors().size();
+        int before = registry.getContributors().size();
         registry.unregister(sample.getName());
-        log.info("Remaining HealthContributors: {}", registry.contributors());
+        log.info("Remaining HealthContributors: {}", registry.getContributors());
         Assert.assertEquals("Expected the de-registration to succeed, contributor count should have decreased by one.",
                 before - 1,
-                registry.contributors().size());
+                registry.getContributors().size());
     }
 
     static class TestContributorRegistry extends ContributorRegistryImpl {
@@ -331,29 +332,25 @@ public class ContributorRegistryTests {
         // Validates that all entries in each of the internal containers point to valid references.
         // The 'components' field is not used to determine the validity of the tree-structure.
         public void validate() {
-            try {
-                // Each container should have the same size.
-                assert contributors.size() == children.size() && children.size() == parents.size();
-                // Validate that each container contains the same set of keys.
-                for (val entry : contributors.entrySet()) {
-                    assert children.containsKey(entry.getKey());
-                    assert parents.containsKey(entry.getKey());
+            // Each container should have the same size.
+            assert contributors.size() == children.size() && children.size() == parents.size();
+            // Validate that each container contains the same set of keys.
+            for (val entry : contributors.entrySet()) {
+                assert children.containsKey(entry.getKey());
+                assert parents.containsKey(entry.getKey());
+            }
+            // If above holds true, the keySet for each container should be strictly equivalent.
+            // Validate that each parent/child reference for a given contributor points to a valid contributor.
+            for (val collection : children.entrySet()) {
+                for (val contributor : collection.getValue()) {
+                    assert contributor.equals(contributors.get(contributor.getName()));
                 }
-                // If above holds true, the keySet for each container should be strictly equivalent.
-                // Validate that each parent/child reference for a given contributor points to a valid contributor.
-                for (val collection : children.entrySet()) {
-                    for (val contributor : collection.getValue()) {
-                        assert contributor.equals(contributors.get(contributor.getName()));
-                    }
+            }
+            // Do the same for the parent set.
+            for (val collection : parents.entrySet()) {
+                for (val contributor : collection.getValue()) {
+                    assert contributor.equals(contributors.get(contributor.getName()));
                 }
-                // Do the same for the parent set.
-                for (val collection : parents.entrySet()) {
-                    for (val contributor : collection.getValue()) {
-                        assert contributor.equals(contributors.get(contributor.getName()));
-                    }
-                }
-            } catch (AssertionError e) {
-                toString();
             }
         }
 

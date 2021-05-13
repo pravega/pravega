@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.ArrayList;
-import java.util.Objects;
 
 // Modifications to the 'contributors', 'children', and 'parents' must happen atomically to ensure valid state is always
 // perceived. The 'components' set is not used for program logic so synchronization is not strictly required.
@@ -123,11 +122,9 @@ public class ContributorRegistryImpl implements ContributorRegistry {
     @NonNull
     @Override
     synchronized public HealthContributor register(HealthComponent component, HealthComponent parent) {
-        parent = Objects.isNull(parent) ? root : parent;
         // A HealthComponent should only exist if defined during construction, instead of adding it dynamically.
         if (!components.contains(parent.getName()) || !contributors.containsKey(parent.getName())) {
-            log.warn("Attempting to register {} under unrecognized {} -- aborting.", component, parent);
-            return null;
+            throw new IllegalStateException("Unrecognized parent HealthComponent.");
         }
         components.add(component.getName());
         return register(component, parent.getName());
@@ -142,7 +139,6 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      */
     @NonNull
     synchronized public HealthContributor register(HealthContributor contributor, HealthComponent parent) {
-        parent = Objects.isNull(parent) ? root : parent;
         return register(contributor, parent.getName());
     }
 
@@ -229,7 +225,6 @@ public class ContributorRegistryImpl implements ContributorRegistry {
             from.remove(contributor);
             // Validate that this contributor is still reachable.
             if (from.isEmpty()) {
-                log.debug("> {} removal caused {} to become unreachable.", contributor, child);
                 unregister(child);
             }
         }
@@ -271,7 +266,7 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      *         of the {@link HealthContributor} mapped to by 'name'.
      */
     @Override
-    synchronized public Collection<HealthContributor> dependencies(String name) {
+    synchronized public Collection<HealthContributor> getDependencies(String name) {
         return this.children.get(name);
     }
 
@@ -282,8 +277,8 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      * @return The {@link Collection} of {@link HealthContributor} used by the root.
      */
     @Override
-    synchronized public Collection<HealthContributor> dependencies() {
-        return dependencies(rootName);
+    synchronized public Collection<HealthContributor> getDependencies() {
+        return getDependencies(rootName);
     }
 
     /**
@@ -293,18 +288,18 @@ public class ContributorRegistryImpl implements ContributorRegistry {
      * @return The {@link Collection} of {@link HealthContributor} names.
      */
     @Override
-    synchronized public Collection<String> contributors() {
+    synchronized public Collection<String> getContributors() {
         return new ArrayList<>(contributors.keySet());
     }
 
     /**
      * Supplies a {@link Collection} of *all* {@link HealthComponent} ids (names) registered within
      * this {@link ContributorRegistry}. This method returns a subset of the {@link Collection} returned by
-     * {@link ContributorRegistry#contributors()}.
+     * {@link ContributorRegistry#getContributors()}.
      *
      * @return The {@link Collection} of {@link HealthComponent} names.
      */
-    synchronized public Collection<String> components() {
+    synchronized public Collection<String> getComponents() {
         return new ArrayList<>(this.components);
     }
 

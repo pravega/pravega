@@ -63,17 +63,17 @@ public class HealthServiceImpl implements HealthService {
     }
 
     @Override
-    public Collection<String> components() {
-        return registry().components();
+    public Collection<String> getComponents() {
+        return getRegistry().getComponents();
     }
 
     @Override
-    public ContributorRegistry registry() {
+    public ContributorRegistry getRegistry() {
         return this.registry;
     }
 
     @Override
-    public HealthEndpoint endpoint() {
+    public HealthEndpoint getEndpoint() {
         return this.endpoint;
     }
 

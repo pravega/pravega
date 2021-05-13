@@ -15,11 +15,11 @@
  */
 package io.pravega.shared.health;
 
-import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.shared.health.impl.HealthConfigImpl;
 import io.pravega.shared.health.impl.HealthServiceImpl;
+import lombok.NonNull;
 
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -40,24 +40,21 @@ public class HealthServiceFactory implements AutoCloseable {
      * Creates a new instance of the {@link HealthServiceFactory} using a specified {@link HealthConfig}.
      * @param config The {@link HealthConfig} definition.
      */
+    @NonNull
     public HealthServiceFactory(HealthConfig config) {
-        this.config = Objects.isNull(config) ? HealthConfigImpl.builder().empty() : config;
+        this.config = config == null ? HealthConfigImpl.builder().empty() : config;
         this.closed = new AtomicBoolean();
     }
 
     /**
      * Provides an instance of the {@link HealthService} and may optionally start its {@link HealthServiceUpdater}.
      * @param name The name of the {@link HealthService}.
-     * @param start Defines whether or not to start its {@link  HealthServiceUpdater}.
      *
      * @return The created {@link HealthService} instance.
      */
-    public HealthService createHealthService(String name, boolean start) {
-        Preconditions.checkState(!this.closed.get(), "HealthServiceFactory has already been closed.");
+    public HealthService createHealthService(String name) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         HealthService service = new HealthServiceImpl(name, config);
-        if (start) {
-            service.getHealthServiceUpdater().startAsync();
-        }
         return service;
     }
 

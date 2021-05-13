@@ -29,7 +29,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
@@ -61,7 +60,7 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
      */
     @Getter
     @Setter
-    private int interval = DEFAULT_INTERVAL_SECONDS;
+    private Duration interval = DEFAULT_INTERVAL_SECONDS;
 
     /**
      * Provides the latest {@link Health} result of the recurring {@link io.pravega.shared.health.HealthEndpoint#getHealth(boolean)} calls.
@@ -78,12 +77,12 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
 
     @Override
     protected void runOneIteration() {
-        latest.set(service.endpoint().getHealth(true));
+        latest.set(service.getEndpoint().getHealth(true));
     }
 
     @Override
     protected Scheduler scheduler() {
-        return Scheduler.newFixedDelaySchedule(Duration.ofSeconds(interval), Duration.ofSeconds(interval));
+        return Scheduler.newFixedDelaySchedule(interval, interval);
     }
 
     /**
@@ -116,11 +115,6 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
             Futures.await(Services.stopAsync(this, this.executorService));
         }
         log.info("Stopping ScheduledExecutorService.");
-        try {
-            executorService.shutdown();
-            executorService.awaitTermination(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            log.error("Error closing down ScheduledExecutorService.", e);
-        }
+        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), executorService);
     }
 }

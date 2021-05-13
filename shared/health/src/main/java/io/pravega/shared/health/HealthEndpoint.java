@@ -17,7 +17,7 @@ package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.HealthComponent;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -134,7 +134,7 @@ public interface HealthEndpoint {
      *
      * @return The list of names (ids) that the root {@link HealthContributor} relies on.
      */
-    default List<String> getDependencies() {
+    default Collection<String> getDependencies() {
         return getDependencies(getDefaultContributorName());
     }
 
@@ -145,5 +145,5 @@ public interface HealthEndpoint {
      * @param id The id of the {@link HealthContributor} to request from the {@link ContributorRegistry}.
      * @return The list of names (ids) that the {@link HealthContributor} relies on.
      */
-    List<String> getDependencies(String id);
+    Collection<String> getDependencies(String id);
 }

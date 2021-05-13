@@ -28,9 +28,9 @@ public interface HealthContributor {
      * The list of {@link HealthContributor} objects that this {@link HealthContributor} object depends on to determine
      * its own health.
      *
-     * @return
+     * @return The list of {@link HealthContributor} contributing to this {@link HealthContributor}.
      */
-    default Collection<HealthContributor> contributors() {
+    default Collection<HealthContributor> getContributors() {
         return Collections.emptyList();
     }
 

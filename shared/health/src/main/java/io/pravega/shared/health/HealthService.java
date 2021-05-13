@@ -28,7 +28,7 @@ public interface HealthService extends AutoCloseable {
      * Returns a {@link Collection} of all the components the {@link HealthService} is responsible for and observes.
      * @return
      */
-    Collection<String> components();
+    Collection<String> getComponents();
 
     /**
      * The {@link ContributorRegistry} acts as the means to organize and references to the various {@link HealthContributor}
@@ -36,7 +36,7 @@ public interface HealthService extends AutoCloseable {
      *
      * @return The {@link ContributorRegistry} backing the {@link HealthService}.
      */
-    ContributorRegistry registry();
+    ContributorRegistry getRegistry();
 
     /**
      * The main interface between some client and the {@link HealthService}. The {@link HealthEndpoint} encapsulates
@@ -44,7 +44,7 @@ public interface HealthService extends AutoCloseable {
      *
      * @return The {@link HealthEndpoint} instance.
      */
-    HealthEndpoint endpoint();
+    HealthEndpoint getEndpoint();
 
     /**
      * Provides the {@link HealthServiceUpdater} that currently performs the background {@link Health} requests (of the root).

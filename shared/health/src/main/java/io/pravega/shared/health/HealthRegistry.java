@@ -16,13 +16,13 @@
 package io.pravega.shared.health;
 
 /**
- * The {@link Registry} interface defines the necessary operations required to store and retrieve objects that are
+ * The {@link HealthRegistry} interface defines the necessary operations required to store and retrieve objects that are
  * uniquely identified by some id. While conceptually similar to a {@link java.util.Map}, the interface allows us to
  * implement pre/post processing logic of entries.
  *
  * @param <T> The type of objects held.
  */
-public interface Registry<T> {
+public interface HealthRegistry<T> {
     /**
      * Register some object of type 'T' to the registry.
      *
@@ -32,7 +32,7 @@ public interface Registry<T> {
     T register(T object);
 
     /**
-     * Unregister said object from this {@link Registry}.
+     * Unregister said object from this {@link HealthRegistry}.
      *
      * @param object The object to remove.
      * @return The object removed.

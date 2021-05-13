@@ -17,6 +17,10 @@ package io.pravega.shared.health;
 
 import java.util.Collection;
 
+/**
+ * Defines the interface used to reduce a {@link Collection} of {@link Status} objects produced by some health check
+ * into a singular {@link Status}.
+ */
 @FunctionalInterface
 public interface StatusAggregator {
 
@@ -25,7 +29,7 @@ public interface StatusAggregator {
      * representing the overall health of the given {@link io.pravega.shared.health.impl.CompositeHealthContributor}.
      *
      * @param statuses The {@link Collection} of {@link Status}.
-     * @return
+     * @return The reduced {@link Status}.
      */
     Status aggregate(Collection<Status> statuses);
 }

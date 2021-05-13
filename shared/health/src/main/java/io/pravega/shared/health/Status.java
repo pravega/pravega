@@ -17,7 +17,6 @@ package io.pravega.shared.health;
 
 
 import lombok.Getter;
-import lombok.NonNull;
 
 /**
  * Enumerates the list of potential states that a service or component may be in.
@@ -52,18 +51,26 @@ public enum Status {
     @Getter
     private final int code;
 
-    Status(int code) {
-        this.code = code;
-    }
 
     /**
      * A {@link Status} represents an *alive* component if it is neither {@link Status#DOWN} nor {@link Status#UNKNOWN}.
      * @param status The reference {@link Status} object.
-     * @return Whether this {@link Status} can be considered 'alive' or not.
+     * @return Whether this {@link Status} represents an 'alive' state.
      */
-    @NonNull
-    static boolean isAlive(Status status) {
-        return status != DOWN && status != UNKNOWN;
-    }
+    @Getter
+    private final boolean alive;
 
+    /**
+     * A {@link Status} can be considered 'ready' if it is {@link Status#UP}.
+     * @param status The reference {@link Status} object.
+     * @return Whether this {@link Status} represents a 'ready' state.
+     */
+    @Getter
+    private final boolean ready;
+
+    private Status(int code) {
+        this.code = code;
+        this.alive = code >= 1;
+        this.ready = code >= 3;
+    }
 }

@@ -17,6 +17,8 @@ package io.pravega.shared.health;
 
 import com.google.common.util.concurrent.Service;
 
+import java.time.Duration;
+
 /**
  * The {@link HealthServiceUpdater} is responsible for regularly updating the {@link Health} of the {@link HealthService}.
  * This is useful in cases where health information is not regularly queried by some client. In the event of a crash or failure,
@@ -25,7 +27,10 @@ import com.google.common.util.concurrent.Service;
  */
 public interface HealthServiceUpdater extends Service, AutoCloseable {
 
-    int DEFAULT_INTERVAL_SECONDS = 10;
+    /**
+     * The interval at which to perform the service level health check.
+     */
+    Duration DEFAULT_INTERVAL_SECONDS = Duration.ofSeconds(10);
     /**
      * Supplies the most recent {@link Health} check result.
      *
@@ -37,7 +42,7 @@ public interface HealthServiceUpdater extends Service, AutoCloseable {
      * The interval (in seconds) at which the {@link HealthServiceUpdater} performs the health checks in.
      * @return The interval in which the executor will call {@link HealthEndpoint#getHealth(boolean)}.
      */
-    int getInterval();
+    Duration getInterval();
 
     @Override
     void close();
