@@ -90,7 +90,7 @@ class Throttler implements ThrottleSourceListener, AutoCloseable {
         if (currentDelay != null && isInterruptible(currentDelay.source)) {
             // We were actively throttling due to a reason that is eligible for re-throttling. Terminate the current
             // throttle cycle, which should force the throttler to re-evaluate the situation.
-            log.debug("{}: Cache Cleanup complete while actively throttling ({}).", this.traceObjectId, currentDelay);
+            log.debug("{}: Throttling interrupted while actively throttling ({}).", this.traceObjectId, currentDelay);
             currentDelay.delayFuture.completeExceptionally(new ThrottlingInterruptedException());
         }
     }
