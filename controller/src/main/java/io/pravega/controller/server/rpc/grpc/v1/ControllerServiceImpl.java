@@ -26,6 +26,7 @@ import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.AuthorizationException;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.common.Exceptions;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
@@ -128,7 +129,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     private final boolean isRGStreamWritesWithReadPermEnabled;
 
-    private final Random requestIdGenerator = new Random();
+    private final Random requestIdGenerator = RandomFactory.create();
 
     private final int pageLimit;
 

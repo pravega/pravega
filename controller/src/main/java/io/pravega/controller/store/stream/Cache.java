@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheBuilder;
 import io.pravega.controller.store.VersionedMetadata;
 import lombok.Data;
@@ -80,6 +81,7 @@ public class Cache {
 
     
     public void put(CacheKey cacheKey, VersionedMetadata<?> record, long time) {
+        Preconditions.checkNotNull(record, "Null record cannot be put in cache");
         // acquire the lock for key partition. Then perform a conditional update - get, compare and swap.
         // condition for update => if either the entry doesnt exist in cache. OR the entry in cache is older (lower key version)
         // than new value to be updated. 
