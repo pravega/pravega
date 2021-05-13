@@ -15,34 +15,44 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.segmentstore.contracts.StreamingException;
+import lombok.Getter;
+
 /**
- * Exception that is thrown whenever we detect an unrecoverable data corruption.
- * Usually, after this is thrown, our only resolution may be to suspend processing in the container or completely bring it offline.
+ * Exception that is thrown whenever we detect an unrecoverable state.
+ * Usually, after this is thrown, our only resolution will be to shut down the Segment Container, DurableLog and StorageWriter.
  */
-public class DataCorruptionException extends ServiceHaltException {
+public class ServiceHaltException extends StreamingException {
     /**
      *
      */
     private static final long serialVersionUID = 1L;
 
     /**
-     * Creates a new instance of the DataCorruptionException class.
+     * Gets an array of objects that may contain additional context-related information.
+     */
+    @Getter
+    private final Object[] additionalData;
+
+    /**
+     * Creates a new instance of the ServiceHaltException class.
      *
      * @param message        The message for the exception.
      * @param additionalData An array of objects that contain additional debugging information.
      */
-    public DataCorruptionException(String message, Object... additionalData) {
-        super(message, additionalData);
+    public ServiceHaltException(String message, Object... additionalData) {
+        this(message, null, additionalData);
     }
 
     /**
-     * Creates a new instance of the DataCorruptionException class.
+     * Creates a new instance of the ServiceHaltException class.
      *
      * @param message        The message for the exception.
      * @param cause          The causing exception.
      * @param additionalData An array of objects that contain additional debugging information.
      */
-    public DataCorruptionException(String message, Throwable cause, Object... additionalData) {
-        super(message, cause, additionalData);
+    public ServiceHaltException(String message, Throwable cause, Object... additionalData) {
+        super(message, cause);
+        this.additionalData = additionalData;
     }
 }
