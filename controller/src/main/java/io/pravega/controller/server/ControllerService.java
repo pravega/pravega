@@ -31,7 +31,6 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
-import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.SegmentRecord;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
@@ -661,14 +660,11 @@ public class ControllerService {
                         log.error("Transaction commit failed for txn {} on stream {}. Cause: {}", txId.toString(),
                                 NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
-                        if (unwrap instanceof RetryableException) {
-                            // if its a retryable exception (it could be either write conflict or store exception)
-                            // let it be thrown and translated to appropriate error code so that the client
-                            // retries upon failure.
-                            throw new CompletionException(unwrap);
+                        if (unwrap instanceof StoreException.DataNotFoundException || unwrap instanceof StoreException.IllegalStateException) {
+                            TransactionMetrics.getInstance().commitTransactionFailed(scope, stream, txId.toString());
+                            return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                         }
-                        TransactionMetrics.getInstance().commitTransactionFailed(scope, stream, txId.toString());
-                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
+                        throw new CompletionException(unwrap);
                     } else {
                         TransactionMetrics.getInstance().committingTransaction(timer.getElapsed());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
@@ -704,14 +700,11 @@ public class ControllerService {
                         log.error(requestId, "Transaction abort failed for txn {} on Stream {}", txId.toString(),
                                 NameUtils.getScopedStreamName(scope, stream), ex);
                         Throwable unwrap = getRealException(ex);
-                        if (unwrap instanceof RetryableException) {
-                            // if its a retryable exception (it could be either write conflict or store exception)
-                            // let it be thrown and translated to appropriate error code so that the client
-                            // retries upon failure.
-                            throw new CompletionException(unwrap);
+                        if (unwrap instanceof StoreException.DataNotFoundException || unwrap instanceof StoreException.IllegalStateException) {
+                            TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, txId.toString());
+                            return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                         }
-                        TransactionMetrics.getInstance().abortTransactionFailed(scope, stream, txId.toString());
-                        return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
+                        throw new CompletionException(unwrap);
                     } else {
                         TransactionMetrics.getInstance().abortingTransaction(timer.getElapsed());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
