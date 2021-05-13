@@ -40,6 +40,7 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -572,7 +573,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
         @Override
         public CompletableFuture<DirectSegmentAccess> getSegment(Duration timeout) {
-            return ContainerTableExtensionImpl.this.segmentContainer.forSegment(this.metadata.getName(), timeout);
+            // IMPORTANT: we only invoke forSegment with OperationPriority.Critical here - the WriterTableProcessor is the
+            // only one that requires this priority as it runs within the StorageWriter. We should not be prioritizing
+            // the other operations (such as put() or remove()) as those are user-generated.
+            return ContainerTableExtensionImpl.this.segmentContainer.forSegment(this.metadata.getName(), OperationPriority.Critical, timeout);
         }
 
         @Override
