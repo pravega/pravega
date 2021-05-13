@@ -33,6 +33,7 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import java.time.Duration;
@@ -152,7 +153,7 @@ public class TableContext implements AutoCloseable {
         }
 
         @Override
-        public CompletableFuture<DirectSegmentAccess> forSegment(String segmentName, Duration timeout) {
+        public CompletableFuture<DirectSegmentAccess> forSegment(String segmentName, OperationPriority priority, Duration timeout) {
             Exceptions.checkNotClosed(this.closed.get(), this);
             SegmentMock segment = this.segment.get();
             if (segment == null) {
