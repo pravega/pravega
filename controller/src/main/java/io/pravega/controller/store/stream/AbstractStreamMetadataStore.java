@@ -467,6 +467,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> resetEpochTransition(final String scope,
+                                                 final String name,
+                                                 final VersionedMetadata<EpochTransitionRecord> record,
+                                                 final OperationContext context,
+                                                 final Executor executor) {
+        return Futures.completeOn(getStream(scope, name, context).resetEpochTransition(record), executor);
+    }
+
+    @Override
     public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> startScale(final String scope,
                                                           final String name,
                                                           final boolean isManualScale,

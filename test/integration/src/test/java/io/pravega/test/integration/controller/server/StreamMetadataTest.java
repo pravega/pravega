@@ -148,6 +148,8 @@ public class StreamMetadataTest {
                                                                .build();
         assertTrue(controller.updateStream(scope1, streamName1, config9).get());
 
+        // the number of segments in the stream should now be 3. 
+        
         // AS7:Update configuration of non-existent stream.
         final StreamConfiguration config = StreamConfiguration.builder()
                                                               .scalingPolicy(ScalingPolicy.fixed(2))
@@ -187,8 +189,10 @@ public class StreamMetadataTest {
 
         // PS5:Get position at time before stream creation
         segments = controller.getSegmentsAtTime(stream1, System.currentTimeMillis() - 36000);
+        assertEquals(segments.join().size(), 2);
+
         assertEquals(controller.getCurrentSegments(scope1, streamName1).get().getSegments().size(),
-                     segments.get().size());
+                     3);
 
         // PS6:Get positions at a time in future after stream creation
         segments = controller.getSegmentsAtTime(stream1, System.currentTimeMillis() + 3600);
