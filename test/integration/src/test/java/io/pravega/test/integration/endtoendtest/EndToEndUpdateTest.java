@@ -15,70 +15,21 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import io.pravega.client.ClientConfig;
-import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.client.admin.StreamManager;
-import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.client.security.auth.DelegationTokenProviderFactory;
-import io.pravega.client.segment.impl.NoSuchSegmentException;
-import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.segment.impl.SegmentMetadataClient;
-import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
-import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
-import io.pravega.client.stream.Checkpoint;
-import io.pravega.client.stream.EventRead;
-import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.InvalidStreamException;
-import io.pravega.client.stream.ReaderConfig;
-import io.pravega.client.stream.ReaderGroup;
-import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Serializer;
-import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.TruncatedDataException;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.client.stream.impl.UTF8StringSerializer;
-import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.LocalController;
-import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.PravegaResource;
-import io.pravega.test.integration.ReadWriteUtils;
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static io.pravega.shared.NameUtils.computeSegmentId;
-import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static io.pravega.test.integration.ReadWriteUtils.readEvents;
-import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
-import static java.util.stream.Collectors.toList;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 public class EndToEndUpdateTest extends ThreadPooledTestSuite {
