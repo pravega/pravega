@@ -102,17 +102,17 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                 .thenCompose(etr -> streamMetadataStore.updateVersionedState(scope, stream, State.UPDATING, state, context, executor)
                 .thenCompose(updated -> updateStreamForAutoStreamCut(scope, stream, configProperty, updated)
                         .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(), requestId))
-                        .thenCompose(x -> handleSegmentCount(scope, stream, configProperty, etr, context, executor, requestId))
+                        .thenCompose(x -> handleSegmentCounUpdates(scope, stream, configProperty, etr, context, executor, requestId))
                         .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context, executor))
                         .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updated, context, executor)))));
     }
 
-    private CompletableFuture<Void> handleSegmentCount(final String scope, final String stream, 
-                                                       final StreamConfigurationRecord config, 
-                                                       final VersionedMetadata<EpochTransitionRecord> etr, 
-                                                       final OperationContext context, 
-                                                       final ScheduledExecutorService executor, 
-                                                       final long requestId) {
+    private CompletableFuture<Void> handleSegmentCounUpdates(final String scope, final String stream,
+                                                             final StreamConfigurationRecord config,
+                                                             final VersionedMetadata<EpochTransitionRecord> etr,
+                                                             final OperationContext context,
+                                                             final ScheduledExecutorService executor,
+                                                             final long requestId) {
         return streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
                               .thenCompose(activeEpoch -> {
                                   ScalingPolicy scalingPolicy = config.getStreamConfiguration().getScalingPolicy();
@@ -139,7 +139,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         List<Map.Entry<Double, Double>> newRange = IntStream.range(0, numSegments).boxed()
                                                             .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
                                                             .collect(Collectors.toList());
-
+        log.debug("{} Scaling stream to update minimum number of segments to {}", requestId, numSegments);
         return streamMetadataStore.resetEpochTransition(scope, stream, etr, context, executor)
               .thenCompose(reset -> streamMetadataStore.submitScale(scope, stream, new ArrayList<>(activeEpoch.getSegmentIds()), newRange,
                       System.currentTimeMillis(), reset, context, executor))
