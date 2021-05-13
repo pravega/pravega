@@ -118,6 +118,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -127,7 +128,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.concurrent.GuardedBy;
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
-import static io.pravega.controller.util.RetryHelper.NON_RETRYABLE_PREDICATE;
+import static io.pravega.controller.util.RetryHelper.UNCONDITIONAL_PREDICATE;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -295,6 +296,8 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<ReaderGroupConfigResponse> getReaderGroupConfig(final String scope, final String rgName,
                                                                              RGOperationContext contextOpt) {
         final long requestId = requestTracker.getRequestIdFor("getReaderGroupConfig", scope, rgName);
+        // This predicate need to be updated if we do not want to retry on specific exceptions
+        final Predicate<Throwable> retryPredicate = UNCONDITIONAL_PREDICATE;
         return RetryHelper.withRetriesAsync(() -> {
           // 1. check if RG with this name exists...
           return streamMetadataStore.checkReaderGroupExists(scope, rgName)
@@ -311,7 +314,7 @@ public class StreamMetadataTasks extends TaskBase {
                                 .setConfig(getRGConfigurationFromRecord(scope, rgName, configRecord.getObject(), rgId.toString()))
                                 .setStatus(ReaderGroupConfigResponse.Status.SUCCESS).build()));
        });
-      }, NON_RETRYABLE_PREDICATE, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+      }, retryPredicate, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
     private ReaderGroupConfiguration getRGConfigurationFromRecord(final String scope, final String rgName,
@@ -350,6 +353,8 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<CreateReaderGroupResponse> createReaderGroup(final String scope, final String rgName,
                                                                                final ReaderGroupConfig config, long createTimestamp) {
     final long requestId = requestTracker.getRequestIdFor("createReaderGroup", scope, rgName);
+    // This predicate need to be updated if we do not want to retry on specific exceptions
+    final Predicate<Throwable> retryPredicate = UNCONDITIONAL_PREDICATE;
     return RetryHelper.withRetriesAsync(() -> {
       // 1. check if scope with this name exists...
       return streamMetadataStore.checkScopeExists(scope)
@@ -358,6 +363,7 @@ public class StreamMetadataTasks extends TaskBase {
                   return CompletableFuture.completedFuture(Controller.CreateReaderGroupResponse.newBuilder()
                                   .setStatus(CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND).build());
          }
+
          //2. check state of the ReaderGroup, if found
          return isRGCreationComplete(scope, rgName)
                  .thenCompose(complete -> {
@@ -372,7 +378,7 @@ public class StreamMetadataTasks extends TaskBase {
                      return buildCreateSuccessResponse(scope, rgName);
                  });
          });
-        }, NON_RETRYABLE_PREDICATE, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+        }, retryPredicate, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
     private CompletableFuture<ReaderGroupConfig> validateReaderGroupId(ReaderGroupConfig config) {
@@ -467,6 +473,8 @@ public class StreamMetadataTasks extends TaskBase {
             return CompletableFuture.completedFuture(CreateReaderGroupResponse.newBuilder()
                     .setStatus(CreateReaderGroupResponse.Status.INVALID_RG_NAME).build());
         }
+        // This predicate need to be updated if we do not want to retry on specific exceptions
+        final Predicate<Throwable> retryPredicate = UNCONDITIONAL_PREDICATE;
         return RetryHelper.withRetriesAsync(() -> {
             // 1. check if scope with this name exists...
             return streamMetadataStore.checkScopeExists(scope)
@@ -494,7 +502,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     return buildCreateSuccessResponse(scope, rgName);
                                 });
                     });
-        }, NON_RETRYABLE_PREDICATE, 10, executor);
+        }, retryPredicate, 10, executor);
     }
 
     private CompletableFuture<Boolean> isRGCreated(String scope, String rgName, Executor executor) {
@@ -519,6 +527,8 @@ public class StreamMetadataTasks extends TaskBase {
                                                                                final ReaderGroupConfig config, RGOperationContext contextOpt) {
         final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("updateReaderGroup", scope, rgName);
+        // This predicate need to be updated if we do not want to retry on specific exceptions
+        final Predicate<Throwable> retryPredicate = UNCONDITIONAL_PREDICATE;
         return RetryHelper.withRetriesAsync(() -> {
             // 1. check if Reader Group exists...
             return streamMetadataStore.checkReaderGroupExists(scope, rgName)
@@ -572,7 +582,7 @@ public class StreamMetadataTasks extends TaskBase {
                         }
                       });
                });
-        }, NON_RETRYABLE_PREDICATE, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+        }, retryPredicate, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
     private boolean isTransitionToOrFromSubscriber(final ReaderGroupConfigRecord currentConfig,
@@ -650,6 +660,8 @@ public class StreamMetadataTasks extends TaskBase {
                                                                                RGOperationContext contextOpt) {
         final RGOperationContext context = contextOpt == null ? streamMetadataStore.createRGContext(scope, rgName) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("deleteReaderGroup", scope, rgName);
+        // This predicate need to be updated if we do not want to retry on specific exceptions
+        final Predicate<Throwable> retryPredicate = UNCONDITIONAL_PREDICATE;
         return RetryHelper.withRetriesAsync(() ->
                 streamMetadataStore.checkReaderGroupExists(scope, rgName)
                    .thenCompose(exists -> {
@@ -668,7 +680,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                        .thenCompose(x -> eventHelper.checkDone(() -> isRGDeleted(scope, rgName))
                                                                .thenApply(done -> DeleteReaderGroupStatus.Status.SUCCESS)))));
                            });
-                }), NON_RETRYABLE_PREDICATE, READER_GROUP_OPERATION_MAX_RETRIES, executor);
+                }), retryPredicate, READER_GROUP_OPERATION_MAX_RETRIES, executor);
     }
 
     private CompletableFuture<Boolean> isRGDeleted(String scope, String rgName) {
@@ -813,7 +825,8 @@ public class StreamMetadataTasks extends TaskBase {
                                                                              OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final long requestId = requestTracker.getRequestIdFor("updateSubscriberStreamCut", scope, stream);
-
+        // This predicate need to be updated if we do not want to retry on specific exceptions
+        final Predicate<Throwable> retryPredicate = UNCONDITIONAL_PREDICATE;
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.checkStreamExists(scope, stream)
                 .thenCompose(exists -> {
                 // 1. Check Stream exists.
@@ -855,7 +868,7 @@ public class StreamMetadataTasks extends TaskBase {
                                           });
                                    });
                         });
-        }), NON_RETRYABLE_PREDICATE, SUBSCRIBER_OPERATION_RETRIES, executor);
+        }), retryPredicate, SUBSCRIBER_OPERATION_RETRIES, executor);
     }
 
     /**
@@ -1404,6 +1417,8 @@ public class StreamMetadataTasks extends TaskBase {
 
         // 1. post event for seal.
         SealStreamEvent event = new SealStreamEvent(scope, stream, requestId);
+        // This predicate need to be updated if we do not want to retry on specific exceptions
+        final Predicate<Throwable> retryPredicate = UNCONDITIONAL_PREDICATE;
         return eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(event,
                 // 2. set state to sealing
                 () -> RetryHelper.withRetriesAsync(() -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
@@ -1413,7 +1428,7 @@ public class StreamMetadataTasks extends TaskBase {
                     } else {
                         return streamMetadataStore.updateVersionedState(scope, stream, State.SEALING, state, context, executor);
                     }
-                }), NON_RETRYABLE_PREDICATE, retryCount, executor))
+                }), retryPredicate, retryCount, executor))
                 // 3. return with seal initiated.
                 .thenCompose(result -> {
                     if (result.getObject().equals(State.SEALED) || result.getObject().equals(State.SEALING)) {

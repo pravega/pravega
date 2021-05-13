@@ -65,7 +65,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
-import static io.pravega.controller.util.RetryHelper.NON_RETRYABLE_PREDICATE;
+import static io.pravega.controller.util.RetryHelper.UNCONDITIONAL_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
 
 /**
@@ -264,9 +264,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                  final UUID txId,
                                                  final Version version,
                                                  final OperationContext contextOpt) {
+        // This predicate need to be updated if we do not want to retry abortTxn on specific exceptions
+        final Predicate<Throwable> retryPredicate = UNCONDITIONAL_PREDICATE;
         final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
         return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, version, context),
-                NON_RETRYABLE_PREDICATE, 3, executor);
+                retryPredicate, 10, executor);
     }
 
     /**
@@ -280,9 +282,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      */
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final OperationContext contextOpt) {
+        // This predicate need to be updated if we do not want to retry commitTxn on specific exceptions
+        final Predicate<Throwable> retryPredicate = UNCONDITIONAL_PREDICATE;
         final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
         return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, "", Long.MIN_VALUE, context),
-                NON_RETRYABLE_PREDICATE, 10, executor);
+                retryPredicate, 10, executor);
     }
 
     /**
@@ -299,9 +303,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final String writerId, final long timestamp,
                                                   final OperationContext contextOpt) {
+        // This predicate need to be updated if we do not want to retry commitTxn on specific exceptions
+        final Predicate<Throwable> retryPredicate = UNCONDITIONAL_PREDICATE;
         final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
         return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, writerId, timestamp, context),
-                NON_RETRYABLE_PREDICATE, 10, executor);
+                retryPredicate, 10, executor);
     }
 
     /**
@@ -338,7 +344,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         // Step 1. Validate parameters.
         CompletableFuture<Void> validate = validate(lease);
         long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, maxTransactionExecutionTimeBound.get());
-
+        // This predicate need to be updated if we do not want to retry commitTxn on specific exceptions
+        final Predicate<Throwable> retryPredicate = UNCONDITIONAL_PREDICATE;
         // 1. get latest epoch from history
         // 2. generateNewTransactionId.. this step can throw WriteConflictException
         // 3. txn id = 32 bit epoch + 96 bit counter
@@ -381,7 +388,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
                         return new ImmutablePair<>(txnFuture.join(), segments);
                     }, executor);
-                }), NON_RETRYABLE_PREDICATE, 10, executor));
+                }), retryPredicate, 10, executor));
     }
 
     private void addTxnToTimeoutService(String scope, String stream, long lease, long maxExecutionPeriod, UUID txnId,

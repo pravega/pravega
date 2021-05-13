@@ -19,7 +19,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
-import io.pravega.controller.retryable.NonRetryableException;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 
@@ -41,11 +40,6 @@ public class RetryHelper {
     };
 
     public static final Predicate<Throwable> UNCONDITIONAL_PREDICATE = e -> true;
-
-    public static final Predicate<Throwable> NON_RETRYABLE_PREDICATE = e -> {
-        Throwable t = Exceptions.unwrap(e);
-        return NonRetryableException.isRetryable(t);
-    };
 
     public static <U> U withRetries(Supplier<U> supplier, Predicate<Throwable> predicate, int numOfTries) {
         return Retry.withExpBackoff(100, 2, numOfTries, 1000)
