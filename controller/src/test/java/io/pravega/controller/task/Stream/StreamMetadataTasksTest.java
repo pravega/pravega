@@ -68,9 +68,11 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
+import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -364,6 +366,72 @@ public abstract class StreamMetadataTasksTest {
         // execute the event again. It should complete without doing anything. 
         updateStreamTask.execute(event).join();
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
+    }
+    
+    @Test(timeout = 30000)
+    public void updateStreamSegmentCountFixedPolicyTest() throws Exception {
+        // simple test. change the stream config with min segments and verify that number of segments indeed changes. 
+        int initialSegments = consumer.getCurrentSegments(SCOPE, stream1).get().size();
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+
+        // scaleup
+        StreamConfiguration streamConfiguration = StreamConfiguration
+                .builder().scalingPolicy(ScalingPolicy.fixed(initialSegments + 1)).build();
+        updateConfigVerifyScale(requestEventWriter, streamConfiguration, initialSegments + 1);
+        // scaledown
+        streamConfiguration = StreamConfiguration
+                .builder().scalingPolicy(ScalingPolicy.fixed(initialSegments)).build();
+        updateConfigVerifyScale(requestEventWriter, streamConfiguration, initialSegments);
+    }
+
+    private void updateConfigVerifyScale(WriterMock requestEventWriter, StreamConfiguration streamConfiguration, 
+                                         int expectedSegmentCount) throws InterruptedException, ExecutionException {
+
+        StreamConfigurationRecord configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, 
+                null, executor).join().getObject();
+        assertFalse(configProp.isUpdating());
+        CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture = 
+                streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture.join());
+        // verify that the stream has scaled. 
+        assertEquals(consumer.getCurrentSegments(SCOPE, stream1).get().size(), expectedSegmentCount);
+
+        configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, 
+                null, executor).join().getObject();
+        assertEquals(configProp.getStreamConfiguration(), streamConfiguration);
+    }
+
+    @Test(timeout = 30000)
+    public void updateStreamSegmentCountScalingPolicyTest() throws Exception {
+        int initialSegments = streamStorePartialMock.getActiveSegments(SCOPE, stream1, null, executor).join().size();
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        // scaleup
+        StreamConfiguration streamConfiguration = StreamConfiguration
+                .builder().scalingPolicy(ScalingPolicy.byEventRate(1, 2, initialSegments + 1)).build();
+        updateConfigVerifyScale(requestEventWriter, streamConfiguration, initialSegments + 1);
+
+        // now reduce the number of segments (=1). no scale should happen as we are already more than that. 
+        streamConfiguration = StreamConfiguration
+                .builder().scalingPolicy(ScalingPolicy.byEventRate(1, 2, 1)).build();
+        updateConfigVerifyScale(requestEventWriter, streamConfiguration, initialSegments + 1);
+
+        EpochRecord activeEpoch = streamStorePartialMock.getActiveEpoch(SCOPE, stream1, null, true, executor).join();
+        // now create an epoch transition record (store.submit scale)
+        VersionedMetadata<EpochTransitionRecord> etr = streamStorePartialMock.submitScale(
+                SCOPE, stream1,
+                new ArrayList<>(activeEpoch.getSegmentIds()), 
+                Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), 
+                System.currentTimeMillis(), null, null, executor).join();
+        // update the stream. the epoch transition should be reset and should have no effect. 
+        streamConfiguration = StreamConfiguration
+                .builder().scalingPolicy(ScalingPolicy.byEventRate(1, 2, initialSegments + 5)).build();
+        updateConfigVerifyScale(requestEventWriter, streamConfiguration, initialSegments + 5);
+        
+        assertEquals(streamMetadataTasks.checkScale(SCOPE, stream1, 
+                etr.getObject().getActiveEpoch(), null).join().getStatus(), Controller.ScaleStatusResponse.ScaleStatus.SUCCESS);
     }
 
     @Test(timeout = 30000)
@@ -2546,7 +2614,7 @@ public abstract class StreamMetadataTasksTest {
                 response, versionedState, context, executor).get(), ex -> Exceptions.unwrap(ex) instanceof IllegalArgumentException);
 
         ScaleOperationTask task = new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor);
-        task.runScale((ScaleOpEvent) requestEventWriter.getEventQueue().take(), true, context, "").get();
+        task.runScale((ScaleOpEvent) requestEventWriter.getEventQueue().take(), true, context).get();
         Map<Long, Map.Entry<Double, Double>> segments = response.getObject().getNewSegmentsWithRange();
         assertTrue(segments.entrySet().stream()
                 .anyMatch(x -> x.getKey() == computeSegmentId(1, 1)
