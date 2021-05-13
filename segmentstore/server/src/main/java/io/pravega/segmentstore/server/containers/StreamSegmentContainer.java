@@ -65,7 +65,6 @@ import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
-import io.pravega.segmentstore.server.logs.operations.OperationType;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
@@ -96,6 +95,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -533,7 +533,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.metrics.truncate();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.metadataStore.getOrAssignSegmentId(streamSegmentName, timer.getRemaining(),
-                streamSegmentId -> truncate(streamSegmentId, offset, timer.getRemaining()));
+                streamSegmentId -> {
+                    StreamSegmentTruncateOperation op = new StreamSegmentTruncateOperation(streamSegmentId, offset);
+                    return addOperation(op, timeout);
+                });
     }
 
     @Override
@@ -614,17 +617,21 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.metrics.seal();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.metadataStore.getOrAssignSegmentId(streamSegmentName, timer.getRemaining(),
-                streamSegmentId -> seal(streamSegmentId, timer.getRemaining()));
+                streamSegmentId -> {
+                    StreamSegmentSealOperation operation = new StreamSegmentSealOperation(streamSegmentId);
+                    return addOperation(operation, timeout)
+                            .thenApply(seqNo -> operation.getStreamSegmentOffset());
+                });
     }
 
     @Override
-    public CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, @Nullable OperationPriority priority, Duration timeout) {
         ensureRunning();
 
         logRequest("forSegment", streamSegmentName);
         return this.metadataStore
                 .getOrAssignSegmentId(streamSegmentName, timeout,
-                        segmentId -> CompletableFuture.completedFuture(new DirectSegmentWrapper(segmentId)));
+                        segmentId -> CompletableFuture.completedFuture(new DirectSegmentWrapper(segmentId, priority)));
     }
 
     //endregion
@@ -703,17 +710,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         } else {
             return getAndCacheAttributes(metadata, attributeIds, cache, timer);
         }
-    }
-
-    private CompletableFuture<Long> seal(long segmentId, Duration timeout) {
-        StreamSegmentSealOperation operation = new StreamSegmentSealOperation(segmentId);
-        return addOperation(operation, timeout)
-                .thenApply(seqNo -> operation.getStreamSegmentOffset());
-    }
-
-    private CompletableFuture<Void> truncate(long segmentId, long offset, Duration timeout) {
-        StreamSegmentTruncateOperation op = new StreamSegmentTruncateOperation(segmentId, offset);
-        return addOperation(op, timeout);
     }
 
     /**
@@ -946,7 +942,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             op.markPinned();
         }
 
-        OperationPriority priority = calculatePriority(SegmentType.fromAttributes(segmentProperties.getAttributes()), op.getType());
+        OperationPriority priority = calculatePriority(SegmentType.fromAttributes(segmentProperties.getAttributes()), op);
         return this.durableLog.add(op, priority, timeout).thenApply(ignored -> op.getStreamSegmentId());
     }
 
@@ -967,12 +963,17 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private <T extends Operation & SegmentOperation> CompletableFuture<Void> addOperation(T operation, Duration timeout) {
         SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(operation.getStreamSegmentId());
-        OperationPriority priority = calculatePriority(sm.getType(), operation.getType());
+        OperationPriority priority = calculatePriority(sm.getType(), operation);
         return this.durableLog.add(operation, priority, timeout);
     }
 
-    private OperationPriority calculatePriority(SegmentType segmentType, OperationType operationType) {
-        return PriorityCalculator.getPriority(segmentType, operationType);
+    private OperationPriority calculatePriority(SegmentType segmentType, Operation operation) {
+        val calculatedPriority = PriorityCalculator.getPriority(segmentType, operation.getType());
+        val desiredPriority = operation.getDesiredPriority();
+        if (desiredPriority != null && desiredPriority.getValue() < calculatedPriority.getValue()) {
+            return desiredPriority;
+        }
+        return calculatedPriority;
     }
 
     //endregion
@@ -986,12 +987,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private class DirectSegmentWrapper implements DirectSegmentAccess {
         @Getter
         private final long segmentId;
+        private final OperationPriority requestedPriority;
 
         @Override
         public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             ensureRunning();
-            logRequest("append", this.segmentId, data.getLength());
+            logRequest("append", this.segmentId, data.getLength(), this.requestedPriority);
             StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, data, attributeUpdates);
+            operation.setDesiredPriority(this.requestedPriority);
             return processAppend(operation, new TimeoutTimer(timeout))
                     .thenApply(v -> operation.getStreamSegmentOffset());
         }
@@ -999,8 +1002,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         @Override
         public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, long offset, Duration timeout) {
             ensureRunning();
-            logRequest("append", this.segmentId, data.getLength());
+            logRequest("append", this.segmentId, offset, data.getLength(), this.requestedPriority);
             StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, offset, data, attributeUpdates);
+            operation.setDesiredPriority(this.requestedPriority);
             return processAppend(operation, new TimeoutTimer(timeout))
                     .thenApply(v -> operation.getStreamSegmentOffset());
         }
@@ -1008,8 +1012,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         @Override
         public CompletableFuture<Void> updateAttributes(Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             ensureRunning();
-            logRequest("updateAttributes", this.segmentId, attributeUpdates);
-            return StreamSegmentContainer.this.updateAttributesForSegment(this.segmentId, attributeUpdates, timeout);
+            logRequest("updateAttributes", this.segmentId, attributeUpdates, this.requestedPriority);
+            UpdateAttributesOperation operation = new UpdateAttributesOperation(segmentId, attributeUpdates);
+            operation.setDesiredPriority(this.requestedPriority);
+            return StreamSegmentContainer.this.processAttributeUpdaterOperation(operation, new TimeoutTimer(timeout));
         }
 
         @Override
@@ -1036,15 +1042,20 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         @Override
         public CompletableFuture<Long> seal(Duration timeout) {
             ensureRunning();
-            logRequest("seal", this.segmentId);
-            return StreamSegmentContainer.this.seal(this.segmentId, timeout);
+            logRequest("seal", this.segmentId, this.requestedPriority);
+            StreamSegmentSealOperation operation = new StreamSegmentSealOperation(this.segmentId);
+            operation.setDesiredPriority(this.requestedPriority);
+            return addOperation(operation, timeout)
+                    .thenApply(seqNo -> operation.getStreamSegmentOffset());
         }
 
         @Override
         public CompletableFuture<Void> truncate(long offset, Duration timeout) {
             ensureRunning();
-            logRequest("truncateStreamSegment", this.segmentId);
-            return StreamSegmentContainer.this.truncate(this.segmentId, offset, timeout);
+            logRequest("truncateStreamSegment", this.segmentId, offset, this.requestedPriority);
+            StreamSegmentTruncateOperation operation = new StreamSegmentTruncateOperation(this.segmentId, offset);
+            operation.setDesiredPriority(this.requestedPriority);
+            return StreamSegmentContainer.this.addOperation(operation, timeout);
         }
 
         @Override
