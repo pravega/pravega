@@ -78,7 +78,7 @@ public class HealthEndpointImpl implements HealthEndpoint {
      * Provides the health {@link Status} for the {@link HealthContributor} with name 'id'.
      *
      * @param id The id of some {@link HealthContributor} to search for.
-     * @return The {@link Status} result.N
+     * @return The {@link Status} result.
      */
     @Override
     public Status getStatus(String id) {
