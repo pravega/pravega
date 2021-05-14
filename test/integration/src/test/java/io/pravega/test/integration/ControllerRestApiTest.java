@@ -225,8 +225,9 @@ public class ControllerRestApiTest {
                 queryParam("to", System.currentTimeMillis()).request().get();
         List<ScaleMetadata> scaleMetadataListResponse = response.readEntity(
                 new GenericType<List<ScaleMetadata>>() { });
-        assertEquals(1, scaleMetadataListResponse.size());
+        assertEquals(2, scaleMetadataListResponse.size());
         assertEquals(2, scaleMetadataListResponse.get(0).getSegments().size());
+        assertEquals(4, scaleMetadataListResponse.get(1).getSegments().size());
 
         // Test getStream
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams/" + stream1)
