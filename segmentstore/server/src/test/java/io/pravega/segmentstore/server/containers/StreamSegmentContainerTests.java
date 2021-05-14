@@ -263,7 +263,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 500L)
             .build();
 
-    private static final Duration TIMEOUT_FUTURE = Duration.ofSeconds(10);
+    private static final Duration TIMEOUT_FUTURE = Duration.ofSeconds(1);
+    private static final Duration TIMEOUT_EVENT_PROCESSOR_ITERATION = Duration.ofMillis(100);
 
     @Rule
     public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
@@ -2146,10 +2147,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             l.forEach(s -> Assert.assertEquals(userEvent.get().length(), s.getLength()));
             return CompletableFuture.runAsync(latch::release);
         };
+        @Cleanup
+        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container,
+                TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
         ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
                 new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
         @Cleanup
-        ContainerEventProcessor.EventProcessor processor = container.forConsumer("testConsumer", handler, eventProcessorConfig)
+        ContainerEventProcessor.EventProcessor processor = containerEventProcessor.forConsumer("testConsumer", handler, eventProcessorConfig)
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
 
         // Test adding one Event to the EventProcessor and wait for the handle to get executed and unblock this thread.
@@ -2167,7 +2171,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         latch.await();
 
         // Check that if the same EventProcessor name is used, the same object is retrieved.
-        Assert.assertEquals(processor, container.forConsumer("testConsumer", handler, eventProcessorConfig)
+        Assert.assertEquals(processor, containerEventProcessor.forConsumer("testConsumer", handler, eventProcessorConfig)
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS));
     }
 
@@ -2205,13 +2209,17 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ContainerEventProcessor.EventProcessorConfig config =
                 new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
         @Cleanup
-        ContainerEventProcessor.EventProcessor processor1 = container.forConsumer("testSegment1", handler1, config)
+        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container,
+                TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
+
+        @Cleanup
+        ContainerEventProcessor.EventProcessor processor1 = containerEventProcessor.forConsumer("testSegment1", handler1, config)
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
         @Cleanup
-        ContainerEventProcessor.EventProcessor processor2 = container.forConsumer("testSegment2", handler2, config)
+        ContainerEventProcessor.EventProcessor processor2 = containerEventProcessor.forConsumer("testSegment2", handler2, config)
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
         @Cleanup
-        ContainerEventProcessor.EventProcessor processor3 = container.forConsumer("testSegment3", handler3, config)
+        ContainerEventProcessor.EventProcessor processor3 = containerEventProcessor.forConsumer("testSegment3", handler3, config)
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
 
         for (int i = 0; i < allEventsToProcess; i++) {

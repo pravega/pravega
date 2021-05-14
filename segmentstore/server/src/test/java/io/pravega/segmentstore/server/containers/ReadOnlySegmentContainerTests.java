@@ -22,7 +22,6 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.reading.StreamSegmentStorageReaderTests;
 import io.pravega.segmentstore.storage.Storage;

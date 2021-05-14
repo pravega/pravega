@@ -227,7 +227,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         BufferView event = new ByteArraySegment("This needs to be a long string to reach the limit sooner!!!".getBytes());
         while (!foundMaxOutstandingLimit) {
             try {
-                processor.add(event,TIMEOUT_FUTURE).join();
+                processor.add(event, TIMEOUT_FUTURE).join();
                 processorResults.decrementAndGet();
             } catch (Exception e) {
                 // We have reached the max outstanding bytes for this internal Segment.

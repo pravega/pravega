@@ -113,6 +113,12 @@ public interface ContainerEventProcessor extends AutoCloseable, Service {
         private final long maxProcessorOutstandingBytes;
     }
 
+    /**
+     * Representation of an event written to an {@link EventProcessor}. It consists of:
+     * - Version (1 byte)
+     * - Length (4 bytes)
+     * - Data (BufferView of length at most 1024 * 1024 - 5 bytes)
+     */
     @Data
     class ProcessorEventData {
         private final byte version;
@@ -120,13 +126,16 @@ public interface ContainerEventProcessor extends AutoCloseable, Service {
         private final BufferView data;
     }
 
+    /**
+     * Helper class to serialize/deserialize {@link ProcessorEventData} objects.
+     */
     class ProcessorEventSerializer {
 
         // Serialization Version (1 byte), Entry Length (4 bytes)
         public static final int HEADER_LENGTH = Byte.BYTES + Integer.BYTES;
 
-        // Set a maximum length to individual events to be processed by EventProcessor.
-        public static final int MAX_TOTAL_EVENT_SIZE = 1 * 1024;
+        // Set a maximum length to individual events to be processed by EventProcessor (1MB).
+        public static final int MAX_TOTAL_EVENT_SIZE = 1024 * 1024;
 
         private static final byte CURRENT_SERIALIZATION_VERSION = 0;
         private static final int VERSION_POSITION = 0;
@@ -146,7 +155,7 @@ public interface ContainerEventProcessor extends AutoCloseable, Service {
         public static ProcessorEventData deserializeEvent(BufferView.Reader inputData) {
             byte version = inputData.readByte();
             int length = inputData.readInt();
-            return new ProcessorEventData(version, length, inputData.readSlice(length)); // TODO: Is this the right way?
+            return new ProcessorEventData(version, length, inputData.readSlice(length));
         }
     }
 }

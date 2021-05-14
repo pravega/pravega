@@ -49,10 +49,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 import lombok.Cleanup;
-import lombok.NonNull;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;

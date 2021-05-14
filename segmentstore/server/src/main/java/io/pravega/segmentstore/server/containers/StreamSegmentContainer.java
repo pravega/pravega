@@ -95,11 +95,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -985,12 +983,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             return desiredPriority;
         }
         return calculatedPriority;
-    }
-
-    public CompletableFuture<ContainerEventProcessor.EventProcessor> forConsumer(@NonNull String name,
-                                                                                 @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
-                                                                                 @NonNull ContainerEventProcessor.EventProcessorConfig config) {
-        return this.containerEventProcessor.forConsumer(name, handler, config);
     }
 
     //endregion
