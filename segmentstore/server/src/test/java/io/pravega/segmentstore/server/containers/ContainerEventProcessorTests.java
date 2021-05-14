@@ -31,12 +31,14 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyInt;
@@ -324,6 +326,59 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         // After that, we should see a new object being instantiated in ContainerEventProcessorImpl for the same name.
         Assert.assertNotEquals(processor, eventProcessorService.forConsumer("testClose", handler, config)
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS));
+    }
+
+    @Test(timeout = 10000)
+    public void testEventOrderWithRandomReadFailures() throws Exception {
+        DirectSegmentAccess faultySegment = spy(new SegmentMock(this.executorService()));
+        Function<String, CompletableFuture<DirectSegmentAccess>> faultySegmentSupplier = s -> CompletableFuture.completedFuture(faultySegment);
+        @Cleanup
+        ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, faultySegmentSupplier,
+                ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
+        eventProcessorService.startAsync().awaitRunning();
+        int maxItemsProcessed = 100;
+        int numEvents = 1000;
+        int maxOutstandingBytes = 4 * 1024 * 1024;
+        List<Integer> readEvents = new ArrayList<>();
+        AtomicBoolean orderingError = new AtomicBoolean();
+        Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
+            l.forEach(d -> {
+                int event = new ByteArraySegment(d.getCopy()).getInt(0);
+                // Assert that events are read in order.
+                if (!readEvents.isEmpty()) {
+                    orderingError.set(event <= readEvents.get(readEvents.size() - 1));
+                }
+                readEvents.add(event);
+            });
+            return null;
+        };
+        ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
+                maxOutstandingBytes);
+        @Cleanup
+        ContainerEventProcessor.EventProcessor processor = eventProcessorService.forConsumer("testSequence", handler, config)
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
+        CompletableFuture<Void> writer = CompletableFuture.runAsync(() -> {
+            for (int i = 0; i < numEvents; i++) {
+                ByteArraySegment b = new ByteArraySegment(new byte[Integer.BYTES]);
+                b.setInt(0, i);
+                processor.add(b.slice(), TIMEOUT_FUTURE).join();
+                // Induce a read failure every 10 events written.
+                if (i % 10 == 0) {
+                    when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenThrow(IntentionalException.class).thenCallRealMethod();
+                }
+            }
+        }, executorService());
+        writer.get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
+        // Make sure that the mock works after writer finishes.
+        when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenCallRealMethod();
+
+        // Assert that we have read all the events despite intermittent read failures.
+        AssertExtensions.assertEventuallyEquals(true, () -> readEvents.size() == numEvents, 100000);
+        // Assert that we have not processed the same events multiple times.
+        Assert.assertFalse(orderingError.get());
+        Assert.assertEquals(IntStream.iterate(0, v -> v + 1).limit(numEvents).reduce(0, Integer::sum),
+                (int) readEvents.stream().reduce(0, Integer::sum));
+
     }
 
     private Function<String, CompletableFuture<DirectSegmentAccess>> mockSegmentSupplier() {
