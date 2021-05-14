@@ -20,7 +20,7 @@ Pravega supports the following client libraries:
 
 - [Java client](javadoc.md)
 
-- [RUST client](https://pravega.github.io/pravega-client-rust/RUST/index.html)
+- [Rust client](https://pravega.github.io/pravega-client-rust/Rust/index.html) ([project](https://github.com/pravega/pravega-client-rust))
 
 - [Python client](https://pravega.github.io/pravega-client-rust/Python/index.html) ([package](https://pypi.org/project/pravega/))
 
