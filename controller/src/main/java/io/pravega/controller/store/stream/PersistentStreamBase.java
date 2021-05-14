@@ -1224,6 +1224,13 @@ public abstract class PersistentStreamBase implements Stream {
                 .thenApply(x -> new VersionedMetadata<>(x.getObject(), x.getVersion()));
     }
 
+    @Override
+    public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> resetEpochTransition(VersionedMetadata<EpochTransitionRecord> record) {
+        Preconditions.checkNotNull(record);
+        return updateEpochTransitionNode(new VersionedMetadata<>(EpochTransitionRecord.EMPTY, record.getVersion()))
+                .thenApply(v -> new VersionedMetadata<>(EpochTransitionRecord.EMPTY, v));
+    }
+
     private CompletableFuture<Void> clearMarkers(final Set<Long> segments) {
         return Futures.toVoid(Futures.allOfWithResults(segments.stream().parallel()
                                                                .map(this::removeColdMarker).collect(Collectors.toList())));

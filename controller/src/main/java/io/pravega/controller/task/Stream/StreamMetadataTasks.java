@@ -1884,6 +1884,20 @@ public class StreamMetadataTasks extends TaskBase {
                 Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x, this.retrieveDelegationToken()))));
     }
 
+    public CompletableFuture<Void> processScale(String scope, String stream, 
+                                                VersionedMetadata<EpochTransitionRecord> record, OperationContext context, 
+                                                long requestId, StreamMetadataStore store) {
+        List<Long> segmentIds = new ArrayList<>(record.getObject().getNewSegmentsWithRange().keySet());
+        List<Long> segmentsToSeal = new ArrayList<>(record.getObject().getSegmentsToSeal());
+        String delegationToken = retrieveDelegationToken();
+        return notifyNewSegments(scope, stream, segmentIds, context, delegationToken, requestId)
+                  .thenCompose(x -> store.scaleCreateNewEpochs(scope, stream, record, context, executor))
+                  .thenCompose(x -> notifySealedSegments(scope, stream, segmentsToSeal, delegationToken, requestId))
+                  .thenCompose(x -> getSealedSegmentsSize(scope, stream, segmentsToSeal, delegationToken))
+                  .thenCompose(map -> store.scaleSegmentsSealed(scope, stream, map, record, context, executor))
+                  .thenCompose(x -> store.completeScale(scope, stream, record, context, executor));
+    }
+
     @Override
     public TaskBase copyWithContext(Context context) {
         return new StreamMetadataTasks(streamMetadataStore,
