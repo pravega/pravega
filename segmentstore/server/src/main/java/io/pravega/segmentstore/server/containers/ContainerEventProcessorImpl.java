@@ -59,7 +59,7 @@ import static io.pravega.shared.NameUtils.getEventProcessorSegmentName;
  * the processing is attempted again over the same events.
  */
 @Slf4j
-final class ContainerEventProcessorImpl extends AbstractThreadPoolService implements ContainerEventProcessor {
+class ContainerEventProcessorImpl extends AbstractThreadPoolService implements ContainerEventProcessor {
 
     private final static Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(1);
 
@@ -260,6 +260,7 @@ final class ContainerEventProcessorImpl extends AbstractThreadPoolService implem
             // 3. The collected results are passed to the handler function in EventProcessor for execution.
             // 4. If the handler function has been successfully executed, truncate the internal Segment of the EventProcessor
             // according to the last successfully processed event offset. If an error occurs, throw and re-try.
+            Exceptions.checkNotClosed(this.closed.get(), this);
             Futures.loop(
                    () -> !closed.get(),
                    () -> Futures.delayedFuture(iterationDelay, executor)
@@ -311,7 +312,7 @@ final class ContainerEventProcessorImpl extends AbstractThreadPoolService implem
                 while (nextOffset < maxOffset && events.size() < getConfig().getMaxItemsAtOnce()) {
                     ProcessorEventData event = ProcessorEventSerializer.deserializeEvent(input);
                     events.add(event);
-                    // Update the offset to the beginning of the next entry.
+                    // Update the offset to the beginning of the next event.
                     nextOffset += ProcessorEventSerializer.HEADER_LENGTH + event.getLength();
                 }
             } catch (BufferView.Reader.OutOfBoundsException ex) {

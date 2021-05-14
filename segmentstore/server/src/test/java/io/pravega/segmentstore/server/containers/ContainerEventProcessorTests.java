@@ -137,7 +137,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         BufferView event = new ByteArraySegment("event".getBytes());
         processor.add(event, TIMEOUT_FUTURE).join();
 
-        // Wait until the processor perform  10 retries of the same event.
+        // Wait until the processor perform 10 retries of the same event.
         AssertExtensions.assertEventuallyEquals(true, () -> retries.get() == 10, 10000);
     }
 
@@ -295,9 +295,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         processor.add(event, TIMEOUT_FUTURE).join();
 
         // Give some time for read errors to be retried and then emulate that the Segment starts working again.
-        when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenThrow(IntentionalException.class);
-        Thread.sleep(3000);
-        when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenCallRealMethod();
+        when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenThrow(IntentionalException.class).thenCallRealMethod();
         latch.await();
     }
 
