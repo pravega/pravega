@@ -1,17 +1,11 @@
 /**
- * Copyright Pravega Authors.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
  */
 package io.pravega.test.integration.endtoendtest;
 
@@ -20,12 +14,22 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.controller.server.eventProcessor.LocalController;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.store.ServiceBuilder;
+import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.TestUtils;
+import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import io.pravega.test.integration.PravegaResource;
+import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.ClassRule;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
+import java.net.URI;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
@@ -34,21 +38,57 @@ import static org.junit.Assert.assertEquals;
 @Slf4j
 public class EndToEndUpdateTest extends ThreadPooledTestSuite {
 
-    @ClassRule
-    public static final PravegaResource PRAVEGA = new PravegaResource();
-
+    private final String serviceHost = "localhost";
+    private final int containerCount = 4;
+    private int controllerPort;
+    private URI controllerURI;
+    private TestingServer zkTestServer;
+    private PravegaConnectionListener server;
+    private ControllerWrapper controllerWrapper;
+    private ServiceBuilder serviceBuilder;
     @Override
     protected int getThreadPoolSize() {
         return 1;
     }
-    
+
+    @Before
+    public void setUp() throws Exception {
+        zkTestServer = new TestingServerStarter().start();
+
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        controllerPort = TestUtils.getAvailableListenPort();
+        controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
+        int servicePort = TestUtils.getAvailableListenPort();
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, this.serviceBuilder.getLowPriorityExecutor());
+        server.startListening();
+
+        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
+                false,
+                controllerPort,
+                serviceHost,
+                servicePort,
+                containerCount);
+        controllerWrapper.awaitRunning();
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        controllerWrapper.close();
+        server.close();
+        serviceBuilder.close();
+        zkTestServer.close();
+    }
+
     @Test(timeout = 30000)
     public void testUpdateStream() throws InterruptedException, ExecutionException, TimeoutException,
                                         TruncatedDataException, ReinitializationRequiredException {
         String scope = "scope";
         String streamName = "updateStream";
 
-        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        LocalController controller = (LocalController) controllerWrapper.getController();
         controller.createScope(scope).join();
         controller.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build()).join();
 
