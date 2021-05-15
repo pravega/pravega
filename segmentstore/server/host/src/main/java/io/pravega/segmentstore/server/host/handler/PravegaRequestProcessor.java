@@ -109,6 +109,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
@@ -143,11 +145,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore segmentStore;
     private final TableStore tableStore;
-    private final TrackedConnection connection;
     private final SegmentStatsRecorder statsRecorder;
     private final TableSegmentStatsRecorder tableStatsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
+    @Getter(AccessLevel.PROTECTED)
+    private final TrackedConnection connection;
 
     //endregion
 
@@ -265,18 +268,21 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     .thenAccept(contents -> {
                         ByteBuf data = toByteBuf(Collections.singletonList(contents));
                         SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(),
-                                false, endOfSegment,
+                                atTail, endOfSegment,
                                 data, request.getRequestId());
                         connection.send(reply);
                         this.statsRecorder.read(segment, reply.getData().readableBytes());
                     })
-                    .exceptionally(e -> {
-                        if (Exceptions.unwrap(e) instanceof StreamSegmentTruncatedException) {
+                    .exceptionally(exception -> {
+                        Throwable e = Exceptions.unwrap(exception);
+                        if (e instanceof StreamSegmentTruncatedException) {
                             // The Segment may have been truncated in Storage after we got this entry but before we managed
                             // to make a read. In that case, send the appropriate error back.
                             final String clientReplyStackTrace = replyWithStackTraceOnError ? e.getMessage() : EMPTY_STACK_TRACE;
-                            connection.send(new SegmentIsTruncated(request.getRequestId(), segment,
-                                                                   nonCachedEntry.getStreamSegmentOffset(), clientReplyStackTrace,
+                            connection.send(new SegmentIsTruncated(request.getRequestId(),
+                                                                   segment,
+                                                                   ((StreamSegmentTruncatedException) e).getStartOffset(),
+                                                                   clientReplyStackTrace,
                                                                    nonCachedEntry.getStreamSegmentOffset()));
                         } else {
                             handleException(request.getRequestId(), segment, nonCachedEntry.getStreamSegmentOffset(), operation,

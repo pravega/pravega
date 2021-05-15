@@ -45,7 +45,7 @@ This launches all the components of Pravega on your local machine.
 **Note:** This is for testing/demo purposes only, **do not** use this mode of deployment
 in Production!
 
-More options and additional ways to run Pravega can be found in [Running Pravega](../deployment/deployment.md) guide.
+More options and additional ways to run Pravega can be found in [Running Pravega](deployment/deployment.md) guide.
 
 ```
 $ cd pravega-<version>
@@ -113,3 +113,10 @@ No more events from examples/helloStream
 
 See the [README](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md) file in the pravega-client-examples for more details on running the
     HelloWorldReader application.
+
+**Serializers**
+
+The Java client by has multiple built in serializers: `UTF8StringSerializer`, `ByteArraySerializer`, `ByteBufferSerializer`, and `JavaSerializer`.
+
+Additional pre-made serializers are available in: https://github.com/pravega/pravega-serializer
+You can also write your own implementation of the interface.

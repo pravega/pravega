@@ -144,11 +144,11 @@ public class ControllerServiceTest {
         startTs = System.currentTimeMillis();
         OperationContext context = streamStore.createContext(SCOPE, stream1);
         streamStore.createStream(SCOPE, stream1, configuration1, startTs, context, executor).get();
-        streamStore.setState(SCOPE, stream1, State.ACTIVE, context, executor);
+        streamStore.setState(SCOPE, stream1, State.ACTIVE, context, executor).get();
 
         OperationContext context2 = streamStore.createContext(SCOPE, stream2);
         streamStore.createStream(SCOPE, stream2, configuration2, startTs, context2, executor).get();
-        streamStore.setState(SCOPE, stream2, State.ACTIVE, context2, executor);
+        streamStore.setState(SCOPE, stream2, State.ACTIVE, context2, executor).get();
 
         // endregion
 
@@ -257,7 +257,29 @@ public class ControllerServiceTest {
                 .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
                 any(), any());
 
+        AssertExtensions.assertFutureThrows("Unknown exception should have been thrown",
+                consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L),
+                e -> Exceptions.unwrap(e) instanceof StoreException.UnknownException);
+
+        AssertExtensions.assertFutureThrows("Unknown exception should have been thrown",
+                consumer.abortTransaction(SCOPE, stream1, txnId),
+                e -> Exceptions.unwrap(e) instanceof StoreException.UnknownException);
+
+        doThrow(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Data Not Found"))
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
+                any(), any());
+
         Controller.TxnStatus status = consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L).join();
+        assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
+
+        status = consumer.abortTransaction(SCOPE, stream1, txnId).join();
+        assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
+
+        doThrow(StoreException.create(StoreException.Type.ILLEGAL_STATE, "Data Not Found"))
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
+                any(), any());
+
+        status = consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L).join();
         assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
 
         status = consumer.abortTransaction(SCOPE, stream1, txnId).join();

@@ -753,7 +753,7 @@ public class K8sClient {
 
         @Override
         public void onSuccess(T t, int i, Map<String, List<String>> map) {
-            log.info("Method {} completed successfully with response code {} and value {}", method, i, t);
+            log.debug("Method {} completed successfully with response code {} and value {}", method, i, t);
             future.complete(t);
         }
 

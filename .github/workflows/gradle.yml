@@ -124,6 +124,7 @@ jobs:
       - name: Tar Reports
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
+        if: always()
         uses: actions/upload-artifact@v2
         with:
           name: ${{github.job}}-reports
@@ -156,6 +157,7 @@ jobs:
       - name: Tar Reports
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
+        if: always()
         uses: actions/upload-artifact@v2
         with:
           name: ${{github.job}}-reports
@@ -193,6 +195,7 @@ jobs:
       - name: Tar Reports
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
+        if: always()
         uses: actions/upload-artifact@v2
         with:
           name: ${{github.job}}-reports
@@ -229,6 +232,7 @@ jobs:
       - name: Tar Reports
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
+        if: always()
         uses: actions/upload-artifact@v2
         with:
           name: ${{github.job}}-reports
@@ -279,6 +283,7 @@ jobs:
       - name: Tar Reports
         run: tar --use-compress-program zstd -cf reports-${{github.job}}.tzst `echo ${{env.REPORTS_LOCATIONS}}`
       - name: Upload Reports
+        if: always()
         uses: actions/upload-artifact@v2
         with:
           name: ${{github.job}}-reports
@@ -320,12 +325,14 @@ jobs:
         run: echo Build, static analysis, unit and integration tests successful.
       - name: Checkout
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
       - name: Download code coverage reports
         uses: actions/download-artifact@v2
       - name: Untar reports
         run: ( ls */reports-*.tzst | xargs -n1 tar --use-compress-program zstd --keep-newer-files -xf )
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v1.0.15
+        uses: codecov/codecov-action@v1
 
   snapshot:
     name: Artifactory Snapshot
@@ -336,6 +343,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - name: Gradle & Maven Cache
         uses: actions/cache@v2.1.0
         with:
