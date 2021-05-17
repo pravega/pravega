@@ -56,6 +56,7 @@ import lombok.Cleanup;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
+import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKLedgerClosedException;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.client.api.BookKeeper;
@@ -393,15 +394,16 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         final int writeEvery = 5; // Every 10th Ledger has data.
         final Predicate<Integer> shouldAppendAnything = i -> i % writeEvery == 0;
 
+        val currentMetadata = new AtomicReference<LogMetadata>();
         for (int i = 0; i < count; i++) {
             boolean isEmpty = !shouldAppendAnything.test(i);
             //boolean isDeleted = shouldDelete.test(i);
             try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
                 log.initialize(TIMEOUT);
-                val currentMetadata = log.loadMetadata();
+                currentMetadata.set(log.loadMetadata());
 
                 // Delete the last Empty ledger, if any.
-                val toDelete = Lists.reverse(currentMetadata.getLedgers()).stream()
+                val toDelete = Lists.reverse(currentMetadata.get().getLedgers()).stream()
                         .filter(m -> m.getStatus() == LedgerMetadata.Status.Empty)
                         .findFirst().orElse(null);
                 if (toDelete != null) {
@@ -414,6 +416,23 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 }
             }
         }
+
+        // Now try to delete a valid ledger and verify that an exception was actually thrown.
+        val validLedgerToDelete = Lists.reverse(currentMetadata.get().getLedgers()).stream()
+                .filter(m -> m.getStatus() != LedgerMetadata.Status.Empty)
+                .findFirst().orElse(null);
+        if (validLedgerToDelete != null) {
+            Ledgers.delete(validLedgerToDelete.getLedgerId(), this.factory.get().getBookKeeperClient());
+        }
+
+        AssertExtensions.assertThrows(
+                "No exception thrown if valid ledger was deleted.",
+                () -> {
+                    @Cleanup
+                    val log = createDurableDataLog();
+                    log.initialize(TIMEOUT);
+                },
+                ex -> ex instanceof DurableDataLogException && ex.getCause() instanceof BKException.BKNoSuchLedgerExistsOnMetadataServerException);
     }
 
     @Test
