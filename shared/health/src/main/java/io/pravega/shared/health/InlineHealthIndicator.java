@@ -34,7 +34,7 @@ public class InlineHealthIndicator extends HealthIndicator {
      * @param doHealthCheck The consumer used define the health checking logic.
      */
     @NonNull
-    public InlineHealthIndicator(String name, BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck) {
+    public InlineHealthIndicator(@NonNull String name, @NonNull BiConsumer<Health.HealthBuilder, @NonNull DetailsProvider> doHealthCheck) {
         this(name, doHealthCheck, new DetailsProvider());
     }
 
@@ -45,7 +45,7 @@ public class InlineHealthIndicator extends HealthIndicator {
      * @param provider The {@link DetailsProvider} used to fetch its details from.
      */
     @NonNull
-    public InlineHealthIndicator(String name, BiConsumer<Health.HealthBuilder, DetailsProvider> doHealthCheck, DetailsProvider provider) {
+    public InlineHealthIndicator(@NonNull String name, @NonNull BiConsumer<Health.HealthBuilder, @NonNull DetailsProvider> doHealthCheck, DetailsProvider provider) {
         super(name, provider);
         this.doHealthCheck = doHealthCheck;
     }

@@ -44,7 +44,7 @@ public abstract class HealthIndicator implements HealthContributor {
       }
 
       @NonNull
-      public HealthIndicator(String name, DetailsProvider provider) {
+      public HealthIndicator(@NonNull String name, @NonNull DetailsProvider provider) {
             this.name = name;
             this.provider = provider;
       }

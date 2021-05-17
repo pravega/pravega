@@ -52,7 +52,7 @@ public class HealthComponent extends CompositeHealthContributor {
      * @param registry The {@link ContributorRegistry} which to register this component under.
      */
     @NonNull
-    protected HealthComponent(String name, StatusAggregator aggregator, ContributorRegistry registry) {
+    protected HealthComponent(@NonNull String name, @NonNull StatusAggregator aggregator, @NonNull ContributorRegistry registry) {
         super(aggregator, registry);
         this.name = name;
     }
