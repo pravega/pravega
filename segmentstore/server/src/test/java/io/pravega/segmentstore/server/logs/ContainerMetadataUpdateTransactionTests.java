@@ -15,14 +15,17 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.DynamicAttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.DynamicAttributeValue;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -267,6 +270,7 @@ public class ContainerMetadataUpdateTransactionTests {
     @Test
     public void testStreamSegmentAppendWithAttributes() throws Exception {
         testWithAttributes(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates));
+        testWithAttributesByReference(attributeUpdates -> new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, attributeUpdates));
     }
 
     /**
@@ -296,6 +300,7 @@ public class ContainerMetadataUpdateTransactionTests {
     @Test
     public void testUpdateAttributes() throws Exception {
         testWithAttributes(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
+        testWithAttributesByReference(attributeUpdates -> new UpdateAttributesOperation(SEGMENT_ID, attributeUpdates));
     }
 
     /**
@@ -500,6 +505,38 @@ public class ContainerMetadataUpdateTransactionTests {
         verifyAttributeUpdates("after commit+acceptOperation", txn, attributeUpdates, expectedValues);
 
         // Final step: commit Append #3, and verify final segment metadata.
+        txn.commit(metadata);
+        SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after final commit.",
+                expectedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));
+    }
+
+    private void testWithAttributesByReference(Function<AttributeUpdateCollection, Operation> createOperation) throws Exception {
+        final AttributeId referenceAttributeId = AttributeId.randomUUID();
+        final AttributeId attributeSegmentLength = AttributeId.randomUUID();
+        final long initialAttributeValue = 1234567;
+
+        UpdateableContainerMetadata metadata = createMetadata();
+        metadata.getStreamSegmentMetadata(SEGMENT_ID)
+                .updateAttributes(ImmutableMap.of(referenceAttributeId, initialAttributeValue));
+
+        val txn = createUpdateTransaction(metadata);
+
+        // Update #1.
+        AttributeUpdateCollection attributeUpdates = AttributeUpdateCollection.from(
+                new AttributeUpdate(referenceAttributeId, AttributeUpdateType.Accumulate, 2),
+                new DynamicAttributeUpdate(attributeSegmentLength, AttributeUpdateType.None, DynamicAttributeValue.segmentLength(5)));
+
+        Map<AttributeId, Long> expectedValues = ImmutableMap.of(
+                Attributes.ATTRIBUTE_SEGMENT_TYPE, DEFAULT_TYPE.getValue(),
+                referenceAttributeId, initialAttributeValue + 2,
+                attributeSegmentLength, SEGMENT_LENGTH + 5);
+
+        Operation op = createOperation.apply(attributeUpdates);
+        txn.preProcessOperation(op);
+        txn.acceptOperation(op);
+
+        // Verify result.
+        verifyAttributeUpdates("after acceptOperation", txn, attributeUpdates, expectedValues);
         txn.commit(metadata);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in segment metadata after final commit.",
                 expectedValues, metadata.getStreamSegmentMetadata(SEGMENT_ID));
@@ -1755,7 +1792,7 @@ public class ContainerMetadataUpdateTransactionTests {
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in transaction metadata " + stepName + ".",
                 expectedTransactionAttributes, transactionMetadata);
         for (AttributeUpdate au : attributeUpdates) {
-            Assert.assertEquals("Unexpected updated value for AttributeUpdate[" + au.getUpdateType() + "] " + stepName,
+            Assert.assertEquals("Unexpected updated value for [" + au + "] " + stepName,
                     (long) expectedValues.get(au.getAttributeId()), au.getValue());
         }
     }

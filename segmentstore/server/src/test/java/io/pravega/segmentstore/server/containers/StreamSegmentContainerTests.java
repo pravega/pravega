@@ -34,6 +34,8 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.DynamicAttributeUpdate;
+import io.pravega.segmentstore.contracts.DynamicAttributeValue;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
@@ -561,9 +563,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         final List<AttributeId> extendedAttributesVariable = Arrays.asList(AttributeId.random(variableAttributeIdLength), AttributeId.random(variableAttributeIdLength));
         final List<AttributeId> allAttributesWithUUID = Stream.concat(extendedAttributesUUID.stream(), Stream.of(coreAttribute)).collect(Collectors.toList());
         final List<AttributeId> allAttributesWithVariable = Stream.concat(extendedAttributesVariable.stream(), Stream.of(coreAttribute)).collect(Collectors.toList());
+        final AttributeId segmentLengthAttributeUUID = AttributeId.randomUUID();
+        final AttributeId segmentLengthAttributeVariable = AttributeId.random(variableAttributeIdLength);
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
         final TestContainerConfig containerConfig = new TestContainerConfig();
         containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+        containerConfig.setMaxCachedExtendedAttributeCount(SEGMENT_COUNT * allAttributesWithUUID.size());
 
         @Cleanup
         TestContext context = createContext();
@@ -585,9 +590,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Predicate<Map.Entry<String, Integer>> isUUIDOnly = e -> e.getValue() == 0;
 
         // 2. Add some appends.
-        for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
-            for (val sn : segmentNames.entrySet()) {
-                AttributeUpdateCollection attributeUpdates = (isUUIDOnly.test(sn) ? allAttributesWithUUID : allAttributesWithVariable)
+        for (val sn : segmentNames.entrySet()) {
+            boolean isUUID = isUUIDOnly.test(sn);
+            for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
+                AttributeUpdateCollection attributeUpdates = (isUUID ? allAttributesWithUUID : allAttributesWithVariable)
                         .stream()
                         .map(attributeId -> new AttributeUpdate(attributeId, AttributeUpdateType.Accumulate, 1))
                         .collect(Collectors.toCollection(AttributeUpdateCollection::new));
@@ -616,6 +622,20 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // 2.2 Dynamic attributes.
+        for (val sn : segmentNames.entrySet()) {
+            boolean isUUID = isUUIDOnly.test(sn);
+
+            val dynamicId = isUUID ? segmentLengthAttributeUUID : segmentLengthAttributeVariable;
+            val dynamicAttributes = AttributeUpdateCollection.from(new DynamicAttributeUpdate(dynamicId, AttributeUpdateType.Replace, DynamicAttributeValue.segmentLength(10)));
+            val appendData = getAppendData(sn.getKey(), 1000);
+            val lastOffset = localContainer.append(sn.getKey(), appendData, dynamicAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            val expectedValue = lastOffset - appendData.getLength() + 10;
+
+            Assert.assertEquals(expectedValue, (long) localContainer.getAttributes(sn.getKey(), Collections.singleton(dynamicId), false, TIMEOUT)
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).get(dynamicId));
+        }
 
         // 3. getSegmentInfo
         for (val sn : segmentNames.entrySet()) {

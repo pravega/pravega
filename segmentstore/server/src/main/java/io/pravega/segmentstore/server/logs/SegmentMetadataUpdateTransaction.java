@@ -25,6 +25,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.DynamicAttributeUpdate;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -527,6 +528,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 default:
                     throw new BadAttributeUpdateException(this.name, u, !hasValue, "Unexpected update type: " + updateType);
             }
+        }
+
+        // Evaluate and set DynamicAttributeUpdates.
+        for (DynamicAttributeUpdate u : attributeUpdates.getDynamicAttributeUpdates()) {
+            u.setValue(u.getValueReference().evaluate(this));
         }
     }
 

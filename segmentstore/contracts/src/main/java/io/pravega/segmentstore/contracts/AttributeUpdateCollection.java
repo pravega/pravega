@@ -34,6 +34,8 @@ import lombok.val;
 public class AttributeUpdateCollection extends AbstractCollection<AttributeUpdate> implements Collection<AttributeUpdate> {
     private final ArrayList<AttributeUpdate> uuidAttributes;
     private final ArrayList<AttributeUpdate> variableAttributes;
+    private final ArrayList<DynamicAttributeUpdate> dynamic;
+
     /**
      * The length of all Extended Attribute Ids in this collection.
      * - If null, then there are no extended attributes.
@@ -49,6 +51,7 @@ public class AttributeUpdateCollection extends AbstractCollection<AttributeUpdat
     public AttributeUpdateCollection() {
         this.uuidAttributes = new ArrayList<>();
         this.variableAttributes = new ArrayList<>();
+        this.dynamic = new ArrayList<>();
         this.extendedAttributeIdLength = null; // Not set yet.
     }
 
@@ -108,6 +111,10 @@ public class AttributeUpdateCollection extends AbstractCollection<AttributeUpdat
         return Collections.unmodifiableCollection(this.uuidAttributes);
     }
 
+    public Collection<DynamicAttributeUpdate> getDynamicAttributeUpdates() {
+        return Collections.unmodifiableCollection(this.dynamic);
+    }
+
     @Override
     public boolean add(AttributeUpdate au) {
         // Validate that all extended Attributes have the same type and length. UUIDs are encoded as 0 length.
@@ -124,6 +131,9 @@ public class AttributeUpdateCollection extends AbstractCollection<AttributeUpdat
             this.variableAttributes.add(au);
         }
 
+        if (au.isDynamic()) {
+            this.dynamic.add((DynamicAttributeUpdate) au);
+        }
         return true;
     }
 

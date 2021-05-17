@@ -43,6 +43,10 @@ public class AttributeUpdateCollectionTests {
         Assert.assertEquals(uuids.size() + variables.size(), c.size());
         AssertExtensions.assertContainsSameElements("", uuids, c.getUUIDAttributeUpdates(), this::compare);
         AssertExtensions.assertContainsSameElements("", variables, c.getVariableAttributeUpdates(), this::compare);
+
+        // Check dynamic ones.
+        val expectedDynamicUpdates = c.stream().filter(AttributeUpdate::isDynamic).map(u -> (DynamicAttributeUpdate) u).collect(Collectors.toList());
+        AssertExtensions.assertContainsSameElements("", expectedDynamicUpdates, c.getDynamicAttributeUpdates(), this::compare);
     }
 
     /**
@@ -134,7 +138,9 @@ public class AttributeUpdateCollectionTests {
 
     private List<AttributeUpdate> generate(Function<Integer, AttributeId> createAttributeId) {
         return IntStream.range(0, COUNT)
-                .mapToObj(i -> new AttributeUpdate(createAttributeId.apply(i), AttributeUpdateType.values()[i % AttributeUpdateType.values().length], i, i))
+                .mapToObj(i -> i % 2 == 0
+                        ? new AttributeUpdate(createAttributeId.apply(i), AttributeUpdateType.values()[i % AttributeUpdateType.values().length], i, i)
+                        : new DynamicAttributeUpdate(createAttributeId.apply(i), AttributeUpdateType.values()[i % AttributeUpdateType.values().length], DynamicAttributeValue.segmentLength(i), i))
                 .collect(Collectors.toList());
     }
 
