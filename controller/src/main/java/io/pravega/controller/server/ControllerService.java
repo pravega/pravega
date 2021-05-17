@@ -229,7 +229,7 @@ public class ControllerService {
      * @return Update reader group response future. 
      */
     public CompletableFuture<UpdateReaderGroupResponse> updateReaderGroup(String scope, String rgName,
-                                                                        final ReaderGroupConfig rgConfig,
+                                                                          final ReaderGroupConfig rgConfig,
                                                                           final long requestId) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(rgName, "ReaderGroup name is null");

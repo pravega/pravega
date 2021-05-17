@@ -738,7 +738,7 @@ public class SegmentHelper implements AutoCloseable {
 
     private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long clientRequestId, 
                                                                                    T request) {
-        log.trace(clientRequestId, "Sending request to segment store with: flowId: {}: reply: {}",
+        log.trace(clientRequestId, "Sending request to segment store with: flowId: {}: request: {}",
                 request.getRequestId(), request);
 
         CompletableFuture<Reply> future = Futures.futureWithTimeout(() -> connection.sendRequest(request.getRequestId(), request),

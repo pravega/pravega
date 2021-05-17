@@ -78,7 +78,6 @@ public class Cache {
             cache.invalidate(key);
         }
     }
-
     
     public void put(CacheKey cacheKey, VersionedMetadata<?> record, long time) {
         Preconditions.checkNotNull(record, "Null record cannot be put in cache");
