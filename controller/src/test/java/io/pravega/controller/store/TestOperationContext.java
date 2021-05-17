@@ -13,13 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.store.stream;
+package io.pravega.controller.store;
 
-/**
- * Interface for defining an operation context. 
- */
-public interface OperationContext {
-    long getOperationStartTime();
-    
-    long getRequestId();
+import io.pravega.controller.store.stream.OperationContext;
+
+public class TestOperationContext implements OperationContext {
+    @Override
+    public long getOperationStartTime() {
+        return 0;
+    }
+
+    @Override
+    public long getRequestId() {
+        return 0;
+    }
 }

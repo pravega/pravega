@@ -31,7 +31,7 @@ import java.io.IOException;
  * This version is exposed to processors over the stream metadata store interface
  * and they should use it if they want to perform compare and swap ability over metadata record updates.
  */
-public interface Version {
+public interface Version extends Comparable<Version> {
     IntVersion asIntVersion();
 
     LongVersion asLongVersion();
@@ -54,6 +54,10 @@ public interface Version {
             throw new UnsupportedOperationException();
         }
 
+        @Override
+        public int compareTo(Version o) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     /**
@@ -78,6 +82,11 @@ public interface Version {
         @Override
         public IntVersion asIntVersion() {
             return this;
+        }
+
+        @Override
+        public int compareTo(Version o) {
+            return Integer.compare(this.intValue, o.asIntVersion().intValue);
         }
 
         @Override
@@ -141,6 +150,11 @@ public interface Version {
         @Override
         public LongVersion asLongVersion() {
             return this;
+        }
+
+        @Override
+        public int compareTo(Version o) {
+            return Long.compare(this.longValue, o.asLongVersion().longValue);
         }
 
         @Override
