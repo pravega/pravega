@@ -19,6 +19,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -37,18 +38,17 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import org.slf4j.LoggerFactory;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.stream.ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS;
 
 /**
  * Request handler for performing scale operations received from requeststream.
  */
-@Slf4j
 public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(UpdateStreamTask.class));
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
@@ -71,11 +71,11 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final UpdateStreamEvent request) {
-        final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
         String scope = request.getScope();
         String stream = request.getStream();
         long requestId = request.getRequestId();
+        final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(versionedState -> streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
@@ -99,12 +99,17 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
 
         return Futures.toVoid(
                 streamMetadataStore.getEpochTransition(scope, stream, context, executor)
-                .thenCompose(etr -> streamMetadataStore.updateVersionedState(scope, stream, State.UPDATING, state, context, executor)
+                .thenCompose(etr -> streamMetadataStore.updateVersionedState(scope, stream, State.UPDATING, 
+                        state, context, executor)
                 .thenCompose(updated -> updateStreamForAutoStreamCut(scope, stream, configProperty, updated)
-                        .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(), requestId))
-                        .thenCompose(x -> handleSegmentCounUpdates(scope, stream, configProperty, etr, context, executor, requestId))
-                        .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context, executor))
-                        .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updated, context, executor)))));
+                        .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(), 
+                                requestId))
+                        .thenCompose(x -> handleSegmentCounUpdates(scope, stream, configProperty, etr, context, executor, 
+                                requestId))
+                        .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context, 
+                                executor))
+                        .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updated, 
+                                context, executor)))));
     }
 
     private CompletableFuture<Void> handleSegmentCounUpdates(final String scope, final String stream,
@@ -137,13 +142,16 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         final double keyRangeChunk = 1.0 / numSegments;
         
         List<Map.Entry<Double, Double>> newRange = IntStream.range(0, numSegments).boxed()
-                                                            .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
+                                                            .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, 
+                                                                    (x + 1) * keyRangeChunk))
                                                             .collect(Collectors.toList());
         log.debug("{} Scaling stream to update minimum number of segments to {}", requestId, numSegments);
         return streamMetadataStore.resetEpochTransition(scope, stream, etr, context, executor)
-              .thenCompose(reset -> streamMetadataStore.submitScale(scope, stream, new ArrayList<>(activeEpoch.getSegmentIds()), newRange,
+              .thenCompose(reset -> streamMetadataStore.submitScale(scope, stream, 
+                      new ArrayList<>(activeEpoch.getSegmentIds()), newRange,
                       System.currentTimeMillis(), reset, context, executor))
-              .thenCompose(updated -> streamMetadataTasks.processScale(scope, stream, updated, context, requestId, streamMetadataStore)
+              .thenCompose(updated -> streamMetadataTasks.processScale(scope, stream, updated, context, 
+                      requestId, streamMetadataStore)
               .thenAccept(r -> log.info("{} Stream scaled to epoch {} to update minimum number of segments to {}", requestId, 
                       updated.getObject().getActiveEpoch(), numSegments)));
     }

@@ -33,6 +33,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
@@ -159,12 +160,12 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
 
     @Override
     @Test
-    public void testListScopes() throws ExecutionException, InterruptedException {
+    public void testlistScopes() throws ExecutionException, InterruptedException {
         final String resourceURI = getURI() + "v1/scopes";
 
         // Test to list scopes.
         List<String> scopesList = Arrays.asList("scope1", "scope2");
-        when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(scopesList));
+        when(mockControllerService.listScopes(anyLong())).thenReturn(CompletableFuture.completedFuture(scopesList));
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
         assertEquals("List Scopes response code", expectedResult, response.getStatus());
     }

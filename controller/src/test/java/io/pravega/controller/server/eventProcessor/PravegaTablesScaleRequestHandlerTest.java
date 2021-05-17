@@ -41,6 +41,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.any;
@@ -66,7 +67,7 @@ public class PravegaTablesScaleRequestHandlerTest extends ScaleRequestHandlerTes
     @Test(timeout = 30000)
     public void testEpochMigration() throws ExecutionException, InterruptedException {
         final String scope = "scopeEpoch";
-        streamStore.createScope(scope).get();
+        streamStore.createScope(scope, null, executor).get();
         final String testStream = "streamEpoch";
 
         final String epoch0Key = "epochRecord-0";
@@ -77,7 +78,7 @@ public class PravegaTablesScaleRequestHandlerTest extends ScaleRequestHandlerTes
         VersionedMetadata<EpochRecord> expectedEpochRecord = new VersionedMetadata<>(firstEpochInOldFormat, new Version.IntVersion(0));
 
         doReturn(CompletableFuture.completedFuture(expectedEpochRecord))
-                .when(storeHelper).getCachedData(anyString(), eq(epoch0Key), any());
+                .when(storeHelper).getCachedOrLoad(anyString(), eq(epoch0Key), any(), anyLong(), anyLong());
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(

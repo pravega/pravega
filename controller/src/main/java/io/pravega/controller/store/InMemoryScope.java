@@ -18,10 +18,10 @@ package io.pravega.controller.store;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.kvtable.InMemoryKVTable;
 import io.pravega.controller.store.kvtable.KeyValueTable;
 import io.pravega.controller.store.stream.InMemoryReaderGroup;
+import io.pravega.controller.store.stream.OperationContext;
 import lombok.Synchronized;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -65,7 +65,7 @@ public class InMemoryScope implements Scope {
 
     @Override
     @Synchronized
-    public CompletableFuture<Void> createScope() {
+    public CompletableFuture<Void> createScope(OperationContext context) {
         this.sortedStreamsInScope = new TreeMap<>(Integer::compare);
         this.streamsPositionMap = new HashMap<>();
         return CompletableFuture.completedFuture(null);
@@ -73,7 +73,7 @@ public class InMemoryScope implements Scope {
 
     @Override
     @Synchronized
-    public CompletableFuture<Void> deleteScope() {
+    public CompletableFuture<Void> deleteScope(OperationContext context) {
         this.sortedStreamsInScope.clear();
         this.sortedStreamsInScope = null;
         this.streamsPositionMap.clear();
@@ -85,7 +85,7 @@ public class InMemoryScope implements Scope {
     }
 
     @Synchronized
-    public CompletableFuture<Void> addStreamToScope(String stream) {
+    public CompletableFuture<Void> addStreamToScope(String stream, OperationContext context) {
         int next = streamsPositionMap.size();
         streamsPositionMap.putIfAbsent(stream, next);
         Integer position = streamsPositionMap.get(stream);
@@ -95,7 +95,7 @@ public class InMemoryScope implements Scope {
     }
 
     @Synchronized
-    public CompletableFuture<Void> removeStreamFromScope(String stream) {
+    public CompletableFuture<Void> removeStreamFromScope(String stream, OperationContext context) {
         Integer position = streamsPositionMap.get(stream);
         if (position != null) {
             this.sortedStreamsInScope.remove(position);
@@ -107,13 +107,14 @@ public class InMemoryScope implements Scope {
 
     @Override
     @Synchronized
-    public CompletableFuture<List<String>> listStreamsInScope() {
+    public CompletableFuture<List<String>> listStreamsInScope(OperationContext context) {
         return CompletableFuture.completedFuture(Lists.newArrayList(this.sortedStreamsInScope.values()));
     }
 
     @Override
     @Synchronized
-    public CompletableFuture<Pair<List<String>, String>> listStreams(int limit, String continuationToken, Executor executor) {
+    public CompletableFuture<Pair<List<String>, String>> listStreams(int limit, String continuationToken, 
+                                                                     Executor executor, OperationContext context) {
         String newContinuationToken;
         List<Map.Entry<Integer, String>> limited;
         synchronized (this) {
@@ -141,8 +142,8 @@ public class InMemoryScope implements Scope {
     }
 
     @Synchronized
-    public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
-        kvTablesMap.putIfAbsent(kvt, new InMemoryKVTable(this.scopeName, kvt, BitConverter.readUUID(id, 0)));
+    public CompletableFuture<Void> addKVTableToScope(String kvt, UUID id) {
+        kvTablesMap.putIfAbsent(kvt, new InMemoryKVTable(this.scopeName, kvt, id));
         return CompletableFuture.completedFuture(null);
     }
 
@@ -156,7 +157,8 @@ public class InMemoryScope implements Scope {
     }
 
     @Override
-    public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(int limit, String continuationToken, Executor executor) {
+    public CompletableFuture<Pair<List<String>, String>> listKeyValueTables(int limit, String continuationToken, 
+                                                                            Executor executor, OperationContext context) {
         if (kvTablesMap.size() == 0) {
             return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, this.scopeName));
         }
@@ -174,7 +176,7 @@ public class InMemoryScope implements Scope {
 
     @Override
     @Synchronized
-    public CompletableFuture<UUID> getReaderGroupId(String rgName) {
+    public CompletableFuture<UUID> getReaderGroupId(String rgName, OperationContext context) {
         if (this.readerGroupsMap.containsKey(rgName)) {
             return CompletableFuture.completedFuture(((InMemoryReaderGroup) this.readerGroupsMap.get(rgName)).getId());
         }
