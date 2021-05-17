@@ -116,11 +116,11 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                         .setStatus(Controller.CreateScopeStatus.Status.SUCCESS).build()));
         Assert.assertTrue(this.testController.createScope("scope").join());
 
-        when(this.mockControllerService.getScope("scope", 0L)).thenReturn(
+        when(this.mockControllerService.getScope(eq("scope"), anyLong())).thenReturn(
                 CompletableFuture.completedFuture("scope"));
         Assert.assertTrue(this.testController.checkScopeExists("scope").join());
 
-        when(this.mockControllerService.getScope("scope2", 0L)).thenReturn(
+        when(this.mockControllerService.getScope(eq("scope2"), anyLong())).thenReturn(
                 Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "data not found")));
         Assert.assertFalse(this.testController.checkScopeExists("scope2").join());
         
@@ -192,10 +192,10 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                         .setStatus(Controller.CreateStreamStatus.Status.SUCCESS).build()));
         Assert.assertTrue(this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join());
 
-        when(this.mockControllerService.getStream("scope", "stream", 0L)).thenReturn(
+        when(this.mockControllerService.getStream(eq("scope"), eq("stream"), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build()));
         Assert.assertTrue(this.testController.checkStreamExists("scope", "stream").join());
-        when(this.mockControllerService.getStream("scope", "notExist", 0L)).thenReturn(
+        when(this.mockControllerService.getStream(eq("scope"), eq("notExist"), anyLong())).thenReturn(
                 Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "stream not found")));
         Assert.assertFalse(this.testController.checkStreamExists("scope", "notExist").join());
 
@@ -387,7 +387,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 () -> this.testController.getReaderGroupConfig("scope", "subscriber").join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.getReaderGroupConfig("scope", "subscriber", 0L)).thenReturn(
+        when(this.mockControllerService.getReaderGroupConfig(eq("scope"), eq("subscriber"), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ReaderGroupConfigResponse.newBuilder()
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
@@ -807,7 +807,7 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
         segmentsList.add(segmentRange2);
         segmentsList.add(segmentRange3);
 
-        when(this.mockControllerService.getCurrentSegments("scope", "stream", 0L)).thenReturn(
+        when(this.mockControllerService.getCurrentSegments(eq("scope"), eq("stream"), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(segmentsList));
 
         StreamSegments currentSegments = this.testController.getCurrentSegments("scope", "stream").join();
