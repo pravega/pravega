@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
@@ -378,6 +379,39 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                         "Ledger not deleted from BookKeeper.",
                         () -> Ledgers.openFence(e.getKey(), this.factory.get().getBookKeeperClient(), this.config.get()),
                         ex -> true);
+            }
+        }
+    }
+
+    /**
+     * Verifies that {@link BookKeeperLog#initialize} is able to handle the situation when a Ledger is marked as Empty
+     * but it is also deleted from BookKeeper. This ledger should be ignored and not cause the initialization to fail.
+     */
+    @Test
+    public void testMissingEmptyLedgers() throws Exception {
+        final int count = 10;
+        final int writeEvery = 5; // Every 10th Ledger has data.
+        final Predicate<Integer> shouldAppendAnything = i -> i % writeEvery == 0;
+
+        for (int i = 0; i < count; i++) {
+            boolean isEmpty = !shouldAppendAnything.test(i);
+            //boolean isDeleted = shouldDelete.test(i);
+            try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
+                log.initialize(TIMEOUT);
+                val currentMetadata = log.loadMetadata();
+
+                // Delete the last Empty ledger, if any.
+                val toDelete = Lists.reverse(currentMetadata.getLedgers()).stream()
+                        .filter(m -> m.getStatus() == LedgerMetadata.Status.Empty)
+                        .findFirst().orElse(null);
+                if (toDelete != null) {
+                    Ledgers.delete(toDelete.getLedgerId(), this.factory.get().getBookKeeperClient());
+                }
+
+                // Append some data to this Ledger, if needed - this will mark it as NotEmpty.
+                if (!isEmpty) {
+                    log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                }
             }
         }
     }
