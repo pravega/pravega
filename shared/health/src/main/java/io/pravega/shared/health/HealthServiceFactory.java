@@ -16,7 +16,6 @@
 package io.pravega.shared.health;
 
 import io.pravega.common.Exceptions;
-import io.pravega.shared.health.impl.HealthConfigImpl;
 import io.pravega.shared.health.impl.HealthServiceImpl;
 import lombok.NonNull;
 
@@ -26,23 +25,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Provides instances of a {@link HealthService} and optionally starts the {@link HealthServiceUpdater}.
  */
 public class HealthServiceFactory implements AutoCloseable {
-    private final HealthConfig config;
     private final AtomicBoolean closed;
 
     /**
-     * Creates a new instances of the {@link HealthServiceFactory} with an empty {@link HealthConfig}.
+     * Creates a new instances of the {@link HealthServiceFactory}.
      */
     public HealthServiceFactory() {
-        this(HealthConfigImpl.builder().empty());
-    }
-
-    /**
-     * Creates a new instance of the {@link HealthServiceFactory} using a specified {@link HealthConfig}.
-     * @param config The {@link HealthConfig} definition.
-     */
-    @NonNull
-    public HealthServiceFactory(HealthConfig config) {
-        this.config = config == null ? HealthConfigImpl.builder().empty() : config;
         this.closed = new AtomicBoolean();
     }
 
@@ -52,9 +40,10 @@ public class HealthServiceFactory implements AutoCloseable {
      *
      * @return The created {@link HealthService} instance.
      */
-    public HealthService createHealthService(String name) {
+    @NonNull
+    public HealthService createHealthService(@NonNull String name) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        HealthService service = new HealthServiceImpl(name, config);
+        HealthService service = new HealthServiceImpl(name);
         return service;
     }
 

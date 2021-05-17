@@ -16,7 +16,6 @@
 package io.pravega.shared.health.impl;
 
 import io.pravega.shared.health.ContributorRegistry;
-import io.pravega.shared.health.HealthConfig;
 import io.pravega.shared.health.HealthServiceUpdater;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
@@ -30,11 +29,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class HealthServiceImpl implements HealthService {
 
     private final ContributorRegistry registry;
-
-    /**
-     * The {@link HealthConfig} object used to setup the {@link HealthComponent} hierarchy.
-     */
-    private final HealthConfig config;
 
     /**
      * The {@link HealthServiceUpdater} which provides passive health updates.
@@ -51,13 +45,11 @@ public class HealthServiceImpl implements HealthService {
     @Getter
     private final String name;
 
-    public HealthServiceImpl(String name, HealthConfig config) {
+    public HealthServiceImpl(String name) {
         this.name = name;
-        this.config = config;
         this.registry = new ContributorRegistryImpl(name);
         this.endpoint = new HealthEndpointImpl(this.registry);
         // Initializes the ContributorRegistry into the expected starting state.
-        this.config.reconcile(this.registry);
         this.closed = new AtomicBoolean();
         this.updater = new HealthServiceUpdaterImpl(this);
     }
@@ -83,14 +75,11 @@ public class HealthServiceImpl implements HealthService {
     }
 
     /**
-     * Reverts the state of the {@link HealthService} had it just been initialized and applied the provided
-     * {@link  HealthConfig}.
+     * Reverts the state of the {@link HealthService} had it just been initialized.
      */
     @Override
     public void clear() {
         this.registry.clear();
-        // The ContributorRegistry clears all it's internal state, so the reconcile process must be repeated.
-        this.config.reconcile(this.registry);
     }
 
     @Override
