@@ -772,6 +772,22 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransition(String scope, String stream,
                                                                                    OperationContext context,
                                                                                    ScheduledExecutorService executor);
+
+    /**
+     * ResetEpoch transition record back to EMPTY.
+     * 
+     * @param scope          stream scope
+     * @param name           stream name.
+     * @param record         versioned record
+     * @param context        operation context
+     * @param executor       callers executor
+     * @return A future which when completed indicates that epoch transition record has been reset and holds the updated
+     * versioned record.                 
+     */
+    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> resetEpochTransition(final String scope, final String name,
+                                          final VersionedMetadata<EpochTransitionRecord> record,
+                                          final OperationContext context,
+                                          final Executor executor);
     
     /**
      * Called to start metadata updates to stream store with respect to new scale request. This method should only update

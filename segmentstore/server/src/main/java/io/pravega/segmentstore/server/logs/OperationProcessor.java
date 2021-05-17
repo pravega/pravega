@@ -26,9 +26,9 @@ import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.BlockingDrainingQueue;
 import io.pravega.common.util.PriorityBlockingDrainingQueue;
 import io.pravega.segmentstore.server.CacheUtilizationProvider;
-import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
+import io.pravega.segmentstore.server.ServiceHaltException;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -443,7 +443,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * Determines whether the given Throwable is a fatal exception from which we cannot recover.
      */
     private static boolean isFatalException(Throwable ex) {
-        return ex instanceof DataCorruptionException
+        return ex instanceof ServiceHaltException       // Covers DataCorruptionException
                 || ex instanceof DataLogWriterNotPrimaryException
                 || ex instanceof ObjectClosedException
                 || ex instanceof CacheFullException;

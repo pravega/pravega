@@ -288,6 +288,15 @@ interface Stream {
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransition(OperationContext context);
 
     /**
+     * Reset the given epoch transition to EMPTY.
+     * 
+     * @param record  existing versioned record.
+     * @return A future which when completed would have reset the epoch transition to empty.                 
+     */
+    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> resetEpochTransition(
+            VersionedMetadata<EpochTransitionRecord> record, OperationContext context);
+
+    /**
      * Called to start metadata updates to stream store with respect to new scale request. This method should only update
      * the epochTransition record to reflect current request. It should not initiate the scale workflow. 
      * This should be called for both auto scale and manual scale. 
