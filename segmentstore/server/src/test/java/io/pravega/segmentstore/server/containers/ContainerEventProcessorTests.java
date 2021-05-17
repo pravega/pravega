@@ -37,6 +37,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
@@ -328,8 +329,45 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS));
     }
 
+    /**
+     * This test validates that read order and no event reprocessing is preserved when we have failures reading from the
+     * internal Segment.
+     *
+     * @throws Exception
+     */
     @Test(timeout = 10000)
     public void testEventOrderWithRandomReadFailures() throws Exception {
+        int numEvents = 1000;
+        List<Integer> readEvents = new ArrayList<>();
+        AtomicBoolean reprocessingFlag = new AtomicBoolean();
+        Runnable hasDuplicates = () -> Assert.assertTrue(IntStream.iterate(0, v -> v + 1)
+                .limit(numEvents).reduce(0, Integer::sum) == readEvents.stream().reduce(0, Integer::sum)
+                && !reprocessingFlag.get());
+        Consumer<DirectSegmentAccess> failOnReads = faultySegment -> when(faultySegment.read(anyLong(), anyInt(),
+                any(Duration.class))).thenThrow(IntentionalException.class).thenCallRealMethod();
+        executeEventOrderingTest(numEvents, readEvents, failOnReads, hasDuplicates, reprocessingFlag);
+    }
+
+    /**
+     * This test shows that we could have events re-processed in the case that failures are related to Segment truncation.
+     *
+     * @throws Exception
+     */
+    @Test(timeout = 10000)
+    public void testEventOrderWithTruncationFailures() throws Exception {
+        int numEvents = 1000;
+        List<Integer> readEvents = new ArrayList<>();
+        AtomicBoolean reprocessingFlag = new AtomicBoolean();
+        Runnable hasDuplicates = () -> Assert.assertTrue(IntStream.iterate(0, v -> v + 1)
+                .limit(numEvents).reduce(0, Integer::sum) < readEvents.stream().reduce(0, Integer::sum)
+                && reprocessingFlag.get());
+        Consumer<DirectSegmentAccess> failOnTruncation = faultySegment -> when(faultySegment.truncate(anyLong(),
+                any(Duration.class))).thenThrow(IntentionalException.class).thenCallRealMethod();
+        executeEventOrderingTest(numEvents, readEvents, failOnTruncation, hasDuplicates, reprocessingFlag);
+    }
+
+    private void executeEventOrderingTest(int numEvents, List<Integer> readEvents, Consumer<DirectSegmentAccess> segmentFailure,
+                                          Runnable eventReprocessingAssertion, AtomicBoolean reprocessingFlag) throws Exception {
         DirectSegmentAccess faultySegment = spy(new SegmentMock(this.executorService()));
         Function<String, CompletableFuture<DirectSegmentAccess>> faultySegmentSupplier = s -> CompletableFuture.completedFuture(faultySegment);
         @Cleanup
@@ -337,16 +375,13 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
                 ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
         eventProcessorService.startAsync().awaitRunning();
         int maxItemsProcessed = 100;
-        int numEvents = 1000;
         int maxOutstandingBytes = 4 * 1024 * 1024;
-        List<Integer> readEvents = new ArrayList<>();
-        AtomicBoolean orderingError = new AtomicBoolean();
         Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
             l.forEach(d -> {
                 int event = new ByteArraySegment(d.getCopy()).getInt(0);
                 // Assert that events are read in order.
-                if (!readEvents.isEmpty()) {
-                    orderingError.set(event <= readEvents.get(readEvents.size() - 1));
+                if (!readEvents.isEmpty() && !reprocessingFlag.get()) {
+                    reprocessingFlag.set(event <= readEvents.get(readEvents.size() - 1));
                 }
                 readEvents.add(event);
             });
@@ -364,7 +399,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
                 processor.add(b.slice(), TIMEOUT_FUTURE).join();
                 // Induce a read failure every 10 events written.
                 if (i % 10 == 0) {
-                    when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenThrow(IntentionalException.class).thenCallRealMethod();
+                    segmentFailure.accept(faultySegment);
                 }
             }
         }, executorService());
@@ -372,17 +407,14 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         // Make sure that the mock works after writer finishes.
         when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenCallRealMethod();
 
-        // Assert that we have read all the events despite intermittent read failures.
-        AssertExtensions.assertEventuallyEquals(true, () -> readEvents.size() == numEvents, 100000);
-        // Assert that we have not processed the same events multiple times.
-        Assert.assertFalse(orderingError.get());
-        Assert.assertEquals(IntStream.iterate(0, v -> v + 1).limit(numEvents).reduce(0, Integer::sum),
-                (int) readEvents.stream().reduce(0, Integer::sum));
-
+        // Wait until the last event is read.
+        AssertExtensions.assertEventuallyEquals(true, () -> !readEvents.isEmpty() &&
+                readEvents.get(readEvents.size() - 1) == numEvents - 1, 100000);
+        // Validate the existence or not of re-processed events due to Segment failures.
+        eventReprocessingAssertion.run();
     }
 
     private Function<String, CompletableFuture<DirectSegmentAccess>> mockSegmentSupplier() {
         return s -> CompletableFuture.completedFuture(new SegmentMock(this.executorService()));
     }
-
 }

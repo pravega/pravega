@@ -52,11 +52,14 @@ import static io.pravega.shared.NameUtils.getEventProcessorSegmentName;
  * Implementation for {@link ContainerEventProcessor}. This class stores a map of {@link ContainerEventProcessor.EventProcessor}
  * identified by name. Once this service is started, it will instantiate new {@link ContainerEventProcessor.EventProcessor}
  * objects and report metrics for the existing ones. The actual processing is performed in batches (every
- * iterationDelay ms) by {@link ContainerEventProcessor.EventProcessor}s. Each of such processors are in charge of
+ * iterationDelay ms) by {@link ContainerEventProcessor.EventProcessor}s. Each of such processors is in charge of
  * tailing their respective internal Segments and (safely) invoking their handler functions on a list of read events
  * (of at most maxItemsAtOnce elements). Upon a successful processing iteration, an {@link ContainerEventProcessor.EventProcessor}
  * truncates the internal Segments of the registered. If some error occurs, the internal Segment is not truncated and
- * the processing is attempted again over the same events.
+ * the processing is attempted again over the same events. Therefore, this class provides at-least-once processing
+ * guarantees, but events could be re-processed in the case of failures while truncating the processor's internal Segment.
+ * This is important to take into account when developing handler functions of {@link ContainerEventProcessor.EventProcessor}s
+ * as they should be idempotent and tolerate re-processing.
  */
 @Slf4j
 class ContainerEventProcessorImpl extends AbstractThreadPoolService implements ContainerEventProcessor {
