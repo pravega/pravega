@@ -110,7 +110,7 @@ public class ScopeTest {
         @Cleanup
         ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
 
-        controllerWrapper.getControllerService().createScope(scope).get();
+        controllerWrapper.getControllerService().createScope(scope, 0L).get();
         controller.createStream(scope, streamName1, config).get();
         controller.createStream(scope, streamName2, config).get();
         controller.createStream(scope, streamName3, config).get();

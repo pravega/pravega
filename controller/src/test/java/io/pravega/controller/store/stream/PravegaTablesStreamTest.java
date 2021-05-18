@@ -60,14 +60,15 @@ public class PravegaTablesStreamTest extends StreamTestBase {
     }
 
     @Override
-    void createScope(String scope) {
-        store.createScope(scope).join();
+    void createScope(String scope, OperationContext context) {
+        store.createScope(scope, context, executor).join();
     }
 
     @Override
     PersistentStreamBase getStream(String scope, String stream, int chunkSize, int shardSize) {
         PravegaTablesScope pravegaTableScope = new PravegaTablesScope(scope, storeHelper);
-        pravegaTableScope.addStreamToScope(stream).join();
+        OperationContext context = getContext();
+        pravegaTableScope.addStreamToScope(stream, context).join();
         
         return new PravegaTablesStream(scope, stream, storeHelper, orderer,  
                 () -> 0, chunkSize, shardSize, pravegaTableScope::getStreamsInScopeTableName, executor);

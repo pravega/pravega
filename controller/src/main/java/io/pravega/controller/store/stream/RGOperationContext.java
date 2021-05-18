@@ -15,11 +15,15 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.store.Scope;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 @AllArgsConstructor
 @Getter
-public class RGOperationContext {
+class RGOperationContext implements OperationContext {
+    private final Scope scope;
     private final ReaderGroup readerGroup;
+    private final long requestId;
+    private final long operationStartTime = System.currentTimeMillis();
 }

@@ -21,6 +21,7 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.SegmentOperation;
+import io.pravega.segmentstore.server.ServiceHaltException;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
@@ -206,7 +207,7 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         verify(l1).notifyThrottleSourceChanged();
     }
 
-    private ArrayList<Operation> populate(MemoryStateUpdater updater, int segmentCount, int operationCountPerType) throws DataCorruptionException {
+    private ArrayList<Operation> populate(MemoryStateUpdater updater, int segmentCount, int operationCountPerType) throws ServiceHaltException {
         ArrayList<Operation> operations = new ArrayList<>();
         long offset = 0;
         for (int i = 0; i < segmentCount; i++) {

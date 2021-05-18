@@ -19,11 +19,12 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.ZKStoreHelper;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.utils.ZKPaths;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -49,8 +50,8 @@ import static io.pravega.controller.store.stream.ZKStreamMetadataStore.DATA_NOT_
  * Overall we can create Integer.Max new collections. This means overall we have approximately Long.Max entries that 
  * each ordered collection can support in its lifetime. 
  */
-@Slf4j
 class ZkOrderedStore {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ZkOrderedStore.class));
     private static final String COLLECTIONS_NODE = "collections";
     private static final String SEALED_NODE = "sealed";
     private static final String ENTITIES_NODE = "entities";
@@ -95,9 +96,10 @@ class ZkOrderedStore {
      * @param scope scope
      * @param stream stream 
      * @param entity entity to add
+     * @param requestId
      * @return CompletableFuture which when completed returns the position where the entity is added to the set. 
      */
-    CompletableFuture<Long> addEntity(String scope, String stream, String entity) {
+    CompletableFuture<Long> addEntity(String scope, String stream, String entity, long requestId) {
         // add persistent sequential node to the latest collection number 
         // if collectionNum is sealed, increment collection number and write the entity there. 
         return getLatestCollection(scope, stream)
@@ -128,9 +130,11 @@ class ZkOrderedStore {
                                    }))
                 .whenComplete((r, e) -> {
                     if (e != null) {
-                        log.error("error encountered while trying to add entity {} for stream {}/{}", entity, scope, stream, e);
+                        log.error(requestId, 
+                                "error encountered while trying to add entity {} for stream {}/{}", entity, scope, stream, e);
                     } else {
-                        log.debug("entity {} added for stream {}/{} at position {}", entity, scope, stream, r);
+                        log.debug(requestId, 
+                                "entity {} added for stream {}/{} at position {}", entity, scope, stream, r);
                     }
                 });
     }
