@@ -23,6 +23,9 @@ import java.util.Set;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 public class StreamConfigurationTest {
 
@@ -56,5 +59,17 @@ public class StreamConfigurationTest {
         // Invalid tag with length greater than 256
         String s = new String(new char[257]);
         assertThrows(IllegalArgumentException.class, () -> StreamConfiguration.builder().tag(s).build());
+    }
+
+    @Test
+    public void testCompareStreamConfig() {
+        StreamConfiguration cfg1 = StreamConfiguration.builder().tag("t1").tag("t1").build();
+        StreamConfiguration cfg2 = StreamConfiguration.builder().build();
+        StreamConfiguration cfg3 = StreamConfiguration.builder().retentionPolicy(RetentionPolicy.bySizeBytes(100)).build();
+        assertEquals(cfg1, cfg2);
+        assertTrue(StreamConfiguration.isTagOnlyChange(cfg1, cfg2));
+        assertNotEquals(cfg2, cfg3);
+        assertFalse(StreamConfiguration.isTagOnlyChange(cfg1, cfg3));
+        assertFalse(StreamConfiguration.isTagOnlyChange(cfg2, cfg3));
     }
 }

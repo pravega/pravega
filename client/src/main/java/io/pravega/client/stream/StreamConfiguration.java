@@ -24,6 +24,7 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.Singular;
 
 /**
@@ -73,6 +74,7 @@ public class StreamConfiguration implements Serializable {
      * @return List of tag(s) for the Stream.
      */
     @Singular
+    @EqualsAndHashCode.Exclude
     private final Set<String> tags;
 
     public static final class StreamConfigurationBuilder {
@@ -104,4 +106,13 @@ public class StreamConfiguration implements Serializable {
             return tagsSet;
         }
     }
+
+    public static boolean isTagOnlyChange(StreamConfiguration cfg1, StreamConfiguration cfg2) {
+        if (cfg1.equals(cfg2) && !cfg1.tags.equals(cfg2.tags)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
 }

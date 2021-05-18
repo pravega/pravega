@@ -1640,7 +1640,7 @@ public class StreamMetadataTasks extends TaskBase {
                                         } else {
                                             future = CompletableFuture.completedFuture(null);
                                         }
-                                        return future
+                                        return future.thenCompose(v -> streamMetadataStore.updateStreamTagIndex(scope, stream, config, context, executor) )
                                                 .thenCompose(v -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
                                                 .thenCompose(state -> {
                                                     if (state.getObject().equals(State.CREATING)) {

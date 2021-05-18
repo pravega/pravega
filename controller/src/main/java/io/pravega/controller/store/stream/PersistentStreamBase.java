@@ -407,7 +407,13 @@ public abstract class PersistentStreamBase implements Stream {
         return getVersionedConfigurationRecord()
                 .thenCompose(configRecord -> {
                     Preconditions.checkArgument(!configRecord.getObject().isUpdating());
-                    StreamConfigurationRecord update = StreamConfigurationRecord.update(scope, name, newConfiguration);
+                    StreamConfiguration oldCfg = configRecord.getObject().getStreamConfiguration();
+                    StreamConfigurationRecord update;
+                    if (StreamConfiguration.isTagOnlyChange(oldCfg, newConfiguration)) {
+                        update = StreamConfigurationRecord.updateTag(scope, name, newConfiguration);
+                    } else {
+                        update = StreamConfigurationRecord.update(scope, name, newConfiguration);
+                    }
                     return Futures.toVoid(setConfigurationData(new VersionedMetadata<>(update, configRecord.getVersion())));
                 });
     }

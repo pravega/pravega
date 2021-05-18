@@ -36,13 +36,17 @@ import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostStoreException;
 import io.pravega.controller.store.stream.Cache;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.records.TagRecord;
 import io.pravega.controller.util.RetryHelper;
 
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -50,13 +54,17 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.shaded.com.google.common.base.Charsets;
 
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionDropped;
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionFailed;
+import static java.lang.Enum.valueOf;
 
 /**
  * Helper class for all table related queries to segment store. This class invokes appropriate wire command calls into
@@ -202,6 +210,51 @@ public class PravegaTablesStoreHelper {
                     return (Version) new Version.LongVersion(first.getSegmentVersion());
                 }, executor)
                 .whenComplete((r, ex) -> releaseEntries(entries));
+    }
+
+
+    public CompletableFuture<List<Version>> appendValues(final String tableName, Set<String> tableKeys, final String appendValue) {
+        Supplier<String> errorMessage = () -> String.format("update entries: on table: %s", tableName);
+
+        // read values and add values
+        return withRetries(() -> appendValuesTable(tableName, appendValue, tableKeys).exceptionally(e -> {
+            log.debug("append values to table name {} for keys {} with value {} threw an exception {}", tableName, tableKeys, appendValue, e.getMessage());
+            log.warn("ERROR while appending tags", e);
+            throw new CompletionException(e);
+        }).thenApplyAsync(x -> {
+            log.trace("appendValues {} updated to table {} with version {}", appendValue, tableName, x);
+            return x.stream().map(v -> (Version) new Version.LongVersion(v.getSegmentVersion())).collect(Collectors.toList());
+        }), errorMessage, true);
+    }
+
+    private CompletableFuture<List<TableSegmentKeyVersion>> appendValuesTable(String tableName, String appendValue, Set<String> tableKeys) {
+        // Get unversioned keys.
+        final List<TableSegmentKey> keys = tableKeys.stream()
+                                                    .map(k -> TableSegmentKey.unversioned(k.getBytes(StandardCharsets.UTF_8)))
+                                                    .collect(Collectors.toList());
+        return segmentHelper.readTable(tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID) // read the latest version of keys.
+                            .whenComplete((v, ex) -> releaseKeys(keys))
+                            .thenCompose(currentEntries -> {
+                                List<TableSegmentEntry> updatedList = currentEntries.stream().map(entry -> {
+                                    String k = entry.getKey().getKey().toString(Charset.defaultCharset());
+
+                                    // this can be externalized as a function.
+                                    byte[] array = getArray(entry.getValue());
+                                    byte[] updatedBytes;
+                                    if (array.length == 0) {
+                                        updatedBytes = TagRecord.builder().tagName(k).tagName(appendValue).build().toBytes();
+                                    } else {
+                                        TagRecord record = TagRecord.fromBytes(array);
+                                        updatedBytes = record.toBuilder().tagName(appendValue).build().toBytes();
+                                    }
+                                    return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
+                                                                       updatedBytes,
+                                                                       entry.getKey().getVersion().getSegmentVersion());
+
+                                }).collect(Collectors.toList());
+                                return segmentHelper.updateTableEntries(tableName, updatedList, authToken.get(), RequestTag.NON_EXISTENT_ID)
+                                                    .whenComplete((v, ex) -> releaseEntries(updatedList));
+                            });
     }
 
     /**

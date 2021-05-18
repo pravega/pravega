@@ -47,10 +47,16 @@ public class StreamConfigurationRecord {
     private final String streamName;
     private final StreamConfiguration streamConfiguration;
     private final boolean updating;
+    private final boolean tagOnlyUpdate; // new entry into the StreamConfigurationRecord to indicate that only tags are updated.
 
     public static StreamConfigurationRecord update(String scope, String streamName, StreamConfiguration streamConfig) {
         return StreamConfigurationRecord.builder().scope(scope).streamName(streamName).streamConfiguration(streamConfig)
-                                        .updating(true).build();
+                                        .updating(true).tagOnlyUpdate(false).build();
+    }
+
+    public static StreamConfigurationRecord updateTag(String scope, String streamName, StreamConfiguration streamConfig) {
+        return StreamConfigurationRecord.builder().scope(scope).streamName(streamName).streamConfiguration(streamConfig)
+                                        .updating(true).tagOnlyUpdate(true).build();
     }
 
     public static StreamConfigurationRecord complete(String scope, String streamName, StreamConfiguration streamConfig) {
@@ -280,12 +286,14 @@ public class StreamConfigurationRecord {
                                       .timestampAggregationTimeout(configurationRecordBuilder.streamConfiguration.getTimestampAggregationTimeout())
                                       .tags(revisionDataInput.readCollection(stringDeserializer, HashSet::new));
             configurationRecordBuilder.streamConfiguration(streamConfigurationBuilder.build());
+            configurationRecordBuilder.tagOnlyUpdate(revisionDataInput.readBoolean());
         }
 
         private void write02(StreamConfigurationRecord streamConfigurationRecord, RevisionDataOutput revisionDataOutput)
                 throws IOException {
             RevisionDataOutput.ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
             revisionDataOutput.writeCollection(streamConfigurationRecord.streamConfiguration.getTags(), stringSerializer);
+            revisionDataOutput.writeBoolean(streamConfigurationRecord.isTagOnlyUpdate());
         }
 
         @Override

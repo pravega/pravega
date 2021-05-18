@@ -29,6 +29,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -54,6 +55,7 @@ public class PravegaTablesScope implements Scope {
     private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "streamsInScope" + SEPARATOR + "%s";
     private static final String KVTABLES_IN_SCOPE_TABLE_FORMAT = "kvTablesInScope" + SEPARATOR + "%s";
     private static final String READER_GROUPS_IN_SCOPE_TABLE_FORMAT = "readerGroupsInScope" + SEPARATOR + "%s";
+    private static final String STREAM_TAGS_IN_SCOPE = "streamTagsInScope" + SEPARATOR + "%s";
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;
     private final AtomicReference<UUID> idRef;
@@ -103,7 +105,15 @@ public class PravegaTablesScope implements Scope {
                                     if (e != null) {
                                           throw new CompletionException(e);
                                     }
-                                }))
+                                })),
+                        getStreamTagsInScopeTableName()
+                                                       .thenCompose(storeHelper::createTable)
+                                                       .thenAccept(v -> {
+                                                           if (e != null) {
+                                                               throw new CompletionException(e);
+                                                           }
+                                                       })
+
                         );
             } else {
                 throw new CompletionException(e);
@@ -114,6 +124,11 @@ public class PravegaTablesScope implements Scope {
     public CompletableFuture<String> getStreamsInScopeTableName() {
         return getId().thenApply(id ->
                 getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, id.toString())));
+    }
+
+    public CompletableFuture<String> getStreamTagsInScopeTableName() {
+        return getId().thenApply(id ->
+                getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(STREAM_TAGS_IN_SCOPE, id.toString())));
     }
 
     public CompletableFuture<String> getKVTablesInScopeTableName() {
@@ -143,6 +158,7 @@ public class PravegaTablesScope implements Scope {
     @Override
     public CompletableFuture<Void> deleteScope() {
         CompletableFuture<String> streamsInScopeTableNameFuture = getStreamsInScopeTableName();
+        CompletableFuture<String> streamTagsInScopeTableNameFuture = getStreamTagsInScopeTableName();
         CompletableFuture<String> rgsInScopeTableNameFuture = getReaderGroupsInScopeTableName();
         CompletableFuture<String> kvtsInScopeTableNameFuture = getKVTablesInScopeTableName();
         return CompletableFuture.allOf(streamsInScopeTableNameFuture, rgsInScopeTableNameFuture, kvtsInScopeTableNameFuture)
@@ -150,9 +166,11 @@ public class PravegaTablesScope implements Scope {
                     String streamsInScopeTableName = streamsInScopeTableNameFuture.join();
                     String kvtsInScopeTableName = kvtsInScopeTableNameFuture.join();
                     String rgsInScopeTableName = rgsInScopeTableNameFuture.join();
+                    String streamTagsInScopeTableName = streamTagsInScopeTableNameFuture.join();
                     return CompletableFuture.allOf(storeHelper.deleteTable(streamsInScopeTableName, true),
-                            storeHelper.deleteTable(kvtsInScopeTableName, true), 
-                            storeHelper.deleteTable(rgsInScopeTableName, true))
+                            storeHelper.deleteTable(kvtsInScopeTableName, true),
+                            storeHelper.deleteTable(rgsInScopeTableName, true),
+                            storeHelper.deleteTable(streamTagsInScopeTableName, false))
                                      .thenAccept(v -> log.debug("tables deleted {} {} {}", streamsInScopeTableName,
                                              kvtsInScopeTableName, rgsInScopeTableName));
                 })
@@ -179,10 +197,15 @@ public class PravegaTablesScope implements Scope {
     }
 
     public CompletableFuture<Void> addStreamToScope(String stream) {
+
         return getStreamsInScopeTableName()
                 .thenCompose(tableName -> Futures.toVoid(
-                        withCreateTableIfAbsent(() -> storeHelper.addNewEntryIfAbsent(tableName, stream, newId()), 
+                        withCreateTableIfAbsent(() -> storeHelper.addNewEntryIfAbsent(tableName, stream, newId()),
                         tableName)));
+    }
+
+    public CompletableFuture<Void> updateTagsUnderScope(String stream, Set<String> tags) {
+        return getStreamTagsInScopeTableName().thenCompose(table -> Futures.toVoid(storeHelper.appendValues(table, tags, stream)));
     }
 
     public CompletableFuture<Void> removeStreamFromScope(String stream) {
@@ -245,10 +268,10 @@ public class PravegaTablesScope implements Scope {
     }
 
     private <T> CompletableFuture<T> withCreateTableIfAbsent(Supplier<CompletableFuture<T>> futureSupplier, String tableName) {
-        return Futures.exceptionallyComposeExpecting(futureSupplier.get(), 
+        return Futures.exceptionallyComposeExpecting(futureSupplier.get(),
                 DATA_NOT_FOUND_PREDICATE, () -> storeHelper.createTable(tableName).thenCompose(v -> futureSupplier.get()));
-    } 
-    
+    }
+
     private CompletableFuture<Pair<List<String>, String>> readAll(int limit, String continuationToken, String tableName) {
         List<String> taken = new ArrayList<>();
         AtomicReference<String> token = new AtomicReference<>(continuationToken);

@@ -83,6 +83,7 @@ import static io.pravega.shared.NameUtils.getQualifiedTableName;
 class PravegaTablesStream extends PersistentStreamBase {
     private static final String METADATA_TABLE = "metadata" + SEPARATOR + "%s";
     private static final String EPOCHS_WITH_TRANSACTIONS_TABLE = "epochsWithTransactions" + SEPARATOR + "%s";
+    private static final String TAG_INDEX_TABLE = "tagIndex" + SEPARATOR + "%s";
     private static final String WRITERS_POSITIONS_TABLE = "writersPositions" + SEPARATOR + "%s";
     private static final String TRANSACTIONS_IN_EPOCH_TABLE_FORMAT = "transactionsInEpoch-%d" + SEPARATOR + "%s";
 
@@ -165,6 +166,13 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     private String getMetadataTableName(String id) {
         return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(METADATA_TABLE, id));
+    }
+
+    private CompletableFuture<String>getTagIndexTable() {
+        return getId().thenApply(this::getTagIndexTableName);
+    }
+    private String getTagIndexTableName(String id) {
+        return getQualifiedTableName(INTERNAL_SCOPE_NAME, getScope(), getName(), String.format(TAG_INDEX_TABLE, id));
     }
 
     private CompletableFuture<String> getEpochsWithTransactionsTable() {

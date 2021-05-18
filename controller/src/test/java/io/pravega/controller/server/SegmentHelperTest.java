@@ -17,22 +17,35 @@ package io.pravega.controller.server;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.util.ReferenceCountUtil;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.TokenExpiredException;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
+import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.Flow;
+import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.tables.IteratorItem;
+import io.pravega.client.tables.KeyValueTable;
+import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.impl.IteratorStateImpl;
+import io.pravega.client.tables.impl.TableSegment;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTag;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.stream.records.TagRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -43,9 +56,13 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 
+import java.net.URI;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,6 +72,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -81,7 +101,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     private final byte[] value = "v".getBytes();
     private final ByteBuf token1 = wrappedBuffer(new byte[]{0x01});
     private final ByteBuf token2 = wrappedBuffer(new byte[]{0x02});
-    
+
     @Test
     public void getSegmentUri() {
         MockConnectionFactory factory = new MockConnectionFactory();
@@ -573,6 +593,118 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testTagsIndex() throws ExecutionException, InterruptedException {
+
+        ClientConfig cfg = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:9090")).build();
+
+        ConnectionFactory factory = new SocketConnectionFactoryImpl(cfg);
+        ConnectionPoolImpl conPool = new ConnectionPoolImpl(cfg, factory);
+        SegmentHelper helper = new SegmentHelper(conPool, new MockHostControllerStore(), executorService());
+        String tableName = "tagIndex";
+        helper.createTableSegment(tableName, "", 1000L, false).join();
+
+        AtomicReference<String> authToken = new AtomicReference<>("");
+
+        // simulate update of tags t1 and t2 for stream s1
+        Set<String> tableKeys = Set.of("t1", "t2");
+        // read values and add values
+        List<TableSegmentKeyVersion> ukeys = appendValuesTable(tableName, "s1", getUnVersionedKeys(tableKeys), helper, authToken).join();
+        System.out.println(ukeys);
+        // read and verify
+        List<TableSegmentEntry> currentEntries = helper.readTable(tableName, getUnVersionedKeys(tableKeys), "", 2L).join();
+        Map<String, TagRecord> resultMap = currentEntries.stream().collect(Collectors.toMap(entry -> entry.getKey().getKey().toString(Charset.defaultCharset()),
+                                                                                            entry -> TagRecord.fromBytes(getArray(entry.getValue()))));
+        System.out.println(resultMap);
+
+
+        // s2 -> t1, t3
+        tableKeys = Set.of("t1", "t3");
+        // append
+        ukeys = appendValuesTable(tableName, "s2", getUnVersionedKeys(tableKeys), helper, authToken).join();
+        System.out.println(ukeys);
+        // read and verify
+        currentEntries = helper.readTable(tableName, getUnVersionedKeys(tableKeys), "", 2L).join();
+        resultMap = currentEntries.stream().collect(Collectors.toMap(entry -> entry.getKey().getKey().toString(Charset.defaultCharset()),
+                                                                                            entry -> TagRecord.fromBytes(getArray(entry.getValue()))));
+        System.out.println(resultMap);
+
+    }
+
+    private List<TableSegmentKey> getUnVersionedKeys(Set<String> tableKeys) {
+        return tableKeys.stream()
+                        .map(k -> TableSegmentKey.unversioned(k.getBytes(StandardCharsets.UTF_8)))
+                        .collect(Collectors.toList());
+    }
+
+    private CompletableFuture<List<TableSegmentKeyVersion>> appendValuesTable(String tableName, String appendValue, List<TableSegmentKey> keys, SegmentHelper segmentHelper, AtomicReference<String> authToken) {
+        val fut = segmentHelper.readTable(tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID)
+                               .thenCompose(currentEntries -> {
+                                   List<TableSegmentEntry> updatedList = currentEntries.stream().map(entry -> {
+                                       String k = entry.getKey().getKey().toString(Charset.defaultCharset());
+
+                                       // this can be externalized as a function.
+                                       byte[] array = getArray(entry.getValue());
+                                       byte[] updatedBytes;
+                                       if (array.length == 0) {
+                                           updatedBytes = TagRecord.builder().tagName(k).stream(appendValue).build().toBytes();
+                                       } else {
+                                           TagRecord record = TagRecord.fromBytes(array);
+                                           updatedBytes = record.toBuilder().stream(appendValue).build().toBytes();
+                                       }
+                                       return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
+                                                                          updatedBytes,
+                                                                          entry.getKey().getVersion().getSegmentVersion());
+
+                                   }).collect(Collectors.toList());
+                                   return segmentHelper.updateTableEntries(tableName, updatedList, authToken.get(), RequestTag.NON_EXISTENT_ID)
+                                                       .whenComplete((v, ex) -> releaseEntries(updatedList));
+                               });
+        return fut;
+    }
+
+    private byte[] getArray(ByteBuf buf) {
+        final byte[] bytes = new byte[buf.readableBytes()];
+        final int readerIndex = buf.readerIndex();
+        buf.getBytes(readerIndex, bytes);
+        return bytes;
+    }
+
+    private void releaseKeys(Collection<TableSegmentKey> keys) {
+        for (TableSegmentKey k : keys) {
+            ReferenceCountUtil.safeRelease(k.getKey());
+        }
+    }
+
+    private void releaseEntries(Collection<TableSegmentEntry> entries) {
+        for (TableSegmentEntry e : entries) {
+            ReferenceCountUtil.safeRelease(e.getKey().getKey());
+            ReferenceCountUtil.safeRelease(e.getValue());
+        }
+    }
+
+    private CompletableFuture<Map<String, String>> readKeys(SegmentHelper helper, String tableName, List<TableSegmentKey> keys) {
+        CompletableFuture<Map<String, String>> fut = helper.readTable(tableName, keys, "", 100L)
+                                                           .thenApply(vals -> vals.stream().collect(Collectors.toMap(entry -> entry.getKey().getKey().toString(Charset.defaultCharset()),
+                                                                                                                     entry -> entry.getValue().toString(Charset.defaultCharset()))));
+
+        return fut;
+    }
+
+    private CompletableFuture<List<TableSegmentKeyVersion>> updatedIndexTable(String tableName, Map<String, String> updates, SegmentHelper helper) {
+        List<TableSegmentKey> keys = getUnVersionedKeys(updates.keySet());
+        CompletableFuture<List<TableSegmentKeyVersion>> r = helper.readTable(tableName, keys, "", 1001L)
+                                                                  .thenCompose(currentEntries -> {
+                                                                      List<TableSegmentEntry> updatedList = currentEntries.stream().map(entry -> {
+                                                                          String k = entry.getKey().getKey().toString(Charset.defaultCharset());
+                                                                          return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8), updates.get(k).getBytes(StandardCharsets.UTF_8), entry.getKey().getVersion().getSegmentVersion());
+
+                                                                      }).collect(Collectors.toList());
+                                                                      return helper.updateTableEntries(tableName, updatedList, "", 1002L);
+                                                                  });
+      return r;
+    }
+
+    @Test
     public void testRemoveTableKeys() {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore(), executorService());
@@ -938,12 +1070,12 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
 
         @Override
         public Host getHostForSegment(String scope, String stream, long segmentId) {
-            return new Host("localhost", 1000, "");
+            return new Host("localhost", 6000, "");
         }
 
         @Override
         public Host getHostForTableSegment(String table) {
-            return new Host("localhost", 1000, "");
+            return new Host("localhost", 6000, "");
         }
     }
 

@@ -256,6 +256,16 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                 executor);
     }
 
+    @Override
+    public CompletableFuture<Void> updateStreamTagIndex(String scope, String streamName, StreamConfiguration config , OperationContext context, Executor executor) {
+        if (streamName.startsWith(NameUtils.INTERNAL_NAME_PREFIX)) {
+            // Tags are not allowed on internal streams.
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return Futures.completeOn(((PravegaTablesScope) getScope(scope)).updateTagsUnderScope(streamName, config.getTags()), executor);
+        }
+    }
+
 
     @Override
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,

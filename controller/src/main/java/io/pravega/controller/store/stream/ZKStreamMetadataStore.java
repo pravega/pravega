@@ -177,6 +177,11 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore implement
     }
 
     @Override
+    public CompletableFuture<Void> updateStreamTagIndex(String scope, String name, StreamConfiguration config, OperationContext context, Executor executor) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CompletableFuture<Void> addReaderGroupToScope(String scopeName, String rgName, UUID readerGroupId) {
         throw new UnsupportedOperationException();
     }

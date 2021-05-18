@@ -16,6 +16,7 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
@@ -85,12 +86,20 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         StreamConfigurationRecord configProperty = record.getObject();
 
         return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.UPDATING, state, context, executor)
-                .thenCompose(updated -> updateStreamForAutoStreamCut(scope, stream, configProperty, updated)
-                        .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(), requestId))
-                        .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context, executor))
-                        .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updated, context, executor))));
+                .thenCompose(updated -> {
+                    if ( configProperty.isTagOnlyUpdate()) {
+                        log.info("Tag only update for stream {}/{}", scope, stream);
+                    }
+                    return updateStreamForAutoStreamCut(scope, stream, configProperty, updated)
+                            .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(), requestId))
+                            .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context, executor))
+                            .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updated, context, executor));
+                }));
     }
 
+    private CompletableFuture<Void> updateInvertedIndex(String scope, String stream, StreamConfigurationRecord record) {
+        return CompletableFuture.completedFuture(null);
+    }
     private CompletableFuture<Void> updateStreamForAutoStreamCut(String scope, String stream,
                         StreamConfigurationRecord configProperty, VersionedMetadata<State> updated) {
         if (configProperty.getStreamConfiguration().getRetentionPolicy() != null) {

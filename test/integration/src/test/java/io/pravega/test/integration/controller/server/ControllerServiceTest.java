@@ -96,7 +96,22 @@ public class ControllerServiceTest {
         serviceBuilder.close();
         zkTestServer.close();
     }
-    
+
+    @Test
+    public void streamTagTest() {
+        final String scope = "sc";
+        final String stream = "st";
+        StreamConfiguration streamConfiguration = StreamConfiguration.builder()
+                                                                     .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                     .build();
+        Controller controller = controllerWrapper.getController();
+        controller.createScope(scope).join();
+        System.out.println("scope created");
+        controller.createStream(scope, stream, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).tag("t1").tag("t2").build()).join();
+        System.out.println("stream created");
+
+
+    }
     
     @Test(timeout = 40000)
     public void streamMetadataTest() throws Exception {

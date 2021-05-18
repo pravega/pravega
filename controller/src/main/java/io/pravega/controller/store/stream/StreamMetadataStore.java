@@ -304,6 +304,17 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                                            final Executor executor);
 
     /**
+     * Update inverted index for tags.
+     *
+     * @param scope        stream scope
+     * @param name         stream name.
+     * @param context      operation context
+     * @param executor     callers executor
+     * @return current stream configuration.
+     */
+    CompletableFuture<Void> updateStreamTagIndex(final String scope, final String name, final StreamConfiguration config, final OperationContext context, final Executor executor);
+
+    /**
      * Method to create an operation context for ReaderGroup. A context ensures that multiple calls to store for the same data are avoided
      * within the same operation. All api signatures are changed to accept context. If context is supplied, the data will be
      * looked up within the context and, upon a cache miss, will be fetched from the external store and cached within the context.

@@ -218,6 +218,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    public CompletableFuture<Void> updateStreamTagIndex(String scope, String name, StreamConfiguration config, OperationContext context, Executor executor) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
     public CompletableFuture<Void> addReaderGroupToScope(String scopeName, String rgName, UUID readerGroupId) {
         if (scopes.containsKey(scopeName)) {
             scopes.get(scopeName).addReaderGroupToScope(rgName, readerGroupId);
