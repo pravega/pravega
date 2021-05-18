@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
+import io.pravega.segmentstore.contracts.DynamicAttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
@@ -192,6 +193,9 @@ class SegmentMock implements DirectSegmentAccess {
     @GuardedBy("this")
     @SneakyThrows(BadAttributeUpdateException.class)
     private void collectAttributeValue(AttributeUpdate update, Map<AttributeId, Long> values) {
+        if (update.isDynamic()) {
+            update.setValue(((DynamicAttributeUpdate) update).getValueReference().evaluate(this.metadata));
+        }
         long newValue = update.getValue();
         boolean hasValue = false;
         long previousValue = Attributes.NULL_ATTRIBUTE_VALUE;
@@ -265,6 +269,7 @@ class SegmentMock implements DirectSegmentAccess {
         AttributeIteratorImpl(SegmentMetadata metadata, AttributeId fromId, AttributeId toId) {
             this.attributes = metadata
                     .getAttributes().entrySet().stream()
+                    .filter(e -> !Attributes.isCoreAttribute(e.getKey()))
                     .filter(e -> fromId.compareTo(e.getKey()) <= 0 && toId.compareTo(e.getKey()) >= 0)
                     .sorted(Comparator.comparing(Map.Entry::getKey, AttributeId::compareTo))
                     .collect(Collectors.toCollection(ArrayDeque::new));

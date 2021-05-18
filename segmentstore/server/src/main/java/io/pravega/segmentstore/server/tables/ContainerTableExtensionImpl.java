@@ -161,7 +161,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
-        segmentType = SegmentType.builder(segmentType).tableSegment().build(); // Ensure at least a TableSegment type.
         logRequest("createSegment", segmentName, segmentType);
         return this.segmentContainer.createStreamSegment(segmentName, segmentType, attributeUpdates, timeout);
     }
@@ -170,7 +169,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public CompletableFuture<Void> deleteSegment(@NonNull String segmentName, boolean mustBeEmpty, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         logRequest("deleteSegment", segmentName, mustBeEmpty);
-        return this.hashTableLayout.deleteSegment(segmentName, mustBeEmpty, timeout); // TODO selectLayout. Requires SegmentMetadata...
+        val timer = new TimeoutTimer(timeout);
+        return this.segmentContainer
+                .forSegment(segmentName, timer.getRemaining())
+                .thenComposeAsync(segment -> selectLayout(segment.getInfo()).deleteSegment(segmentName, mustBeEmpty, timer.getRemaining()), this.executor);
     }
 
     @Override

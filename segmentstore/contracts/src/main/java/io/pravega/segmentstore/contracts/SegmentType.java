@@ -177,7 +177,6 @@ public class SegmentType {
      * Attributes Checked:
      * - {@link Attributes#ATTRIBUTE_SEGMENT_TYPE} (base value)
      * - {@link TableAttributes#INDEX_OFFSET} (whether a Table Segment - if not already in base value)
-     * - {@link TableAttributes#SORTED} (whether a Sorted Table Segment - if not already in base value)
      * <p>
      * The {@link TableAttributes} is necessary to support upgrades. {@link SegmentType} was introduced in Pravega 0.9,
      * however Table Segments were introduced in prior versions. Fixed-Key-Length Table Segments were introduced post 0.9,

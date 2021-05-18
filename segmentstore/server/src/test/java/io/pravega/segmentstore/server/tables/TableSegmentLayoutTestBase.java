@@ -17,21 +17,18 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
-import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
+import io.pravega.segmentstore.contracts.tables.IteratorState;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
-import io.pravega.segmentstore.server.DataCorruptionException;
-import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -45,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -55,34 +51,87 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 /**
- * Unit tests for the {@link ContainerTableExtensionImpl} class.
+ * Base Unit tests for the {@link ContainerTableExtensionImpl} class. Derived classes may apply these tests to specific
+ * implementations of {@link TableSegmentLayout}.
  */
-public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
-    private static final long SEGMENT_ID = 2L;
-    private static final String SEGMENT_NAME = "TableSegment";
-    private static final int MAX_KEY_LENGTH = 128;
-    private static final int MAX_VALUE_LENGTH = 64;
-    private static final int SINGLE_UPDATE_COUNT = 10;
-    private static final int BATCH_UPDATE_COUNT = 10000;
-    private static final int BATCH_SIZE = 689;
-    private static final int ITERATOR_BATCH_UPDATE_COUNT = 1000; // Iterators are slower to check, so we reduce our test size.
-    private static final int ITERATOR_BATCH_UPDATE_SIZE = 69;
-    private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private static final Duration THROTTLE_CHECK_TIMEOUT = Duration.ofMillis(500);
-    private static final Comparator<BufferView> KEY_COMPARATOR = BufferViewComparator.create()::compare;
-    @Rule
-    public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
+public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
+    protected static final long SEGMENT_ID = 2L;
+    protected static final String SEGMENT_NAME = "TableSegment";
+    protected static final int MAX_KEY_LENGTH = 128;
+    protected static final int MAX_VALUE_LENGTH = 64;
+    protected static final int SINGLE_UPDATE_COUNT = 10;
+    protected static final int BATCH_UPDATE_COUNT = 10000;
+    protected static final int BATCH_SIZE = 689;
+    protected static final int ITERATOR_BATCH_UPDATE_COUNT = 1000; // Iterators are slower to check, so we reduce our test size.
+    protected static final int ITERATOR_BATCH_UPDATE_SIZE = 69;
+    protected static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
+    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     @Override
     protected int getThreadPoolSize() {
         return 5;
     }
+
+    //region Abstract Methods (to be implemented by derived classes).
+
+    /**
+     * When implemented in a derived class, returns the Key Length to use.
+     *
+     * @return The Key Length.
+     */
+    protected abstract int getKeyLength();
+
+    /**
+     * When implemented in a derived class, creates a new Table Segment with appropriate layout.
+     *
+     * @param context     TableContext.
+     * @param segmentName Segment Name.
+     */
+    protected abstract void createSegment(TableContext context, String segmentName);
+
+    /**
+     * When implemented in a derived class, returns the expected Segment Attributes for a newly created Table Segment.
+     * This is used for validating {@link #createSegment}.
+     *
+     * @param context TableContext.
+     * @return The expected initial Segment Attributes.
+     */
+    protected abstract Map<AttributeId, Long> getExpectedNewSegmentAttributes(TableContext context);
+
+    /**
+     * When implemented in a derived class, returns true if delete-if-empty is supported.
+     *
+     * @return True if delete-if-empty is supported, false otherwise.
+     */
+    protected abstract boolean supportsDeleteIfEmpty();
+
+    /**
+     * When implemented in a derived class, creates a {@link WriterTableProcessor} for async indexing.
+     *
+     * @param context TableContext.
+     * @return A new {@link WriterTableProcessor}, or null if not supported ({@link #shouldExpectWriterTableProcessors()} == false).
+     */
+    protected abstract WriterTableProcessor createWriterTableProcessor(TableContext context);
+
+    /**
+     * When implemented in a derived class, determines if {@link WriterTableProcessor}s are expected/supported.
+     *
+     * @return True if {@link WriterTableProcessor}s are expected, false otherwise.
+     */
+    protected abstract boolean shouldExpectWriterTableProcessors();
+
+    /**
+     * When implemented in a derived class, creates an {@link IteratorState} for an empty Iterator (one that has already
+     * served all its contents.
+     *
+     * @return An {@link IteratorState}.
+     */
+    protected abstract IteratorState createEmptyIteratorState();
+
+    //endregion
 
     /**
      * Tests the ability to create and delete TableSegments.
@@ -94,23 +143,23 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val nonTableSegmentProcessors = context.ext.createWriterSegmentProcessors(context.createSegmentMetadata());
         Assert.assertTrue("Not expecting any Writer Table Processors for non-table segment.", nonTableSegmentProcessors.isEmpty());
 
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        createSegment(context, SEGMENT_NAME);
         Assert.assertNotNull("Segment not created", context.segment());
 
-        val expectedAttributes = context.ext.getConfig().getDefaultCompactionAttributes();
+        val expectedAttributes = getExpectedNewSegmentAttributes(context);
         val attributes = context.segment().getAttributes(expectedAttributes.keySet(), false, TIMEOUT).join();
         AssertExtensions.assertMapEquals("Unexpected compaction attributes.", expectedAttributes, attributes);
 
         val tableSegmentProcessors = context.ext.createWriterSegmentProcessors(context.segment().getMetadata());
-        Assert.assertFalse("Expecting Writer Table Processors for table segment.", tableSegmentProcessors.isEmpty());
+        Assert.assertNotEquals("Expecting Writer Table Processors for table segment.", shouldExpectWriterTableProcessors(), tableSegmentProcessors.isEmpty());
 
         checkIterators(Collections.emptyMap(), context.ext);
 
-        context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT).join();
+        context.ext.deleteSegment(SEGMENT_NAME, supportsDeleteIfEmpty(), TIMEOUT).join();
         Assert.assertNull("Segment not deleted", context.segment());
         AssertExtensions.assertSuppliedFutureThrows(
                 "Segment not deleted.",
-                () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
+                () -> context.ext.deleteSegment(SEGMENT_NAME, this.supportsDeleteIfEmpty(), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
     }
 
@@ -121,7 +170,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     public void testInvalidIteratorState() {
         @Cleanup
         val context = new TableContext(executorService());
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        createSegment(context, SEGMENT_NAME);
         val iteratorArgs = IteratorArgs
                 .builder()
                 .fetchTimeout(TIMEOUT)
@@ -139,7 +188,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     public void testDeleteIfEmpty() {
         @Cleanup
         val context = new TableContext(executorService());
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        createSegment(context, SEGMENT_NAME);
         val key1 = new ByteArraySegment("key1".getBytes());
         val key2 = new ByteArraySegment("key2".getBytes());
         val value = new ByteArraySegment("value".getBytes());
@@ -202,17 +251,20 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     public void testOffsetAcceptingMethods() {
         @Cleanup
         val context = new TableContext(executorService());
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
-        val key1 = new ByteArraySegment("key1".getBytes());
-        val key2 = new ByteArraySegment("key2".getBytes());
+        createSegment(context, SEGMENT_NAME);
+        val key1 = createRandomKey(context);
+        val key2 = createRandomKey(context);
         val value = new ByteArraySegment("value".getBytes());
         val v1 = context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.notExists(key1, value)), TIMEOUT).join();
 
         // key1 is present.
-        AssertExtensions.assertSuppliedFutureThrows(
-                "deleteSegment(mustBeEmpty==true) worked with non-empty segment #1.",
-                () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
-                ex -> ex instanceof TableSegmentNotEmptyException);
+        Assert.assertEquals(value, context.ext.get(SEGMENT_NAME, Collections.singletonList(key1), TIMEOUT).join().get(0).getValue());
+        if (supportsDeleteIfEmpty()) {
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "deleteSegment(mustBeEmpty==true) worked with non-empty segment #1.",
+                    () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
+                    ex -> ex instanceof TableSegmentNotEmptyException);
+        }
 
         val length = context.segment().getInfo().getLength();
         // The SegmentMock used does not process appends via the OperationProcessor so conditional appends are not processed accurately.
@@ -236,30 +288,12 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability to perform unconditional updates using a single key at a time using a {@link KeyHasher} that is
-     * very prone to collisions (in this case, it hashes everything to the same hash).
-     */
-    @Test
-    public void testSingleUpdateUnconditionalCollisions() {
-        testSingleUpdates(KeyHashers.CONSTANT_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
-    }
-
-    /**
      * Tests the ability to perform conditional updates using a single key at a time using a {@link KeyHasher} that is
      * not prone to collisions.
      */
     @Test
     public void testSingleUpdateConditional() {
         testSingleUpdates(KeyHashers.DEFAULT_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
-    }
-
-    /**
-     * Tests the ability to perform conditional updates using a single key at a time using a {@link KeyHasher} that is
-     * very prone to collisions (in this case, it hashes everything to the same hash).
-     */
-    @Test
-    public void testSingleUpdateConditionalCollisions() {
-        testSingleUpdates(KeyHashers.CONSTANT_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
     }
 
     /**
@@ -272,28 +306,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability to perform unconditional updates and removals using a {@link KeyHasher} that is very prone to
-     * collisions.
-     */
-    @Test
-    public void testBatchUpdatesUnconditionalWithCollisions() {
-        testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
-    }
-
-    /**
      * Tests the ability to perform conditional updates and removals using a {@link KeyHasher} that is not prone to collisions.
      */
     @Test
     public void testBatchUpdatesConditional() {
         testBatchUpdates(KeyHashers.DEFAULT_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
-    }
-
-    /**
-     * Tests the ability to perform conditional updates and removals using a {@link KeyHasher} that is very prone to collisions.
-     */
-    @Test
-    public void testBatchUpdatesConditionalWithCollisions() {
-        testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
     }
 
     /**
@@ -310,19 +327,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext));
     }
 
-    /**
-     * Tests the ability to iterate over keys or entries using a {@link KeyHasher} that is very prone to collisions.
-     */
-    @Test
-    public void testIteratorsWithCollisions() {
-        testBatchUpdates(
-                ITERATOR_BATCH_UPDATE_COUNT,
-                ITERATOR_BATCH_UPDATE_SIZE,
-                KeyHashers.COLLISION_HASHER,
-                this::toUnconditionalTableEntry,
-                this::toUnconditionalKey,
-                (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext));
-    }
 
     /**
      * Tests the ability to update and access entries when compaction occurs using a {@link KeyHasher} that is not prone
@@ -343,15 +347,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability to update and access entries when compaction occurs using a {@link KeyHasher} that is very prone
-     * to collisions.
-     */
-    @Test
-    public void testCompactionWithCollisions() {
-        testTableSegmentCompacted(KeyHashers.COLLISION_HASHER, this::check);
-    }
-
-    /**
      * Tests the ability iterate over entries when compaction occurs using a {@link KeyHasher} that is not prone
      * to collisions.
      */
@@ -364,7 +359,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     @SneakyThrows
-    private void testTableSegmentCompacted(KeyHasher keyHasher, CheckTable checkTable) {
+    protected void testTableSegmentCompacted(KeyHasher keyHasher, CheckTable checkTable) {
         val config = TableExtensionConfig.builder()
                 .maxCompactionSize((MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * BATCH_SIZE)
                 .build();
@@ -372,12 +367,10 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val context = new TableContext(config, keyHasher, executorService());
 
         // Create the segment and the Table Writer Processor.
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        createSegment(context, SEGMENT_NAME);
         context.segment().updateAttributes(Collections.singletonMap(TableAttributes.MIN_UTILIZATION, 99L));
         @Cleanup
-        val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
-        Assert.assertNotNull(processor);
-        context.segment().setAppendCallback((offset, length) -> addToProcessor(offset, length, processor));
+        val processor = createWriterTableProcessor(context);
 
         // Generate test data (in update & remove batches).
         val data = generateTestData(BATCH_UPDATE_COUNT, BATCH_SIZE, context);
@@ -430,158 +423,23 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                                                .collect(Collectors.toList());
         context.ext.remove(SEGMENT_NAME, finalRemoval, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         removedKeys.addAll(last.expectedEntries.keySet());
-        deleteSegment(Collections.emptyList(), context.ext);
-    }
-
-    /**
-     * Tests the ability to resume operations after a recovery event. Scenarios include:
-     * - Index is up-to-date ({@link TableAttributes#INDEX_OFFSET} equals Segment.Length.
-     * - Index is not up-to-date ({@link TableAttributes#INDEX_OFFSET} is less than Segment.Length.
-     */
-    @Test
-    public void testRecovery() throws Exception {
-        // Generate a set of TestEntryData (List<TableEntry>, ExpectedResults.
-        // Process each TestEntryData in turn.  After each time, re-create the Extension.
-        // Verify gets are blocked on indexing. Then index, verify unblocked and then re-create the Extension, and verify again.
-        @Cleanup
-        val context = new TableContext(executorService());
-
-        // Create the Segment.
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
-
-        // Close the initial extension, as we don't need it anymore.
-        context.ext.close();
-
-        // Generate test data (in update & remove batches).
-        val data = generateTestData(context);
-
-        // Process each such batch in turn.
-        for (int i = 0; i < data.size(); i++) {
-            val current = data.get(i);
-
-            // First, add the updates from this iteration to the index, but do not flush them. The only long-term effect
-            // of this is writing the data to the Segment.
-            try (val ext = context.createExtension()) {
-                val toUpdate = current.toUpdate
-                        .entrySet().stream().map(e -> toUnconditionalTableEntry(e.getKey(), e.getValue(), 0))
-                        .collect(Collectors.toList());
-                ext.put(SEGMENT_NAME, toUpdate, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                val toRemove = current.toRemove.stream().map(k -> toUnconditionalKey(k, 0)).collect(Collectors.toList());
-                ext.remove(SEGMENT_NAME, toRemove, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            }
-
-            // Create a new instance of the extension (which simulates a recovery) and verify it exhibits the correct behavior.
-            try (val ext = context.createExtension()) {
-                // We should have unindexed data.
-                long lastIndexedOffset = context.segment().getInfo().getAttributes().get(TableAttributes.INDEX_OFFSET);
-                long segmentLength = context.segment().getInfo().getLength();
-                AssertExtensions.assertGreaterThan("Expected some unindexed data.", lastIndexedOffset, segmentLength);
-
-                boolean useProcessor = i % 2 == 0; // This ensures that last iteration uses the processor.
-
-                // Verify get requests are blocked.
-                val key1 = current.expectedEntries.keySet().stream().findFirst().orElse(null);
-                val get1 = ext.get(SEGMENT_NAME, Collections.singletonList(key1), TIMEOUT);
-                val getResult1 = get1.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                Assert.assertEquals("Unexpected completion result for recovered get.",
-                        current.expectedEntries.get(key1), getResult1.get(0).getValue());
-
-                if (useProcessor) {
-                    // Create, populate, and flush the processor.
-                    @Cleanup
-                    val processor = (WriterTableProcessor) ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
-                    addToProcessor(lastIndexedOffset, (int) (segmentLength - lastIndexedOffset), processor);
-                    processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                    Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
-                }
-            }
-        }
-
-        // Verify final result. We create yet another extension here, and purposefully do not instantiate any writer processors;
-        // we want to make sure the data are accessible even without that being created (since the indexing is all caught up).
-        @Cleanup
-        val ext2 = context.createExtension();
-        check(data.get(data.size() - 1).expectedEntries, Collections.emptyList(), ext2);
-    }
-
-    /**
-     * Tests throttling.
-     */
-    @Test
-    public void testThrottling() throws Exception {
-        final int keyLength = 256;
-        final int valueLength = 1024 - keyLength;
-        final int unthrottledCount = 9;
-
-        // We set up throttling such that we allow 'unthrottledCount' through, but block (throttle) on the next one.
-        val config = TableExtensionConfig.builder()
-                .maxUnindexedLength(unthrottledCount * (keyLength + valueLength + EntrySerializer.HEADER_LENGTH))
-                .build();
-
-        val s = new EntrySerializer();
-        @Cleanup
-        val context = new TableContext(config, executorService());
-
-        // Create the Segment and set up the WriterTableProcessor.
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
-        @Cleanup
-        val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
-        Assert.assertNotNull(processor);
-
-        // Update. We expect all these keys to go through.
-        val expectedEntries = new HashMap<BufferView, BufferView>();
-        val allEntries = new ArrayList<TableEntry>();
-        for (int i = 0; i < unthrottledCount; i++) {
-            val toUpdate = TableEntry.unversioned(createRandomData(keyLength, context), createRandomData(valueLength, context));
-            context.ext.put(SEGMENT_NAME, Collections.singletonList(toUpdate), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            expectedEntries.put(toUpdate.getKey().getKey(), toUpdate.getValue());
-            allEntries.add(toUpdate);
-        }
-
-        // Make sure everything we have so far checks out.
-        check(expectedEntries, Collections.emptyList(), context.ext);
-
-        // Attempt to add one more entry. This one should be blocked.
-        val throttledEntry = TableEntry.unversioned(createRandomData(keyLength, context), createRandomData(valueLength, context));
-        val throttledUpdate = context.ext.put(SEGMENT_NAME, Collections.singletonList(throttledEntry), TIMEOUT);
-        expectedEntries.put(throttledEntry.getKey().getKey(), throttledEntry.getValue());
-        allEntries.add(throttledEntry);
-        AssertExtensions.assertThrows(
-                "Not expected throttled update to have been accepted.",
-                () -> throttledUpdate.get(THROTTLE_CHECK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
-                ex -> ex instanceof TimeoutException);
-
-        // Simulate moving the first update through the pipeline. Add it to the WriterTableProcessor and flush it down.
-        int firstEntryLength = s.getUpdateLength(allEntries.get(0));
-        addToProcessor(0, firstEntryLength, processor);
-        processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-        // The throttled update should now be unblocked.
-        throttledUpdate.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-        // Final check and delete.
-        check(expectedEntries, Collections.emptyList(), context.ext);
-        checkIterators(expectedEntries, context.ext);
-
-        context.ext.deleteSegment(SEGMENT_NAME, false, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        deleteSegment(Collections.emptyList(), supportsDeleteIfEmpty(), context.ext);
     }
 
     @SneakyThrows
-    private void testSingleUpdates(KeyHasher hasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
+    protected void testSingleUpdates(KeyHasher hasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
         @Cleanup
         val context = new TableContext(hasher, executorService());
 
         // Generate the keys.
         val keys = IntStream.range(0, SINGLE_UPDATE_COUNT)
-                .mapToObj(i -> createRandomData(MAX_KEY_LENGTH, context))
+                .mapToObj(i -> createRandomKey(context))
                 .collect(Collectors.toList());
 
         // Create the Segment.
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        createSegment(context, SEGMENT_NAME);
         @Cleanup
-        val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
-        Assert.assertNotNull(processor);
-        context.segment().setAppendCallback((offset, length) -> addToProcessor(offset, length, processor));
+        val processor = createWriterTableProcessor(context);
 
         // Update.
         val expectedEntries = new HashMap<BufferView, BufferView>();
@@ -598,8 +456,10 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
             expectedEntries.put(toUpdate.getKey().getKey(), toUpdate.getValue());
             check(expectedEntries, removedKeys, context.ext);
-            processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            check(expectedEntries, removedKeys, context.ext);
+            if (processor != null) {
+                processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                check(expectedEntries, removedKeys, context.ext);
+            }
         }
 
         checkIterators(expectedEntries, context.ext);
@@ -612,31 +472,31 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             expectedEntries.remove(key);
             keyVersions.remove(key);
             check(expectedEntries, removedKeys, context.ext);
-            processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            check(expectedEntries, removedKeys, context.ext);
+            if (processor != null) {
+                processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                check(expectedEntries, removedKeys, context.ext);
+            }
         }
 
         checkIterators(expectedEntries, context.ext);
-        deleteSegment(expectedEntries.keySet(), context.ext);
+        deleteSegment(expectedEntries.keySet(), supportsDeleteIfEmpty(), context.ext);
     }
 
-    private void testBatchUpdates(KeyHasher keyHasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
+    protected void testBatchUpdates(KeyHasher keyHasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
         testBatchUpdates(BATCH_UPDATE_COUNT, BATCH_SIZE, keyHasher, generateToUpdate, generateToRemove, this::check);
     }
 
     @SneakyThrows
-    private void testBatchUpdates(int updateCount, int maxBatchSize, KeyHasher keyHasher,
-                                  EntryGenerator generateToUpdate, KeyGenerator generateToRemove, CheckTable checkTable) {
+    protected void testBatchUpdates(int updateCount, int maxBatchSize, KeyHasher keyHasher,
+                                    EntryGenerator generateToUpdate, KeyGenerator generateToRemove, CheckTable checkTable) {
         @Cleanup
         val context = new TableContext(keyHasher, executorService());
 
         // Create the segment and the Table Writer Processor.
-        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        createSegment(context, SEGMENT_NAME);
         context.segment().updateAttributes(Collections.singletonMap(TableAttributes.MIN_UTILIZATION, 99L));
         @Cleanup
-        val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
-        Assert.assertNotNull(processor);
-        context.segment().setAppendCallback((offset, length) -> addToProcessor(offset, length, processor));
+        val processor = createWriterTableProcessor(context);
 
         // Generate test data (in update & remove batches).
         val data = generateTestData(updateCount, maxBatchSize, context);
@@ -669,10 +529,12 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             removedKeys.addAll(current.toRemove);
             keyVersions.keySet().removeAll(current.toRemove);
 
-            // Flush the processor.
-            Assert.assertTrue("Unexpected result from WriterTableProcessor.mustFlush().", processor.mustFlush());
-            processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
+            if (processor != null) {
+                // Flush the processor.
+                Assert.assertTrue("Unexpected result from WriterTableProcessor.mustFlush().", processor.mustFlush());
+                processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
+            }
 
             // Verify result (from cache).
             checkTable.accept(current.expectedEntries, removedKeys, context.ext);
@@ -694,15 +556,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         ext2.remove(SEGMENT_NAME, finalRemoval, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         removedKeys.addAll(last.expectedEntries.keySet());
         checkTable.accept(Collections.emptyMap(), removedKeys, ext2);
-        deleteSegment(Collections.emptyList(), ext2);
-    }
-
-    private void deleteSegment(Collection<BufferView> remainingKeys, ContainerTableExtension ext) throws Exception {
-        deleteSegment(remainingKeys, true, ext);
+        deleteSegment(Collections.emptyList(), supportsDeleteIfEmpty(), ext2);
     }
 
     private void deleteSegment(Collection<BufferView> remainingKeys, boolean mustBeEmpty, ContainerTableExtension ext) throws Exception {
-        if (remainingKeys.size() > 0) {
+        if (remainingKeys.size() > 0 && supportsDeleteIfEmpty()) {
             AssertExtensions.assertSuppliedFutureThrows(
                     "deleteIfEmpty worked on a non-empty segment.",
                     () -> ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
@@ -724,7 +582,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void check(Map<BufferView, BufferView> expectedEntries, Collection<BufferView> nonExistentKeys, ContainerTableExtension ext) throws Exception {
+    protected void check(Map<BufferView, BufferView> expectedEntries, Collection<BufferView> nonExistentKeys, ContainerTableExtension ext) throws Exception {
         // Verify that non-existing keys are not returned by accident.
         val nonExistingResult = ext.get(SEGMENT_NAME, new ArrayList<>(nonExistentKeys), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected result size for non-existing key search.", nonExistentKeys.size(), nonExistingResult.size());
@@ -750,10 +608,10 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     @SneakyThrows
-    private void checkIterators(Map<BufferView, BufferView> expectedEntries, ContainerTableExtension ext) {
+    protected void checkIterators(Map<BufferView, BufferView> expectedEntries, ContainerTableExtension ext) {
         val emptyIteratorArgs = IteratorArgs
                 .builder()
-                .serializedState(new IteratorStateImpl(KeyHasher.MAX_HASH).serialize())
+                .serializedState(createEmptyIteratorState().serialize())
                 .fetchTimeout(TIMEOUT)
                 .build();
         // Check that invalid serializer state is handled properly.
@@ -765,6 +623,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         // Collect and verify all Table Entries.
         val entryIterator = ext.entryIterator(SEGMENT_NAME, iteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualEntries = collectIteratorItems(entryIterator);
+
         actualEntries.sort(Comparator.comparingLong(e -> e.getKey().getVersion()));
 
         // Get the existing keys. We will use this to check Key Versions.
@@ -790,15 +649,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         return result;
     }
 
-    @SneakyThrows(DataCorruptionException.class)
-    private void addToProcessor(long offset, int length, WriterTableProcessor processor) {
-        val op = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(new byte[length]), null);
-        op.setStreamSegmentOffset(offset);
-        op.setSequenceNumber(offset);
-        processor.add(new CachedStreamSegmentAppendOperation(op));
-    }
 
-    private ArrayList<TestBatchData> generateTestData(TableContext context) {
+    protected ArrayList<TestBatchData> generateTestData(TableContext context) {
         return generateTestData(BATCH_UPDATE_COUNT, BATCH_SIZE, context);
     }
 
@@ -836,7 +688,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 removalCandidates.remove(key);
             } else {
                 // Generate a new Table Entry.
-                BufferView key = createRandomData(Math.max(1, context.random.nextInt(MAX_KEY_LENGTH)), context);
+                BufferView key = createRandomKey(context);
                 BufferView value = createRandomData(context.random.nextInt(MAX_VALUE_LENGTH), context);
                 toUpdate.put(key, value);
                 removalCandidates.add(key);
@@ -848,32 +700,40 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         return new TestBatchData(toUpdate, toRemove, expectedEntries);
     }
 
-    private BufferView createRandomData(int length, TableContext context) {
+    protected BufferView createRandomKey(TableContext context) {
+        return createRandomData(getKeyLength(), context);
+    }
+
+    protected BufferView createRandomKeyRandomLength(TableContext context) {
+        return createRandomData(Math.max(1, context.random.nextInt(MAX_KEY_LENGTH)), context);
+    }
+
+    protected BufferView createRandomData(int length, TableContext context) {
         byte[] data = new byte[length];
         context.random.nextBytes(data);
         return new ByteArraySegment(data);
     }
 
-    private TableEntry toConditionalTableEntry(BufferView key, BufferView value, long currentVersion) {
+    protected TableEntry toConditionalTableEntry(BufferView key, BufferView value, long currentVersion) {
         return TableEntry.versioned(key, value, currentVersion);
     }
 
-    private TableEntry toUnconditionalTableEntry(BufferView key, BufferView value, long currentVersion) {
+    protected TableEntry toUnconditionalTableEntry(BufferView key, BufferView value, long currentVersion) {
         return TableEntry.unversioned(key, value);
     }
 
-    private TableKey toConditionalKey(BufferView keyData, long currentVersion) {
+    protected TableKey toConditionalKey(BufferView keyData, long currentVersion) {
         return TableKey.versioned(keyData, currentVersion);
     }
 
-    private TableKey toUnconditionalKey(BufferView keyData, long currentVersion) {
+    protected TableKey toUnconditionalKey(BufferView keyData, long currentVersion) {
         return TableKey.unversioned(keyData);
     }
 
     //region Helper Classes
 
     @RequiredArgsConstructor
-    private class TestBatchData {
+    protected static class TestBatchData {
         /**
          * A Map of Keys to Values that need updating.
          */
@@ -891,17 +751,17 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     @FunctionalInterface
-    private interface EntryGenerator {
+    protected interface EntryGenerator {
         TableEntry apply(BufferView key, BufferView value, long currentVersion);
     }
 
     @FunctionalInterface
-    private interface KeyGenerator {
+    protected interface KeyGenerator {
         TableKey apply(BufferView key, long currentVersion);
     }
 
     @FunctionalInterface
-    private interface CheckTable {
+    protected interface CheckTable {
         void accept(Map<BufferView, BufferView> expectedEntries, Collection<BufferView> removedKeys, ContainerTableExtension ext) throws Exception;
     }
 

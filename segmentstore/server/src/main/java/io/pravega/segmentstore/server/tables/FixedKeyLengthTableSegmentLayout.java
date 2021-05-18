@@ -47,6 +47,7 @@ import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
+import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
@@ -62,7 +63,10 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
@@ -115,7 +119,9 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
 
     @Override
     CompletableFuture<Void> deleteSegment(@NonNull String segmentName, boolean mustBeEmpty, Duration timeout) {
-        Preconditions.checkArgument(!mustBeEmpty, "mustBeEmpty not supported on Fixed-Key Table Segments.");
+        if (mustBeEmpty) {
+            throw new UnsupportedOperationException("mustBeEmpty not supported on Fixed-Key-Length Table Segments.");
+        }
         return this.connector.deleteSegment(segmentName, timeout);
     }
 
@@ -135,12 +141,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
                     "Entry Key Length for key `%s` incompatible with segment '%s' which requires key lengths of %s.",
                     key, segmentInfo.getName(), segmentKeyLength);
 
-            val attributeId = AttributeId.from(key.getKey().getCopy());
-            val ref = DynamicAttributeValue.segmentLength(batchOffset);
-            val au = key.hasVersion()
-                    ? new DynamicAttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, ref, getCompareVersion(key))
-                    : new DynamicAttributeUpdate(attributeId, AttributeUpdateType.Replace, ref);
-            attributeUpdates.add(au);
+            attributeUpdates.add(createIndexUpdate(key, batchOffset));
             batchOffsets.add(batchOffset);
             batchOffset += this.serializer.getUpdateLength(e);
         }
@@ -169,31 +170,13 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
             Preconditions.checkArgument(key.getKey().getLength() == segmentKeyLength,
                     "Key Length for key `%s` incompatible with segment '%s' which requires key lengths of %s.",
                     key, segmentInfo.getName(), segmentKeyLength);
-
-            val attributeId = AttributeId.from(key.getKey().getCopy());
-            val au = key.hasVersion()
-                    ? new AttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, Attributes.NULL_ATTRIBUTE_VALUE, getCompareVersion(key))
-                    : new AttributeUpdate(attributeId, AttributeUpdateType.Replace, Attributes.NULL_ATTRIBUTE_VALUE);
-            attributeUpdates.add(au);
+            attributeUpdates.add(createIndexRemoval(key));
         }
+
         val result = tableSegmentOffset == NO_OFFSET
                 ? segment.updateAttributes(attributeUpdates, timer.getRemaining())
                 : segment.append(BufferView.empty(), attributeUpdates, tableSegmentOffset, timer.getRemaining());
         return Futures.toVoid(handleConditionalUpdateException(result, segmentInfo));
-    }
-
-    private <T> CompletableFuture<T> handleConditionalUpdateException(CompletableFuture<T> update, SegmentProperties segmentInfo) {
-        return update.exceptionally(ex -> {
-            ex = Exceptions.unwrap(ex);
-            if (ex instanceof BadAttributeUpdateException) {
-                val bau = (BadAttributeUpdateException) ex;
-                ex = bau.isPreviousValueMissing()
-                        ? new KeyNotExistsException(segmentInfo.getName(), bau.getAttributeId().toBuffer())
-                        : new BadKeyVersionException(segmentInfo.getName(), Collections.emptyMap());
-            }
-
-            throw new CompletionException(ex);
-        });
     }
 
     @Override
@@ -244,6 +227,43 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
 
     //region Helpers
 
+    private AttributeUpdate createIndexUpdate(TableKey key, int batchOffset) {
+        val attributeId = AttributeId.from(key.getKey().getCopy());
+        val ref = DynamicAttributeValue.segmentLength(batchOffset);
+        if (key.getVersion() == TableKey.NO_VERSION) {
+            // Unconditional update or insertion. Simply replace the Attribute value (whether or not it exists).
+            return new DynamicAttributeUpdate(attributeId, AttributeUpdateType.Replace, ref);
+        } else if (key.getVersion() == TableKey.NOT_EXISTS) {
+            // Conditional insert. Translate into an AttributeUpdateType.None - only insert if Attribute does not previously exist.
+            return new DynamicAttributeUpdate(attributeId, AttributeUpdateType.None, ref);
+        } else {
+            // General conditional update. Translate into an AttributeUpdateType.ReplaceIfEquals - only accept if given
+            // compare value matches the previous attribute value.
+            return new DynamicAttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, ref, getCompareVersion(key));
+        }
+    }
+
+    private AttributeUpdate createIndexRemoval(TableKey key) {
+        val attributeId = AttributeId.from(key.getKey().getCopy());
+        return key.hasVersion()
+                ? new AttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, Attributes.NULL_ATTRIBUTE_VALUE, getCompareVersion(key))
+                : new AttributeUpdate(attributeId, AttributeUpdateType.Replace, Attributes.NULL_ATTRIBUTE_VALUE);
+    }
+
+    private <T> CompletableFuture<T> handleConditionalUpdateException(CompletableFuture<T> update, SegmentProperties segmentInfo) {
+        return update.exceptionally(ex -> {
+            ex = Exceptions.unwrap(ex);
+            if (ex instanceof BadAttributeUpdateException) {
+                val bau = (BadAttributeUpdateException) ex;
+                ex = bau.isPreviousValueMissing()
+                        ? new KeyNotExistsException(segmentInfo.getName(), bau.getAttributeId().toBuffer())
+                        : new BadKeyVersionException(segmentInfo.getName(), Collections.emptyMap());
+            }
+
+            throw new CompletionException(ex);
+        });
+    }
+
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull DirectSegmentAccess segment,
                                                                               @NonNull GetIteratorItem<T> getItems,
                                                                               @NonNull IteratorArgs args) {
@@ -259,32 +279,66 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         }
 
         val segmentKeyLength = getSegmentKeyLength(segment.getInfo());
-        val fromId = state == null
+        val fromId = state == null || state.getLastKey() == null
                 ? AttributeId.Variable.minValue(segmentKeyLength)
                 : AttributeId.from(state.getLastKey().getCopy()).nextValue();
         if (fromId == null) {
             // We've reached the end.
-            return CompletableFuture.completedFuture(TableIterator.empty());
+            return CompletableFuture.completedFuture(io.pravega.segmentstore.server.tables.TableIterator.empty());
         }
 
         val toId = AttributeId.Variable.maxValue(segmentKeyLength);
         val timer = new TimeoutTimer(args.getFetchTimeout());
         return segment.attributeIterator(fromId, toId, timer.getRemaining())
-                .thenApply(ai -> ai.thenCompose(attributePairs -> {
-                    // Create a new state.
-                    val stateBuilder = IteratorStateImpl.builder();
-                    CompletableFuture<List<T>> result;
-                    if (attributePairs.isEmpty()) {
-                        stateBuilder.lastKey(AttributeId.Variable.maxValue(segmentKeyLength).toBuffer());
-                        result = CompletableFuture.completedFuture(Collections.emptyList());
-                    } else {
-                        stateBuilder.lastKey(attributePairs.get(attributePairs.size() - 1).getKey().toBuffer());
-                        result = getItems.apply(segment, attributePairs, timer);
-                    }
+                .thenApply(ai -> new TableIterator<>(ai, segment, segmentKeyLength, getItems, timer));
+    }
 
-                    // TODO: truncated segment (if compaction)
-                    return result.thenApply(items -> new IteratorItemImpl<>(stateBuilder.build().serialize(), items));
-                }));
+    @RequiredArgsConstructor
+    private class TableIterator<T> implements AsyncIterator<IteratorItem<T>> {
+        private final AttributeIterator attributeIterator;
+        private final DirectSegmentAccess segment;
+        private final int segmentKeyLength;
+        private final GetIteratorItem<T> getItems;
+        private final TimeoutTimer timer;
+
+        @Override
+        public CompletableFuture<IteratorItem<T>> getNext() {
+            return getNextAttributes()
+                    .thenCompose(attributePairs -> {
+                        // Create a new state.
+                        val stateBuilder = IteratorStateImpl.builder();
+                        CompletableFuture<List<T>> result;
+                        if (attributePairs == null) {
+                            // We are done.
+                            return CompletableFuture.completedFuture(null);
+                        } else {
+                            stateBuilder.lastKey(attributePairs.get(attributePairs.size() - 1).getKey().toBuffer());
+                            result = this.getItems.apply(this.segment, attributePairs, this.timer);
+                        }
+
+                        // TODO: truncated segment (if compaction)
+                        return result.thenApply(items -> new IteratorItemImpl<>(stateBuilder.build().serialize(), items));
+                    });
+        }
+
+        private CompletableFuture<List<Map.Entry<AttributeId, Long>>> getNextAttributes() {
+            val result = new AtomicReference<List<Map.Entry<AttributeId, Long>>>();
+            val retry = new AtomicBoolean(true);
+            return Futures.loop(
+                    retry::get,
+                    this.attributeIterator::getNext,
+                    p -> {
+                        result.set(p);
+                        if (p == null || p.isEmpty()) {
+                            retry.set(false);
+                        } else {
+                            p.removeIf(e -> e.getValue() == Attributes.NULL_ATTRIBUTE_VALUE);
+                            retry.set(p.isEmpty());
+                        }
+                    },
+                    executor)
+                    .thenApply(v -> result.get());
+        }
     }
 
     private void ensureSegmentType(String segmentName, SegmentType segmentType) {
@@ -326,13 +380,11 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
     /**
      * Represents the state of a resumable iterator.
      */
-    @RequiredArgsConstructor
+    @AllArgsConstructor
     @Builder
     @Getter
-    private static class IteratorStateImpl implements IteratorState {
+    public static class IteratorStateImpl implements IteratorState {
         private static final Serializer SERIALIZER = new Serializer();
-
-        @NonNull
         private final BufferView lastKey;
 
         @Override
@@ -385,6 +437,9 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
 
             private void read00(RevisionDataInput revisionDataInput, IteratorStateImplBuilder builder) throws IOException {
                 builder.lastKey = new ByteArraySegment(revisionDataInput.readArray());
+                if (builder.lastKey.getLength() == 0) {
+                    builder.lastKey = null;
+                }
             }
 
             private void write00(IteratorStateImpl state, RevisionDataOutput revisionDataOutput) throws IOException {
