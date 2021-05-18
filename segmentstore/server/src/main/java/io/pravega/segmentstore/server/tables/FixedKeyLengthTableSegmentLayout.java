@@ -230,17 +230,9 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
     private AttributeUpdate createIndexUpdate(TableKey key, int batchOffset) {
         val attributeId = AttributeId.from(key.getKey().getCopy());
         val ref = DynamicAttributeValue.segmentLength(batchOffset);
-        if (key.getVersion() == TableKey.NO_VERSION) {
-            // Unconditional update or insertion. Simply replace the Attribute value (whether or not it exists).
-            return new DynamicAttributeUpdate(attributeId, AttributeUpdateType.Replace, ref);
-        } else if (key.getVersion() == TableKey.NOT_EXISTS) {
-            // Conditional insert. Translate into an AttributeUpdateType.None - only insert if Attribute does not previously exist.
-            return new DynamicAttributeUpdate(attributeId, AttributeUpdateType.None, ref);
-        } else {
-            // General conditional update. Translate into an AttributeUpdateType.ReplaceIfEquals - only accept if given
-            // compare value matches the previous attribute value.
-            return new DynamicAttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, ref, getCompareVersion(key));
-        }
+        return key.hasVersion()
+                ? new DynamicAttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, ref, getCompareVersion(key))
+                : new DynamicAttributeUpdate(attributeId, AttributeUpdateType.Replace, ref);
     }
 
     private AttributeUpdate createIndexRemoval(TableKey key) {
@@ -290,14 +282,13 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         val toId = AttributeId.Variable.maxValue(segmentKeyLength);
         val timer = new TimeoutTimer(args.getFetchTimeout());
         return segment.attributeIterator(fromId, toId, timer.getRemaining())
-                .thenApply(ai -> new TableIterator<>(ai, segment, segmentKeyLength, getItems, timer));
+                .thenApply(ai -> new TableIterator<>(ai, segment, getItems, timer));
     }
 
     @RequiredArgsConstructor
     private class TableIterator<T> implements AsyncIterator<IteratorItem<T>> {
         private final AttributeIterator attributeIterator;
         private final DirectSegmentAccess segment;
-        private final int segmentKeyLength;
         private final GetIteratorItem<T> getItems;
         private final TimeoutTimer timer;
 
@@ -329,7 +320,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
                     this.attributeIterator::getNext,
                     p -> {
                         result.set(p);
-                        if (p == null || p.isEmpty()) {
+                        if (p == null) {
                             retry.set(false);
                         } else {
                             p.removeIf(e -> e.getValue() == Attributes.NULL_ATTRIBUTE_VALUE);

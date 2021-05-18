@@ -197,12 +197,8 @@ class SegmentMock implements DirectSegmentAccess {
             update.setValue(((DynamicAttributeUpdate) update).getValueReference().evaluate(this.metadata));
         }
         long newValue = update.getValue();
-        boolean hasValue = false;
-        long previousValue = Attributes.NULL_ATTRIBUTE_VALUE;
-        if (this.metadata.getAttributes().containsKey(update.getAttributeId())) {
-            hasValue = true;
-            previousValue = this.metadata.getAttributes().get(update.getAttributeId());
-        }
+        long previousValue = this.metadata.getAttributes().getOrDefault(update.getAttributeId(), Attributes.NULL_ATTRIBUTE_VALUE);
+        boolean hasValue = previousValue != Attributes.NULL_ATTRIBUTE_VALUE;
 
         switch (update.getUpdateType()) {
             case ReplaceIfGreater:
@@ -212,7 +208,7 @@ class SegmentMock implements DirectSegmentAccess {
 
                 break;
             case ReplaceIfEquals:
-                if (update.getComparisonValue() != previousValue || !hasValue) {
+                if (update.getComparisonValue() != previousValue) {
                     throw new BadAttributeUpdateException("Segment", update, !hasValue,
                             String.format("ReplaceIfEquals (E=%s, A=%s)", previousValue, update.getComparisonValue()));
                 }
