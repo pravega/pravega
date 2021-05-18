@@ -17,7 +17,6 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
@@ -105,20 +104,21 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                 .thenCompose(updated -> updateStreamForAutoStreamCut(scope, stream, configProperty, updated)
                         .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(),
                                 requestId))
-                        .thenCompose(x -> handleSegmentCounUpdates(scope, stream, configProperty, etr, context, executor,
-                                requestId))
+                        .thenCompose(x -> handleSegmentCountUpdates(scope, stream, configProperty, etr, context, executor,
+                                                                    requestId))
+                        .thenCompose(x -> streamMetadataStore.addStreamTagsToIndex(scope, stream, configProperty.getStreamConfiguration(), context, executor))
                         .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context,
                                 executor))
                         .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updated,
                                 context, executor)))));
     }
 
-    private CompletableFuture<Void> handleSegmentCounUpdates(final String scope, final String stream,
-                                                             final StreamConfigurationRecord config,
-                                                             final VersionedMetadata<EpochTransitionRecord> etr,
-                                                             final OperationContext context,
-                                                             final ScheduledExecutorService executor,
-                                                             final long requestId) {
+    private CompletableFuture<Void> handleSegmentCountUpdates(final String scope, final String stream,
+                                                              final StreamConfigurationRecord config,
+                                                              final VersionedMetadata<EpochTransitionRecord> etr,
+                                                              final OperationContext context,
+                                                              final ScheduledExecutorService executor,
+                                                              final long requestId) {
         return streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
                               .thenCompose(activeEpoch -> {
                                   ScalingPolicy scalingPolicy = config.getStreamConfiguration().getScalingPolicy();

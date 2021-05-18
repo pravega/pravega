@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -223,8 +224,13 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> updateStreamTagIndex(String scope, String name, StreamConfiguration config, OperationContext context, Executor executor) {
+    public CompletableFuture<Void> addStreamTagsToIndex(String scope, String name, StreamConfiguration config, OperationContext context, Executor executor) {
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTagsFromIndex(String scope, String name, Set<String> tagsRemoved, OperationContext context, Executor executor) {
+        return null;
     }
 
     @Override

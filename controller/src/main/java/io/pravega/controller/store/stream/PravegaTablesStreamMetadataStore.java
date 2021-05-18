@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -286,14 +287,25 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
-    public CompletableFuture<Void> updateStreamTagIndex(String scope, String streamName, StreamConfiguration config ,
+    public CompletableFuture<Void> addStreamTagsToIndex(String scope, String streamName, StreamConfiguration config,
                                                         OperationContext context, Executor executor) {
         if (streamName.startsWith(NameUtils.INTERNAL_NAME_PREFIX)) {
             // Tags are not allowed on internal streams.
             return CompletableFuture.completedFuture(null);
         } else {
             return Futures.completeOn(((PravegaTablesScope) getScope(scope, context))
-                                              .updateTagsUnderScope(streamName, config.getTags(), context), executor);
+                                              .addTagsUnderScope(streamName, config.getTags(), context), executor);
+        }
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTagsFromIndex(String scope, String streamName, Set<String> tagsRemoved, OperationContext context, Executor executor) {
+        if (streamName.startsWith(NameUtils.INTERNAL_NAME_PREFIX)) {
+            // Tags are not allowed on internal streams.
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return Futures.completeOn(((PravegaTablesScope) getScope(scope, context))
+                                              .removeTagsUnderScope(streamName, tagsRemoved, context), executor);
         }
     }
 

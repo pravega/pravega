@@ -137,6 +137,7 @@ import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
 import org.slf4j.LoggerFactory;
 
+import static io.pravega.client.control.impl.ModelHelper.encode;
 import static io.pravega.controller.stream.api.grpc.v1.Controller.ExistsResponse;
 import static io.pravega.controller.stream.api.grpc.v1.Controller.ScopesRequest;
 import static io.pravega.controller.stream.api.grpc.v1.Controller.ScopesResponse;
@@ -165,6 +166,7 @@ import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_READER_GRO
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_SEGMENTS;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_SEGMENTS_BETWEEN_STREAM_CUTS;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_SEGMENTS_IMMEDIATELY_FOLLOWING;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_STREAM_CONFIGURATION;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_SUCCESSORS_FROM_CUT;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_URI;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.IS_SEGMENT_OPEN;
@@ -560,6 +562,31 @@ public class ControllerImpl implements Controller {
             }
             LoggerHelpers.traceLeave(log, "checkStreamExists", traceId, scopeName, streamName, requestId);
         }, this.executor);
+    }
+
+    @Override
+    public CompletableFuture<StreamConfiguration> getStreamConfiguration(final String scopeName, final String streamName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, GET_STREAM_CONFIGURATION, scopeName, streamName, requestId);
+        final CompletableFuture<StreamConfiguration> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<StreamConfig> callback = new RPCAsyncCallback<>(requestId, GET_STREAM_CONFIGURATION,
+                                                                             scopeName, streamName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, GET_STREAM_CONFIGURATION,
+                                                                      scopeName, streamName)
+                                                             .getStreamConfiguration(StreamInfo.newBuilder()
+                                                                                               .setScope(scopeName)
+                                                                                               .setStream(streamName).build(),
+                                                                                     callback);
+            return callback.getFuture().thenApply(ModelHelper::encode);
+        }, this.executor);
+        return result.whenCompleteAsync((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "{} {}/{} failed: ", GET_STREAM_CONFIGURATION, scopeName, streamName, e);
+            }
+            LoggerHelpers.traceLeave(log, GET_STREAM_CONFIGURATION, traceId, scopeName, streamName, requestId);
+        }, this.executor);
+
     }
 
     @Override
@@ -977,7 +1004,7 @@ public class ControllerImpl implements Controller {
             log.debug(requestId, "Received the following data from the controller {}", segments.getSegmentsList());
             return segments.getSegmentsList()
                            .stream()
-                           .collect(Collectors.toMap(location -> ModelHelper.encode(location.getSegmentId()),
+                           .collect(Collectors.toMap(location -> encode(location.getSegmentId()),
                                    SegmentsAtTime.SegmentLocation::getOffset));
         }, this.executor).whenComplete((x, e) -> {
             if (e != null) {
@@ -1004,7 +1031,7 @@ public class ControllerImpl implements Controller {
             log.debug(requestId, "Received the following data from the controller {}", successors.getSegmentsList());
             Map<SegmentWithRange, List<Long>> result = new HashMap<>();
             for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
-                result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList());
+                result.put(encode(entry.getSegment()), entry.getValueList());
             }
             return new StreamSegmentsWithPredecessors(result, successors.getDelegationToken());
         }, this.executor).whenComplete((x, e) -> {
@@ -1145,7 +1172,7 @@ public class ControllerImpl implements Controller {
             Preconditions.checkState(r.getMinKey() <= r.getMaxKey(),
                     "Min keyrange %s was not less than maximum keyRange %s for segment %s",
                     r.getMinKey(), r.getMaxKey(), r.getSegmentId());
-            rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
+            rangeMap.put(r.getMaxKey(), new SegmentWithRange(encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
         }
         return new StreamSegments(rangeMap);
     }
@@ -1235,10 +1262,10 @@ public class ControllerImpl implements Controller {
 
         for (SegmentRange r : response.getActiveSegmentsList()) {
             Preconditions.checkState(r.getMinKey() <= r.getMaxKey());
-            rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
+            rangeMap.put(r.getMaxKey(), new SegmentWithRange(encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
         }
         StreamSegments segments = new StreamSegments(rangeMap);
-        return new TxnSegments(segments, ModelHelper.encode(response.getTxnId()));
+        return new TxnSegments(segments, encode(response.getTxnId()));
     }
 
     @Override
@@ -1260,7 +1287,7 @@ public class ControllerImpl implements Controller {
         }, this.executor);
         return result.thenApplyAsync(status -> {
             try {
-                return ModelHelper.encode(status.getStatus(), stream + " " + txId);
+                return encode(status.getStatus(), stream + " " + txId);
             } catch (PingFailedException ex) {
                 throw new CompletionException(ex);
             }
@@ -1376,7 +1403,7 @@ public class ControllerImpl implements Controller {
                     callback);
             return callback.getFuture();
         }, this.executor);
-        return result.thenApplyAsync(status -> ModelHelper.encode(status.getState(), stream + " " + txId), this.executor)
+        return result.thenApplyAsync(status -> encode(status.getState(), stream + " " + txId), this.executor)
                 .whenComplete((x, e) -> {
                     if (e != null) {
                         log.warn(requestId, "checkTransactionStatus for transaction {} on  stream {} failed ", txId, stream, e);
@@ -1643,7 +1670,7 @@ public class ControllerImpl implements Controller {
                     Preconditions.checkState(r.getMinKey() <= r.getMaxKey(),
                             "Min keyrange %s was not less than maximum keyRange %s for segment %s",
                             r.getMinKey(), r.getMaxKey(), r.getSegmentId());
-                    rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
+                    rangeMap.put(r.getMaxKey(), new SegmentWithRange(encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
                 }
                 return new KeyValueTableSegments(rangeMap);
             }, this.executor).whenComplete((x, e) -> {
@@ -1685,7 +1712,7 @@ public class ControllerImpl implements Controller {
                     throw new IllegalArgumentException("Scope does not exist: " + scope);
                 case SUCCESS:
                     log.info(requestId, "ReaderGroup created successfully: {}", rgName);
-                    return ModelHelper.encode(x.getConfig());
+                    return encode(x.getConfig());
                 case UNRECOGNIZED:
                 default:
                     throw new ControllerFailureException("Unknown return status creating reader group " + rgName
@@ -1769,7 +1796,7 @@ public class ControllerImpl implements Controller {
                     throw new ReaderGroupNotFoundException(scopedRGName);
                 case SUCCESS:
                     log.info(requestId, "Successfully got config for Reader Group: {}", scopedRGName);
-                    return ModelHelper.encode(x.getConfig());
+                    return encode(x.getConfig());
                 case UNRECOGNIZED:
                 default:
                     throw new ControllerFailureException("Unknown return status getting config for ReaderGroup " + scopedRGName + " " + x.getStatus());
@@ -1918,6 +1945,11 @@ public class ControllerImpl implements Controller {
         public void checkStreamExists(StreamInfo request, RPCAsyncCallback<ExistsResponse> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                       .checkStreamExists(request, callback);
+        }
+
+        public void getStreamConfiguration(StreamInfo request, RPCAsyncCallback<StreamConfig> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .getStreamConfiguration(request, callback);
         }
         
         public void listStreamsInScope(StreamsInScopeRequest request, 

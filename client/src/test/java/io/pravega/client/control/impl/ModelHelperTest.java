@@ -175,7 +175,7 @@ public class ModelHelperTest {
         Controller.RetentionPolicy retentionPolicy = config.getRetentionPolicy();
         assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, retentionPolicy.getRetentionType());
         assertEquals(Duration.ofDays(100L).toMillis(), retentionPolicy.getRetentionParam());
-        assertEquals(Collections.emptyList(), config.getTagList());
+        assertEquals(Collections.emptyList(), config.getTags().getTagList());
     }
 
     @Test
@@ -194,7 +194,7 @@ public class ModelHelperTest {
         Controller.RetentionPolicy retentionPolicy = config.getRetentionPolicy();
         assertEquals(Controller.RetentionPolicy.RetentionPolicyType.TIME, retentionPolicy.getRetentionType());
         assertEquals(Duration.ofDays(100L).toMillis(), retentionPolicy.getRetentionParam());
-        assertEquals(ImmutableList.of("tag1", "tag2"), config.getTagList());
+        assertEquals(ImmutableList.of("tag1", "tag2"), config.getTags().getTagList());
     }
 
     @Test(expected = NullPointerException.class)

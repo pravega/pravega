@@ -76,6 +76,7 @@ import javax.annotation.concurrent.GuardedBy;
 import io.pravega.shared.security.auth.AccessOperation;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
+import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 import static io.pravega.shared.NameUtils.getScopedReaderGroupName;
@@ -137,6 +138,13 @@ public class MockController implements Controller {
         } else {
             return CompletableFuture.completedFuture(false);
         }
+    }
+
+    @Override
+    public CompletableFuture<StreamConfiguration> getStreamConfiguration(String scopeName, String streamName) {
+        CompletableFuture<StreamConfiguration> cf = new CompletableFuture<>();
+        cf.completeExceptionally(new NotImplementedException("GetStreamConfiguration is not implemented"));
+        return cf;
     }
 
     @Override

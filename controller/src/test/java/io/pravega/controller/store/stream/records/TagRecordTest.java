@@ -28,14 +28,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class TagRecordTest {
 
@@ -66,9 +65,9 @@ public class TagRecordTest {
     public void testSerializationLength() {
         TreeSet<String> streamSet = new TreeSet<>();
         int length = 0;
-        while( length < 8 * 1024 * 1024) {
+        while (length < 8 * 1024 * 1024) {
             List<String> newStreams = new ArrayList<>(50);
-            for (int i =0; i < 1000; i ++) {
+            for (int i = 0; i < 1000; i++) {
                 String r = RandomStringUtils.random(255, true, true);
                 newStreams.add(r);
             }
@@ -85,7 +84,7 @@ public class TagRecordTest {
     @Test
     public void testStringListCompression() throws IOException {
         List<String> newStreams = new ArrayList<>(50);
-        for (int i =0; i < 50; i ++) {
+        for (int i = 0; i < 50; i++) {
             String r = RandomStringUtils.random(255, true, true);
             newStreams.add(r);
         }
@@ -129,7 +128,7 @@ public class TagRecordTest {
         }
         ByteArrayOutputStream obj = new ByteArrayOutputStream();
         GZIPOutputStream gzip = new GZIPOutputStream(obj);
-        gzip.write(str.getBytes("UTF-8"));
+        gzip.write(str.getBytes(StandardCharsets.UTF_8));
         gzip.flush();
         gzip.close();
         return obj.toByteArray();
@@ -142,7 +141,7 @@ public class TagRecordTest {
         }
 
         final GZIPInputStream gis = new GZIPInputStream(new ByteArrayInputStream(compressed));
-        final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(gis, "UTF-8"));
+        final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(gis, StandardCharsets.UTF_8));
 
         String line;
         while ((line = bufferedReader.readLine()) != null) {
@@ -150,5 +149,14 @@ public class TagRecordTest {
         }
 
         return outStr.toString();
+    }
+
+
+    @Test
+    public void testAPItoBuilder() {
+        TagRecord r1 = TagRecord.builder().tagName("t1").stream("s1").stream("s2").build();
+        TagRecord r2 = r1.toBuilder().removeStream("s2").build();
+        System.out.println(r1);
+        System.out.println(r2);
     }
 }

@@ -25,6 +25,7 @@ import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.AuthorizationException;
 import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTag;
@@ -106,6 +107,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.lang3.tuple.Pair;
 
+import static io.pravega.client.control.impl.ModelHelper.decode;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.*;
 
 /**
@@ -772,7 +774,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getLease(), requestTag.getRequestId())
                                        .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
                                                                                       .setDelegationToken(delegationToken)
-                                                                                      .setTxnId(ModelHelper.decode(pair.getKey()))
+                                                                                      .setTxnId(decode(pair.getKey()))
                                                                                       .addAllActiveSegments(pair.getValue())
                                                                                       .build()),
                 responseObserver, requestTag);
@@ -981,6 +983,44 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     return Controller.ExistsResponse
                             .newBuilder().setExists(exists)
                             .build();
+                });
+        authenticateExecuteAndProcessResults(stringSupplier, streamFn, responseObserver, requestTag);
+    }
+
+    @Override
+    public void getStreamConfiguration(StreamInfo request, StreamObserver<StreamConfig> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+                                                                            GET_STREAM_CONFIGURATION);
+        String scope = request.getScope();
+        String stream = request.getStream();
+        log.info(requestTag.getRequestId(), "{} called for {}/{}.", GET_STREAM_CONFIGURATION, scope, stream);
+
+        final AuthContext ctx;
+        if (this.grpcAuthHelper.isAuthEnabled()) {
+            ctx = AuthContext.current();
+        } else {
+            ctx = null;
+        }
+
+        Supplier<String> stringSupplier = () -> {
+            String result = this.grpcAuthHelper.checkAuthorization(
+                    authorizationResource.ofStreamInScope(scope, stream),
+                    AuthHandler.Permissions.READ,
+                    ctx);
+            log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                      authorizationResource.ofScopes(), result);
+            return result;
+        };
+        Function<String, CompletableFuture<StreamConfig>> streamFn = delegationToken -> controllerService
+                .getStream(scope, stream, requestTag.getRequestId())
+                .handle((response, e) -> {
+                    if (e != null) {
+                        throw new CompletionException(e);
+                    } else {
+                        StreamConfiguration t = response;
+                        return decode(scope, stream, response);
+
+                    }
                 });
         authenticateExecuteAndProcessResults(stringSupplier, streamFn, responseObserver, requestTag);
     }

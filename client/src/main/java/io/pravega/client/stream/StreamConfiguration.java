@@ -31,7 +31,7 @@ import lombok.Singular;
  * The configuration of a Stream.
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 public class StreamConfiguration implements Serializable {
 
     private static final long serialVersionUID = 1L;

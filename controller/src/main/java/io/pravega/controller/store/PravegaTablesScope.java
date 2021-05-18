@@ -244,9 +244,14 @@ public class PravegaTablesScope implements Scope {
                         tableName, context)));
     }
 
-    public CompletableFuture<Void> updateTagsUnderScope(String stream, Set<String> tags, OperationContext context) {
+    public CompletableFuture<Void> addTagsUnderScope(String stream, Set<String> tags, OperationContext context) {
         return getStreamTagsInScopeTableName(context)
                 .thenCompose(table -> Futures.toVoid(storeHelper.appendValues(table, tags, stream, context.getRequestId())));
+    }
+
+    public CompletableFuture<Void> removeTagsUnderScope(String stream, Set<String> tags, OperationContext context) {
+        return getStreamTagsInScopeTableName(context)
+                .thenCompose(table -> Futures.toVoid(storeHelper.removeValues(table, tags, stream, context.getRequestId())));
     }
 
     public CompletableFuture<Void> removeStreamFromScope(String stream, OperationContext context) {

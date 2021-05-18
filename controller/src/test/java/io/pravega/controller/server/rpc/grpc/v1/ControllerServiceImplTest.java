@@ -182,7 +182,6 @@ public abstract class ControllerServiceImplTest {
                                                                    .tag("tag2")
                                                                    .build();
 
-
         ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
         ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(SCOPE1).build();
         this.controllerService.createScope(scopeInfo, result);
@@ -458,7 +457,6 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM2, configuration2), result2);
         status = result2.get();
         Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
-
 
         // endregion
 

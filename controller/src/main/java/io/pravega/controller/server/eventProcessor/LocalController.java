@@ -110,6 +110,11 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<StreamConfiguration> getStreamConfiguration(String scopeName, String streamName) {
+        return this.controller.getStream(scopeName, streamName, requestIdGenerator.nextLong());
+    }
+
+    @Override
     public CompletableFuture<Boolean> createScope(final String scopeName) {
         return this.controller.createScope(scopeName, requestIdGenerator.nextLong()).thenApply(x -> {
             switch (x.getStatus()) {

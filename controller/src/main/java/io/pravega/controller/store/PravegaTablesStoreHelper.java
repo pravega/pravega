@@ -61,17 +61,11 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import lombok.EqualsAndHashCode;
-import lombok.NonNull;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 import org.apache.curator.shaded.com.google.common.base.Charsets;
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionDropped;
 import static io.pravega.controller.server.WireCommandFailedException.Reason.ConnectionFailed;
-import static java.lang.Enum.valueOf;
 
 /**
  * Helper class for all table related queries to segment store. This class invokes appropriate wire command calls into
@@ -255,9 +249,23 @@ public class PravegaTablesStoreHelper {
                 .whenComplete((r, ex) -> releaseEntries(entries));
     }
 
+    public CompletableFuture<List<Version>> removeValues(final String tableName, Set<String> tableKeys, final String appendValue, long requestId) {
+        Supplier<String> errorMessage = () -> String.format("remove values: on table: %s", tableName);
+
+        // read values and add values
+        return withRetries(() -> removeValuesTables(tableName, appendValue, tableKeys, requestId).exceptionally(e -> {
+            log.debug("append values to table name {} for keys {} with value {} threw an exception {}", tableName, tableKeys, appendValue, e.getMessage());
+            log.warn("ERROR while appending tags", e);
+            throw new CompletionException(e);
+        }).thenApplyAsync(x -> {
+            log.trace("appendValues {} updated to table {} with version {}", appendValue, tableName, x);
+            return x.stream().map(v -> (Version) new Version.LongVersion(v.getSegmentVersion())).collect(Collectors.toList());
+        }), errorMessage, true, requestId);
+    }
+
 
     public CompletableFuture<List<Version>> appendValues(final String tableName, Set<String> tableKeys, final String appendValue, long requestId) {
-        Supplier<String> errorMessage = () -> String.format("update entries: on table: %s", tableName);
+        Supplier<String> errorMessage = () -> String.format("append values: on table: %s", tableName);
 
         // read values and add values
         return withRetries(() -> appendValuesTable(tableName, appendValue, tableKeys, requestId).exceptionally(e -> {
@@ -270,6 +278,38 @@ public class PravegaTablesStoreHelper {
         }), errorMessage, true, requestId);
     }
 
+    private CompletableFuture<List<TableSegmentKeyVersion>> removeValuesTables(String tableName, String removeValue, Set<String> tableKeys, long requestId) {
+        // Get unversioned keys.
+        final List<TableSegmentKey> keys = tableKeys.stream()
+                                                    .map(k -> TableSegmentKey.unversioned(k.getBytes(StandardCharsets.UTF_8)))
+                                                    .collect(Collectors.toList());
+
+        CompletableFuture<List<TableSegmentEntry>> f1 = segmentHelper.readTable(tableName, keys, authToken.get(), requestId) // read the latest version of keys.
+                                                                     .whenComplete((v, ex) -> releaseKeys(keys));
+        f1.thenCompose(currentEntries -> {
+            List<TableSegmentEntry> updatedList = currentEntries.stream().map(entry -> {
+                String k = entry.getKey().getKey().toString(Charset.defaultCharset());
+
+                // this can be externalized as a function.
+                byte[] array = getArray(entry.getValue());
+                byte[] updatedBytes;
+                if (array.length == 0) {
+                    updatedBytes = TagRecord.builder().tagName(k).build().toBytes();
+                } else {
+                    TagRecord record = TagRecord.fromBytes(array);
+                    updatedBytes = record.toBuilder().removeStream(removeValue).build().toBytes();
+                }
+                return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
+                                                   updatedBytes,
+                                                   entry.getKey().getVersion().getSegmentVersion());
+
+            }).collect(Collectors.toList());
+            return segmentHelper.updateTableEntries(tableName, updatedList, authToken.get(), requestId)
+                                .whenComplete((v, ex) -> releaseEntries(updatedList));
+        });
+        return CompletableFuture.completedFuture(Collections.emptyList());
+    }
+
     private CompletableFuture<List<TableSegmentKeyVersion>> appendValuesTable(String tableName, String appendValue, Set<String> tableKeys, long requestId) {
         // Get unversioned keys.
         final List<TableSegmentKey> keys = tableKeys.stream()
@@ -280,15 +320,14 @@ public class PravegaTablesStoreHelper {
                             .thenCompose(currentEntries -> {
                                 List<TableSegmentEntry> updatedList = currentEntries.stream().map(entry -> {
                                     String k = entry.getKey().getKey().toString(Charset.defaultCharset());
-
                                     // this can be externalized as a function.
                                     byte[] array = getArray(entry.getValue());
                                     byte[] updatedBytes;
                                     if (array.length == 0) {
-                                        updatedBytes = TagRecord.builder().tagName(k).tagName(appendValue).build().toBytes();
+                                        updatedBytes = TagRecord.builder().tagName(k).stream(appendValue).build().toBytes();
                                     } else {
                                         TagRecord record = TagRecord.fromBytes(array);
-                                        updatedBytes = record.toBuilder().tagName(appendValue).build().toBytes();
+                                        updatedBytes = record.toBuilder().stream(appendValue).build().toBytes();
                                     }
                                     return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
                                                                        updatedBytes,

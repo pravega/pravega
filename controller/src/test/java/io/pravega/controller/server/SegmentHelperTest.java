@@ -21,8 +21,6 @@ import io.netty.util.ReferenceCountUtil;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.KeyValueTableFactory;
 import io.pravega.client.connection.impl.ClientConnection;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
@@ -30,18 +28,13 @@ import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.KeyValueTable;
-import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.impl.IteratorStateImpl;
-import io.pravega.client.tables.impl.TableSegment;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -73,8 +66,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -622,7 +613,6 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
         Map<String, TagRecord> resultMap = currentEntries.stream().collect(Collectors.toMap(entry -> entry.getKey().getKey().toString(Charset.defaultCharset()),
                                                                                             entry -> TagRecord.fromBytes(getArray(entry.getValue()))));
         System.out.println(resultMap);
-
 
         // s2 -> t1, t3
         tableKeys = Set.of("t1", "t3");

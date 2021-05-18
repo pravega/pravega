@@ -38,7 +38,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 @Data
-@Builder(toBuilder=true)
+@Builder(toBuilder = true)
 public class TagRecord {
 
     private static final TagRecordSerializer SERIALIZER = new TagRecordSerializer();
@@ -47,6 +47,10 @@ public class TagRecord {
     private final Set<String> streams;
 
     public static class TagRecordBuilder implements ObjectBuilder<TagRecord> {
+        public TagRecordBuilder removeStream(String stream) {
+            this.streams.remove(stream);
+            return this;
+        }
     }
 
     @SneakyThrows(IOException.class)
@@ -86,15 +90,15 @@ public class TagRecord {
             byte[] comp = revisionDataInput.readArray();
             Set<String> set = decompressArray(comp);
             configurationRecordBuilder.streams(set);
-//            configurationRecordBuilder.tagName(revisionDataInput.readUTF())
-//                                      .streams(revisionDataInput.readCollection(stringDeserializer, TreeSet::new));
+            //            configurationRecordBuilder.tagName(revisionDataInput.readUTF())
+            //                                      .streams(revisionDataInput.readCollection(stringDeserializer, TreeSet::new));
 
         }
 
         private void write00(TagRecord streamConfigurationRecord, RevisionDataOutput revisionDataOutput)
                 throws IOException {
             revisionDataOutput.writeUTF(streamConfigurationRecord.getTagName());
-//            revisionDataOutput.writeCollection(streamConfigurationRecord.getStreams(), RevisionDataOutput::writeUTF );
+            //            revisionDataOutput.writeCollection(streamConfigurationRecord.getStreams(), RevisionDataOutput::writeUTF );
             byte[] comp = compressArray(streamConfigurationRecord.getStreams());
             revisionDataOutput.writeArray(comp);
         }

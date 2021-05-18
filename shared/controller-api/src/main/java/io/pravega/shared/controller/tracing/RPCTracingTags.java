@@ -26,6 +26,7 @@ public final class RPCTracingTags {
     public static final String DELETE_SCOPE = "deleteScope";
     public static final String CREATE_STREAM = "createStream";
     public static final String CHECK_STREAM_EXISTS = "checkStreamExists";
+    public static final String GET_STREAM_CONFIGURATION = "getStreamConfiguration";
     public static final String UPDATE_STREAM = "updateStream";
     public static final String LIST_SUBSCRIBERS = "listSubscribers";
     public static final String UPDATE_TRUNCATION_STREAM_CUT = "updateTruncationStreamCut";

@@ -43,6 +43,7 @@ import io.pravega.test.integration.demo.ControllerWrapper;
 
 import java.util.Map;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -107,9 +108,12 @@ public class ControllerServiceTest {
         Controller controller = controllerWrapper.getController();
         controller.createScope(scope).join();
         System.out.println("scope created");
-        controller.createStream(scope, stream, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).tag("t1").tag("t2").build()).join();
-        System.out.println("stream created");
-
+        StreamConfiguration strCfg = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).tag("t1").tag("t2").build();
+        controller.createStream(scope, stream, strCfg).join();
+        assertEquals(Set.of("t1", "t2"), controller.getStreamConfiguration(scope, stream).join().getTags());
+        StreamConfiguration strCfgNew = strCfg.toBuilder().clearTags().tags(Set.of("t2", "t3")).build();
+        controller.updateStream(scope, stream, strCfgNew).join();
+        assertEquals(Set.of("t2", "t3"), controller.getStreamConfiguration(scope, stream).join().getTags());
 
     }
     

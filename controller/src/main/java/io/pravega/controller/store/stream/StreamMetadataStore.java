@@ -341,15 +341,27 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                                                            final Executor executor);
 
     /**
-     * Update inverted index for tags.
+     * Add Stream tags into the IndexTable.
      *
      * @param scope        stream scope
      * @param name         stream name.
+     * @param config       stream configuration.
      * @param context      operation context
      * @param executor     callers executor
-     * @return current stream configuration.
+     * @return Future of the operation.
      */
-    CompletableFuture<Void> updateStreamTagIndex(final String scope, final String name, final StreamConfiguration config, final OperationContext context, final Executor executor);
+    CompletableFuture<Void> addStreamTagsToIndex(final String scope, final String name, final StreamConfiguration config, final OperationContext context, final Executor executor);
+
+    /**
+     * Remove Stream tags from the IndexTable.
+     * @param scope stream scope.
+     * @param name stream name.
+     * @param tagsRemoved tags to be removed.
+     * @param context operation context.
+     * @param executor callers executor.
+     * @return Future of the operation.
+     */
+    CompletableFuture<Void> removeTagsFromIndex(final String scope, final String name, Set<String> tagsRemoved, final OperationContext context, final Executor executor);
 
     /**
      * Method to create an operation context for ReaderGroup. A context ensures that multiple calls to store for the same
@@ -457,7 +469,7 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                     final Executor executor);
 
     /**
-     * Delete a Reader Group with the given scope & name.
+     * Delete a Reader Group with the given scope and name.
      *
      * @param scopeName       scope name
      * @param rgName          Reader Group name

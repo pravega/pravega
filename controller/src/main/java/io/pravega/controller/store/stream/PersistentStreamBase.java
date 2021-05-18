@@ -437,7 +437,7 @@ public abstract class PersistentStreamBase implements Stream {
                     } else {
                         update = StreamConfigurationRecord.update(scope, name, newConfiguration);
                     }
-                    return Futures.toVoid(setConfigurationData(new VersionedMetadata<>(update, configRecord.getVersion()),context));
+                    return Futures.toVoid(setConfigurationData(new VersionedMetadata<>(update, configRecord.getVersion()), context));
                 });
     }
 

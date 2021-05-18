@@ -131,7 +131,7 @@ public final class ModelHelper {
         return StreamConfiguration.builder()
                                   .scalingPolicy(encode(config.getScalingPolicy()))
                                   .retentionPolicy(encode(config.getRetentionPolicy()))
-                                  .tags(config.getTagList())
+                                  .tags(config.getTags().getTagList())
                                   .build();
     }
 
@@ -368,12 +368,12 @@ public final class ModelHelper {
     public static final StreamConfig decode(String scope, String streamName, final StreamConfiguration configModel) {
         Preconditions.checkNotNull(configModel, "configModel");
         final StreamConfig.Builder builder = StreamConfig.newBuilder()
-                .setStreamInfo(createStreamInfo(scope, streamName))
-                .setScalingPolicy(decode(configModel.getScalingPolicy()));
+                                                         .setStreamInfo(createStreamInfo(scope, streamName))
+                                                         .setScalingPolicy(decode(configModel.getScalingPolicy()));
         if (configModel.getRetentionPolicy() != null) {
             builder.setRetentionPolicy(decode(configModel.getRetentionPolicy()));
         }
-        builder.addAllTag(configModel.getTags());
+        builder.setTags(Controller.Tags.newBuilder().addAllTag(configModel.getTags()).build());
         return builder.build();
     }
 

@@ -117,6 +117,8 @@ public interface Controller extends AutoCloseable {
      */
     CompletableFuture<Boolean> checkStreamExists(final String scopeName, final String streamName);
 
+    CompletableFuture<StreamConfiguration> getStreamConfiguration(final String scopeName, final String streamName);
+
     /**
      * API to update the configuration of a stream.
      * @param scope Scope
