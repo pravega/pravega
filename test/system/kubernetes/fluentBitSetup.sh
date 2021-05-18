@@ -133,8 +133,6 @@ cp_log() {
     # If we needed to create a directory for this collection, make sure to clean it up.
     kubectl cp "$pravega_log_pod:$MOUNT_PATH/$file" "$output_file" -n=$NAMESPACE > /dev/null
     printf "%.64s (%s/%s)\n" "$file" "$logs_fetched" "$total"
-    tar -rf "$TAR_NAME" "$output_file" 2> /dev/null
-    rm "$output_file"
 }
 
 ######################################
@@ -163,19 +161,27 @@ fetch_fluent_logs() {
     kubectl exec "$pravega_log_pod" -n=$NAMESPACE -- /etc/config/watch.sh force
 
     log_files=()
-    local pods=$@
+    local pods=${@:-""}
     local logs=$(kubectl exec $pravega_log_pod -- find . -mindepth 2 -name '*.gz')
     # For all logs that exist on the PVC, find the logs belonging to the inputted pods.
-    while read -r namespace pod; do
-        tag=${pod##*-}
-        if echo "$logs" | grep "$namespace/${pod%-$tag}/$tag" > /dev/null; then
-            matches=$(echo "$logs" | grep "$namespace/${pod%-$tag}/$tag")
-            for match in $matches; do
-                log_files+=("$match")
-                ((total+=1))
-            done;
-        fi
-    done <<< $pods
+    if [ -n "$pods" ]; then
+        while read -r namespace pod; do
+            tag=${pod##*-}
+            if echo "$logs" | grep "$namespace/${pod%-$tag}/$tag" > /dev/null; then
+                matches=$(echo "$logs" | grep "$namespace/${pod%-$tag}/$tag")
+                for match in $matches; do
+                    log_files+=("$match")
+                    ((total+=1))
+                done;
+            fi
+        done <<< $pods
+    else
+        echo "No pods specified, returning all available logs."
+        for log in $logs; do
+            log_files+=("$log")
+            ((total+=1))
+        done
+    fi
 
     echo "Found $total logs to fetch."
     pushd "$output" > /dev/null 2>&1
@@ -185,11 +191,12 @@ fetch_fluent_logs() {
     for file in "${log_files[@]}"; do
         cp_log "$pravega_log_pod" "$file" &
         ((logs_fetched+=1))
+        if [ $((logs_fetched % 10)) = '0' ]; then
+            wait
+        fi
     done
     wait
 
-    rm -rf "$NAMESPACE"
-    gzip "$TAR_NAME"
     logs_fetched=1
     popd > /dev/null 2>&1
 }
@@ -696,7 +703,11 @@ case $CMD in
     uninstall)
         uninstall
         ;;
-    fetch-logs)
+    fetch-all-logs)
+        dest="$FLUENT_BIT_EXPORT_PATH"
+        fetch_fluent_logs "$dest"
+        ;;
+    fetch-pod-logs)
         dest="$FLUENT_BIT_EXPORT_PATH"
         pods=$(kubectl get pods -n=$NAMESPACE -o custom-columns=:.metadata.namespace,:.metadata.name --no-headers)
         fetch_fluent_logs "$dest" "$pods"
