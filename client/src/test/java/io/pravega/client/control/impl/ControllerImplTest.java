@@ -2237,34 +2237,34 @@ public class ControllerImplTest {
 
     @Test
     public void testCreateKeyValueTable() throws Exception {
+        val kvtConfig = KeyValueTableConfiguration.builder()
+                .partitionCount(1)
+                .primaryKeyLength(4)
+                .secondaryKeyLength(4)
+                .build();
         CompletableFuture<Boolean> createKVTableStatus;
         createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable1",
-                KeyValueTableConfiguration.builder().partitionCount(1).build());
+                kvtConfig);
         assertTrue(createKVTableStatus.get());
 
         createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable2",
-                KeyValueTableConfiguration.builder().partitionCount(1).build());
+                kvtConfig);
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 createKVTableStatus, Throwable -> true);
 
         createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable3",
-                KeyValueTableConfiguration.builder().partitionCount(1).build());
+                kvtConfig);
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 createKVTableStatus, Throwable -> true);
 
         createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable4",
-                KeyValueTableConfiguration.builder().partitionCount(1).build());
+                kvtConfig);
         assertFalse(createKVTableStatus.get());
 
         createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable5",
-                KeyValueTableConfiguration.builder().partitionCount(1).build());
+                kvtConfig);
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 createKVTableStatus, Throwable -> true);
-
-        createKVTableStatus = controllerClient.createKeyValueTable("scope1", "kvtable6",
-                KeyValueTableConfiguration.builder().partitionCount(0).build());
-        AssertExtensions.assertFutureThrows("Server should throw IllegalArgumentException.",
-                createKVTableStatus, IllegalArgumentException -> true);
     }
 
     @Test

@@ -15,22 +15,28 @@
  */
 package io.pravega.client.tables;
 
-import lombok.val;
-import org.junit.Assert;
-import org.junit.Test;
+import java.nio.ByteBuffer;
+import lombok.Getter;
+import lombok.ToString;
 
 /**
- * Unit tests for the {@link TableEntry} class.
+ * Represents an Insertion of a {@link TableKey} (with a value) into a {@link KeyValueTable}.
  */
-public class TableEntryTests {
-    @Test
-    public void testConstructor() {
-        String keyContents = "KeyContents";
-        long valueContents = 1234L;
-        val k = TableKey.notExists(keyContents);
-        val e = TableEntry.notExists(k, valueContents);
-        Assert.assertEquals(k.getVersion(), e.getKey().getVersion());
-        Assert.assertEquals(keyContents, e.getKey().getKey().getKey());
-        Assert.assertEquals(valueContents, (long) e.getValue());
+@Getter
+@ToString
+public final class Insert extends TableEntryUpdate {
+    /**
+     * Creates a new instance of the {@link Insert} class.
+     *
+     * @param key   The {@link TableKey} to insert.
+     * @param value The Value to associate with {@code key}.
+     */
+    public Insert(TableKey key, ByteBuffer value) {
+        super(key, value);
+    }
+
+    @Override
+    public Version getVersion() {
+        return Version.NOT_EXISTS;
     }
 }

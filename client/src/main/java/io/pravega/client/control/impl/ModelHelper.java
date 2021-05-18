@@ -144,8 +144,11 @@ public final class ModelHelper {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(config.getScope(), "scope");
         Preconditions.checkNotNull(config.getKvtName(), "kvtName");
-        Preconditions.checkArgument(config.getPartitionCount() > 0, "Number of partitions should be > 0.");
-        return KeyValueTableConfiguration.builder().partitionCount(config.getPartitionCount()).build();
+        return KeyValueTableConfiguration.builder()
+                .partitionCount(config.getPartitionCount())
+                .primaryKeyLength(8)    // TODO fix this with https://github.com/pravega/pravega/issues/5939
+                .secondaryKeyLength(4)  // TODO fix this with https://github.com/pravega/pravega/issues/5939
+                .build();
     }
 
     /**
