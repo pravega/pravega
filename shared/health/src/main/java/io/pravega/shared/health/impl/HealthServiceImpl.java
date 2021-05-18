@@ -15,21 +15,26 @@
  */
 package io.pravega.shared.health.impl;
 
-import io.pravega.shared.health.ContributorRegistry;
+import io.pravega.shared.health.Health;
+import io.pravega.shared.health.Status;
+import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthServiceUpdater;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class HealthServiceImpl implements HealthService {
 
-    private final ContributorRegistry registry;
-
+    /**
+     * The root {@link HealthContributor} of the service. All {@link HealthContributor} objects are reachable from this
+     * contributor.
+     */
+    @Getter
+    private final HealthContributor root;
     /**
      * The {@link HealthServiceUpdater} which provides passive health updates.
      */
@@ -47,21 +52,11 @@ public class HealthServiceImpl implements HealthService {
 
     public HealthServiceImpl(String name) {
         this.name = name;
-        this.registry = new ContributorRegistryImpl(name);
-        this.endpoint = new HealthEndpointImpl(this.registry);
+        this.root = new RootHealthContributor();
+        this.endpoint = new HealthEndpointImpl(this.root);
         // Initializes the ContributorRegistry into the expected starting state.
         this.closed = new AtomicBoolean();
         this.updater = new HealthServiceUpdaterImpl(this);
-    }
-
-    @Override
-    public Collection<String> getComponents() {
-        return getRegistry().getComponents();
-    }
-
-    @Override
-    public ContributorRegistry getRegistry() {
-        return this.registry;
     }
 
     @Override
@@ -74,19 +69,24 @@ public class HealthServiceImpl implements HealthService {
         return updater;
     }
 
-    /**
-     * Reverts the state of the {@link HealthService} had it just been initialized.
-     */
-    @Override
-    public void clear() {
-        this.registry.clear();
-    }
-
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
             this.updater.close();
-            this.clear();
+        }
+    }
+
+    class RootHealthContributor extends HealthContributorImpl {
+
+        RootHealthContributor() {
+            super(name, StatusAggregatorImpl.UNANIMOUS);
+        }
+
+        @Override
+        public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
+            Status status = Status.UP;
+            builder.status(status);
+            return status;
         }
     }
 }

@@ -15,7 +15,6 @@
  */
 package io.pravega.shared.health.impl;
 
-import io.pravega.shared.health.ContributorRegistry;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthEndpoint;
@@ -24,18 +23,15 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
 public class HealthEndpointImpl implements HealthEndpoint {
 
     @NonNull
-    private final ContributorRegistry registry;
+    private final HealthContributor root;
 
     /**
      * Provides the name of the root {@link HealthContributor}.
@@ -43,35 +39,22 @@ public class HealthEndpointImpl implements HealthEndpoint {
      */
     @Override
     public String getDefaultContributorName() {
-        return registry.getRootContributor().getName();
+        return root.getName();
     }
 
     /**
      * Validates that the {@link HealthContributor} exists and requests it's {@link Health}.
      *
-     * @param id  The id/name of the {@link HealthComponent} to check the {@link Health} of.
-     * @param includeDetails Whether or not to include detailed information provided by said {@link HealthComponent}.
+     * @param id  The id/name of the {@link HealthContributor} to check the {@link Health} of.
+     * @param includeDetails Whether or not to include detailed information provided by said {@link HealthContributor}.
      * @return The {@link Health} result of the {@link HealthContributor} with name 'id'. Returns NULL if 'id' does not map to
      * a {@link HealthContributor}.
      */
     @NonNull
     @Override
     public Health getHealth(String id, boolean includeDetails) {
-        HealthContributor result = registry.get(id);
-        return result == null ? null : result.getHealthSnapshot(includeDetails);
-    }
-
-    /**
-     * Provides a {@link List} of ids (names) that the {@link HealthContributor} depends on.
-     *
-     * @param id The id of the {@link HealthContributor} to request from the {@link ContributorRegistry}.
-     * @return The {@link List} of dependencies.
-     */
-    @Override
-    public Collection<String> getDependencies(String id) {
-        return getHealth(id, true).getChildren().stream()
-                .map(child -> child.getName())
-                .collect(Collectors.toList());
+        HealthContributor result = search(root, id);
+        return result == null ? null : result.getHealthSnapshot();
     }
 
     /**
@@ -118,5 +101,21 @@ public class HealthEndpointImpl implements HealthEndpoint {
         return getHealth(id, true).getDetails();
     }
 
+    // Performs a basic recursive dfs to find if there exists some HealthContributor with name 'id' that is reachable
+    // from a given HealthContributor.
+    private HealthContributor search(HealthContributor current, String id) {
+        if (current.getName() == id) {
+            return current;
+        }
+
+        for (Map.Entry<String, HealthContributor> entry: current.getContributors().entrySet()) {
+            HealthContributor contributor = entry.getValue();
+            if (search(contributor, id) != null) {
+                return contributor;
+            }
+        }
+
+        return null;
+    }
 }
 

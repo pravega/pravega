@@ -15,9 +15,6 @@
  */
 package io.pravega.shared.health;
 
-import io.pravega.shared.health.impl.HealthComponent;
-
-import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -96,8 +93,7 @@ public interface HealthEndpoint {
 
     /**
      * Fetches the results from the list of {@link java.util.function.Supplier} provided during {@link HealthContributor}
-     * construction. This operation is essentially a NOP on {@link HealthComponent} objects -- a map with
-     * with no entries will always be returned.
+     * construction.
      *
      * @param id The id of some {@link HealthContributor} to search for.
      * @return The {@link Map} of details results.
@@ -106,7 +102,7 @@ public interface HealthEndpoint {
 
     /**
      * Calls {@link HealthEndpoint#getHealth(String, boolean)} with a false value and forwards the 'id' {@link String}.
-     * @param id  The id/name of the {@link HealthComponent} to check the {@link Health} of.
+     * @param id  The id/name of the {@link HealthContributor} to check the {@link Health} of.
      * @return The {@link Health} object of the {@link HealthContributor}.
      */
     default Health getHealth(String id) {
@@ -119,31 +115,11 @@ public interface HealthEndpoint {
 
     /**
      * Similar to a {@link HealthContributor}, a {@link HealthService} should also provide some way to access the {@link Health}
-     * of the service. The difference is a {@link HealthService} is concerned with one or many {@link HealthComponent},
-     * where as a {@link HealthContributor} should just be concerned with it's own {@link Health}.
+     * of the service.
      *
-     * @param id  The id/name of the {@link HealthComponent} to check the {@link Health} of.
-     * @param includeDetails Whether or not to include detailed information provided by said {@link HealthComponent}.
+     * @param id  The id/name of the {@link HealthContributor} to check the {@link Health} of.
+     * @param includeDetails Whether or not to include detailed information provided by said {@link HealthContributor}.
      * @return The {@link Health} object of the {@link HealthContributor}.
      */
     Health getHealth(String id, boolean includeDetails);
-
-    /**
-     * Retrieve the list of {@link HealthContributor} names that are used to determine the {@link Health} result
-     * for the root {@link HealthContributor}.
-     *
-     * @return The list of names (ids) that the root {@link HealthContributor} relies on.
-     */
-    default Collection<String> getDependencies() {
-        return getDependencies(getDefaultContributorName());
-    }
-
-    /**
-     * Retrieve the list of {@link HealthContributor} names that are used to determine the {@link Health} result
-     * for a particular {@link HealthContributor} mapped by 'id'.
-     *
-     * @param id The id of the {@link HealthContributor} to request from the {@link ContributorRegistry}.
-     * @return The list of names (ids) that the {@link HealthContributor} relies on.
-     */
-    Collection<String> getDependencies(String id);
 }

@@ -73,4 +73,8 @@ public enum Status {
         this.alive = code >= 1;
         this.ready = code >= 3;
     }
+
+    public static Status min(Status one, Status two) {
+        return one.getCode() < two.getCode() ? one : two;
+    }
 }

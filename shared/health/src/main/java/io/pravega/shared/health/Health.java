@@ -16,7 +16,6 @@
 package io.pravega.shared.health;
 
 import com.google.common.collect.ImmutableMap;
-import io.pravega.shared.health.impl.CompositeHealthContributor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -24,11 +23,11 @@ import lombok.Getter;
 import com.google.common.collect.ImmutableList;
 
 import javax.annotation.concurrent.ThreadSafe;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 /**
- * The {@link Health} class represents the data gathered by a {@link HealthIndicator} after performing a health check.
+ * The {@link Health} class represents the data gathered by a {@link HealthContributor} after performing a health check.
  */
 @Builder
 @ThreadSafe
@@ -52,11 +51,11 @@ public class Health {
     private final Map<String, Object> details = ImmutableMap.of();
 
     /**
-     * A {@link CompositeHealthContributor} may be composed of any number of child {@link HealthContributor}.
+     * The {@link Health} results of the children belonging to a {@link HealthContributor}.
      */
     @Getter
     @Builder.Default
-    private final List<Health> children = ImmutableList.of();
+    private final Collection<Health> children = ImmutableList.of();
 
     /**
      * Used to perform readiness checks. It determines if the {@link Health} object holds a {@link Status} that is considered 'ready'.

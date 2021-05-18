@@ -21,17 +21,13 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import io.pravega.shared.health.TestHealthIndicators.SampleHealthyIndicator;
-import io.pravega.shared.health.TestHealthIndicators.SampleFailingIndicator;
+import io.pravega.shared.health.TestHealthContributors.HealthyContributor;
+import io.pravega.shared.health.TestHealthContributors.FailingContributor;
 
 import io.pravega.test.common.AssertExtensions;
 
-import java.time.Duration;
-
 @Slf4j
 public class HealthServiceUpdaterTests {
-
-    public static final Duration TIMEOUT = Duration.ofSeconds(10);
 
     HealthService service;
 
@@ -62,11 +58,11 @@ public class HealthServiceUpdaterTests {
 
     @Test
     public void testServiceUpdaterProperlyUpdates() throws Exception {
-        service.getRegistry().register(new SampleHealthyIndicator());
+        service.getRoot().add(new HealthyContributor());
         // First Update.
         assertHealthServiceStatus(Status.UP);
         // We register an indicator that will return a failing result, so the next health check should contain a 'DOWN' Status.
-        service.getRegistry().register(new SampleFailingIndicator());
+        service.getRoot().add(new FailingContributor());
         assertHealthServiceStatus(Status.DOWN);
     }
 

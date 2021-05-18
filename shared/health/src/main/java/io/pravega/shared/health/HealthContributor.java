@@ -17,6 +17,7 @@ package io.pravega.shared.health;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 /**
  * A {@link HealthContributor} is an interface that is able to provide or *contribute* health information relating to
@@ -30,8 +31,8 @@ public interface HealthContributor {
      *
      * @return The list of {@link HealthContributor} contributing to this {@link HealthContributor}.
      */
-    default Collection<HealthContributor> getContributors() {
-        return Collections.emptyList();
+    default Map<String, HealthContributor> getContributors() {
+        return Collections.emptyMap();
     }
 
     /**
@@ -40,18 +41,21 @@ public interface HealthContributor {
      *
      * @return The {@link Health} object produced by this {@link HealthContributor}.
      */
-    default Health getHealthSnapshot() {
-        return getHealthSnapshot(false);
-    }
+    Health getHealthSnapshot();
 
     /**
-     * Logically equivalent to the above, but instead of just returning an encapsulated {@link Health} object,
-     * we also include the {@link DetailsProvider} associated with the request.
-     *
-     * @param details Flag to control inclusion of {@link DetailsProvider}.
-     * @return The {@link Health} object produced by this {@link HealthContributor}.
+     * Adds the provided {@link HealthContributor} as a dependency to this contributor.
+     * @param contributor The {@link HealthContributor} to add.
      */
-    Health getHealthSnapshot(boolean details);
+    void add(HealthContributor contributor);
+
+    /**
+     * Removes the provided {@link HealthContributor} from its {@link Collection} of child {@link HealthContributor}.
+     * @param contributor The {@link HealthContributor} to remove.
+     *
+     * @return True if the HealthContributor was successfully removed from the contributors collection.
+     */
+    HealthContributor remove(HealthContributor contributor);
 
     /**
      * A human-readable identifier used for logging.

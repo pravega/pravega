@@ -15,28 +15,12 @@
  */
 package io.pravega.shared.health;
 
-import java.util.Collection;
-
 /**
  * The top level interface used to provide any and all health related information for a particular component
- * of Pravega. It holds the {@link ContributorRegistry} and provides the {@link HealthEndpoint} used to make health
+ * of Pravega. It provides the {@link HealthEndpoint} used to make health
  * information accessible to clients.
  */
 public interface HealthService extends AutoCloseable {
-
-    /**
-     * Returns a {@link Collection} of all the components the {@link HealthService} is responsible for and observes.
-     * @return
-     */
-    Collection<String> getComponents();
-
-    /**
-     * The {@link ContributorRegistry} acts as the means to organize and references to the various {@link HealthContributor}
-     * objects we wish to track.
-     *
-     * @return The {@link ContributorRegistry} backing the {@link HealthService}.
-     */
-    ContributorRegistry getRegistry();
 
     /**
      * The main interface between some client and the {@link HealthService}. The {@link HealthEndpoint} encapsulates
@@ -48,22 +32,24 @@ public interface HealthService extends AutoCloseable {
 
     /**
      * Provides the {@link HealthServiceUpdater} that currently performs the background {@link Health} requests (of the root).
+     *
      * @return The  {@link HealthServiceUpdater}.
      */
     HealthServiceUpdater getHealthServiceUpdater();
 
     /**
-     * Provides the name assigned to this {@link HealthService}. This name will also act as the name for the root
-     * {@link HealthContributor} of it's {@link ContributorRegistry}.
+     * Provides access to the top level {@link HealthContributor} used for this service.
+     *
+     * @return The root {@link HealthContributor}.
+     */
+    HealthContributor getRoot();
+
+    /**
+     * Provides the name assigned to this {@link HealthService}.
      *
      * @return The name of the service.
      */
     String getName();
-
-    /**
-     * Removes all state (contents of the {@link ContributorRegistry}) from this object.
-     */
-    void clear();
 
     @Override
     void close();

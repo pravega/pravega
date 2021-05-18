@@ -26,7 +26,7 @@ public interface StatusAggregator {
 
     /**
      * Reduces a {@link Collection} of {@link Status} objects into a single {@link Status} object
-     * representing the overall health of the given {@link io.pravega.shared.health.impl.CompositeHealthContributor}.
+     * representing the overall health of the given {@link io.pravega.shared.health.HealthContributor}.
      *
      * @param statuses The {@link Collection} of {@link Status}.
      * @return The reduced {@link Status}.

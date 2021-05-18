@@ -37,14 +37,14 @@ public class DetailsProvider {
     private final Map<String, Supplier<Object>> suppliers = new HashMap<>();
 
     /**
-     * Add some piece of information to be retrieved everytime a health check (by some {@link HealthIndicator} occurs.
+     * Add some piece of information to be retrieved everytime a health check (by some {@link HealthContributor} occurs.
      *
      * @param key The key to associate the value with.
      * @param supplier A supplier used to return the value to be associated with 'key'.
      * @return Itself with the additions applied.
      */
     @NonNull
-    DetailsProvider add(String key, Supplier<Object> supplier) {
+    public DetailsProvider add(String key, Supplier<Object> supplier) {
         this.suppliers.put(key, supplier);
         return this;
     }
@@ -54,7 +54,7 @@ public class DetailsProvider {
      *
      * @return An {@link ImmutableMap} of results.
      */
-    ImmutableMap<String, Object> fetch() {
+    public ImmutableMap<String, Object> fetch() {
         ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
         suppliers.forEach((key, val) -> builder.put(key, val.get()));
         return builder.build();
