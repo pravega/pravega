@@ -24,7 +24,6 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
@@ -48,11 +47,6 @@ import javax.annotation.concurrent.GuardedBy;
 @Slf4j
 public class BookKeeperLogFactory implements DurableDataLogFactory {
     //region Members
-
-    // Period of inspection to meet the maximum number of log creation attempts for a given container.
-    private static final Duration LOG_CREATION_INSPECTION_PERIOD = Duration.ofSeconds(60);
-    // Maximum number of log creation attempts for a given container before considering resetting the BK client.
-    private static final int MAX_CREATE_ATTEMPTS_PER_LOG = 2;
 
     private final String namespace;
     private final CuratorFramework zkClient;
@@ -212,7 +206,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                 record.incrementLogCreations();
                 // If the number of restarts for a single container is meets the threshold, let's reset the BK client.
                 if (record.isBookkeeperClientResetNeeded()
-                        && lastBookkeeperClientReset.get().getElapsed().compareTo(LOG_CREATION_INSPECTION_PERIOD) > 0) {
+                        && lastBookkeeperClientReset.get().getElapsed().compareTo(this.config.getInspectionTimeToResetClient()) > 0) {
                     try {
                         log.info("Start creating Bookkeeper client in reset.");
                         BookKeeper newClient = startBookKeeperClient();
@@ -248,7 +242,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     /**
      * Keeps track of the number of log creation attempts within an inspection period.
      */
-    static class LogInitializationRecord {
+    private class LogInitializationRecord {
         private final AtomicReference<Timer> timer = new AtomicReference<>(new Timer());
         private final AtomicInteger counter = new AtomicInteger(0);
 
@@ -259,7 +253,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
          * @return whether to re-create the Bookkeeper client or not.
          */
         boolean isBookkeeperClientResetNeeded() {
-            return timer.get().getElapsed().compareTo(LOG_CREATION_INSPECTION_PERIOD) < 0 && counter.get() >= MAX_CREATE_ATTEMPTS_PER_LOG;
+            return timer.get().getElapsed().compareTo(config.getInspectionTimeToResetClient()) < 0
+                    && counter.get() >= config.getContainerRestartsToResetClient();
         }
 
         /**
@@ -269,7 +264,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         void incrementLogCreations() {
             // If the time since the last log creation is too far, we need to refresh the timer to the new inspection
             // period and set the counter of log creations to 1.
-            if (timer.get().getElapsed().compareTo(LOG_CREATION_INSPECTION_PERIOD) > 0) {
+            if (timer.get().getElapsed().compareTo(config.getInspectionTimeToResetClient()) > 0) {
                 timer.set(new Timer());
                 counter.set(1);
             } else {
