@@ -147,8 +147,7 @@ public class ZkStoreBucketServiceTest extends BucketServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, bucketStore2, 
-                taskMetadataStore, segmentHelper, executor2, hostId, GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker);
+                taskMetadataStore, segmentHelper, executor2, hostId, GrpcAuthHelper.getDisabledAuthHelper());
 
         String scope = "scope1";
         String streamName = "stream1";

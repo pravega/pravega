@@ -32,6 +32,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -73,14 +74,14 @@ public abstract class KVTableMetadataStoreTest {
         assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS)
                 || scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS));
 
-        byte[] newUUID1 = store.newScope(scope).newId();
-        store.createEntryForKVTable(scope, kvtable1, newUUID1, executor).get();
+        UUID id = store.newScope(scope).newId();
+        store.createEntryForKVTable(scope, kvtable1, id, null, executor).get();
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scope, kvtable1, configuration1, start, null, executor).get();
         store.setState(scope, kvtable1, KVTableState.ACTIVE, null, executor).get();
 
-        byte[] newUUID2 = store.newScope(scope).newId();
-        store.createEntryForKVTable(scope, kvtable2, newUUID2, executor).get();
+        id = store.newScope(scope).newId();
+        store.createEntryForKVTable(scope, kvtable2, id, null, executor).get();
         store.createKeyValueTable(scope, kvtable2, configuration2, start, null, executor).get();
         store.setState(scope, kvtable2, KVTableState.ACTIVE, null, executor).get();
 
@@ -103,20 +104,20 @@ public abstract class KVTableMetadataStoreTest {
         assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS)
                 || scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SCOPE_EXISTS));
 
-        byte[] newUUID1 = store.newScope(scope).newId();
-        store.createEntryForKVTable(scope, kvtable1, newUUID1, executor).get();
+        UUID id = store.newScope(scope).newId();
+        store.createEntryForKVTable(scope, kvtable1, id, null, executor).get();
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scope, kvtable1, configuration1, start, null, executor).get();
         store.setState(scope, kvtable1, KVTableState.ACTIVE, null, executor).get();
 
-        byte[] newUUID2 = store.newScope(scope).newId();
-        store.createEntryForKVTable(scope, kvtable2, newUUID2, executor).get();
+        id = store.newScope(scope).newId();
+        store.createEntryForKVTable(scope, kvtable2, id, null, executor).get();
         store.createKeyValueTable(scope, kvtable2, configuration2, start, null, executor).get();
         store.setState(scope, kvtable2, KVTableState.ACTIVE, null, executor).get();
 
         Pair<List<String>, String> kvTablesInScope = store.listKeyValueTables(scope,
                                                     Controller.ContinuationToken.newBuilder().build().getToken(),
-                                                    2, executor).get();
+                                                    2, null, executor).get();
 
         assertEquals("List kvtables in scope", 2, kvTablesInScope.getKey().size());
         assertTrue("Found KVTable1", kvTablesInScope.getKey().contains(kvtable1));
@@ -125,7 +126,7 @@ public abstract class KVTableMetadataStoreTest {
         // List streams in non-existent scope 'Scope1'
         try {
             store.listKeyValueTables("Scope1", Controller.ContinuationToken.newBuilder().build().getToken(),
-                    2, executor).join();
+                    2, null, executor).join();
         } catch (StoreException se) {
             assertTrue("List streams in non-existent scope Scope1",
                     se instanceof StoreException.DataNotFoundException);
@@ -143,15 +144,15 @@ public abstract class KVTableMetadataStoreTest {
 
         // create KeyValueTable in scope
         Controller.CreateScopeStatus scopeCreateStatus = createScope(scopeName);
-        assertTrue(scopeCreateStatus.getStatus().equals(Controller.CreateScopeStatus.Status.SUCCESS));
+        assertEquals(scopeCreateStatus.getStatus(), Controller.CreateScopeStatus.Status.SUCCESS);
 
-        byte[] newUUID1 = store.newScope(scopeName).newId();
-        store.createEntryForKVTable(scopeName, kvtName, newUUID1, executor).get();
+        UUID id = store.newScope(scope).newId();
+        store.createEntryForKVTable(scopeName, kvtName, id, null, executor).get();
         long start = System.currentTimeMillis();
         store.createKeyValueTable(scopeName, kvtName, config, start, null, executor).get();
         store.setState(scopeName, kvtName, KVTableState.ACTIVE, null, executor).get();
-        assertTrue(store.checkTableExists(scopeName, kvtName).join());
+        assertTrue(store.checkTableExists(scopeName, kvtName, null, executor).join());
         store.deleteKeyValueTable(scopeName, kvtName, null, executor).get();
-        assertFalse(store.checkTableExists(scopeName, kvtName).join());
+        assertFalse(store.checkTableExists(scopeName, kvtName, null, executor).join());
     }
 }

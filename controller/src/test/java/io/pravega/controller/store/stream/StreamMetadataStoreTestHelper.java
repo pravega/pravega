@@ -16,6 +16,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.controller.store.PravegaTablesScope;
+import io.pravega.controller.store.TestOperationContext;
 import io.pravega.controller.store.stream.records.StateRecord;
 
 import java.util.Optional;
@@ -29,23 +30,29 @@ public class StreamMetadataStoreTestHelper {
     public static void partiallyCreateStream(StreamMetadataStore store, String scopeName, String streamName, 
                                              Optional<Long> creationTime, boolean createState) {
         addStreamToScope(store, scopeName, streamName);
+        OperationContext context = getContext();
         PersistentStreamBase stream = getStream(store, scopeName, streamName);
-        stream.createStreamMetadata().join();
-        creationTime.map(x -> stream.storeCreationTimeIfAbsent(x).join());
+        stream.createStreamMetadata(context).join();
+        creationTime.map(x -> stream.storeCreationTimeIfAbsent(x, context).join());
         if (createState) {
-            stream.createStateIfAbsent(StateRecord.builder().state(State.CREATING).build()).join();
+            stream.createStateIfAbsent(StateRecord.builder().state(State.CREATING).build(), context).join();
         }
     }
-    
+
+    private static OperationContext getContext() {
+        return new TestOperationContext();
+    }
+
     public static void addStreamToScope(StreamMetadataStore store, String scopeName, String streamName) {
+        OperationContext context = getContext();
         if (store instanceof InMemoryStreamMetadataStore) {
             ((InMemoryStreamMetadataStore) store).addStreamObjToScope(scopeName, streamName);
         } else if (store instanceof PravegaTablesStreamMetadataStore) {
-            ((PravegaTablesScope) ((PravegaTablesStreamMetadataStore) store).getScope(scopeName))
-                    .addStreamToScope(streamName).join();
+            ((PravegaTablesScope) ((PravegaTablesStreamMetadataStore) store).getScope(scopeName, context))
+                    .addStreamToScope(streamName, context).join();
         } else if (store instanceof ZKStreamMetadataStore) {
             ((ZKStream) ((ZKStreamMetadataStore) store).getStream(scopeName, streamName, null))
-                    .createStreamMetadata().join();
+                    .createStreamMetadata(context).join();
         }
     }
 }

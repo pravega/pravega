@@ -33,12 +33,15 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 
@@ -47,6 +50,8 @@ import static org.junit.Assert.assertEquals;
  */
 @Slf4j
 public class HostStoreTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
 
     private final String host = "localhost";
     private final int controllerPort = 9090;

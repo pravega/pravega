@@ -15,11 +15,18 @@
  */
 package io.pravega.controller.store.stream;
 
-/**
- * Interface for defining an operation context. 
- */
-public interface OperationContext {
-    long getOperationStartTime();
-    
-    long getRequestId();
+import io.pravega.controller.store.Scope;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+@AllArgsConstructor
+class StreamOperationContext implements OperationContext {
+    @Getter
+    private final Scope scope;
+    @Getter
+    private final Stream stream;
+    @Getter
+    private final long requestId;
+    @Getter
+    private final long operationStartTime = System.currentTimeMillis();
 }

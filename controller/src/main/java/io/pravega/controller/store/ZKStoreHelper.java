@@ -432,10 +432,11 @@ public class ZKStoreHelper {
         if (cached != null) {
             return CompletableFuture.completedFuture(getVersionedMetadata(cached));
         } else {
+            long time = System.currentTimeMillis();
             return getData(path, fromBytes)
                 .thenApply(v -> {
                     VersionedMetadata<T> record = new VersionedMetadata<>(v.getObject(), v.getVersion());
-                    cache.put(cacheKey, record);
+                    cache.put(cacheKey, record, time);
                     return record;
                 });
         }

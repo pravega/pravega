@@ -115,7 +115,7 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
         for (int i = 0; i < 2; i++) {
             @Cleanup
             Controller controller = controllerWrapper.getController();
-            controllerWrapper.getControllerService().createScope(scope).get();
+            controllerWrapper.getControllerService().createScope(scope, 0L).get();
             controller.createStream(scope, streamName, config).get();
             @Cleanup
             ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()

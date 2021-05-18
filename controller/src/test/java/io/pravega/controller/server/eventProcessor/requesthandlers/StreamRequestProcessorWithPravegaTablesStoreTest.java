@@ -15,6 +15,8 @@
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
+import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.test.common.TestingServerStarter;
@@ -25,7 +27,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 
-public class StreamRequestProcessorWithZkStore extends StreamRequestProcessorTest {
+public class StreamRequestProcessorWithPravegaTablesStoreTest extends StreamRequestProcessorTest {
     private StreamMetadataStore store;
     private CuratorFramework client;
     private TestingServer zkServer;
@@ -37,7 +39,8 @@ public class StreamRequestProcessorWithZkStore extends StreamRequestProcessorTes
             new ExponentialBackoffRetry(200, 10, 5000));
         client.start();
 
-        store = StreamStoreFactory.createZKStore(client, executorService());
+        store = StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executorService()),
+                GrpcAuthHelper.getDisabledAuthHelper(), client, executorService());
     }
 
     @After
