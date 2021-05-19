@@ -418,12 +418,12 @@ EOF
 # Note:
 #   Escape all the non-configurable variables to avoid unintended command substitutions or variables expansions.
 ######################################
-LOG_ROTATE_WATCH=$(cat $BASE/fluentBitRotater.sh)
 
 apply_logrotate_configmap() {
     tab='    '
+    local log_rotate_watch=$(cat $BASE/fluentBitRotater.sh)
     # Apply required indentation by prepending two tabs.
-    log_rotate_watch=$(echo "$LOG_ROTATE_WATCH" | sed "s/^/$tab$tab/")
+    log_rotate_watch=$(echo "$log_rotate_watch" | sed "s/^/$tab$tab/")
     log_rotate_conf=$(echo "$LOG_ROTATE_CONF" | sed "s/^/$tab$tab/")
     cat << EOF | kubectl apply -n=$NAMESPACE --wait -f -
 apiVersion: v1
