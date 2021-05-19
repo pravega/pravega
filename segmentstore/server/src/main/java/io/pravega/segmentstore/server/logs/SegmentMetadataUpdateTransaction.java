@@ -42,6 +42,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
@@ -116,7 +117,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         this.deletedInStorage = baseMetadata.isDeletedInStorage();
         this.deleted = baseMetadata.isDeleted();
         this.baseAttributeValues = baseMetadata.getAttributes();
-        this.attributeUpdates = new HashMap<>();
+        this.attributeUpdates = new ConcurrentHashMap<>(); // This one could be iterated and modified concurrently.
         this.lastUsed = baseMetadata.getLastUsed();
         this.active = true;
     }

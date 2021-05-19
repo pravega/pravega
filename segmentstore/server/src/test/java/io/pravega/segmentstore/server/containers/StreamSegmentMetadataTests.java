@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentType;
@@ -28,6 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.*;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -210,6 +212,47 @@ public class StreamSegmentMetadataTests {
         for (val e : actual.entrySet()) {
             Assert.assertEquals("Unexpected value found.", expected.get(e.getKey()), e.getValue());
         }
+    }
+
+    /**
+     * Validates that we can safely iterate over a StreamSegmentMetadata.AttributesView elements while the backing
+     * StreamSegmentMetadata maps are being modified.
+     */
+    @Test
+    public void testAttributeConcurrentOperations() throws ExecutionException, InterruptedException, TimeoutException {
+        StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
+
+        // Step 1: initial set of attributes.
+        Random rnd = new Random(0);
+        val expectedAttributes = generateAttributes(rnd);
+
+        metadata.updateAttributes(expectedAttributes);
+        ExecutorService executorService = null;
+        CompletableFuture<Void> iterateOverView;
+        CompletableFuture<Void> modifyBackingAttributes;
+        try {
+            executorService = ExecutorServiceHelpers.newScheduledThreadPool(4, "testAttributes");
+            Map<UUID, Long> attributesView = metadata.getAttributes();
+            iterateOverView = CompletableFuture.runAsync(() -> {
+                for (int i = 0; i < 100; i++) {
+                    new HashMap<>(attributesView); // Internally, this iterates over the input map.
+                }
+            }, executorService);
+            modifyBackingAttributes = CompletableFuture.runAsync(() -> {
+                for (int i = 0; i < 100; i++) {
+                    metadata.updateAttributes(generateAttributes(new Random(i)));
+                }
+            }, executorService);
+            CompletableFuture.allOf(iterateOverView, modifyBackingAttributes).get(10, TimeUnit.SECONDS);
+        } finally {
+            if (executorService != null) {
+                ExecutorServiceHelpers.shutdown(executorService);
+            }
+        }
+        Assert.assertNotNull(iterateOverView);
+        Assert.assertNotNull(modifyBackingAttributes);
+        Assert.assertFalse(iterateOverView.isCompletedExceptionally());
+        Assert.assertFalse(modifyBackingAttributes.isCompletedExceptionally());
     }
 
     /**
