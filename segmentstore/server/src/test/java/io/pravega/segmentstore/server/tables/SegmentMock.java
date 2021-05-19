@@ -190,6 +190,12 @@ class SegmentMock implements DirectSegmentAccess {
         return CompletableFuture.supplyAsync(() -> new AttributeIteratorImpl(this.metadata, fromId, toId), this.executor);
     }
 
+    @Override
+    public CompletableFuture<Long> getExtendedAttributeCount(Duration timeout) {
+        return CompletableFuture.supplyAsync(
+                () -> (long) getAttributeCount((id, value) -> !Attributes.isCoreAttribute(id) && value != Attributes.NULL_ATTRIBUTE_VALUE), this.executor);
+    }
+
     @GuardedBy("this")
     @SneakyThrows(BadAttributeUpdateException.class)
     private void collectAttributeValue(AttributeUpdate update, Map<AttributeId, Long> values) {

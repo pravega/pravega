@@ -90,6 +90,15 @@ public class HashTableSegmentLayoutTests extends TableSegmentLayoutTestBase {
         return new HashTableSegmentLayout.IteratorStateImpl(KeyHasher.MAX_HASH);
     }
 
+
+    @Override
+    protected void checkTableAttributes(int totalUpdateCount, int totalRemoveCount, int uniqueKeyCount, TableContext context) {
+        val attributes = context.segment().getInfo().getAttributes();
+        val expectedTotalEntryCount = totalUpdateCount + totalRemoveCount;
+        Assert.assertEquals(expectedTotalEntryCount, (long) attributes.get(TableAttributes.TOTAL_ENTRY_COUNT));
+        Assert.assertEquals(uniqueKeyCount, (long) attributes.get(TableAttributes.ENTRY_COUNT));
+    }
+
     @Override
     protected BufferView createRandomKey(TableContext context) {
         return createRandomKeyRandomLength(context);

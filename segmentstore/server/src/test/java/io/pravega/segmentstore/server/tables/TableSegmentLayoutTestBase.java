@@ -131,6 +131,8 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
      */
     protected abstract IteratorState createEmptyIteratorState();
 
+    protected abstract void checkTableAttributes(int totalUpdateCount, int totalRemoveCount, int uniqueKeyCount, TableContext context);
+
     //endregion
 
     /**
@@ -446,6 +448,8 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
         val removedKeys = new ArrayList<BufferView>();
         val keyVersions = new HashMap<BufferView, Long>();
         Function<BufferView, Long> getKeyVersion = k -> keyVersions.getOrDefault(k, TableKey.NOT_EXISTS);
+        int totalUpdateCount = 0;
+        int totalRemoveCount = 0;
         for (val key : keys) {
             val toUpdate = generateToUpdate.apply(key, createRandomData(MAX_VALUE_LENGTH, context), getKeyVersion.apply(key));
             val updateResult = new AtomicReference<List<Long>>();
@@ -460,6 +464,9 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
                 processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 check(expectedEntries, removedKeys, context.ext);
             }
+
+            totalUpdateCount++;
+            checkTableAttributes(totalUpdateCount, totalRemoveCount, totalUpdateCount, context);
         }
 
         checkIterators(expectedEntries, context.ext);
@@ -476,6 +483,9 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
                 processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 check(expectedEntries, removedKeys, context.ext);
             }
+
+            totalRemoveCount++;
+            checkTableAttributes(totalUpdateCount, totalRemoveCount, totalUpdateCount - totalRemoveCount, context);
         }
 
         checkIterators(expectedEntries, context.ext);
@@ -538,7 +548,7 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
 
             // Verify result (from cache).
             checkTable.accept(current.expectedEntries, removedKeys, context.ext);
-
+            checkTableAttributes(current.totalUpdatesCount, current.totalRemoveCount, current.expectedEntries.size(), context);
             last = current;
         }
 
@@ -697,7 +707,16 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
 
         expectedEntries.putAll(toUpdate);
         expectedEntries.keySet().removeAll(toRemove);
-        return new TestBatchData(toUpdate, toRemove, expectedEntries);
+
+        // Keep track of expected metrics.
+        int totalUpdateCount = toUpdate.size();
+        int totalRemoveCount = toRemove.size();
+        if (previous != null) {
+            totalUpdateCount += previous.totalUpdatesCount;
+            totalRemoveCount += previous.totalRemoveCount;
+        }
+
+        return new TestBatchData(toUpdate, toRemove, expectedEntries, totalUpdateCount, totalRemoveCount);
     }
 
     protected BufferView createRandomKey(TableContext context) {
@@ -748,6 +767,16 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
          * The expected result after toUpdate and toRemove have been applied. Key->Value.
          */
         final Map<BufferView, BufferView> expectedEntries;
+
+        /**
+         * The accumulated total update count so far.
+         */
+        final int totalUpdatesCount;
+
+        /**
+         * The accumulated total remove count so far.
+         */
+        final int totalRemoveCount;
     }
 
     @FunctionalInterface

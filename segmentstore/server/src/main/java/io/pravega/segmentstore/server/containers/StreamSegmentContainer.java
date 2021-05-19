@@ -40,6 +40,7 @@ import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.ContainerOfflineException;
@@ -1050,6 +1051,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             ensureRunning();
             logRequest("attributeIterator", this.segmentId, fromId, toId);
             return StreamSegmentContainer.this.attributeIterator(this.segmentId, fromId, toId, timeout);
+        }
+
+        @Override
+        public CompletableFuture<Long> getExtendedAttributeCount(Duration timeout) {
+            return StreamSegmentContainer.this.attributeIndex.forSegment(this.segmentId, timeout)
+                    .thenApply(AttributeIndex::getCount);
         }
     }
 

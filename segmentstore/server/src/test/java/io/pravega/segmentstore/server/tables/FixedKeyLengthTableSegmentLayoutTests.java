@@ -21,6 +21,7 @@ import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.IteratorState;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
@@ -28,6 +29,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.val;
+import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -80,6 +82,15 @@ public class FixedKeyLengthTableSegmentLayoutTests extends TableSegmentLayoutTes
     @Override
     protected IteratorState createEmptyIteratorState() {
         return new FixedKeyLengthTableSegmentLayout.IteratorStateImpl(new ByteArraySegment(BufferViewComparator.getMaxValue(DEFAULT_CONFIG.getKeyLength())));
+    }
+
+    @Override
+    protected void checkTableAttributes(int totalUpdateCount, int totalRemoveCount, int uniqueKeyCount, TableContext context) {
+        val attributes = context.segment().getInfo().getAttributes();
+        Assert.assertEquals(totalUpdateCount, (long) attributes.get(TableAttributes.TOTAL_ENTRY_COUNT));
+        val expectedUniqueKeyCount = totalUpdateCount - totalRemoveCount;
+        val actualUniqueKeyCount = context.segment().getExtendedAttributeCount(TIMEOUT).join();
+        Assert.assertEquals(expectedUniqueKeyCount, (long) actualUniqueKeyCount);
     }
 
     //endregion

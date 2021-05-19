@@ -44,6 +44,7 @@ import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.IteratorState;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
@@ -149,6 +150,9 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         if (batchOffset > this.config.getMaxBatchSize()) {
             throw new UpdateBatchTooLargeException(batchOffset, this.config.getMaxBatchSize());
         }
+
+        // Update total number of entries in Table (this includes updates to the same key).
+        attributeUpdates.add(new AttributeUpdate(TableAttributes.TOTAL_ENTRY_COUNT, AttributeUpdateType.Accumulate, entries.size()));
 
         val serializedEntries = this.serializer.serializeUpdate(entries);
         val append = tableSegmentOffset == TableSegmentLayout.NO_OFFSET

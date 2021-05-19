@@ -71,4 +71,11 @@ public interface AttributeIndex {
      * @return A new {@link AttributeIterator} that will iterate through the given Attribute range.
      */
     AttributeIterator iterator(AttributeId fromId, AttributeId toId, Duration fetchTimeout);
+
+    /**
+     * Gets the number of Attributes stored in this index.
+     *
+     * @return The number of Attributes stored, or -1 if index statistics are not enabled.
+     */
+    long getCount();
 }
