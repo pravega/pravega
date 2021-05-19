@@ -147,8 +147,8 @@ public class ControllerServiceTest {
     public void testControllerService() throws Exception {
         final String scope1 = "scope1";
         final String scope2 = "scope2";
-        controllerWrapper.getControllerService().createScope("scope1").get();
-        controllerWrapper.getControllerService().createScope("scope2").get();
+        controllerWrapper.getControllerService().createScope("scope1", 0L).get();
+        controllerWrapper.getControllerService().createScope("scope2", 0L).get();
         Controller controller = controllerWrapper.getController();
 
         final String streamName1 = "stream1";
@@ -507,7 +507,7 @@ public class ControllerServiceTest {
     private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,
                                    final ScalingPolicy scalingPolicy, final String scopeSeal,
                                    final String streamNameSeal) throws InterruptedException, ExecutionException {
-        controllerWrapper.getControllerService().createScope("scopeSeal").get();
+        controllerWrapper.getControllerService().createScope("scopeSeal", 0L).get();
 
         final StreamConfiguration configSeal = StreamConfiguration.builder()
                 .scalingPolicy(scalingPolicy)

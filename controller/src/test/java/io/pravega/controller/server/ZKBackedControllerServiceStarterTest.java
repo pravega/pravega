@@ -62,6 +62,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -280,7 +281,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
             signal.complete(null);
             latch.join();
             throw new RuntimeException();
-        }).when(store).createScope(anyString());
+        }).when(store).createScope(anyString(), any(), any());
 
         ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfigWithEventProcessors(), storeClient,
                 SegmentHelperMock.getSegmentHelperMockForTables(executor), new MockConnectionFactory(), store, kvtStore);

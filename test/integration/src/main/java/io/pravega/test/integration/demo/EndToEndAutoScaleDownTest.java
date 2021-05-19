@@ -59,7 +59,7 @@ public class EndToEndAutoScaleDownTest {
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, false);
             Controller controller = controllerWrapper.getController();
 
-            controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
+            controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME, 0L).get();
             ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new SocketConnectionFactoryImpl(ClientConfig.builder().build()));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -80,7 +80,7 @@ public class EndToEndAutoScaleDownTest {
                     serviceBuilder.getLowPriorityExecutor());
             server.startListening();
             controllerWrapper.awaitRunning();
-            controllerWrapper.getControllerService().createScope("test").get();
+            controllerWrapper.getControllerService().createScope("test", 0L).get();
 
             controller.createStream("test", "test", CONFIG).get();
 
