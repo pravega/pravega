@@ -62,11 +62,11 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final TruncateStreamEvent request) {
-        final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
         String scope = request.getScope();
         String stream = request.getStream();
         long requestId = request.getRequestId();
+        final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(versionedState -> streamMetadataStore.getTruncationRecord(scope, stream, context, executor)

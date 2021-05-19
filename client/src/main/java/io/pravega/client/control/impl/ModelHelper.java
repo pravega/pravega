@@ -204,7 +204,7 @@ public final class ModelHelper {
                 result = Transaction.Status.COMMITTING;
                 break;
             case UNKNOWN:
-                throw new RuntimeException("Unknown transaction: " + logString);
+                throw new StatusRuntimeException(Status.NOT_FOUND);
             case UNRECOGNIZED:
             default:
                 throw new IllegalStateException("Unknown status: " + state);

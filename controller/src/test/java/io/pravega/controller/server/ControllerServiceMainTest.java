@@ -25,17 +25,23 @@ import io.pravega.controller.util.Config;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * ControllerServiceMain tests.
  */
 public abstract class ControllerServiceMainTest {
     private static final CompletableFuture<Void> INVOKED = new CompletableFuture<>();
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     protected StoreClientConfig storeClientConfig;
 
     private final boolean disableControllerCluster;

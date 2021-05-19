@@ -16,6 +16,12 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.shared.NameUtils;
+import lombok.Synchronized;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * In-memory stream metadata store tests.
@@ -24,7 +30,7 @@ public class InMemoryStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
     @Override
     public void setupStore() throws Exception {
-        store = StreamStoreFactory.createInMemoryStore(executor);
+        store = new TestInmemoryStore(executor);
         ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
                 BucketStore.ServiceType.WatermarkingService, 1);
         bucketStore = StreamStoreFactory.createInMemoryBucketStore(map);
@@ -33,5 +39,37 @@ public class InMemoryStreamMetadataStoreTest extends StreamMetadataStoreTest {
     @Override
     public void cleanupStore() throws Exception {
         store.close();
+    }
+
+    static class TestInmemoryStore extends InMemoryStreamMetadataStore implements TestStore {
+        HashMap<String, Stream> map = new HashMap<>();
+
+        TestInmemoryStore(ScheduledExecutorService executor) {
+            super();
+        }
+
+        @Override
+        @Synchronized
+        Stream newStream(String scope, String name) {
+            String scopedStreamName = NameUtils.getScopedStreamName(scope, name);
+            if (map.containsKey(scopedStreamName)) {
+                return map.get(scopedStreamName);
+            } else {
+                return super.newStream(scope, name);
+            }
+        }
+
+        @Override
+        @Synchronized
+        public void setStream(Stream stream) {
+            String scopedStreamName = NameUtils.getScopedStreamName(stream.getScope(), stream.getName());
+            map.put(scopedStreamName, stream);
+        }
+
+        @Override
+        public void close() throws IOException {
+            map.clear();
+            super.close();
+        }
     }
 }
