@@ -23,6 +23,7 @@ public final class RPCTracingTags {
     public static final String CREATE_SCOPE = "createScope";
     public static final String CHECK_SCOPE_EXISTS = "checkScopeExists";
     public static final String LIST_STREAMS_IN_SCOPE = "listStreamsInScope";
+    public static final String LIST_STREAMS_IN_SCOPE_FOR_TAG = "listStreamsInScopeForTag";
     public static final String DELETE_SCOPE = "deleteScope";
     public static final String CREATE_STREAM = "createStream";
     public static final String CHECK_STREAM_EXISTS = "checkStreamExists";

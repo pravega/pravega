@@ -22,6 +22,8 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.records.TagRecord;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
@@ -218,6 +220,16 @@ public class PravegaTablesScope implements Scope {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         return getStreamsInScopeTableName(context)
                 .thenCompose(streamsInScopeTable -> readAll(limit, continuationToken, streamsInScopeTable, context));
+    }
+
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(String tag, int limit, String continuationToken, Executor executor,
+                                                                     OperationContext context) {
+        Preconditions.checkNotNull(context, "Operation context cannot be null");
+        //TODO: Handle chunking of inverted index.
+        return getStreamTagsInScopeTableName(context)
+                .thenCompose(table -> storeHelper.getEntry(table, tag, TagRecord::fromBytes, context.getRequestId()))
+                .thenApply(ver -> new ImmutablePair<>(new ArrayList<>(ver.getObject().getStreams()), continuationToken)); // identity token
     }
 
     @Override

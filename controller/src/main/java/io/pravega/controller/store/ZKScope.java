@@ -30,6 +30,7 @@ import io.pravega.controller.store.stream.StoreException;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.utils.ZKPaths;
@@ -204,6 +205,13 @@ public class ZKScope implements Scope {
                 return CompletableFuture.completedFuture(true);
             }
         }, executor).thenApply(v -> new ImmutablePair<>(toReturn, lastPos.get().toString()));
+    }
+
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(String tag, int limit, String continuationToken, Executor executor, OperationContext context) {
+        CompletableFuture<Pair<List<String>, String>> cf = new CompletableFuture<>();
+        cf.completeExceptionally(new NotImplementedException("ListStreamsForTag not implemented for ZK scope"));
+        return cf;
     }
 
     private Pair<List<String>, Integer> filterStreams(List<String> streams, int bottomFloor, int limit) {

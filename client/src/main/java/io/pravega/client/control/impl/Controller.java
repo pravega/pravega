@@ -85,6 +85,15 @@ public interface Controller extends AutoCloseable {
     AsyncIterator<Stream> listStreams(final String scopeName);
 
     /**
+     * Gets an async iterator on streams in scope.
+     *
+     * @param scopeName The name of the scope for which to list streams in.
+     * @param tag The Stream tag.
+     * @return An AsyncIterator which can be used to iterate over all Streams in the scope.
+     */
+    AsyncIterator<Stream> listStreamsForTag(final String scopeName, final String tag);
+
+    /**
      * API to delete a scope. Note that a scope can only be deleted in the case is it empty. If
      * the scope contains at least one stream, then the delete request will fail.
      *

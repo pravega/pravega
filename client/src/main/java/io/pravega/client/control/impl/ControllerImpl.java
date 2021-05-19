@@ -95,6 +95,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCutRangeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeWithTagRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
@@ -173,6 +174,7 @@ import static io.pravega.shared.controller.tracing.RPCTracingTags.IS_SEGMENT_OPE
 import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_KEY_VALUE_TABLES;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_SCOPES;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_STREAMS_IN_SCOPE;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_STREAMS_IN_SCOPE_FOR_TAG;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.LIST_SUBSCRIBERS;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.SCALE_STREAM;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.SEAL_STREAM;
@@ -451,6 +453,53 @@ public class ControllerImpl implements Controller {
             return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
         } finally {
             LoggerHelpers.traceLeave(log, "listStreams", traceId);
+        }
+    }
+
+    @Override
+    public AsyncIterator<Stream> listStreamsForTag(String scopeName, String tag) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        long traceId = LoggerHelpers.traceEnter(log, LIST_STREAMS_IN_SCOPE_FOR_TAG, scopeName);
+        long requestId = requestIdGenerator.get();
+        try {
+            final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<Stream>>>> function =
+                    token -> this.retryConfig.runAsync(() -> {
+                        RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(requestId,
+                                                                                                   LIST_STREAMS_IN_SCOPE_FOR_TAG,
+                                                                                                   scopeName);
+                        ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
+                        StreamsInScopeWithTagRequest request = StreamsInScopeWithTagRequest.newBuilder()
+                                                                                           .setScope(scopeInfo)
+                                                                                           .setContinuationToken(token)
+                                                                                           .setTag(tag).build();
+                        new ControllerClientTagger(client, timeoutMillis).withTag(requestId,
+                                                                                  LIST_STREAMS_IN_SCOPE, scopeName)
+                                                                         .listStreamsInScopeForTag(request, callback);
+                        return callback.getFuture()
+                                       .thenApplyAsync(x -> {
+                                           switch (x.getStatus()) {
+                                               case SCOPE_NOT_FOUND:
+                                                   log.warn(requestId, "Scope not found: {}", scopeName);
+                                                   throw new NoSuchScopeException();
+                                               case FAILURE:
+                                                   log.warn(requestId,
+                                                            "Internal Server Error while trying to list streams in scope: {} with tag: {}",
+                                                            scopeName, tag);
+                                                   throw new RuntimeException("Failure while trying to list streams with tag");
+                                               case SUCCESS:
+                                                   // we will treat all other case as success for backward
+                                                   // compatibility reasons
+                                               default:
+                                                   List<Stream> result = x.getStreamsList().stream()
+                                                                          .map(y -> new StreamImpl(y.getScope(),
+                                                                                                   y.getStream())).collect(Collectors.toList());
+                                                   return new AbstractMap.SimpleEntry<>(x.getContinuationToken(), result);
+                                           }
+                                       }, this.executor);
+                    }, this.executor);
+            return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
+        } finally {
+            LoggerHelpers.traceLeave(log, LIST_STREAMS_IN_SCOPE_FOR_TAG, traceId);
         }
     }
 
@@ -1956,6 +2005,12 @@ public class ControllerImpl implements Controller {
                                        RPCAsyncCallback<StreamsInScopeResponse> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                       .listStreamsInScope(request, callback);
+        }
+
+        public void listStreamsInScopeForTag(StreamsInScopeWithTagRequest request,
+                                             RPCAsyncCallback<StreamsInScopeResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                      .listStreamsInScopeForTag(request, callback);
         }
 
         public void deleteScope(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeStatus> callback) {

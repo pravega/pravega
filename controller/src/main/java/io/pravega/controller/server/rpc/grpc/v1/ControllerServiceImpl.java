@@ -1069,6 +1069,52 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         return result;
                 }, streamsFn, responseObserver, requestTag);
     }
+
+    @Override
+    public void listStreamsInScopeForTag(Controller.StreamsInScopeWithTagRequest request,
+                                   StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
+        String scopeName = request.getScope().getScope();
+        String tag = request.getTag();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+                                                                            LIST_STREAMS_IN_SCOPE_FOR_TAG, scopeName);
+        log.info(requestTag.getRequestId(), "{} called for scope {} and tags {}", LIST_STREAMS_IN_SCOPE_FOR_TAG, scopeName, tag);
+
+        final AuthContext ctx = this.grpcAuthHelper.isAuthEnabled() ? AuthContext.current() : null;
+        Function<String, CompletableFuture<Controller.StreamsInScopeResponse>> streamsFn = delegationToken ->
+                listWithFilter(request.getContinuationToken().getToken(), pageLimit,
+                               (x, y) -> controllerService.listStreams(scopeName, tag, x, y, requestTag.getRequestId()),
+                               x -> grpcAuthHelper.isAuthorized(authorizationResource.ofStreamInScope(scopeName, x),
+                                                                AuthHandler.Permissions.READ, ctx),
+                               x -> StreamInfo.newBuilder().setScope(scopeName).setStream(x).build(), requestTag.getRequestId())
+                        .handle((response, ex) -> {
+                            if (ex != null) {
+                                if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
+                                    return Controller.StreamsInScopeResponse
+                                            .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND)
+                                            .build();
+                                } else {
+                                    throw new CompletionException(ex);
+                                }
+                            } else {
+                                return Controller.StreamsInScopeResponse
+                                        .newBuilder().addAllStreams(response.getKey())
+                                        .setContinuationToken(Controller.ContinuationToken.newBuilder()
+                                                                                          .setToken(response.getValue()).build())
+                                        .setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS).build();
+                            }
+                        });
+
+        authenticateExecuteAndProcessResults(
+                () -> {
+                    String result = this.grpcAuthHelper.checkAuthorization(
+                            authorizationResource.ofScope(scopeName),
+                            AuthHandler.Permissions.READ,
+                            ctx);
+                    log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                              authorizationResource.ofScope(scopeName), result);
+                    return result;
+                }, streamsFn, responseObserver, requestTag);
+    }
     
     @Override
     public void deleteScope(ScopeInfo request, StreamObserver<DeleteScopeStatus> responseObserver) {

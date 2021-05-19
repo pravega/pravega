@@ -164,6 +164,15 @@ public class MockController implements Controller {
     }
 
     @Override
+    public AsyncIterator<Stream> listStreamsForTag(String scopeName, String tag) {
+        return () -> {
+            CompletableFuture<Stream> cf = new CompletableFuture<>();
+            cf.completeExceptionally(new NotImplementedException("GetStreamConfiguration is not implemented"));
+            return cf;
+        };
+    }
+
+    @Override
     @Synchronized
     public CompletableFuture<Boolean> deleteScope(String scopeName) {
         if (createdScopes.get(scopeName) == null) {

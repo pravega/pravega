@@ -260,6 +260,9 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Pair<List<String>, String>> listStream(final String scopeName, final String continuationToken,
                                                              final int limit, final Executor executor, OperationContext context);
 
+    CompletableFuture<Pair<List<String>, String>> listStreamsForTag(final String scopeName, final String tag, final String continuationToken,
+                                                             final int limit, final Executor executor, OperationContext context);
+
     /**
      * List Scopes in cluster.
      *
