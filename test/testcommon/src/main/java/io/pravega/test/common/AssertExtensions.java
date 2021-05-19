@@ -354,7 +354,8 @@ public class AssertExtensions {
         for (int i = 0; i < expected.size(); i++) {
             T expectedItem = expected.get(i);
             T actualItem = actual.get(i);
-            Assert.assertTrue(String.format("%s Elements at index %d differ. Expected '%s', found '%s'.", message, i, expectedItem, actualItem), tester.test(expectedItem, actualItem));
+            Assert.assertTrue(String.format("%s Elements at index %d differ. Expected '%s', found '%s'.", message, i, expectedItem, actualItem),
+                    (expectedItem == null && actualItem == null) || tester.test(expectedItem, actualItem));
         }
     }
 

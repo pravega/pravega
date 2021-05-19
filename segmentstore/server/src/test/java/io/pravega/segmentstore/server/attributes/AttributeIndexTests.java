@@ -1281,13 +1281,13 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, long offset, int length, Duration timeout) {
+        CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, long offset, int length, boolean shouldCache, Duration timeout) {
             val interceptor = this.readPageInterceptor;
             if (interceptor != null) {
                 return interceptor.apply(handle, offset, length)
-                        .thenCompose(v -> super.readPageFromStorage(handle, offset, length, timeout));
+                        .thenCompose(v -> super.readPageFromStorage(handle, offset, length, shouldCache, timeout));
             }
-            return super.readPageFromStorage(handle, offset, length, timeout);
+            return super.readPageFromStorage(handle, offset, length, shouldCache, timeout);
         }
     }
 
