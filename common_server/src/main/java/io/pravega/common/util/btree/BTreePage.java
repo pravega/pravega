@@ -375,20 +375,21 @@ class BTreePage {
      * * Will have all entries sorted by Key
      *
      * @param entries The Entries to insert or update. This List must be sorted by {@link PageEntry#getKey()}.
+     * @return A delta (negative, zero or positive) indicating the change in {@link #getCount()} as a result of this update.
      * @throws IllegalDataFormatException If any of the entries do not conform to the Key/Value size constraints.
      * @throws IllegalArgumentException   If the entries are not sorted by {@link PageEntry#getKey()}.
      */
-    void update(@NonNull List<PageEntry> entries) {
+    int update(@NonNull List<PageEntry> entries) {
         if (entries.isEmpty()) {
             // Nothing to do.
-            return;
+            return 0;
         }
 
         // Apply the in-place updates and collect the new entries to be added.
         val ci = applyUpdates(entries);
         if (ci.changes.isEmpty()) {
             // Nothing else to change. We've already updated the keys in-place.
-            return;
+            return 0;
         }
 
         val newPage = applyInsertsAndRemovals(ci);
@@ -399,7 +400,9 @@ class BTreePage {
         this.data = newPage.data;
         this.contents = newPage.contents;
         this.footer = newPage.footer;
+        val delta = newPage.count - this.count;
         this.count = newPage.count;
+        return delta;
     }
 
     /**

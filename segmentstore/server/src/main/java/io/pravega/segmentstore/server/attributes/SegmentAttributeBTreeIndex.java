@@ -145,13 +145,14 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         this.traceObjectId = String.format("AttributeIndex[%d-%d]", this.segmentMetadata.getContainerId(), this.segmentMetadata.getId());
         this.keySerializer = getKeySerializer(segmentMetadata);
         this.index = BTreeIndex.builder()
-                               .keyLength(this.keySerializer.getKeyLength())
-                               .valueLength(VALUE_LENGTH)
-                               .maxPageSize(this.config.getMaxIndexPageSize())
-                               .executor(this.executor)
-                               .getLength(this::getLength)
-                               .readPage(this::readPage)
-                               .writePages(this::writePages)
+                .keyLength(this.keySerializer.getKeyLength())
+                .valueLength(VALUE_LENGTH)
+                .maxPageSize(this.config.getMaxIndexPageSize())
+                .executor(this.executor)
+                .getLength(this::getLength)
+                .readPage(this::readPage)
+                .writePages(this::writePages)
+                .maintainStatistics(false)
                                .traceObjectId(this.traceObjectId)
                                .build();
 
@@ -531,7 +532,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         return rootPointer;
     }
 
-    private CompletableFuture<ByteArraySegment> readPage(long offset, int length, Duration timeout) {
+    private CompletableFuture<ByteArraySegment> readPage(long offset, int length, boolean cacheResult, Duration timeout) {
         // First, check in the cache.
         byte[] fromCache = getFromCache(offset, length);
         if (fromCache != null) {
@@ -552,7 +553,7 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
             }
         }
 
-        return readPageFromStorage(handle, offset, length, timeout);
+        return readPageFromStorage(handle, offset, length, cacheResult, timeout);
     }
 
     /**
@@ -561,14 +562,15 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
      * page offset). If more than one concurrent request is issued for the same page, only one will be sent to Storage,
      * and subsequent ones will be attached to the original one.
      *
-     * @param handle  {@link SegmentHandle} to read from.
-     * @param offset  Page offset.
-     * @param length  Page length.
-     * @param timeout Timeout for the operation.
+     * @param handle      {@link SegmentHandle} to read from.
+     * @param offset      Page offset.
+     * @param length      Page length.
+     * @param cacheResult If true, the result of this operation should be cached, if possible.
+     * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that will contain the result.
      */
     @VisibleForTesting
-    CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, long offset, int length, Duration timeout) {
+    CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, long offset, int length, boolean cacheResult, Duration timeout) {
         PendingRead pr;
         synchronized (this.pendingReads) {
             pr = this.pendingReads.get(offset);
@@ -591,16 +593,18 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         }
 
         // Issue the read request.
-        return readPageFromStorage(handle, pr, timeout);
+        return readPageFromStorage(handle, pr, cacheResult, timeout);
     }
 
-    private CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, PendingRead pr, Duration timeout) {
+    private CompletableFuture<ByteArraySegment> readPageFromStorage(SegmentHandle handle, PendingRead pr, boolean cacheResult, Duration timeout) {
         byte[] buffer = new byte[pr.length];
         Futures.completeAfter(
                 () -> this.storage.read(handle, pr.offset, buffer, 0, pr.length, timeout)
                         .thenApplyAsync(bytesRead -> {
                             Preconditions.checkArgument(pr.length == bytesRead, "Unexpected number of bytes read.");
-                            storeInCache(pr.offset, buffer);
+                            if (cacheResult) {
+                                storeInCache(pr.offset, buffer);
+                            }
                             return new ByteArraySegment(buffer);
                         }, this.executor),
                 pr.completion);
@@ -618,23 +622,21 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         }
     }
 
-    private CompletableFuture<Long> writePages(List<Map.Entry<Long, ByteArraySegment>> pages, Collection<Long> obsoleteOffsets,
+    private CompletableFuture<Long> writePages(List<BTreeIndex.WritePage> pages, Collection<Long> obsoleteOffsets,
                                                long truncateOffset, Duration timeout) {
         // The write offset is the offset of the first page to be written in the list.
-        long writeOffset = pages.get(0).getKey();
+        long writeOffset = pages.get(0).getOffset();
 
         // Collect the data to be written.
         val streams = new ArrayList<InputStream>();
         AtomicInteger length = new AtomicInteger();
-        for (val e : pages) {
+        for (val p : pages) {
             // Validate that the given pages are indeed in the correct order.
-            long pageOffset = e.getKey();
-            Preconditions.checkArgument(pageOffset == writeOffset + length.get(), "Unexpected page offset.");
+            Preconditions.checkArgument(p.getOffset() == writeOffset + length.get(), "Unexpected page offset.");
 
             // Collect the pages (as InputStreams) and record their lengths.
-            ByteArraySegment pageContents = e.getValue();
-            streams.add(pageContents.getReader());
-            length.addAndGet(pageContents.getLength());
+            streams.add(p.getContents().getReader());
+            length.addAndGet(p.getContents().getLength());
         }
 
         // Create the Attribute Segment in Storage (if needed), then write the new data to it and truncate if necessary.
@@ -703,19 +705,21 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         }
     }
 
-    private void storeInCache(List<Map.Entry<Long, ByteArraySegment>> toAdd, Collection<Long> obsoleteOffsets) {
+    private void storeInCache(List<BTreeIndex.WritePage> toAdd, Collection<Long> obsoleteOffsets) {
         synchronized (this.cacheEntries) {
             Exceptions.checkNotClosed(this.closed.get(), this);
 
             // Remove obsolete pages.
             obsoleteOffsets.stream()
-                           .map(this.cacheEntries::get)
-                           .filter(Objects::nonNull)
-                           .forEach(this::removeFromCache);
+                    .map(this.cacheEntries::get)
+                    .filter(Objects::nonNull)
+                    .forEach(this::removeFromCache);
 
             // Add new ones.
-            for (val e : toAdd) {
-                storeInCache(e.getKey(), e.getValue());
+            for (val p : toAdd) {
+                if (p.isCache()) {
+                    storeInCache(p.getOffset(), p.getContents());
+                }
             }
         }
     }
