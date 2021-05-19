@@ -22,6 +22,7 @@ import io.pravega.shared.health.Status;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import java.util.Map;
 import java.util.Objects;
@@ -46,15 +47,22 @@ public class HealthEndpointImpl implements HealthEndpoint {
      * Validates that the {@link HealthContributor} exists and requests it's {@link Health}.
      *
      * @param id  The id/name of the {@link HealthContributor} to check the {@link Health} of.
-     * @param includeDetails Whether or not to include detailed information provided by said {@link HealthContributor}.
      * @return The {@link Health} result of the {@link HealthContributor} with name 'id'. Returns NULL if 'id' does not map to
      * a {@link HealthContributor}.
      */
     @NonNull
     @Override
-    public Health getHealth(String id, boolean includeDetails) {
-        HealthContributor result = search(root, id);
-        return result == null ? null : result.getHealthSnapshot();
+    public Health getHealth(String id) {
+        Health health = search(id, root.getHealthSnapshot());
+        if (health == null) {
+            throw new ContributorNotFoundException();
+        }
+        return health;
+    }
+
+    @Override
+    public Health getHealth() {
+        return getHealth(root.getName());
     }
 
     /**
@@ -98,24 +106,30 @@ public class HealthEndpointImpl implements HealthEndpoint {
      */
     @Override
     public Map<String, Object> getDetails(String id) {
-        return getHealth(id, true).getDetails();
+        return getHealth(id).getDetails();
     }
 
-    // Performs a basic recursive dfs to find if there exists some HealthContributor with name 'id' that is reachable
-    // from a given HealthContributor.
-    private HealthContributor search(HealthContributor current, String id) {
-        if (current.getName() == id) {
+    // Perform a basic DFS over the all health nodes reachable from the root.
+    Health search(String id, Health current) {
+        if (id == current.getName()) {
             return current;
         }
 
-        for (Map.Entry<String, HealthContributor> entry: current.getContributors().entrySet()) {
-            HealthContributor contributor = entry.getValue();
-            if (search(contributor, id) != null) {
-                return contributor;
+        for (val child : current.getChildren()) {
+            Health health = search(id, child);
+            if (health != null)  {
+                return health;
             }
         }
 
         return null;
+    }
+
+    /**
+     * Exception thrown when the {@link HealthEndpoint} is called given some {@link HealthContributor} name and
+     * no such {@link HealthContributor} could be found.
+     */
+    public class ContributorNotFoundException extends RuntimeException {
     }
 }
 

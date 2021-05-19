@@ -39,8 +39,7 @@ public class Health {
      * was taken from.
      */
     @Getter
-    @Builder.Default
-    private final String name = "unknown";
+    private final String name;
 
     @Getter
     @Builder.Default

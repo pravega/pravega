@@ -15,25 +15,11 @@
  */
 package io.pravega.shared.health;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-
 /**
  * A {@link HealthContributor} is an interface that is able to provide or *contribute* health information relating to
  * an arbitrary component, process, object, etc.
  */
 public interface HealthContributor {
-
-    /**
-     * The list of {@link HealthContributor} objects that this {@link HealthContributor} object depends on to determine
-     * its own health.
-     *
-     * @return The list of {@link HealthContributor} contributing to this {@link HealthContributor}.
-     */
-    default Map<String, HealthContributor> getContributors() {
-        return Collections.emptyMap();
-    }
 
     /**
      * From an abstract view, a {@link HealthContributor} is anything that has an impact on the health of the system.
@@ -44,22 +30,25 @@ public interface HealthContributor {
     Health getHealthSnapshot();
 
     /**
-     * Adds the provided {@link HealthContributor} as a dependency to this contributor.
-     * @param contributor The {@link HealthContributor} to add.
+     * Registers any number of {@link HealthContributor} as children to referenced {@link HealthContributor}.
+     * @param children The parent {@link HealthContributor}.
      */
-    void add(HealthContributor contributor);
-
-    /**
-     * Removes the provided {@link HealthContributor} from its {@link Collection} of child {@link HealthContributor}.
-     * @param contributor The {@link HealthContributor} to remove.
-     *
-     * @return True if the HealthContributor was successfully removed from the contributors collection.
-     */
-    HealthContributor remove(HealthContributor contributor);
+    void register(HealthContributor... children);
 
     /**
      * A human-readable identifier used for logging.
      * @return The name provided.
      */
     String getName();
+
+    /**
+     * Closes the {@link HealthContributor} and forwards the closure to all its children.
+     */
+    void close();
+
+    /**
+     * Checks if the {@link HealthContributor} is closed.
+     * @return The close result.
+     */
+    boolean isClosed();
 }

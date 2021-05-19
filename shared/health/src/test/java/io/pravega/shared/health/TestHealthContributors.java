@@ -36,8 +36,8 @@ public class TestHealthContributors {
             super("healthy", StatusAggregatorImpl.UNANIMOUS);
         }
 
-        public HealthyContributor(String name, StatusAggregator aggregator) {
-            super(name, aggregator);
+        public HealthyContributor(String name) {
+            super(name, StatusAggregatorImpl.UNANIMOUS);
         }
 
         public Status doHealthCheck(Health.HealthBuilder builder) {
@@ -53,8 +53,12 @@ public class TestHealthContributors {
      * Implements an {@link HealthContributor} that *always* supplies a 'failing' result.
      */
     public static class FailingContributor extends HealthContributorImpl {
+        public FailingContributor(String name) {
+            super(name, StatusAggregatorImpl.UNANIMOUS);
+        }
+
         public FailingContributor() {
-            super("failing");
+            this("failing");
         }
 
         public Status doHealthCheck(Health.HealthBuilder builder) {

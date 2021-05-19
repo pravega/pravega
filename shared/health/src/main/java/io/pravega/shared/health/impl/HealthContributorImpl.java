@@ -15,22 +15,22 @@
  */
 package io.pravega.shared.health.impl;
 
-import com.google.common.collect.ImmutableList;
+import io.pravega.common.Exceptions;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.StatusAggregator;
-import lombok.val;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.NonNull;
+import lombok.val;
 
 import javax.annotation.concurrent.ThreadSafe;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The {@link HealthContributorImpl} class defines the base logic required to build {@link HealthContributor} objects
@@ -58,6 +58,11 @@ public abstract class HealthContributorImpl implements HealthContributor {
     @NonNull
     private final String name;
 
+    /**
+     * Flag indicating this contributor and all its children are no longer accessible.
+     */
+    private final AtomicBoolean closed = new AtomicBoolean();
+
     private final Map<String, HealthContributor> contributors = new ConcurrentHashMap<>();
 
     public HealthContributorImpl(@NonNull String name) {
@@ -75,20 +80,22 @@ public abstract class HealthContributorImpl implements HealthContributor {
      * @return The {@link Health} result of the {@link HealthContributor}.
      */
     @Override
-    public Health getHealthSnapshot() {
-        Health.HealthBuilder builder = Health.builder().name(getName());
+    synchronized public Health getHealthSnapshot() {
+        Exceptions.checkNotClosed(closed.get(), this);
 
+        Health.HealthBuilder builder = Health.builder().name(getName());
         Collection<Status> statuses = new ArrayList<>();
-        // Fetch the Health Status of all children.
-        val children = getContributors().entrySet()
-                .stream()
-                .filter(Objects::nonNull)
-                .map(contributor -> {
-                    Health health = contributor.getValue().getHealthSnapshot();
-                    statuses.add(health.getStatus());
-                    return health;
-                })
-                .collect(ImmutableList.toImmutableList());
+        Collection<Health> children = new ArrayList<>();
+
+        for (val entry : contributors.entrySet()) {
+            if (!entry.getValue().isClosed()) {
+                Health health = entry.getValue().getHealthSnapshot();
+                children.add(health);
+                statuses.add(health.getStatus());
+            } else {
+                contributors.remove(name);
+            }
+        }
 
         Status status = Status.DOWN;
         // Perform own health check logic.
@@ -105,25 +112,24 @@ public abstract class HealthContributorImpl implements HealthContributor {
         return builder.name(name).status(status).children(children).build();
     }
 
-    /**
-     * A method which supplies the {@link HealthContributorImpl#getHealthSnapshot()} method with the collection of
-     * {@link HealthContributor} objects to perform the aggregate health check on.
-     *
-     * @return The {@link Collection} of {@link HealthContributor}.
-     */
     @Override
-    public Map<String, HealthContributor> getContributors() {
-        return this.contributors;
+    public void register(HealthContributor... children) {
+        Exceptions.checkNotClosed(isClosed(), this);
+        for (HealthContributor child : children) {
+            contributors.put(child.getName(), child);
+        }
     }
 
     @Override
-    public void add(HealthContributor contributor) {
-        contributors.put(contributor.getName(), contributor);
+    public void close() {
+        if (!closed.getAndSet(true)) {
+            contributors.clear();
+        }
     }
 
     @Override
-    public HealthContributor remove(HealthContributor contributor) {
-        return contributors.remove(contributor.getName());
+    public boolean isClosed() {
+        return closed.get();
     }
 
     /**

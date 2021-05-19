@@ -58,11 +58,18 @@ public class HealthServiceUpdaterTests {
 
     @Test
     public void testServiceUpdaterProperlyUpdates() throws Exception {
-        service.getRoot().add(new HealthyContributor());
+        HealthContributor contributor = new HealthyContributor("contributor");
+        service.getRoot().register(contributor);
         // First Update.
         assertHealthServiceStatus(Status.UP);
+        contributor.close();
+        Assert.assertEquals("Closed contributor should no longer be listed as a child.",
+                0,
+                service.getRoot().getHealthSnapshot().getChildren().size());
         // We register an indicator that will return a failing result, so the next health check should contain a 'DOWN' Status.
-        service.getRoot().add(new FailingContributor());
+        contributor = new FailingContributor("failing");
+        service.getRoot().register(contributor);
+
         assertHealthServiceStatus(Status.DOWN);
     }
 

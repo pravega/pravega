@@ -73,6 +73,7 @@ public class HealthServiceImpl implements HealthService {
     public void close() {
         if (!this.closed.getAndSet(true)) {
             this.updater.close();
+            this.root.close();
         }
     }
 

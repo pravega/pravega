@@ -63,7 +63,7 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
     private Duration interval = DEFAULT_INTERVAL_SECONDS;
 
     /**
-     * Provides the latest {@link Health} result of the recurring {@link io.pravega.shared.health.HealthEndpoint#getHealth(boolean)} calls.
+     * Provides the latest {@link Health} result of the recurring {@link io.pravega.shared.health.HealthEndpoint#getHealth()} calls.
      * @return The latest {@link Health} result.
      */
     public Health getLatestHealth() {
@@ -77,7 +77,7 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
 
     @Override
     protected void runOneIteration() {
-        latest.set(service.getEndpoint().getHealth(true));
+        latest.set(service.getEndpoint().getHealth());
     }
 
     @Override
@@ -86,7 +86,7 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
     }
 
     /**
-     * Starts the underlying {@link ScheduledExecutorService} to repeatedly call {@link io.pravega.shared.health.HealthEndpoint#getHealth(boolean)}.
+     * Starts the underlying {@link ScheduledExecutorService} to repeatedly call {@link io.pravega.shared.health.HealthEndpoint#getHealth()}.
      */
     @Override
     protected void startUp() {

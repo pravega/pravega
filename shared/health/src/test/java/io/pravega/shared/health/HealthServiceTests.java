@@ -15,6 +15,8 @@
  */
 package io.pravega.shared.health;
 
+import io.pravega.shared.health.impl.HealthEndpointImpl;
+import io.pravega.test.common.AssertExtensions;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -65,13 +67,13 @@ public class HealthServiceTests {
      */
     @Test
     public void testHealth() {
-        HealthyContributor indicator = new HealthyContributor();
-        service.getRoot().add(indicator);
+        HealthyContributor contributor = new HealthyContributor();
+        service.getRoot().register(contributor);
 
-        Health health = service.getEndpoint().getHealth(indicator.getName());
+        Health health = service.getEndpoint().getHealth(contributor.getName());
         Assert.assertTrue("Status of the default/root component is expected to be 'UP'", health.getStatus() == Status.UP);
 
-        health = service.getEndpoint().getHealth(true);
+        health = service.getEndpoint().getHealth();
         Assert.assertEquals("There should be exactly one child (SimpleIndicator)", health.getChildren().size(), 1);
     }
 
@@ -80,9 +82,9 @@ public class HealthServiceTests {
      */
     @Test
     public void testHealthInvalidName() {
-        HealthyContributor indicator = new HealthyContributor();
-        service.getRoot().add(indicator);
-        Assert.assertNull(service.getEndpoint().getHealth("unknown-indicator-name"));
+        AssertExtensions.assertThrows("An exception should be thrown given an unregisterd contributor.",
+                () -> service.getEndpoint().getHealth("unknown-contributor-name"),
+                ex -> ex instanceof HealthEndpointImpl.ContributorNotFoundException);
     }
 
     /**
@@ -92,10 +94,10 @@ public class HealthServiceTests {
      */
     @Test
     public void testDetailsEndpoints() {
-        HealthyContributor contributor = new HealthyContributor();
-        service.getRoot().add(contributor);
+        HealthyContributor contributor = new HealthyContributor("contributor");
+        service.getRoot().register(contributor);
 
-        Health health = service.getEndpoint().getHealth(true);
+        Health health = service.getEndpoint().getHealth();
         Assert.assertEquals("There should be at least one child contributor", 1, health.getChildren().size());
 
         // Tests that the Details object(s) are reachable via the 'service level' endpoint.
@@ -109,7 +111,7 @@ public class HealthServiceTests {
                 sample.getDetails().entrySet().stream().findFirst().get().getValue());
 
         // Directly query the HealthContributor endpoint.
-        health = service.getEndpoint().getHealth(contributor.getName(), true);
+        health = service.getEndpoint().getHealth(contributor.getName());
         Assert.assertEquals(String.format("Key should equal \"%s\"", HealthyContributor.DETAILS_KEY),
                 HealthyContributor.DETAILS_KEY,
                 health.getDetails().keySet().stream().findFirst().get());
@@ -124,8 +126,8 @@ public class HealthServiceTests {
      */
     @Test
     public void testStatusEndpoints() {
-        HealthyContributor contributor = new HealthyContributor();
-        service.getRoot().add(contributor);
+        HealthyContributor contributor = new HealthyContributor("contributor");
+        service.getRoot().register(contributor);
 
         Status status = service.getEndpoint().getStatus();
         // Test the 'service level' endpoint.
@@ -140,8 +142,8 @@ public class HealthServiceTests {
      */
     @Test
     public void testLivenessEndpoints() {
-        HealthyContributor contributor = new HealthyContributor();
-        service.getRoot().add(contributor);
+        HealthyContributor contributor = new HealthyContributor("contributor");
+        service.getRoot().register(contributor);
 
         boolean alive = service.getEndpoint().isAlive();
         Assert.assertEquals("The HealthService should produce an 'alive' result.", true, alive);
@@ -154,12 +156,12 @@ public class HealthServiceTests {
      */
     @Test
     public void testReadinessEndpoints() {
-        HealthyContributor indicator = new HealthyContributor();
-        service.getRoot().add(indicator);
+        HealthyContributor contributor = new HealthyContributor("contributor");
+        service.getRoot().register(contributor);
 
         boolean ready = service.getEndpoint().isReady();
         Assert.assertEquals("The HealthService should produce a 'ready' result.", true, ready);
-        ready = service.getEndpoint().isReady(indicator.getName());
+        ready = service.getEndpoint().isReady(contributor.getName());
         Assert.assertEquals("The SampleIndicator should produce a 'ready' result.", true, ready);
     }
 }

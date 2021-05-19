@@ -101,25 +101,15 @@ public interface HealthEndpoint {
     Map<String, Object> getDetails(String id);
 
     /**
-     * Calls {@link HealthEndpoint#getHealth(String, boolean)} with a false value and forwards the 'id' {@link String}.
+     * Requests the {@link Health} result for some {@link HealthContributor}.
      * @param id  The id/name of the {@link HealthContributor} to check the {@link Health} of.
      * @return The {@link Health} object of the {@link HealthContributor}.
      */
-    default Health getHealth(String id) {
-        return getHealth(id, false);
-    }
-
-    default Health getHealth(boolean includeDetails) {
-        return getHealth(getDefaultContributorName(), includeDetails);
-    }
+    Health getHealth(String id);
 
     /**
-     * Similar to a {@link HealthContributor}, a {@link HealthService} should also provide some way to access the {@link Health}
-     * of the service.
-     *
-     * @param id  The id/name of the {@link HealthContributor} to check the {@link Health} of.
-     * @param includeDetails Whether or not to include detailed information provided by said {@link HealthContributor}.
-     * @return The {@link Health} object of the {@link HealthContributor}.
+     * Requests the {@link Health} for the service level (root) {@link HealthContributor}.
+     * @return The {@link Health} of the whole health service.
      */
-    Health getHealth(String id, boolean includeDetails);
+    Health getHealth();
 }
