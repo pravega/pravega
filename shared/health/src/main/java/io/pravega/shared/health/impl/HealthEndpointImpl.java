@@ -111,7 +111,7 @@ public class HealthEndpointImpl implements HealthEndpoint {
 
     // Perform a basic DFS over the all health nodes reachable from the root.
     Health search(String id, Health current) {
-        if (id == current.getName()) {
+        if (id.equals(current.getName())) {
             return current;
         }
 
