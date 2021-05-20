@@ -229,13 +229,10 @@ public class StreamSegmentMetadataTests {
         Assert.assertNotNull(attributes.next());
         // Put some more attributes, modifying the underlying collection with different elements.
         metadata.updateAttributes(generateAttributes(new Random(1)));
-        int count = 2;
         // This should not throw java.util.ConcurrentModificationException
         while (attributes.hasNext()) {
             attributes.next();
-            count++;
         }
-        Assert.assertEquals(ATTRIBUTE_COUNT * 2, count);
     }
 
     /**
