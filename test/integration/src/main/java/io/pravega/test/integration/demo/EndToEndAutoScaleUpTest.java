@@ -83,7 +83,7 @@ public class EndToEndAutoScaleUpTest {
 
             controllerWrapper.awaitRunning();
 
-            controllerWrapper.getControllerService().createScope("test").get();
+            controllerWrapper.getControllerService().createScope("test", 0L).get();
 
             controller.createStream("test", "test", CONFIG).get();
             @Cleanup

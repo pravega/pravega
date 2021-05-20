@@ -16,23 +16,26 @@
 package io.pravega.controller.store.kvtable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
 import io.pravega.controller.store.kvtable.records.KVTConfigurationRecord;
 import io.pravega.controller.store.kvtable.records.KVTStateRecord;
+import io.pravega.controller.store.stream.OperationContext;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
+import java.util.function.BiFunction;
 
+import static io.pravega.controller.store.PravegaTablesStoreHelper.*;
+import static io.pravega.controller.store.PravegaTablesStoreHelper.BYTES_TO_UUID_FUNCTION;
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
 import static io.pravega.shared.NameUtils.getQualifiedTableName;
 
@@ -55,56 +58,54 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
     private static final String EPOCH_RECORD_KEY_FORMAT = "epochRecord-%d";
 
     private final PravegaTablesStoreHelper storeHelper;
-    private final Supplier<CompletableFuture<String>> metadataTableName;
+    private final BiFunction<Boolean, OperationContext, CompletableFuture<String>> metadataTableNameSupplier;
     private final AtomicReference<String> idRef;
-    private final ScheduledExecutorService executor;
 
     @VisibleForTesting
     PravegaTablesKVTable(final String scopeName, final String kvtName, PravegaTablesStoreHelper storeHelper,
-                         Supplier<CompletableFuture<String>> tableName,
+                         BiFunction<Boolean, OperationContext, CompletableFuture<String>> tableName,
                          ScheduledExecutorService executor) {
         super(scopeName, kvtName);
         this.storeHelper = storeHelper;
-        this.metadataTableName = tableName;
+        this.metadataTableNameSupplier = tableName;
         this.idRef = new AtomicReference<>(null);
-        this.executor = executor;
     }
 
-    public CompletableFuture<String> getId() {
+    public CompletableFuture<String> getId(OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         String id = idRef.get();
 
         if (!Strings.isNullOrEmpty(id)) {
             return CompletableFuture.completedFuture(id);
         } else {
-            return metadataTableName.get()
-                    .thenCompose(kvtsInScopeTable -> storeHelper.getEntry(kvtsInScopeTable, getName(),
-                                                          x -> BitConverter.readUUID(x, 0)))
-                                                  .thenComposeAsync(data -> {
-                                                      idRef.compareAndSet(null, data.getObject().toString());
-                                                      return getId();
-                                                  });
+            // first get the scope id from the cache.
+            // if the cache does not contain scope id then we load it from the supplier. 
+            // if cache contains the scope id then we load the kvtid. if not found, we load the scopeid first. 
+            return storeHelper.loadFromTableHandleStaleTableName(metadataTableNameSupplier, getName(),
+                    BYTES_TO_UUID_FUNCTION, context)
+                              .thenComposeAsync(data -> {
+                                  idRef.compareAndSet(null, data.getObject().toString());
+                                  return getId(context);
+                              });
         }
     }
 
     @Override
     public void refresh() {
-        String id = idRef.getAndSet(null);
-        if (!Strings.isNullOrEmpty(id)) {
-            // refresh all mutable records
-            storeHelper.invalidateCache(getMetadataTableName(id), STATE_KEY);
-            storeHelper.invalidateCache(getMetadataTableName(id), CONFIGURATION_KEY);
-        }
+        idRef.set(null);
     }
 
     @Override
-    public CompletableFuture<Long> getCreationTime() {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.getCachedData(metadataTable, CREATION_TIME_KEY,
-                        data -> BitConverter.readLong(data, 0))).thenApply(VersionedMetadata::getObject);
+    public CompletableFuture<Long> getCreationTime(OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getMetadataTable(context)
+                .thenCompose(metadataTable -> storeHelper.getCachedOrLoad(metadataTable, CREATION_TIME_KEY,
+                        BYTES_TO_LONG_FUNCTION, context.getOperationStartTime(), context.getRequestId()))
+                .thenApply(VersionedMetadata::getObject);
     }
 
-    private CompletableFuture<String> getMetadataTable() {
-        return getId().thenApply(this::getMetadataTableName);
+    private CompletableFuture<String> getMetadataTable(OperationContext context) {
+        return getId(context).thenApply(this::getMetadataTableName);
     }
 
     private String getMetadataTableName(String id) {
@@ -112,62 +113,67 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    public CompletableFuture<Void> createStateIfAbsent(final KVTStateRecord state) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, STATE_KEY, state.toBytes())));
+    public CompletableFuture<Void> createStateIfAbsent(final KVTStateRecord state, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getMetadataTable(context)
+                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, STATE_KEY, 
+                        state, KVTStateRecord::toBytes, context.getRequestId())));
     }
 
     @Override
-    CompletableFuture<Version> setStateData(final VersionedMetadata<KVTStateRecord> state) {
-        return getMetadataTable()
+    CompletableFuture<Version> setStateData(final VersionedMetadata<KVTStateRecord> state, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getMetadataTable(context)
                 .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, STATE_KEY,
-                        state.getObject().toBytes(), state.getVersion())
-                        .thenApply(r -> {
-                            storeHelper.invalidateCache(metadataTable, STATE_KEY);
-                            return r;
-                        }));
+                        state.getObject(), KVTStateRecord::toBytes, state.getVersion(), context.getRequestId()));
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTStateRecord>> getStateData(boolean ignoreCached) {
-        return getMetadataTable()
+    CompletableFuture<VersionedMetadata<KVTStateRecord>> getStateData(boolean ignoreCached, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getMetadataTable(context)
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
-                        return storeHelper.getEntry(metadataTable, STATE_KEY, KVTStateRecord::fromBytes);
+                        storeHelper.invalidateCache(metadataTable, STATE_KEY);
                     }
-                    return storeHelper.getCachedData(metadataTable, STATE_KEY, KVTStateRecord::fromBytes);
+                    return storeHelper.getCachedOrLoad(metadataTable, STATE_KEY, KVTStateRecord::fromBytes, 
+                            ignoreCached ? context.getOperationStartTime() : 0L, context.getRequestId());
                 });
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTConfigurationRecord>> getConfigurationData(boolean ignoreCached) {
-        return getMetadataTable()
+    CompletableFuture<VersionedMetadata<KVTConfigurationRecord>> getConfigurationData(boolean ignoreCached, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getMetadataTable(context)
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
-                        return storeHelper.getEntry(metadataTable, CONFIGURATION_KEY, KVTConfigurationRecord::fromBytes);
+                        storeHelper.invalidateCache(metadataTable, CONFIGURATION_KEY);
                     }
-                    return storeHelper.getCachedData(metadataTable, CONFIGURATION_KEY, KVTConfigurationRecord::fromBytes);
+                    return storeHelper.getCachedOrLoad(metadataTable, CONFIGURATION_KEY, KVTConfigurationRecord::fromBytes,
+                            ignoreCached ? context.getOperationStartTime() : 0L, context.getRequestId());
                 });
     }
 
     @Override
     public CompletableFuture<CreateKVTableResponse> checkKeyValueTableExists(final KeyValueTableConfiguration configuration,
                                                                              final long creationTime,
-                                                                             final int startingSegmentNumber) {
+                                                                             final int startingSegmentNumber, 
+                                                                             OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         // If kvtable exists, but is in a partially complete state, then fetch its creation time and configuration and any
         // metadata that is available from a previous run.
         // If the existing kvtable has already been created successfully earlier,
-        return storeHelper.expectingDataNotFound(getCreationTime(), null)
+        return storeHelper.expectingDataNotFound(getCreationTime(context), null)
                 .thenCompose(storedCreationTime -> {
                     if (storedCreationTime == null) {
                         return CompletableFuture.completedFuture(new CreateKVTableResponse(CreateKVTableResponse.CreateStatus.NEW,
                                 configuration, creationTime, startingSegmentNumber));
                     } else {
-                        return storeHelper.expectingDataNotFound(getConfiguration(), null)
+                        return storeHelper.expectingDataNotFound(getConfiguration(context), null)
                                 .thenCompose(config -> {
                                     if (config != null) {
                                         return handleConfigExists(storedCreationTime, config, startingSegmentNumber,
-                                                storedCreationTime == creationTime);
+                                                storedCreationTime == creationTime, context);
                                     } else {
                                         return CompletableFuture.completedFuture(
                                                 new CreateKVTableResponse(CreateKVTableResponse.CreateStatus.NEW,
@@ -179,10 +185,11 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
     }
 
     private CompletableFuture<CreateKVTableResponse> handleConfigExists(long creationTime, KeyValueTableConfiguration config,
-                                                                       int startingSegmentNumber, boolean creationTimeMatched) {
+                                                                       int startingSegmentNumber, boolean creationTimeMatched, 
+                                                                        OperationContext context) {
         CreateKVTableResponse.CreateStatus status = creationTimeMatched ?
                 CreateKVTableResponse.CreateStatus.NEW : CreateKVTableResponse.CreateStatus.EXISTS_CREATING;
-        return storeHelper.expectingDataNotFound(getState(true), null)
+        return storeHelper.expectingDataNotFound(getState(true, context), null)
                 .thenApply(state -> {
                     if (state == null) {
                         return new CreateKVTableResponse(status, config, creationTime, startingSegmentNumber);
@@ -196,72 +203,76 @@ class PravegaTablesKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<Void> createKVTableMetadata() {
-        return getId().thenCompose(id -> storeHelper.createTable(getMetadataTableName(id)));
+    CompletableFuture<Void> createKVTableMetadata(OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getId(context).thenCompose(id -> storeHelper.createTable(getMetadataTableName(id), context.getRequestId()));
     }
 
     @Override
-    public CompletableFuture<Void> delete() {
-        return getId().thenCompose(id -> storeHelper.deleteTable(getMetadataTableName(id), false));
+    public CompletableFuture<Void> delete(OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getId(context).thenCompose(id -> storeHelper.deleteTable(getMetadataTableName(id), 
+                false, context.getRequestId()));
     }
 
     @Override
-    CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime) {
-        byte[] b = new byte[Long.BYTES];
-        BitConverter.writeLong(b, 0, creationTime);
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CREATION_TIME_KEY, b)
-                        .thenAccept(v -> storeHelper.invalidateCache(metadataTable, CREATION_TIME_KEY)));
+    CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getMetadataTable(context)
+                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, 
+                        CREATION_TIME_KEY, creationTime, LONG_TO_BYTES_FUNCTION, context.getRequestId())));
     }
 
     @Override
-    public CompletableFuture<Void> createConfigurationIfAbsent(final KVTConfigurationRecord configuration) {
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CONFIGURATION_KEY, configuration.toBytes())
-                        .thenAccept(v -> storeHelper.invalidateCache(metadataTable, CONFIGURATION_KEY)));
+    public CompletableFuture<Void> createConfigurationIfAbsent(final KVTConfigurationRecord configuration, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getMetadataTable(context)
+                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, 
+                        CONFIGURATION_KEY, configuration, KVTConfigurationRecord::toBytes, context.getRequestId())));
     }
 
     @Override
-    CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data) {
+    CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
         String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, key, data.toBytes())
-                        .thenAccept(v -> storeHelper.invalidateCache(metadataTable, key)));
+        return getMetadataTable(context)
+                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(metadataTable, key,
+                        data, KVTEpochRecord::toBytes, context.getRequestId())));
     }
 
     @Override
-    CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data) {
-        byte[] epochData = new byte[Integer.BYTES];
-        BitConverter.writeInt(epochData, 0, data.getEpoch());
-        return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(metadataTable, CURRENT_EPOCH_KEY, epochData)
-                       .thenAccept(v -> {
-                           storeHelper.invalidateCache(metadataTable, CURRENT_EPOCH_KEY);
-                       }));
+    CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getMetadataTable(context)
+                .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(
+                        metadataTable, CURRENT_EPOCH_KEY, data.getEpoch(), INTEGER_TO_BYTES_FUNCTION, context.getRequestId())));
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getCurrentEpochRecordData(boolean ignoreCached) {
-        return getMetadataTable()
+    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getCurrentEpochRecordData(boolean ignoreCached, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getMetadataTable(context)
                 .thenCompose(metadataTable -> {
                     CompletableFuture<VersionedMetadata<Integer>> future;
                     if (ignoreCached) {
-                        future = storeHelper.getEntry(metadataTable, CURRENT_EPOCH_KEY, x -> BitConverter.readInt(x, 0));
-                    } else {
-                        future = storeHelper.getCachedData(metadataTable, CURRENT_EPOCH_KEY, x -> BitConverter.readInt(x, 0));
+                        storeHelper.invalidateCache(metadataTable, CURRENT_EPOCH_KEY);
                     }
-                    return future.thenCompose(versionedEpochNumber -> getEpochRecord(versionedEpochNumber.getObject())
+                    future = storeHelper.getCachedOrLoad(metadataTable, CURRENT_EPOCH_KEY, BYTES_TO_INTEGER_FUNCTION, 
+                            ignoreCached ? context.getOperationStartTime() : 0L, context.getRequestId());
+
+                    return future.thenCompose(versionedEpochNumber -> getEpochRecord(versionedEpochNumber.getObject(), context)
                             .thenApply(epochRecord -> new VersionedMetadata<>(epochRecord, versionedEpochNumber.getVersion())));
                 });
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getEpochRecordData(int epoch) {
-        return getMetadataTable()
+    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getEpochRecordData(int epoch, OperationContext context) {
+        Preconditions.checkNotNull(context, "context cannot be null");
+        return getMetadataTable(context)
                 .thenCompose(metadataTable -> {
                     String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);
-                    return storeHelper.getCachedData(metadataTable, key, KVTEpochRecord::fromBytes);
+                    return storeHelper.getCachedOrLoad(metadataTable, key, KVTEpochRecord::fromBytes,
+                            context.getOperationStartTime(), context.getRequestId());
                 });
     }
-
 }
