@@ -113,7 +113,7 @@ public abstract class HealthContributorImpl implements HealthContributor {
     }
 
     @Override
-    public void register(HealthContributor... children) {
+    synchronized public void register(HealthContributor... children) {
         Exceptions.checkNotClosed(isClosed(), this);
         for (HealthContributor child : children) {
             contributors.put(child.getName(), child);
