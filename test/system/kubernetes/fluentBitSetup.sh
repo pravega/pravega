@@ -30,7 +30,7 @@ NAMESPACE=${NAMESPACE:-"default"}
 NAME=${NAME:-"pravega-fluent-bit"}
 TAR_NAME="pravega-logs-export.tar"
 SKIP_FORCE_ROTATE=${SKIP_FORCE_ROTATE:-"false"}
-ALPINE_IMAGE=${ALPINE_IMAGE:-"alpine"}
+ALPINE_IMAGE=${ALPINE_IMAGE:-"alpine:latest"}
 RETRIES=3
 
 # Configurable flag parameters.

@@ -1032,7 +1032,7 @@ project('test:system') {
         if (System.getProperty("skipFluentInstall", "false") == "true") {
             environment 'FLUENT_BIT_STORAGE_CLASS', System.getProperty("logStorageClass", "")
             environment 'FLUENT_BIT_HOST_LOGS_PATH', System.getProperty("k8HostLogPath", "")
-            environment 'ALPINE_IMAGE', System.getProperty("alpineImage", "alpine")
+            environment 'ALPINE_IMAGE', System.getProperty("alpineImage", "alpine:latest")
             commandLine './kubernetes/fluentBitSetup.sh', 'install'
         }
     }
