@@ -15,14 +15,19 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.store.Scope;
 import lombok.Getter;
 
-class OperationContextImpl<T> implements OperationContext {
-
+class ScopeOperationContext implements OperationContext {
     @Getter
-    private final Stream stream;
+    private final Scope scope;
+    @Getter
+    private final long requestId;
+    @Getter
+    private final long operationStartTime = System.currentTimeMillis();
 
-    OperationContextImpl(Stream stream) {
-        this.stream = stream;
+    ScopeOperationContext(Scope scope, long requestId) {
+        this.scope = scope;
+        this.requestId = requestId;
     }
 }

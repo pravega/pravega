@@ -37,7 +37,7 @@ public class StreamRequestProcessorWithZkStore extends StreamRequestProcessorTes
             new ExponentialBackoffRetry(200, 10, 5000));
         client.start();
 
-    store = StreamStoreFactory.createZKStore(client, executorService());
+        store = StreamStoreFactory.createZKStore(client, executorService());
     }
 
     @After

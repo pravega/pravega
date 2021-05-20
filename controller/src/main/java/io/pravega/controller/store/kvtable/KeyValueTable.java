@@ -19,6 +19,7 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
 import io.pravega.controller.store.kvtable.records.KVTSegmentRecord;
+import io.pravega.controller.store.stream.OperationContext;
 
 import java.util.List;
 import java.util.Set;
@@ -50,9 +51,11 @@ public interface KeyValueTable {
      * @param configuration kvtable configuration.
      * @param createTimestamp kvtable configuration.
      * @param startingSegmentNumber kvtable starting segment number.
+     * @param context operation context
      * @return boolean indicating success.
      */
-    CompletableFuture<CreateKVTableResponse> create(final KeyValueTableConfiguration configuration, final long createTimestamp, final int startingSegmentNumber);
+    CompletableFuture<CreateKVTableResponse> create(final KeyValueTableConfiguration configuration, final long createTimestamp,
+                                                    final int startingSegmentNumber, OperationContext context);
 
 
     /**
@@ -63,88 +66,103 @@ public interface KeyValueTable {
 
     /**
      * Api to get creation time of the stream.
-     * 
+     *
+     * @param context operation context
      * @return CompletableFuture which, upon completion, has the creation time of the stream. 
      */
-    CompletableFuture<Long> getCreationTime();
+    CompletableFuture<Long> getCreationTime(OperationContext context);
 
     /**
      * Fetches the current stream configuration.
      *
+     * @param context operation context
      * @return current kvtable configuration.
      */
-    CompletableFuture<KeyValueTableConfiguration> getConfiguration();
+    CompletableFuture<KeyValueTableConfiguration> getConfiguration(OperationContext context);
 
     /**
      * Api to get the current state with its current version.
      *
+     * @param context operation context
      * @return Future which when completed has the versioned state.
      */
-    CompletableFuture<VersionedMetadata<KVTableState>> getVersionedState();
+    CompletableFuture<VersionedMetadata<KVTableState>> getVersionedState(OperationContext context);
 
     /**
      * Update the state of the stream.
      * @param state desired state
+     * @param context operation context
      * @return void
      */
-    CompletableFuture<Void> updateState(final KVTableState state);
+    CompletableFuture<Void> updateState(final KVTableState state, OperationContext context);
 
     /**
      * Api to update versioned state as a CAS operation.
      *
      * @param state existing state
      * @param newState desired state
+     * @param context operation context
      * @return Future which when completed contains the updated state and version if successful or exception otherwise.
      */
-    CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final VersionedMetadata<KVTableState> state, final KVTableState newState);
+    CompletableFuture<VersionedMetadata<KVTableState>> updateVersionedState(final VersionedMetadata<KVTableState> state, 
+                                                                            final KVTableState newState, OperationContext context);
     
     /**
      * Get the state of the kvtable.
      *
      * @return state othe given kvtable.
+     * @param context operation context
      * @param ignoreCached ignore cached value and fetch from store
      */
-    CompletableFuture<KVTableState> getState(boolean ignoreCached);
+    CompletableFuture<KVTableState> getState(boolean ignoreCached, OperationContext context);
 
     /**
      * Get the UUID of the kvtable.
+     * 
+     * @param context operation context
      * @return UUID of the given kvtable.
      */
-    CompletableFuture<String> getId();
+    CompletableFuture<String> getId(OperationContext context);
 
     /**
      * Method to get current active segments of the kvtable.
-     *
+     * @param context operation context
      * @return Future which when completed will contain currently active segments
      */
-    CompletableFuture<List<KVTSegmentRecord>> getActiveSegments();
+    CompletableFuture<List<KVTSegmentRecord>> getActiveSegments(OperationContext context);
 
     /**
      * Returns the epoch record corresponding to supplied epoch.
      *
      * @param epoch epoch to retrieve record for
+     * @param context operation context
      * @return CompletableFuture which on completion will have the epoch record corresponding to the given epoch
      */
-    CompletableFuture<KVTEpochRecord> getEpochRecord(int epoch);
+    CompletableFuture<KVTEpochRecord> getEpochRecord(int epoch, OperationContext context);
 
     /**
      * Returns the currently active KeyValueTable epoch.
      *
      * @param ignoreCached if ignore cache is set to true then fetch the value from the store.
+     * @param context operation context
      * @return currently active kvtable epoch.
      */
-    CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached);
+    CompletableFuture<KVTEpochRecord> getActiveEpochRecord(boolean ignoreCached, OperationContext context);
 
     /**
      * Fetches all segment ids in the KeyValueTable.
      *
+     * @param context operation context
      * @return Future which when completed contains a list of all segments in the KeyValueTable.
      */
-    CompletableFuture<Set<Long>> getAllSegmentIds();
+    CompletableFuture<Set<Long>> getAllSegmentIds(OperationContext context);
 
     /**
      * Deletes this KeyValueTable.
+     * 
+     * @param context operation context
+     * @return CompletableFuture which is completed when delete completes. 
      */
-    CompletableFuture<Void> delete();
+    CompletableFuture<Void> delete(OperationContext context);
 
 }

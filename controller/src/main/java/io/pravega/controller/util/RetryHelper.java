@@ -22,6 +22,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 
+import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -36,7 +37,8 @@ public class RetryHelper {
     public static final Predicate<Throwable> RETRYABLE_PREDICATE = e -> {
         Throwable t = Exceptions.unwrap(e);
         return RetryableException.isRetryable(t) || (t instanceof CheckpointStoreException &&
-                ((CheckpointStoreException) t).getType().equals(CheckpointStoreException.Type.Connectivity));
+                ((CheckpointStoreException) t).getType().equals(CheckpointStoreException.Type.Connectivity)) || 
+                t instanceof IOException;
     };
 
     public static final Predicate<Throwable> UNCONDITIONAL_PREDICATE = e -> true;

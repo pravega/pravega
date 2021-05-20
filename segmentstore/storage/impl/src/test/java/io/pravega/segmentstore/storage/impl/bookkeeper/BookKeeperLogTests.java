@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
@@ -55,6 +56,7 @@ import lombok.Cleanup;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
+import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKLedgerClosedException;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.client.api.BookKeeper;
@@ -380,6 +382,57 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                         ex -> true);
             }
         }
+    }
+
+    /**
+     * Verifies that {@link BookKeeperLog#initialize} is able to handle the situation when a Ledger is marked as Empty
+     * but it is also deleted from BookKeeper. This ledger should be ignored and not cause the initialization to fail.
+     */
+    @Test
+    public void testMissingEmptyLedgers() throws Exception {
+        final int count = 10;
+        final int writeEvery = 5; // Every 10th Ledger has data.
+        final Predicate<Integer> shouldAppendAnything = i -> i % writeEvery == 0;
+
+        val currentMetadata = new AtomicReference<LogMetadata>();
+        for (int i = 0; i < count; i++) {
+            boolean isEmpty = !shouldAppendAnything.test(i);
+            //boolean isDeleted = shouldDelete.test(i);
+            try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
+                log.initialize(TIMEOUT);
+                currentMetadata.set(log.loadMetadata());
+
+                // Delete the last Empty ledger, if any.
+                val toDelete = Lists.reverse(currentMetadata.get().getLedgers()).stream()
+                        .filter(m -> m.getStatus() == LedgerMetadata.Status.Empty)
+                        .findFirst().orElse(null);
+                if (toDelete != null) {
+                    Ledgers.delete(toDelete.getLedgerId(), this.factory.get().getBookKeeperClient());
+                }
+
+                // Append some data to this Ledger, if needed - this will mark it as NotEmpty.
+                if (!isEmpty) {
+                    log.append(new CompositeByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                }
+            }
+        }
+
+        // Now try to delete a valid ledger and verify that an exception was actually thrown.
+        val validLedgerToDelete = Lists.reverse(currentMetadata.get().getLedgers()).stream()
+                .filter(m -> m.getStatus() != LedgerMetadata.Status.Empty)
+                .findFirst().orElse(null);
+        if (validLedgerToDelete != null) {
+            Ledgers.delete(validLedgerToDelete.getLedgerId(), this.factory.get().getBookKeeperClient());
+        }
+
+        AssertExtensions.assertThrows(
+                "No exception thrown if valid ledger was deleted.",
+                () -> {
+                    @Cleanup
+                    val log = createDurableDataLog();
+                    log.initialize(TIMEOUT);
+                },
+                ex -> ex instanceof DurableDataLogException && ex.getCause() instanceof BKException.BKNoSuchLedgerExistsOnMetadataServerException);
     }
 
     @Test

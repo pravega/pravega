@@ -58,7 +58,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -68,6 +70,9 @@ import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.doReturn;
 
 public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+
     @Override
     public int getThreadPoolSize() {
         return 10;
@@ -309,7 +314,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
                 kvtStreamTruncationFuture.complete(null);
             }
             return CompletableFuture.completedFuture(true);
-        }).when(streamMetadataTasks).startTruncation(anyString(), anyString(), any(), any(), anyLong());
+        }).when(streamMetadataTasks).startTruncation(anyString(), anyString(), any(), any());
 
         Set<String> processes = Sets.newHashSet("p1", "p2", "p3");
 
@@ -352,7 +357,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         verify(processorsSpied, atLeast(4)).truncate(any(), any(), any());
         verify(checkpointStore, atLeast(4)).getProcesses();
         verify(checkpointStore, never()).getPositions(anyString(), anyString());
-        verify(streamMetadataTasks, never()).startTruncation(anyString(), anyString(), any(), any(), anyLong());
+        verify(streamMetadataTasks, never()).startTruncation(anyString(), anyString(), any(), any());
 
         signal.set(true);
 
