@@ -17,6 +17,7 @@ package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.HealthEndpointImpl;
 import io.pravega.test.common.AssertExtensions;
+import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -67,6 +68,7 @@ public class HealthServiceTests {
      */
     @Test
     public void testHealth() {
+        @Cleanup
         HealthyContributor contributor = new HealthyContributor();
         service.getRoot().register(contributor);
 
@@ -94,6 +96,7 @@ public class HealthServiceTests {
      */
     @Test
     public void testDetailsEndpoints() {
+        @Cleanup
         HealthyContributor contributor = new HealthyContributor("contributor");
         service.getRoot().register(contributor);
 
@@ -126,6 +129,7 @@ public class HealthServiceTests {
      */
     @Test
     public void testStatusEndpoints() {
+        @Cleanup
         HealthyContributor contributor = new HealthyContributor("contributor");
         service.getRoot().register(contributor);
 
@@ -142,6 +146,7 @@ public class HealthServiceTests {
      */
     @Test
     public void testLivenessEndpoints() {
+        @Cleanup
         HealthyContributor contributor = new HealthyContributor("contributor");
         service.getRoot().register(contributor);
 
@@ -156,6 +161,7 @@ public class HealthServiceTests {
      */
     @Test
     public void testReadinessEndpoints() {
+        @Cleanup
         HealthyContributor contributor = new HealthyContributor("contributor");
         service.getRoot().register(contributor);
 

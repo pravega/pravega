@@ -20,6 +20,7 @@ import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.Status;
 import io.pravega.test.common.AssertExtensions;
+import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 import io.pravega.shared.health.TestHealthContributors.HealthyContributor;
@@ -34,6 +35,7 @@ public class HealthContributorTests {
     @Test
     public void testHealthDetails() {
         // Details implicitly added during class construction.
+        @Cleanup
         HealthyContributor contributor = new HealthyContributor();
         Health health = contributor.getHealthSnapshot();
         Assert.assertEquals("Should exactly one detail entry.", 1, health.getDetails().size());
@@ -46,16 +48,24 @@ public class HealthContributorTests {
      */
     @Test
     public void testIndicatorThrows() {
+        @Cleanup
         ThrowingContributor contributor = new ThrowingContributor();
         Health health = contributor.getHealthSnapshot();
         Assert.assertEquals("HealthIndicator should have a 'DOWN' Status.", Status.DOWN, health.getStatus());
         Assert.assertTrue("HealthIndicator should be not be marked ready OR alive.", !health.isAlive() && !health.isReady());
     }
 
+    /**
+     * Tests that children {@link HealthContributor} can be properly registered to another contributor and the {@link Health}
+     * of the individual children is properly reflected in the overall health of the top most contributor.
+     */
     @Test
     public void testChildHealths() {
+        @Cleanup
         HealthContributor contributor = new HealthyContributor();
+        @Cleanup
         HealthContributor first = new HealthyContributor("first");
+        @Cleanup
         HealthContributor second = new FailingContributor("second");
         contributor.register(first, second);
 
@@ -64,8 +74,12 @@ public class HealthContributorTests {
         Assert.assertEquals("Expected to see two children registered to 'contributor'.", 2, health.getChildren().size());
     }
 
+    /**
+     * Verifies that a closed {@link HealthContributor} can no longer be acted upon.
+     */
     @Test
     public void testClosedContributor() {
+        @Cleanup
         HealthContributor root = new HealthyContributor();
         HealthContributor contributor = new HealthyContributor();
         contributor.close();
@@ -79,6 +93,7 @@ public class HealthContributorTests {
 
         HealthContributor parent = new HealthyContributor("parent");
         root.register(parent);
+        @Cleanup
         HealthContributor child = new FailingContributor("child");
         parent.register(child);
 
@@ -92,8 +107,13 @@ public class HealthContributorTests {
 
     }
 
+    /**
+     * Verifies that if the {@link Health} of the child {@link HealthContributor} changes, it properly
+     * determines the overall health before and after the change.
+     */
     @Test
     public void testDynamicContributor() {
+        @Cleanup
         HealthContributor root = new HealthyContributor();
         root.register(new HealthyContributor("first"));
         Assert.assertEquals("Expecting healthy status.", Status.UP, root.getHealthSnapshot().getStatus());

@@ -15,6 +15,7 @@
  */
 package io.pravega.shared.health;
 
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
@@ -58,6 +59,7 @@ public class HealthServiceUpdaterTests {
 
     @Test
     public void testServiceUpdaterProperlyUpdates() throws Exception {
+        @Cleanup
         HealthContributor contributor = new HealthyContributor("contributor");
         service.getRoot().register(contributor);
         // First Update.

@@ -63,6 +63,9 @@ public abstract class HealthContributorImpl implements HealthContributor {
      */
     private final AtomicBoolean closed = new AtomicBoolean();
 
+    /**
+     * Holds the references to all child {@link HealthContributor}.
+     */
     private final Map<String, HealthContributor> contributors = new ConcurrentHashMap<>();
 
     public HealthContributorImpl(@NonNull String name) {
@@ -81,15 +84,15 @@ public abstract class HealthContributorImpl implements HealthContributor {
      */
     @Override
     synchronized public Health getHealthSnapshot() {
-        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotClosed(isClosed(), this);
 
         Health.HealthBuilder builder = Health.builder().name(getName());
         Collection<Status> statuses = new ArrayList<>();
         Collection<Health> children = new ArrayList<>();
 
-        for (val entry : contributors.entrySet()) {
-            if (!entry.getValue().isClosed()) {
-                Health health = entry.getValue().getHealthSnapshot();
+        for (val  contributor : contributors.entrySet()) {
+            if (!contributor.getValue().isClosed()) {
+                Health health =  contributor.getValue().getHealthSnapshot();
                 children.add(health);
                 statuses.add(health.getStatus());
             } else {
@@ -123,6 +126,9 @@ public abstract class HealthContributorImpl implements HealthContributor {
     @Override
     public void close() {
         if (!closed.getAndSet(true)) {
+            for (val contributor : contributors.entrySet()) {
+                contributor.getValue().close();
+            }
             contributors.clear();
         }
     }
