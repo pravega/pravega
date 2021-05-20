@@ -126,8 +126,7 @@ class HashTableSegmentLayout extends TableSegmentLayout {
         // Generate an Update Batch for all the entries (since we need to know their Key Hashes and relative
         // offsets in the batch itself).
         val updateBatch = batch(entries, TableEntry::getKey, this.serializer::getUpdateLength, TableKeyBatch.update());
-        logRequest("put", segmentInfo.getName(), updateBatch.isConditional(), tableSegmentOffset, updateBatch.isRemoval(),
-                entries.size(), updateBatch.getLength());
+        logRequest("put", segmentInfo.getName(), updateBatch.isConditional(), tableSegmentOffset, entries.size(), updateBatch.getLength());
         return this.keyIndex.update(segment, updateBatch,
                 () -> commit(entries, this.serializer::serializeUpdate, segment, tableSegmentOffset, timer.getRemaining()), timer);
     }
@@ -148,6 +147,7 @@ class HashTableSegmentLayout extends TableSegmentLayout {
     CompletableFuture<List<TableEntry>> get(@NonNull DirectSegmentAccess segment, @NonNull List<BufferView> keys, TimeoutTimer timer) {
         val segmentInfo = segment.getInfo();
         ensureSegmentType(segmentInfo.getName(), segmentInfo.getType());
+        logRequest("get", segmentInfo.getName(), keys.size());
         val resultBuilder = new GetResultBuilder(keys, this.hasher);
         return this.keyIndex.getBucketOffsets(segment, resultBuilder.getHashes(), timer)
                 .thenComposeAsync(offsets -> get(segment, resultBuilder, offsets, timer), this.executor);
@@ -177,7 +177,7 @@ class HashTableSegmentLayout extends TableSegmentLayout {
     CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(@NonNull DirectSegmentAccess segment, IteratorArgs args) {
         val segmentInfo = segment.getInfo();
         ensureSegmentType(segmentInfo.getName(), segmentInfo.getType());
-        logRequest("keyIterator", segmentInfo.getName(), "hash");
+        logRequest("keyIterator", segmentInfo.getName(), args);
         return newIterator(segment, args, TableBucketReader::key);
     }
 
@@ -185,7 +185,7 @@ class HashTableSegmentLayout extends TableSegmentLayout {
     CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(@NonNull DirectSegmentAccess segment, IteratorArgs args) {
         val segmentInfo = segment.getInfo();
         ensureSegmentType(segmentInfo.getName(), segmentInfo.getType());
-        logRequest("entryIterator", segmentInfo.getName(), "hash");
+        logRequest("entryIterator", segmentInfo.getName(), args);
         return newIterator(segment, args, TableBucketReader::entry);
     }
 

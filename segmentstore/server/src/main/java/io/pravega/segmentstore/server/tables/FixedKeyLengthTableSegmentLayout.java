@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.DelayedProcessor;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -69,10 +70,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
@@ -82,11 +85,16 @@ import lombok.val;
  * resource intensive than {@link HashTableSegmentLayout} and provides order (sorting) between Keys.
  */
 @Beta
+@Slf4j
 class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
+    private final DelayedProcessor<CompactionCandidate> compactionService;
+
     //region Constructor
 
     FixedKeyLengthTableSegmentLayout(Connector connector, TableExtensionConfig config, ScheduledExecutorService executor) {
         super(connector, config, executor);
+        this.compactionService = new DelayedProcessor<>(this::compactIfNeeded, config.getCompactionFrequency(), executor,
+                String.format("TableCompactor[%s]", connector.getContainerId()));
     }
 
     //endregion
@@ -95,7 +103,8 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
 
     @Override
     public void close() {
-        // Nothing to do.
+        this.compactionService.close();
+        log.info("{}: Closed.", this.traceObjectId);
     }
 
     //endregion
@@ -104,7 +113,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
 
     @Override
     Collection<WriterSegmentProcessor> createWriterSegmentProcessors(UpdateableSegmentMetadata metadata) {
-        // We don't need any Writer Processors. TODO: how about compaction?
+        // We don't need any Writer Processors.
         return Collections.emptyList();
     }
 
@@ -123,7 +132,9 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         if (mustBeEmpty) {
             throw new UnsupportedOperationException("mustBeEmpty not supported on Fixed-Key-Length Table Segments.");
         }
-        return this.connector.deleteSegment(segmentName, timeout);
+
+        return this.connector.deleteSegment(segmentName, timeout)
+                .thenRun(() -> this.compactionService.cancel(segmentName));
     }
 
     @Override
@@ -136,6 +147,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         val attributeUpdates = new AttributeUpdateCollection();
         int batchOffset = 0;
         val batchOffsets = new ArrayList<Integer>();
+        boolean isConditional = false;
         for (val e : entries) {
             val key = e.getKey();
             Preconditions.checkArgument(key.getKey().getLength() == segmentKeyLength,
@@ -143,10 +155,12 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
                     key, segmentInfo.getName(), segmentKeyLength);
 
             attributeUpdates.add(createIndexUpdate(key, batchOffset));
+            isConditional |= key.hasVersion();
             batchOffsets.add(batchOffset);
             batchOffset += this.serializer.getUpdateLength(e);
         }
 
+        logRequest("put", segmentInfo.getName(), isConditional, tableSegmentOffset, entries.size(), batchOffset);
         if (batchOffset > this.config.getMaxBatchSize()) {
             throw new UpdateBatchTooLargeException(batchOffset, this.config.getMaxBatchSize());
         }
@@ -159,7 +173,10 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
                 ? segment.append(serializedEntries, attributeUpdates, timer.getRemaining())
                 : segment.append(serializedEntries, attributeUpdates, tableSegmentOffset, timer.getRemaining());
         return handleConditionalUpdateException(append, segmentInfo)
-                .thenApply(segmentOffset -> batchOffsets.stream().map(offset -> offset + segmentOffset).collect(Collectors.toList()));
+                .thenApply(segmentOffset -> {
+                    this.compactionService.process(new CompactionCandidate(segment));
+                    return batchOffsets.stream().map(offset -> offset + segmentOffset).collect(Collectors.toList());
+                });
     }
 
     @Override
@@ -170,17 +187,21 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         ensureValidKeyLength(segmentInfo.getName(), segmentKeyLength);
 
         val attributeUpdates = new AttributeUpdateCollection();
+        boolean isConditional = false;
         for (val key : keys) {
             Preconditions.checkArgument(key.getKey().getLength() == segmentKeyLength,
                     "Key Length for key `%s` incompatible with segment '%s' which requires key lengths of %s.",
                     key, segmentInfo.getName(), segmentKeyLength);
             attributeUpdates.add(createIndexRemoval(key));
+            isConditional |= key.hasVersion();
         }
 
+        logRequest("remove", segmentInfo.getName(), isConditional, tableSegmentOffset, keys.size());
         val result = tableSegmentOffset == NO_OFFSET
                 ? segment.updateAttributes(attributeUpdates, timer.getRemaining())
                 : segment.append(BufferView.empty(), attributeUpdates, tableSegmentOffset, timer.getRemaining());
-        return Futures.toVoid(handleConditionalUpdateException(result, segmentInfo));
+        return handleConditionalUpdateException(result, segmentInfo)
+                .thenRun(() -> this.compactionService.process(new CompactionCandidate(segment)));
     }
 
     @Override
@@ -192,6 +213,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
             return AttributeId.from(key.getCopy());
         }).collect(Collectors.toList());
 
+        logRequest("get", segmentInfo.getName(), keys.size());
         return segment.getAttributes(attributes, false, timer.getRemaining())
                 .thenComposeAsync(attributeValues -> {
                     val result = new ArrayList<CompletableFuture<TableEntry>>(attributes.size());
@@ -213,11 +235,13 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
 
     @Override
     CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(@NonNull DirectSegmentAccess segment, IteratorArgs args) {
+        logRequest("keyIterator", segment.getInfo().getName(), args);
         return newIterator(segment, this::getIteratorKeys, args);
     }
 
     @Override
     CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(@NonNull DirectSegmentAccess segment, IteratorArgs args) {
+        logRequest("entryIterator", segment.getInfo().getName(), args);
         return newIterator(segment, this::getIteratorEntries, args);
     }
 
@@ -260,6 +284,10 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         });
     }
 
+    private CompletableFuture<Void> compactIfNeeded(CompactionCandidate candidate) {
+        return CompletableFuture.completedFuture(null);
+    }
+
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull DirectSegmentAccess segment,
                                                                               @NonNull GetIteratorItem<T> getItems,
                                                                               @NonNull IteratorArgs args) {
@@ -287,6 +315,47 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         val timer = new TimeoutTimer(args.getFetchTimeout());
         return segment.attributeIterator(fromId, toId, timer.getRemaining())
                 .thenApply(ai -> new TableIterator<>(ai, segment, getItems, timer));
+    }
+
+    private void ensureSegmentType(String segmentName, SegmentType segmentType) {
+        Preconditions.checkArgument(segmentType.isFixedKeyLengthTableSegment(),
+                "FixedKeyTableSegmentLayout can only be used for Fixed-Key Table Segments; Segment '%s' is '%s;.", segmentName, segmentType);
+    }
+
+    private void ensureValidKeyLength(String segmentName, int keyLength) {
+        Preconditions.checkArgument(keyLength > 0 && keyLength <= AttributeId.MAX_LENGTH,
+                "Segment KeyLength for segment `%s' must be a positive integer smaller than or equal to %s; actual %s.",
+                segmentName, AttributeId.MAX_LENGTH, keyLength);
+    }
+
+    private int getSegmentKeyLength(SegmentProperties segmentInfo) {
+        return (int) (long) segmentInfo.getAttributes().getOrDefault(Attributes.ATTRIBUTE_ID_LENGTH, -1L);
+    }
+
+    private CompletableFuture<List<TableKey>> getIteratorKeys(DirectSegmentAccess segment, List<Map.Entry<AttributeId, Long>> keys, TimeoutTimer timer) {
+        return CompletableFuture.completedFuture(keys.stream().map(e -> TableKey.versioned(e.getKey().toBuffer(), e.getValue())).collect(Collectors.toList()));
+    }
+
+    private CompletableFuture<List<TableEntry>> getIteratorEntries(DirectSegmentAccess segment, List<Map.Entry<AttributeId, Long>> keys, TimeoutTimer timer) {
+        return get(segment, keys.stream().map(e -> e.getKey().toBuffer()).collect(Collectors.toList()), timer);
+    }
+
+    private long getCompareVersion(TableKey key) {
+        return key.getVersion() == TableKey.NOT_EXISTS ? Attributes.NULL_ATTRIBUTE_VALUE : key.getVersion();
+    }
+
+    //endregion
+
+    //region Helper Classes
+
+    @Data
+    private static class CompactionCandidate implements DelayedProcessor.Item {
+        private final DirectSegmentAccess segment;
+
+        @Override
+        public String key() {
+            return this.segment.getInfo().getName();
+        }
     }
 
     @RequiredArgsConstructor
@@ -335,37 +404,6 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
                     .thenApply(v -> result.get());
         }
     }
-
-    private void ensureSegmentType(String segmentName, SegmentType segmentType) {
-        Preconditions.checkArgument(segmentType.isFixedKeyLengthTableSegment(),
-                "FixedKeyTableSegmentLayout can only be used for Fixed-Key Table Segments; Segment '%s' is '%s;.", segmentName, segmentType);
-    }
-
-    private void ensureValidKeyLength(String segmentName, int keyLength) {
-        Preconditions.checkArgument(keyLength > 0 && keyLength <= AttributeId.MAX_LENGTH,
-                "Segment KeyLength for segment `%s' must be a positive integer smaller than or equal to %s; actual %s.",
-                segmentName, AttributeId.MAX_LENGTH, keyLength);
-    }
-
-    private int getSegmentKeyLength(SegmentProperties segmentInfo) {
-        return (int) (long) segmentInfo.getAttributes().getOrDefault(Attributes.ATTRIBUTE_ID_LENGTH, -1L);
-    }
-
-    private CompletableFuture<List<TableKey>> getIteratorKeys(DirectSegmentAccess segment, List<Map.Entry<AttributeId, Long>> keys, TimeoutTimer timer) {
-        return CompletableFuture.completedFuture(keys.stream().map(e -> TableKey.versioned(e.getKey().toBuffer(), e.getValue())).collect(Collectors.toList()));
-    }
-
-    private CompletableFuture<List<TableEntry>> getIteratorEntries(DirectSegmentAccess segment, List<Map.Entry<AttributeId, Long>> keys, TimeoutTimer timer) {
-        return get(segment, keys.stream().map(e -> e.getKey().toBuffer()).collect(Collectors.toList()), timer);
-    }
-
-    private long getCompareVersion(TableKey key) {
-        return key.getVersion() == TableKey.NOT_EXISTS ? Attributes.NULL_ATTRIBUTE_VALUE : key.getVersion();
-    }
-
-    //endregion
-
-    //region Helper Classes
 
     @FunctionalInterface
     private interface GetIteratorItem<T> {
@@ -446,5 +484,4 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
     }
 
     //endregion
-
 }

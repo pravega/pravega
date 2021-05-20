@@ -59,6 +59,12 @@ public class TableExtensionConfig {
     private final int maxCompactionSize = EntrySerializer.MAX_SERIALIZATION_LENGTH * 4;
 
     /**
+     * The amount of time to wait between successive compaction attempts on the same Table Segment.
+     */
+    @Builder.Default
+    private final Duration compactionFrequency = Duration.ofSeconds(30);
+
+    /**
      * Default value to set for the {@link TableAttributes#MIN_UTILIZATION} for every new Table Segment.
      */
     @Builder.Default

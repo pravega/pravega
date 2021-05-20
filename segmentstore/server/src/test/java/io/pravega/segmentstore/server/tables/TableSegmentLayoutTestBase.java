@@ -405,9 +405,11 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
             removedKeys.addAll(current.toRemove);
             keyVersions.keySet().removeAll(current.toRemove);
 
-            // Flush the processor.
-            Assert.assertTrue("Unexpected result from WriterTableProcessor.mustFlush().", processor.mustFlush());
-            processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            if (processor != null) {
+                // Flush the processor.
+                Assert.assertTrue("Unexpected result from WriterTableProcessor.mustFlush().", processor.mustFlush());
+                processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            }
 
             // Verify result (from cache).
             checkTable.accept(current.expectedEntries, removedKeys, context.ext);
