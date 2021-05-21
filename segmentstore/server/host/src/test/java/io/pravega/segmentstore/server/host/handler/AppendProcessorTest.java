@@ -105,7 +105,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AppendProcessorTest extends ThreadPooledTestSuite {
-    private final long requestId = 1234L;
+    private final long flowId = 1234L;
 
     @Override
     protected int getThreadPoolSize() {
@@ -144,15 +144,15 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
 
-        SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, "");
+        SetupAppend setupAppendCommand = new SetupAppend(flowId, clientId, streamSegmentName, "");
         processor.setupAppend(setupAppendCommand);
-        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, flowId));
 
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac, data);
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(flowId, streamSegmentName, clientId, 0));
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
-        verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, data.length));
+        verify(connection).send(new DataAppended(flowId, clientId, data.length, 0L, data.length));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
@@ -184,7 +184,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         Date expiryDate = Date.from(Instant.now().minusSeconds(100));
         JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(), expiryDate, null);
 
-        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
+        SetupAppend setupAppend = new SetupAppend(flowId, clientId, streamSegmentName, token.toCompactString());
         processor.setupAppend(setupAppend);
         verify(connection).close();
     }
@@ -212,7 +212,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(),
                 Date.from(Instant.now().minusSeconds(5)), null);
-        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
+        SetupAppend setupAppend = new SetupAppend(flowId, clientId, streamSegmentName, token.toCompactString());
 
         // Act
         mockProcessor.setupTokenExpiryTask(setupAppend, token).join();
@@ -245,7 +245,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         Date expiryDate = Date.from(Instant.now().plusMillis(300));
         JsonWebToken token = new JsonWebToken("subject", "audience", "secret".getBytes(), expiryDate, null);
 
-        SetupAppend setupAppend = new SetupAppend(1, clientId, streamSegmentName, token.toCompactString());
+        SetupAppend setupAppend = new SetupAppend(flowId, clientId, streamSegmentName, token.toCompactString());
 
         // Act
         mockProcessor.setupTokenExpiryTask(setupAppend, token).join();
@@ -268,13 +268,13 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture(21L));
-        processor.setupAppend(new SetupAppend(requestId, clientId, streamSegmentName, ""));
-        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
+        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, flowId));
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac, data);
-        verify(connection).send(new AppendSetup(requestId, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(flowId, streamSegmentName, clientId, 0));
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
-        verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, 21L));
+        verify(connection).send(new DataAppended(flowId, clientId, data.length, 0L, 21L));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
@@ -295,23 +295,23 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         AppendProcessor processor = AppendProcessor.defaultBuilder().store(store).connection(new TrackedConnection(connection, tracker)).build();
 
         setupGetAttributes(streamSegmentName1, clientId, store);
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName1, ""));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName1, ""));
         verifier.verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
 
         val ac1 = interceptAppend(store, streamSegmentName1, updateEventNumber(clientId, 10), CompletableFuture.completedFuture(1L));
-        processor.append(new Append(streamSegmentName1, clientId, 10, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.append(new Append(streamSegmentName1, clientId, 10, 1, Unpooled.wrappedBuffer(data), null, flowId));
         verifyStoreAppend(verifier, ac1, data);
 
         setupGetAttributes(streamSegmentName2, clientId, store);
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName2, ""));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName2, ""));
         verifier.verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
 
         val ac2 = interceptAppend(store, streamSegmentName2, updateEventNumber(clientId, 2000), CompletableFuture.completedFuture(2L));
-        processor.append(new Append(streamSegmentName2, clientId, 2000, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.append(new Append(streamSegmentName2, clientId, 2000, 1, Unpooled.wrappedBuffer(data), null, flowId));
         verifyStoreAppend(verifier, ac2, data);
 
         val ac3 = interceptAppend(store, streamSegmentName1, updateEventNumber(clientId, 20, 10, 1), CompletableFuture.completedFuture(3L));
-        processor.append(new Append(streamSegmentName1, clientId, 20, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.append(new Append(streamSegmentName1, clientId, 20, 1, Unpooled.wrappedBuffer(data), null, flowId));
         verifyStoreAppend(verifier, ac3, data);
 
         verifyNoMoreInteractions(store);
@@ -334,18 +334,18 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac1 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 1), CompletableFuture.completedFuture((long) data.length));
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), null, flowId));
 
         val ac2 = interceptAppend(store, streamSegmentName, data.length, updateEventNumber(clientId, 2, 1, 1), CompletableFuture.completedFuture(Long.valueOf(2 * data.length)));
-        processor.append(new Append(streamSegmentName, clientId, 2, 1, Unpooled.wrappedBuffer(data), (long) data.length, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 2, 1, Unpooled.wrappedBuffer(data), (long) data.length, flowId));
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac1, data);
         verifyStoreAppend(ac2, data);
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(flowId, streamSegmentName, clientId, 0));
         verify(tracker, times(2)).updateOutstandingBytes(connection, data.length, data.length);
-        verify(connection).send(new DataAppended(requestId, clientId, 1, 0, data.length));
-        verify(connection).send(new DataAppended(requestId, clientId, 2, 1, 2 * data.length));
+        verify(connection).send(new DataAppended(flowId, clientId, 1, 0, data.length));
+        verify(connection).send(new DataAppended(flowId, clientId, 2, 1, 2 * data.length));
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
@@ -370,26 +370,26 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac1 = interceptAppend(store, streamSegmentName, 0, updateEventNumber(clientId, 1), CompletableFuture.completedFuture((long) data.length));
 
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), 0L, requestId));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), 0L, flowId));
 
         val ac2 = interceptAppend(store, streamSegmentName, 0, updateEventNumber(clientId, 2, 1, 1),
                 Futures.failedFuture(new BadOffsetException(streamSegmentName, data.length, 0)));
 
-        processor.append(new Append(streamSegmentName, clientId, 2, 1, Unpooled.wrappedBuffer(data), 0L, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 2, 1, Unpooled.wrappedBuffer(data), 0L, flowId));
         val ac3 = interceptAppend(store, streamSegmentName, 0, updateEventNumber(clientId, 3, 1, 1),
                                   Futures.failedFuture(new BadAttributeUpdateException(streamSegmentName, new AttributeUpdate(clientId, null, 0), true, "test")));
 
-        processor.append(new Append(streamSegmentName, clientId, 3, 1, Unpooled.wrappedBuffer(data), 0L, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 3, 1, Unpooled.wrappedBuffer(data), 0L, flowId));
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac1, data);
         verifyStoreAppend(ac2, data);
         verifyStoreAppend(ac3, data);
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(flowId, streamSegmentName, clientId, 0));
         verify(tracker, times(3)).updateOutstandingBytes(connection, data.length, data.length);
-        verify(connection).send(new DataAppended(requestId, clientId, 1, 0, data.length));
-        verify(connection).send(new ConditionalCheckFailed(clientId, 2, requestId));
-        verify(connection).send(new InvalidEventNumber(clientId, requestId, "test"));
+        verify(connection).send(new DataAppended(flowId, clientId, 1, 0, data.length));
+        verify(connection).send(new ConditionalCheckFailed(clientId, 2, flowId));
+        verify(connection).send(new InvalidEventNumber(clientId, flowId, "test"));
         verify(connection).close();
         verify(tracker, times(3)).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
@@ -419,7 +419,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         val ac1 = interceptAppend(store, streamSegmentName, 0, updateEventNumber(clientId, 1), CompletableFuture.completedFuture((long) data.length));
         // First conditional Append.
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), 0L, 1L));
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), 0L, 1));
 
         //Simulate a connection drop on the client side and the client resends a SetupAppend followed by conditional Append.
         val ac2 = interceptAppend(store, streamSegmentName, data.length, updateEventNumber(clientId, 2, 1, 1),
@@ -459,19 +459,19 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac1 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 1), CompletableFuture.completedFuture((long) data.length));
 
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), null, flowId));
 
         val ac2 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 1, 1, 1),
                 Futures.failedFuture(new BadOffsetException(streamSegmentName, data.length, 0)));
 
-        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data), null, flowId));
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac1, data);
         verifyStoreAppend(ac2, data);
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(flowId, streamSegmentName, clientId, 0));
         verify(tracker, times(2)).updateOutstandingBytes(connection, data.length, data.length);
-        verify(connection).send(new DataAppended(requestId, clientId, 1, 0, data.length));
+        verify(connection).send(new DataAppended(flowId, clientId, 1, 0, data.length));
         verify(connection).close();
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
@@ -489,15 +489,15 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         AppendProcessor processor = AppendProcessor.defaultBuilder().store(store).connection(new TrackedConnection(connection, tracker)).build();
 
         setupGetAttributes(streamSegmentName, clientId, 100, store);
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
         try {
-            processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+            processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, flowId));
             fail();
         } catch (IllegalStateException e) {
             //expected
         }
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 100));
+        verify(connection).send(new AppendSetup(flowId, streamSegmentName, clientId, 100));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -512,7 +512,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         ConnectionTracker tracker = mock(ConnectionTracker.class);
         AppendProcessor processor = AppendProcessor.defaultBuilder().store(store).connection(new TrackedConnection(connection, tracker)).build();
         try {
-            processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+            processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, flowId));
             fail();
         } catch (IllegalStateException e) {
             //expected
@@ -540,9 +540,9 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         val ac2 = interceptAppend(store, segment2, updateEventNumber(clientId2, data.length), CompletableFuture.completedFuture((long) data.length));
 
         processor.setupAppend(new SetupAppend(1, clientId1, segment1, ""));
-        processor.append(new Append(segment1, clientId1, data.length, 1, Unpooled.wrappedBuffer(data), null, 2));
-        processor.setupAppend(new SetupAppend(3, clientId2, segment2, ""));
-        processor.append(new Append(segment2, clientId2, data.length, 1, Unpooled.wrappedBuffer(data), null, 4));
+        processor.append(new Append(segment1, clientId1, data.length, 1, Unpooled.wrappedBuffer(data), null, 1));
+        processor.setupAppend(new SetupAppend(2, clientId2, segment2, ""));
+        processor.append(new Append(segment2, clientId2, data.length, 1, Unpooled.wrappedBuffer(data), null, 2));
 
         verify(store).getAttributes(eq(segment1), eq(Collections.singleton(clientId1)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac1, data);
@@ -551,9 +551,9 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyStoreAppend(ac2, data);
         verify(tracker, times(2)).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).send(new AppendSetup(1, segment1, clientId1, 0));
-        verify(connection).send(new DataAppended(2, clientId1, data.length, 0, data.length));
-        verify(connection).send(new AppendSetup(3, segment2, clientId2, 0));
-        verify(connection).send(new DataAppended(4, clientId2, data.length, 0, data.length));
+        verify(connection).send(new DataAppended(1, clientId1, data.length, 0, data.length));
+        verify(connection).send(new AppendSetup(2, segment2, clientId2, 0));
+        verify(connection).send(new DataAppended(2, clientId2, data.length, 0, data.length));
         verify(tracker, times(2)).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
@@ -577,15 +577,15 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), Futures.failedFuture(new IntentionalException()));
 
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
+        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, flowId));
         try {
-            processor.append(new Append(streamSegmentName, clientId, data.length * 2, 1, Unpooled.wrappedBuffer(data), null, requestId));
+            processor.append(new Append(streamSegmentName, clientId, data.length * 2, 1, Unpooled.wrappedBuffer(data), null, flowId));
             fail();
         } catch (IllegalStateException e) {
             // Expected
         }
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(flowId, streamSegmentName, clientId, 0));
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).close();
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
@@ -612,12 +612,12 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         EmbeddedChannel channel = createChannel(store);
 
         // Send a setup append WireCommand.
-        Reply reply = sendRequest(channel, new SetupAppend(requestId, clientId, streamSegmentName, ""));
-        assertEquals(new AppendSetup(requestId, streamSegmentName, clientId, 0), reply);
+        Reply reply = sendRequest(channel, new SetupAppend(flowId, clientId, streamSegmentName, ""));
+        assertEquals(new AppendSetup(flowId, streamSegmentName, clientId, 0), reply);
 
         // Send an append which will cause a RuntimeException to be thrown by the store.
         reply = sendRequest(channel, new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null,
-                                                requestId));
+                flowId));
         assertNull("No WireCommand reply is expected", reply);
         // Verify that the channel is closed by the AppendProcessor.
         assertEventuallyEquals(false, channel::isOpen, 3000);
@@ -641,16 +641,16 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         EmbeddedChannel channel = createChannel(store);
 
         // Send a setup append WireCommand.
-        Reply reply = sendRequest(channel, new SetupAppend(requestId, clientId, streamSegmentName, ""));
-        assertEquals(new AppendSetup(requestId, streamSegmentName, clientId, 0), reply);
+        Reply reply = sendRequest(channel, new SetupAppend(flowId, clientId, streamSegmentName, ""));
+        assertEquals(new AppendSetup(flowId, streamSegmentName, clientId, 0), reply);
 
         // Send an append which will cause a RuntimeException to be thrown by the store.
         reply = sendRequest(channel, new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null,
-                                                requestId));
+                flowId));
         // validate InvalidEventNumber Wirecommand is sent before closing the Channel.
         assertNotNull("Invalid Event WireCommand is expected", reply);
         assertEquals(WireCommandType.INVALID_EVENT_NUMBER.getCode(), ((WireCommand) reply).getType().getCode());
-        assertEquals(requestId, ((InvalidEventNumber) reply).getRequestId());
+        assertEquals(flowId, ((InvalidEventNumber) reply).getRequestId());
 
         // Verify that the channel is closed by the AppendProcessor.
         assertEventuallyEquals(false, channel::isOpen, 3000);
@@ -668,18 +668,18 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         when(store.getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT))
                 .thenReturn(CompletableFuture.completedFuture(Collections.emptyMap()));
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
         verify(store).getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT);
 
         int eventCount = 100;
         val ac1 = interceptAppend(store, streamSegmentName,
                 updateEventNumber(clientId, 100, Attributes.NULL_ATTRIBUTE_VALUE, eventCount), CompletableFuture.completedFuture((long) data.length));
-        processor.append(new Append(streamSegmentName, clientId, 100, eventCount, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 100, eventCount, Unpooled.wrappedBuffer(data), null, flowId));
         verifyStoreAppend(ac1, data);
 
         val ac2 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 200, 100, eventCount),
                 CompletableFuture.completedFuture(null));
-        processor.append(new Append(streamSegmentName, clientId, 200, eventCount, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 200, eventCount, Unpooled.wrappedBuffer(data), null, flowId));
         verifyStoreAppend(ac2, data);
 
         verifyNoMoreInteractions(store);
@@ -701,17 +701,17 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         AppendProcessor processor = AppendProcessor.defaultBuilder().store(store).connection(new TrackedConnection(connection, tracker)).build();
 
         setupGetAttributes(streamSegmentName, clientId, store);
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(flowId, streamSegmentName, clientId, 0));
 
         // Initiate two appends in short sequence, and simulate the Store blocking on both of them.
         val store1 = new CompletableFuture<Long>();
         val ac1 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 1, 0, 1), store1);
-        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data1), null, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data1), null, flowId));
         val store2 = new CompletableFuture<Long>();
         val ac2 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 2, 1, 1), store2);
-        processor.append(new Append(streamSegmentName, clientId, 2, 1, Unpooled.wrappedBuffer(data2), null, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 2, 1, Unpooled.wrappedBuffer(data2), null, flowId));
         verifyStoreAppend(ac1, data1);
         verifyStoreAppend(ac2, data2);
         verify(tracker).updateOutstandingBytes(connection, data1.length, data1.length);
@@ -722,7 +722,7 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         // Verify an ack is sent for both appends (because of pipelining guarantees), but only the second append's length
         // is subtracted from the outstanding bytes.
-        verify(connection).send(new DataAppended(requestId, clientId, 2, 0L, 100L));
+        verify(connection).send(new DataAppended(flowId, clientId, 2, 0L, 100L));
         verify(tracker).updateOutstandingBytes(connection, -data2.length, data1.length);
         verifyNoMoreInteractions(connection);
 
@@ -748,21 +748,21 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         InOrder connectionVerifier = Mockito.inOrder(connection);
 
         setupGetAttributes(streamSegmentName, clientId, store);
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
-        connectionVerifier.verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        connectionVerifier.verify(connection).send(new AppendSetup(flowId, streamSegmentName, clientId, 0));
 
         // Initiate one append.
         val store1 = new CompletableFuture<Long>();
         val ac1 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 1, 0, 1), store1);
-        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data1), null, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 1, 1, Unpooled.wrappedBuffer(data1), null, flowId));
         verifyStoreAppend(ac1, data1);
         verify(tracker).updateOutstandingBytes(connection, data1.length, data1.length);
 
         // Second append will fail with StreamSegmentSealedException (this simulates having one append, immediately followed
         // by a Seal, then another append).
         val ac2 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 2, 1, 1), Futures.failedFuture(new StreamSegmentSealedException(streamSegmentName)));
-        processor.append(new Append(streamSegmentName, clientId, 2, 1, Unpooled.wrappedBuffer(data2), null, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 2, 1, Unpooled.wrappedBuffer(data2), null, flowId));
         verifyStoreAppend(ac2, data2);
         verify(tracker).updateOutstandingBytes(connection, data2.length, data1.length + data2.length);
         verify(tracker).updateOutstandingBytes(connection, -data2.length, data1.length);
@@ -770,26 +770,26 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         // Third append should fail just like the second one. However this will have a higher event number than that one
         // and we use it to verify it won't prevent sending the SegmentIsSealed message or send it multiple times.
         val ac3 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 3, 2, 1), Futures.failedFuture(new StreamSegmentSealedException(streamSegmentName)));
-        processor.append(new Append(streamSegmentName, clientId, 3, 1, Unpooled.wrappedBuffer(data3), null, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 3, 1, Unpooled.wrappedBuffer(data3), null, flowId));
         verifyStoreAppend(ac3, data3);
         verify(tracker).updateOutstandingBytes(connection, data3.length, data1.length + data3.length);
 
         // Complete the first one and verify it is acked properly.
         store1.complete(100L);
-        connectionVerifier.verify(connection).send(new DataAppended(requestId, clientId, 1, 0L, 100L));
+        connectionVerifier.verify(connection).send(new DataAppended(flowId, clientId, 1, 0L, 100L));
 
         // Verify that a SegmentIsSealed message is sent AFTER the ack from the first one (for the second append).
-        connectionVerifier.verify(connection).send(new WireCommands.SegmentIsSealed(requestId, streamSegmentName, "", 2L));
+        connectionVerifier.verify(connection).send(new WireCommands.SegmentIsSealed(flowId, streamSegmentName, "", 2L));
 
         // Verify that a second SegmentIsSealed is sent (for the third append).
-        connectionVerifier.verify(connection).send(new WireCommands.SegmentIsSealed(requestId, streamSegmentName, "", 3L));
+        connectionVerifier.verify(connection).send(new WireCommands.SegmentIsSealed(flowId, streamSegmentName, "", 3L));
         verify(tracker).updateOutstandingBytes(connection, -data3.length, data1.length);
         verify(tracker).updateOutstandingBytes(connection, -data1.length, 0);
 
         interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 4, 3, 1), Futures.failedFuture(new IntentionalException(streamSegmentName)));
         AssertExtensions.assertThrows(
                 "append() accepted a new request after sending a SegmentIsSealed message.",
-                () -> processor.append(new Append(streamSegmentName, clientId, 4, 1, Unpooled.wrappedBuffer(data1), null, requestId)),
+                () -> processor.append(new Append(streamSegmentName, clientId, 4, 1, Unpooled.wrappedBuffer(data1), null, flowId)),
                 ex -> ex instanceof IllegalStateException);
 
         // Verify no more messages are sent over the connection.
@@ -809,18 +809,18 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
 
         when(store.getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT))
                 .thenReturn(CompletableFuture.completedFuture(Collections.singletonMap(clientId, 100L)));
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
         verify(store).getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT);
 
         int eventCount = 10;
         val ac1 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 200, 100, eventCount),
                 CompletableFuture.completedFuture((long) data.length));
-        processor.append(new Append(streamSegmentName, clientId, 200, eventCount, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 200, eventCount, Unpooled.wrappedBuffer(data), null, flowId));
         verifyStoreAppend(ac1, data);
 
         val ac2 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 300, 200, eventCount),
                 CompletableFuture.completedFuture((long) (2 * data.length)));
-        processor.append(new Append(streamSegmentName, clientId, 300, eventCount, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.append(new Append(streamSegmentName, clientId, 300, eventCount, Unpooled.wrappedBuffer(data), null, flowId));
         verifyStoreAppend(ac2, data);
 
         verifyNoMoreInteractions(store);
@@ -839,14 +839,14 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), Futures.failedFuture(new UnsupportedOperationException()));
 
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
+        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, flowId));
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac, data);
 
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(flowId, streamSegmentName, clientId, 0));
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
-        verify(connection).send(new OperationUnsupported(requestId, "appending data", ""));
+        verify(connection).send(new OperationUnsupported(flowId, "appending data", ""));
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
@@ -865,12 +865,12 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         setupGetAttributes(streamSegmentName, clientId, store);
         val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), Futures.failedFuture(new CancellationException()));
 
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
-        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
+        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, flowId));
         verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
         verifyStoreAppend(ac, data);
 
-        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection).send(new AppendSetup(flowId, streamSegmentName, clientId, 0));
         verify(tracker).updateOutstandingBytes(connection, data.length, data.length);
         verify(connection).close();
         verify(tracker).updateOutstandingBytes(connection, -data.length, 0);
@@ -976,37 +976,35 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 15 * 1000)
-    public void testAppendAfterSealReturns() throws Exception {
+    public void testAppendAfterSealReturns() {
         String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
         ConnectionTracker tracker = mock(ConnectionTracker.class);
         AppendProcessor processor = AppendProcessor.defaultBuilder().store(store).connection(new TrackedConnection(connection, tracker)).build();
-        InOrder connectionVerifier = Mockito.inOrder(connection);
         setupGetAttributes(streamSegmentName, clientId, store);
 
-        processor.setupAppend(new SetupAppend(requestId, clientId, streamSegmentName, ""));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
         verify(store).getAttributes(eq(streamSegmentName), any(), eq(true), eq(AppendProcessor.TIMEOUT));
-        verify(connection).send(new WireCommands.AppendSetup(requestId, streamSegmentName, clientId, 0));
+        verify(connection).send(new WireCommands.AppendSetup(flowId, streamSegmentName, clientId, 0));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
 
     @Test(timeout = 15 * 1000)
-    public void testAppendAfterSealThrows() throws Exception {
+    public void testAppendAfterSealThrows() {
         String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
         ConnectionTracker tracker = mock(ConnectionTracker.class);
         AppendProcessor processor = AppendProcessor.defaultBuilder().store(store).connection(new TrackedConnection(connection, tracker)).build();
-        InOrder connectionVerifier = Mockito.inOrder(connection);
         Map<UUID, Long> attributes = mock(Map.class);
         when(store.getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT))
                 .thenReturn(CompletableFuture.completedFuture(attributes));
 
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        processor.setupAppend(new SetupAppend(flowId, clientId, streamSegmentName, ""));
         verify(store).getAttributes(eq(streamSegmentName), any(), eq(true), eq(AppendProcessor.TIMEOUT));
         verify(connection).close();
         verifyNoMoreInteractions(connection);
