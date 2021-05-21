@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -117,8 +118,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.startOffset = 0;
         this.storageLength = -1;
         this.length = -1;
-        this.coreAttributes = new HashMap<>();
-        this.extendedAttributes = new HashMap<>();
+        this.coreAttributes = new ConcurrentHashMap<>(); // These could be iterated and modified concurrently.
+        this.extendedAttributes = new ConcurrentHashMap<>();
         this.lastModified = new ImmutableDate();
         this.lastUsed = 0;
         this.active = true;
