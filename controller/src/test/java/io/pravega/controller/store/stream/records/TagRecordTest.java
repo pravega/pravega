@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.store.stream.records;
 
+import io.pravega.common.Timer;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Test;
 
@@ -65,19 +66,20 @@ public class TagRecordTest {
     public void testSerializationLength() {
         TreeSet<String> streamSet = new TreeSet<>();
         int length = 0;
-        while (length < 8 * 1024 * 1024) {
+        String tag = "tag1";
+        while (length < 1024 * 1024 - 10 * 1024) { // 1MB
             List<String> newStreams = new ArrayList<>(50);
-            for (int i = 0; i < 1000; i++) {
-                String r = RandomStringUtils.random(255, true, true);
-                newStreams.add(r);
+            for (int i = 0; i < 100; i++) {
+                newStreams.add(RandomStringUtils.random(255, true, true));
             }
             streamSet.addAll(newStreams);
             TagRecord rec = TagRecord.builder().tagName("tag1").streams(streamSet).build();
+            Timer timer = new Timer();
             byte[] ser = rec.toBytes();
             length = ser.length;
-            System.out.println("Serialization length " + length + " number of streams " + streamSet.size());
             assertEquals(rec, TagRecord.fromBytes(ser));
-
+            long elapsedNS = timer.getElapsedNanos();
+            System.out.println("Serialization length " + length + " number of streams " + streamSet.size() + " time " + elapsedNS);
         }
     }
 
