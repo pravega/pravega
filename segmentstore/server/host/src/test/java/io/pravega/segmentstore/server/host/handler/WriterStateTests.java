@@ -33,7 +33,8 @@ public class WriterStateTests {
     public void testAppendSuccessful() {
         // Begin with recording 3 Events.
         final long initialEventNumber = 1;
-        val ws = new WriterState(initialEventNumber);
+        final long flowId = 0;
+        val ws = new WriterState(initialEventNumber, flowId);
         long event1 = initialEventNumber + 1;
         val begin1 = ws.beginAppend(event1);
         Assert.assertEquals("beginAppend(1) returned unexpected LastStoredEventNumber.", initialEventNumber, begin1);
@@ -65,7 +66,8 @@ public class WriterStateTests {
     public void testConditionalAppendFailed() {
         // Begin with recording 2 Events.
         final long initialEventNumber = 1;
-        val ws = new WriterState(initialEventNumber);
+        final long flowId = 0;
+        val ws = new WriterState(initialEventNumber, flowId);
         long event1 = initialEventNumber + 1;
         ws.beginAppend(event1);
         long event2 = event1 + 1;
@@ -101,8 +103,9 @@ public class WriterStateTests {
     @Test
     public void testAppendFailed() {
         final long initialEventNumber = 1;
+        final long flowId = 0;
         long currentEventNumber = initialEventNumber;
-        val ws = new WriterState(initialEventNumber);
+        val ws = new WriterState(initialEventNumber, flowId);
         val callbackOrders = new ArrayList<Long>();
 
         // Begin and complete an event E1.

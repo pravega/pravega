@@ -187,7 +187,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                                     // It should be noted that only one connection for a given segment writer is created by the client.
                                     // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
                                     // below the specified event number.
-                                    WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber));
+                                    WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber, setupAppend.getRequestId()));
                                     if (current != null) {
                                         log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
                                                 writer, eventNumber, current);
@@ -235,7 +235,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         long traceId = LoggerHelpers.traceEnter(log, "append", append);
         UUID id = append.getWriterId();
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
-        Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
+        Preconditions.checkState(state != null && state.getFlowId() == append.getFlowId(),
+            "Data from unexpected connection: Segment=%s, WriterId=%s, FlowId=%s.", append.getSegment(), id, append.getFlowId());
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
         this.connection.adjustOutstandingBytes(appendLength);

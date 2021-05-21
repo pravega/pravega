@@ -66,6 +66,11 @@ class WriterState {
     @GuardedBy("this")
     private long smallestFailedEventNumber;
     /**
+     * Flow id for this Connection.
+     */
+    @GuardedBy("this")
+    private long flowId;
+    /**
      * The {@link ErrorContext}s that have been recorded for this instance.
      */
     @GuardedBy("this")
@@ -80,11 +85,12 @@ class WriterState {
      *
      * @param initialEventNumber The current Event Number on the Segment associated with this writer.
      */
-    WriterState(long initialEventNumber) {
+    WriterState(long initialEventNumber, long flowId) {
         this.inFlightCount = 0;
         this.smallestFailedEventNumber = NO_FAILED_EVENT_NUMBER; // Nothing failed yet.
         this.lastStoredEventNumber = initialEventNumber;
         this.lastAckedEventNumber = initialEventNumber;
+        this.flowId = flowId;
     }
 
     //endregion
@@ -181,6 +187,15 @@ class WriterState {
      */
     synchronized long getLowestFailedEventNumber() {
         return this.smallestFailedEventNumber;
+    }
+
+    /**
+     * Gets the Flow Id associated to the {@link WriterState}.
+     *
+     * @return The Flow Id for this {@link WriterState}.
+     */
+    synchronized long getFlowId() {
+        return this.flowId;
     }
 
     /**
