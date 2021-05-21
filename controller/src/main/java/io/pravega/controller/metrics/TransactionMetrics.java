@@ -48,7 +48,10 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger abortTransactionLatency;
     private final OpStatsLogger abortTransactionSegmentsLatency;
     private final OpStatsLogger abortingTransactionLatency;
-
+    private final OpStatsLogger commitTxnStartLatency;
+    private final OpStatsLogger commitTxnRecordOffsetsLatency;
+    private final OpStatsLogger commitTxnRolloverLatency;
+    private final OpStatsLogger commitTxnCompleteLatency;
 
     private TransactionMetrics() {
         createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
@@ -64,10 +67,15 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         createTxnCreateInStoreLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_IN_STORE_LATENCY);
         createTxnAddToTimeoutSvcLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_ADD_TIMEOUT_SVC_LATENCY);
 
-        committingTxnAddToIndexLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_ADD_TO_INDEX_LATENCY);
-        committingTxnSealLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEAL_LATENCY);
-        committingTxnWriteEventLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_WRITE_EVENT_LATENCY);
-        committingTxnRemoveTimeoutSvcLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_REMOVE_TIMEOUT_SVC_LATENCY);
+        committingTxnAddToIndexLatency = STATS_LOGGER.createStats(COMMITTING_TRANSACTION_ADD_TO_INDEX_LATENCY);
+        committingTxnSealLatency = STATS_LOGGER.createStats(COMMITTING_TRANSACTION_SEAL_LATENCY);
+        committingTxnWriteEventLatency = STATS_LOGGER.createStats(COMMITTING_TRANSACTION_WRITE_EVENT_LATENCY);
+        committingTxnRemoveTimeoutSvcLatency = STATS_LOGGER.createStats(COMMITTING_TRANSACTION_REMOVE_TIMEOUT_SVC_LATENCY);
+
+        commitTxnStartLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_START_LATENCY);
+        commitTxnRecordOffsetsLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_RECORD_OFFSETS_LATENCY);
+        commitTxnRolloverLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_ROLLOVER_LATENCY);
+        commitTxnCompleteLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_COMPLETE_LATENCY);
     }
 
     /**
@@ -225,6 +233,42 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
      */
     public void commitTransactionSegments(Duration latency) {
         commitTransactionSegmentsLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of managing segments for a particular commit Transaction.
+     *
+     * @param latency      Time elapsed to merge the segments related to the committed transaction.
+     */
+    public void commitTransactionStart(Duration latency) {
+        commitTxnStartLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of managing segments for a particular commit Transaction.
+     *
+     * @param latency      Time elapsed to merge the segments related to the committed transaction.
+     */
+    public void commitTransactionRecordOffsets(Duration latency) {
+        commitTxnRecordOffsetsLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of managing segments for a particular commit Transaction.
+     *
+     * @param latency      Time elapsed to merge the segments related to the committed transaction.
+     */
+    public void commitTransactionRollover(Duration latency) {
+        commitTxnRolloverLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of managing segments for a particular commit Transaction.
+     *
+     * @param latency      Time elapsed to merge the segments related to the committed transaction.
+     */
+    public void commitTransactionComplete(Duration latency) {
+        commitTxnCompleteLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**

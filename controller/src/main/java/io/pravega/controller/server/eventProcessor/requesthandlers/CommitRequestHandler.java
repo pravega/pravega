@@ -164,8 +164,11 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     final AtomicReference<VersionedMetadata<State>> stateRecord = new AtomicReference<>(state);
 
                     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> commitFuture =
-                            streamMetadataStore.startCommitTransactions(scope, stream, MAX_TRANSACTION_COMMIT_BATCH_SIZE, 
-                                    context, executor)
+                            streamMetadataStore.startCommitTransactions(scope, stream, MAX_TRANSACTION_COMMIT_BATCH_SIZE, context, executor)
+                                    .thenApply(commitTxnRecord -> {
+                                        TransactionMetrics.getInstance().commitTransactionStart(timer.getElapsed());
+                                        return commitTxnRecord;
+                                    })
                             .thenComposeAsync(versionedMetadata -> {
                                 if (versionedMetadata.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
                                     // there are no transactions found to commit.
@@ -214,8 +217,13 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                             context, timer)
                                                             .thenApply(x -> versionedMetadata);
                                                 } else {
+                                                    Timer rollingTxnTimer = new Timer();
                                                     return rollTransactions(scope, stream, txnEpochRecord, activeEpochRecord,
-                                                            versionedMetadata, context, timer);
+                                                            versionedMetadata, context, timer)
+                                                            .thenApply(result -> {
+                                                                TransactionMetrics.getInstance().commitTransactionRollover(rollingTxnTimer.getElapsed());
+                                                                return result;
+                                                            });
                                                 }
                                             }));
                                 }
@@ -347,7 +355,14 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     // Note: if its a rerun, transaction commit offsets may have been updated already in previous iteration
                     // so this will not update/modify it. 
                     .thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId, context.getRequestId()))
-                    .thenCompose(map -> streamMetadataStore.recordCommitOffsets(scope, stream, txnId, map, context, executor))
+                    .thenCompose(map -> {
+                        Timer recordOffsetsTimer = new Timer();
+                        return streamMetadataStore.recordCommitOffsets(scope, stream, txnId, map, context, executor)
+                                .thenApply(x -> {
+                                    TransactionMetrics.getInstance().commitTransactionRecordOffsets(recordOffsetsTimer.getElapsed());
+                                    return x;
+                                });
+                    })
                     .thenRun(() -> TransactionMetrics.getInstance().commitTransaction(scope, stream, timer.getElapsed()));
         }
         

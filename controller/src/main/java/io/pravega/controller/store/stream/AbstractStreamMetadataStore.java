@@ -977,12 +977,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, 
                                                               VersionedMetadata<CommittingTransactionsRecord> record,
                                                               OperationContext ctx, ScheduledExecutorService executor) {
+        Timer timer = new Timer();
         OperationContext context = getOperationContext(ctx);
         Stream streamObj = getStream(scope, stream, context);
         return Futures.completeOn(streamObj.completeCommittingTransactions(record, context), executor)
                 .thenAcceptAsync(result -> {
                     streamObj.getNumberOfOngoingTransactions(context).thenAccept(count ->
                             TransactionMetrics.reportOpenTransactions(scope, stream, count));
+                    TransactionMetrics.getInstance().commitTransactionComplete(timer.getElapsed());
                 }, executor);
     }
 
