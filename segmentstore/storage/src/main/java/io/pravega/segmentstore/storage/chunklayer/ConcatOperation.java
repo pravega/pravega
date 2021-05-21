@@ -37,6 +37,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CONCAT_BYTES;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CONCAT_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CONCAT_LATENCY;
 
@@ -139,6 +140,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         val elapsed = timer.getElapsed();
         SLTS_CONCAT_LATENCY.reportSuccessEvent(elapsed);
         SLTS_CONCAT_COUNT.inc();
+        SLTS_CONCAT_BYTES.add(sourceSegmentMetadata.getLength());
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
             log.warn("{} concat - late op={}, target={}, source={}, offset={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), targetHandle.getSegmentName(), sourceSegment, offset, elapsed.toMillis());

@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_NUM_CHUNKS_READ;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_BYTES;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_INDEX_BLOCK_LOOKUP_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_INDEX_NUM_SCANNED;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_INDEX_SCAN_LATENCY;
@@ -48,6 +49,7 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_READ_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_NUM_CHUNKS_READ;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_READ_BYTES;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_READ_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_READ_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYS_READ_INDEX_BLOCK_LOOKUP_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYS_READ_INDEX_NUM_SCANNED;
@@ -128,13 +130,16 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
 
     private void logEnd() {
         Duration elapsed = timer.getElapsed();
-        SLTS_READ_LATENCY.reportSuccessEvent(elapsed);
-        SLTS_NUM_CHUNKS_READ.reportSuccessValue(cntChunksRead.get());
-        SLTS_READ_BYTES.add(length);
         if (segmentMetadata.isStorageSystemSegment()) {
             SLTS_SYSTEM_READ_LATENCY.reportSuccessEvent(elapsed);
             SLTS_SYSTEM_NUM_CHUNKS_READ.reportSuccessValue(cntChunksRead.get());
             SLTS_SYSTEM_READ_BYTES.add(length);
+            SLTS_SYSTEM_READ_COUNT.inc();
+        } else {
+            SLTS_READ_LATENCY.reportSuccessEvent(elapsed);
+            SLTS_NUM_CHUNKS_READ.reportSuccessValue(cntChunksRead.get());
+            SLTS_READ_BYTES.add(length);
+            SLTS_READ_COUNT.inc();
         }
         if (elapsed.toMillis() > 0) {
             val bytesPerSecond = 1000L * length / elapsed.toMillis();

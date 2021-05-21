@@ -113,6 +113,9 @@ public final class MetricsNames {
     public static final String STORAGE_READ_BYTES = PREFIX + "segmentstore.storage.read_bytes";          // Counter
     public static final String STORAGE_WRITE_BYTES = PREFIX + "segmentstore.storage.write_bytes";        // Counter
     public static final String STORAGE_CONCAT_BYTES = PREFIX + "segmentstore.storage.concat_bytes";      // Counter
+
+    public static final String STORAGE_READ_COUNT = PREFIX + "segmentstore.storage.read_count";      // Counter
+    public static final String STORAGE_WRITE_COUNT = PREFIX + "segmentstore.storage.write_count";      // Counter
     public static final String STORAGE_CREATE_COUNT = PREFIX + "segmentstore.storage.create_count";      // Counter
     public static final String STORAGE_DELETE_COUNT = PREFIX + "segmentstore.storage.delete_count";      // Counter
     public static final String STORAGE_CONCAT_COUNT = PREFIX + "segmentstore.storage.concat_count";      // Counter
@@ -152,11 +155,17 @@ public final class MetricsNames {
     public static final String SLTS_SYSTEM_READ_BYTES = PREFIX + "segmentstore.storage.slts.system_read_bytes";     // Counter
     public static final String SLTS_SYSTEM_WRITE_BYTES = PREFIX + "segmentstore.storage.slts.system_write_bytes";   // Counter
     public static final String SLTS_CONCAT_BYTES = PREFIX + "segmentstore.storage.slts.concat_bytes";      // Counter
+
+    public static final String SLTS_READ_COUNT = PREFIX + "segmentstore.storage.slts.read_count";      // Counter
+    public static final String SLTS_WRITE_COUNT = PREFIX + "segmentstore.storage.slts.write_count";      // Counter
     public static final String SLTS_CREATE_COUNT = PREFIX + "segmentstore.storage.slts.create_count";      // Counter
     public static final String SLTS_DELETE_COUNT = PREFIX + "segmentstore.storage.slts.delete_count";      // Counter
     public static final String SLTS_CONCAT_COUNT = PREFIX + "segmentstore.storage.slts.concat_count";      // Counter
     public static final String SLTS_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.truncate_count";  // Counter
     public static final String SLTS_SYSTEM_TRUNCATE_COUNT = PREFIX + "segmentstore.storage.slts.system_truncate_count";  // Counter
+
+    public static final String SLTS_SYSTEM_READ_COUNT = PREFIX + "segmentstore.storage.slts.system_read_count";      // Counter
+    public static final String SLTS_SYSTEM_WRITE_COUNT = PREFIX + "segmentstore.storage.slts.system_write_count";      // Counter
 
     public static final String SLTS_GC_QUEUE_SIZE = PREFIX + "segmentstore.storage.slts.GC_queue_record_count";  // Counter
 

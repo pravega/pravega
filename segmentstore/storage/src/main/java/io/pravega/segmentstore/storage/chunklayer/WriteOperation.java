@@ -47,8 +47,10 @@ import java.util.stream.Collectors;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_NUM_CHUNKS_ADDED;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_NUM_CHUNKS_ADDED;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_WRITE_BYTES;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_WRITE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_WRITE_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_BYTES;
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_INSTANT_TPUT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_WRITE_LATENCY;
 
@@ -167,14 +169,17 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     private void logEnd() {
         val elapsed = timer.getElapsed();
-        SLTS_WRITE_LATENCY.reportSuccessEvent(elapsed);
-        SLTS_WRITE_BYTES.add(length);
-        SLTS_NUM_CHUNKS_ADDED.reportSuccessValue(chunksAddedCount.get());
         if (segmentMetadata.isStorageSystemSegment()) {
             SLTS_SYSTEM_WRITE_LATENCY.reportSuccessEvent(elapsed);
             SLTS_SYSTEM_WRITE_BYTES.add(length);
             SLTS_SYSTEM_NUM_CHUNKS_ADDED.reportSuccessValue(chunksAddedCount.get());
+            SLTS_SYSTEM_WRITE_COUNT.inc();
             chunkedSegmentStorage.reportMetricsForSystemSegment(segmentMetadata);
+        } else {
+            SLTS_WRITE_LATENCY.reportSuccessEvent(elapsed);
+            SLTS_WRITE_BYTES.add(length);
+            SLTS_NUM_CHUNKS_ADDED.reportSuccessValue(chunksAddedCount.get());
+            SLTS_WRITE_COUNT.inc();
         }
         if (elapsed.toMillis() > 0) {
             val bytesPerSecond = 1000L * length / elapsed.toMillis();

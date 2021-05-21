@@ -335,6 +335,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
             val elapsed = opContext.getInclusiveLatency();
             ChunkStorageMetrics.READ_LATENCY.reportSuccessEvent(elapsed);
             ChunkStorageMetrics.READ_BYTES.add(bytesRead);
+            ChunkStorageMetrics.READ_COUNT.inc();
 
             log.debug("Read - chunk={}, offset={}, bytesRead={}, latency={}.", handle.getChunkName(), fromOffset, length, elapsed.toMillis());
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
@@ -385,7 +386,7 @@ public abstract class AsyncBaseChunkStorage implements ChunkStorage {
 
             ChunkStorageMetrics.WRITE_LATENCY.reportSuccessEvent(elapsed);
             ChunkStorageMetrics.WRITE_BYTES.add(bytesWritten);
-
+            ChunkStorageMetrics.WRITE_COUNT.inc();
             log.debug("Write - chunk={}, offset={}, bytesWritten={}, latency={}.", handle.getChunkName(), offset, length, elapsed.toMillis());
             LoggerHelpers.traceLeave(log, "write", traceId, bytesWritten);
         }, executor);
