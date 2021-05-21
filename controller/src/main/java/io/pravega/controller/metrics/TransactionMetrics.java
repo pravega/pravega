@@ -177,7 +177,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method accounts for the time taken for a client to set a Transaction to COMMITTING state.
+     * This method records latency for adding Txn to Index in the Commit API.
      *
      * @param latency    Latency of the abort Transaction operation.
      */
@@ -186,27 +186,27 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method accounts for the time taken for a client to set a Transaction to COMMITTING state.
+     * This method records latency for sealing Txn in the Commit API.
      *
-     * @param latency    Latency of the abort Transaction operation.
+     * @param latency    Latency for sealing Txn in the Commit API.
      */
     public void committingTransactionSeal(Duration latency) {
         committingTxnSealLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
-     * This method accounts for the time taken for a client to set a Transaction to COMMITTING state.
+     * This method records latency for Writing Event for a txn in COMMITTING/ABORTING State.
      *
-     * @param latency    Latency of the abort Transaction operation.
+     * @param latency    Latency for Writing Event for a txn in COMMITTING/ABORTING State.
      */
     public void committingTransactionWriteEvent(Duration latency) {
         committingTxnWriteEventLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
-     * This method accounts for the time taken for a client to set a Transaction to COMMITTING state.
+     * This method records latency for removing txn from Timeout Service.
      *
-     * @param latency    Latency of the abort Transaction operation.
+     * @param latency    Latency for removing txn from Timeout Service
      */
     public void committingTransactionRemoveTimeoutSvc(Duration latency) {
         committingTxnRemoveTimeoutSvcLatency.reportSuccessValue(latency.toMillis());
@@ -236,36 +236,36 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method reports the latency of managing segments for a particular commit Transaction.
+     * This method reports the latency for metadata change for Starting Transaction Commit as part of Commit Event processing.
      *
-     * @param latency      Time elapsed to merge the segments related to the committed transaction.
+     * @param latency      Latency for StartTransactionCommit API
      */
     public void commitTransactionStart(Duration latency) {
         commitTxnStartLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
-     * This method reports the latency of managing segments for a particular commit Transaction.
+     * This method reports the latency for recording commit offsets post segment merges.
      *
-     * @param latency      Time elapsed to merge the segments related to the committed transaction.
+     * @param latency      Latency for recording commit offsets post segment merge.
      */
     public void commitTransactionRecordOffsets(Duration latency) {
         commitTxnRecordOffsetsLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
-     * This method reports the latency of managing segments for a particular commit Transaction.
+     * This method reports the latency for txn rollover in Commit Event Processing.
      *
-     * @param latency      Time elapsed to merge the segments related to the committed transaction.
+     * @param latency      Latency for txn rollover in Commit Event Processing
      */
     public void commitTransactionRollover(Duration latency) {
         commitTxnRolloverLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
-     * This method reports the latency of managing segments for a particular commit Transaction.
+     * This method reports the latency for completing Transaction Commit.
      *
-     * @param latency      Time elapsed to merge the segments related to the committed transaction.
+     * @param latency      Latency for completing Transaction Commit.
      */
     public void commitTransactionComplete(Duration latency) {
         commitTxnCompleteLatency.reportSuccessValue(latency.toMillis());
