@@ -21,22 +21,7 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.pravega.shared.MetricsNames.ABORTING_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION;
-import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION_FAILED;
-import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION_SEGMENTS_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMITTING_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_FAILED;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_SEGMENTS_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_FAILED;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_SEGMENTS_LATENCY;
-import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
-import static io.pravega.shared.MetricsNames.globalMetricName;
+import static io.pravega.shared.MetricsNames.*;
 import static io.pravega.shared.MetricsTags.streamTags;
 import static io.pravega.shared.MetricsTags.transactionTags;
 
@@ -49,6 +34,10 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
 
     private final OpStatsLogger createTransactionLatency;
     private final OpStatsLogger createTransactionSegmentsLatency;
+    private final OpStatsLogger createTxnGenIdLatency;
+    private final OpStatsLogger createTxnAddTxnToIndexLatency;
+    private final OpStatsLogger createTxnCreateInStoreLatency;
+    private final OpStatsLogger createTxnAddToTimeoutSvcLatency;
     private final OpStatsLogger commitTransactionLatency;
     private final OpStatsLogger commitTransactionSegmentsLatency;
     private final OpStatsLogger committingTransactionLatency;
@@ -65,6 +54,10 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
         abortTransactionSegmentsLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_SEGMENTS_LATENCY);
         abortingTransactionLatency = STATS_LOGGER.createStats(ABORTING_TRANSACTION_LATENCY);
+        createTxnGenIdLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_GEN_ID_LATENCY);
+        createTxnAddTxnToIndexLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_ADD_TO_INDEX_LATENCY);
+        createTxnCreateInStoreLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_IN_STORE_LATENCY);
+        createTxnAddToTimeoutSvcLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_ADD_TIMEOUT_SVC_LATENCY);
     }
 
     /**
@@ -107,6 +100,42 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
      */
     public void createTransactionSegments(Duration latency) {
         createTransactionSegmentsLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of adding txn event to Index.
+     *
+     * @param latency      Time elapsed to create the segments related to the created transaction.
+     */
+    public void createTransactionAddToIndex(Duration latency) {
+        createTxnAddTxnToIndexLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency of Generating Transaction Id.
+     *
+     * @param latency      Time elapsed to create the segments related to the created transaction.
+     */
+    public void createTransactionGenId(Duration latency) {
+        createTxnGenIdLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency to add Transaction to Stream Store.
+     *
+     * @param latency      Time elapsed to create the segments related to the created transaction.
+     */
+    public void createTransactionInStore(Duration latency) {
+        createTxnCreateInStoreLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method reports the latency to add Transaction to timeout service.
+     *
+     * @param latency      Time elapsed to create the segments related to the created transaction.
+     */
+    public void createTransactionAddTimeoutSvc(Duration latency) {
+        createTxnAddToTimeoutSvcLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**

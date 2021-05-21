@@ -18,6 +18,7 @@ package io.pravega.controller.store.stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.common.Timer;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -743,13 +744,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<UUID> generateTransactionId(final String scopeName, final String streamName,
                                                              final OperationContext ctx,
                                                              final Executor executor) {
+        Timer timer = new Timer();
         OperationContext context = getOperationContext(ctx);
         Stream stream = getStream(scopeName, streamName, context);
 
         // This can throw write conflict exception
         CompletableFuture<Int96> nextFuture = getNextCounter();
-        return Futures.completeOn(nextFuture.thenCompose(next -> stream.generateNewTxnId(next.getMsb(), next.getLsb(), 
-                context)), executor);
+        return Futures.completeOn(nextFuture.thenCompose(next -> stream.generateNewTxnId(next.getMsb(), next.getLsb(),
+                context)).thenApply( result -> {
+                    TransactionMetrics.getInstance().createTransactionGenId(timer.getElapsed());
+                    return result;
+        }), executor);
     }
 
     @Override
@@ -760,9 +765,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                          final long maxExecutionTime,
                                                                          final OperationContext ctx,
                                                                          final Executor executor) {
+        Timer timer = new Timer();
         OperationContext context = getOperationContext(ctx);
         Stream stream = getStream(scopeName, streamName, context);
-        return Futures.completeOn(stream.createTransaction(txnId, lease, maxExecutionTime, context), executor);
+        return Futures.completeOn(stream.createTransaction(txnId, lease, maxExecutionTime, context)
+                .thenApply(result -> {
+                        TransactionMetrics.getInstance().createTransactionInStore(timer.getElapsed());
+                        return result; }), executor);
     }
 
     @Override

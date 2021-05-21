@@ -296,6 +296,10 @@ public final class MetricsNames {
     public static final String CREATE_TRANSACTION = PREFIX + "controller.transactions.created";                                         // Counter and Per-stream Counter
     public static final String CREATE_TRANSACTION_LATENCY = PREFIX + "controller.transactions.created_latency_ms";                      // Histogram
     public static final String CREATE_TRANSACTION_SEGMENTS_LATENCY = PREFIX + "controller.transactions.created_segments_latency_ms";    // Histogram
+    public static final String CREATE_TRANSACTION_GEN_ID_LATENCY = PREFIX + "controller.transactions.create_genid_latency_ms";                      // Histogram
+    public static final String CREATE_TRANSACTION_ADD_TO_INDEX_LATENCY = PREFIX + "controller.transactions.create_add_index_latency_ms";    // Histogram
+    public static final String CREATE_TRANSACTION_IN_STORE_LATENCY = PREFIX + "controller.transactions.create_in_store_latency_ms";    // Histogram
+    public static final String CREATE_TRANSACTION_ADD_TIMEOUT_SVC_LATENCY = PREFIX + "controller.transactions.create_add_timeout_service_latency_ms";    // Histogram
     public static final String CREATE_TRANSACTION_FAILED = PREFIX + "controller.transactions.create_failed";                            // Counter and Per-stream Counter
     public static final String COMMITTING_TRANSACTION_LATENCY = PREFIX + "controller.transactions.committing_latency_ms";               // Histogram
     public static final String COMMIT_TRANSACTION = PREFIX + "controller.transactions.committed";                                       // Counter and Per-stream Counter

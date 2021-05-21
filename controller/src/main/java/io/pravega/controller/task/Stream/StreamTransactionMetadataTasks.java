@@ -411,6 +411,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     private void addTxnToTimeoutService(String scope, String stream, long lease, long maxExecutionPeriod, UUID txnId,
                                         CompletableFuture<VersionedTransactionData> txnFuture, long requestId) {
+        Timer timer = new Timer();
         Version version = null;
         long executionExpiryTime = System.currentTimeMillis() + maxExecutionPeriod;
         if (!txnFuture.isCompletedExceptionally()) {
@@ -418,6 +419,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
         }
         timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime);
+        TransactionMetrics.getInstance().createTransactionAddTimeoutSvc(timer.getElapsed());
         log.trace(requestId, "Txn={}, added to timeout service on host={}", txnId, hostId);
     }
 
@@ -438,12 +440,14 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private CompletableFuture<Void> addTxnToIndex(String scope, String stream, UUID txnId, long requestId) {
         TxnResource resource = new TxnResource(scope, stream, txnId);
         // Step 2. Add txn to host-transaction index.
+        Timer timer = new Timer();
         return streamMetadataStore.addTxnToIndex(hostId, resource, null)
                 .whenComplete((v, e) -> {
                     if (e != null) {
                         log.debug(requestId, "Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
                     } else {
                         log.debug(requestId, "Txn={}, added txn to host-txn index of host={}", txnId, hostId);
+                        TransactionMetrics.getInstance().createTransactionAddToIndex(timer.getElapsed());
                     }
                 });
     }
