@@ -305,6 +305,11 @@ public final class MetricsNames {
     public static final String COMMIT_TRANSACTION = PREFIX + "controller.transactions.committed";                                       // Counter and Per-stream Counter
     public static final String COMMIT_TRANSACTION_LATENCY = PREFIX + "controller.transactions.committed_latency_ms";                    // Histogram
     public static final String COMMIT_TRANSACTION_SEGMENTS_LATENCY = PREFIX + "controller.transactions.committed_segments_latency_ms";  // Histogram
+    public static final String COMMIT_TRANSACTION_ADD_TO_INDEX_LATENCY = PREFIX + "controller.transactions.commit_add_index_latency_ms";                    // Histogram
+    public static final String COMMIT_TRANSACTION_SEAL_LATENCY = PREFIX + "controller.transactions.committed_seal_latency_ms";  // Histogram
+    public static final String COMMIT_TRANSACTION_WRITE_EVENT_LATENCY = PREFIX + "controller.transactions.committed_write_event_latency_ms";                    // Histogram
+    public static final String COMMIT_TRANSACTION_REMOVE_TIMEOUT_SVC_LATENCY = PREFIX + "controller.transactions.committed_remove_timeout_svc_latency_ms";  // Histogram
+
     public static final String COMMIT_TRANSACTION_FAILED = PREFIX + "controller.transactions.commit_failed";                            // Counter, Per-stream Counter, Per-transaction Counter
     public static final String ABORTING_TRANSACTION_LATENCY = PREFIX + "controller.transactions.aborting_latency_ms";                   // Histogram
     public static final String ABORT_TRANSACTION = PREFIX + "controller.transactions.aborted";                                          // Counter and Per-stream Counter

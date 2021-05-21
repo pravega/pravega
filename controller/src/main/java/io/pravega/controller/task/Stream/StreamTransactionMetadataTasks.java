@@ -642,11 +642,16 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         TxnResource resource = new TxnResource(scope, stream, txnId);
         Optional<Version> versionOpt = Optional.ofNullable(version);
 
+        final Timer addIndexTimer = new Timer();
         // Step 1. Add txn to current host's index, if it is not already present
         CompletableFuture<Void> addIndex = host.equals(hostId) && !timeoutService.containsTxn(scope, stream, txnId) ?
                 // PS: txn version in index does not matter, because if update is successful,
                 // then txn would no longer be open.
-                streamMetadataStore.addTxnToIndex(hostId, resource, version) :
+                streamMetadataStore.addTxnToIndex(hostId, resource, version)
+                        .thenApply( result -> {
+                            TransactionMetrics.getInstance().committingTransactionAddToIndex(addIndexTimer.getElapsed());
+                            return result;
+                        }) :
                 CompletableFuture.completedFuture(null);
 
         addIndex.whenComplete((v, e) -> {
@@ -658,24 +663,38 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         });
 
         // Step 2. Seal txn
-        CompletableFuture<AbstractMap.SimpleEntry<TxnStatus, Integer>> sealFuture = addIndex.thenComposeAsync(x ->
-                streamMetadataStore.sealTransaction(scope, stream, txnId, commit, versionOpt, writerId, timestamp, ctx, executor), executor)
-                .whenComplete((v, e) -> {
-                    if (e != null) {
-                        log.debug(requestId, "Txn={}, failed sealing txn", txnId);
-                    } else {
-                        log.debug(requestId, "Txn={}, sealed successfully, commit={}", txnId, commit);
-                    }
-                });
+        CompletableFuture<AbstractMap.SimpleEntry<TxnStatus, Integer>> sealFuture = addIndex.thenComposeAsync(x -> {
+            Timer sealTimer = new Timer();
+            return streamMetadataStore.sealTransaction(scope, stream, txnId, commit, versionOpt, writerId, timestamp, ctx, executor)
+                    .thenApply(result -> {
+                        TransactionMetrics.getInstance().committingTransactionSeal(sealTimer.getElapsed());
+                        return result;
+                    });
+            }, executor).whenComplete((v, e) -> {
+                        if (e != null) {
+                            log.debug(requestId, "Txn={}, failed sealing txn", txnId);
+                        } else {
+                            log.debug(requestId, "Txn={}, sealed successfully, commit={}", txnId, commit);
+                        }
+                    });
 
         // Step 3. write event to corresponding stream.
         return sealFuture.thenComposeAsync(pair -> {
             TxnStatus status = pair.getKey();
+            Timer eventTimer = new Timer();
             switch (status) {
                 case COMMITTING:
-                    return writeCommitEvent(scope, stream, pair.getValue(), txnId, status, requestId);
+                    return writeCommitEvent(scope, stream, pair.getValue(), txnId, status, requestId)
+                            .thenApply( result -> {
+                                TransactionMetrics.getInstance().committingTransactionWriteEvent(eventTimer.getElapsed());
+                                return result;
+                            });
                 case ABORTING:
-                    return writeAbortEvent(scope, stream, pair.getValue(), txnId, status, requestId);
+                    return writeAbortEvent(scope, stream, pair.getValue(), txnId, status, requestId)
+                            .thenApply( result -> {
+                                TransactionMetrics.getInstance().committingTransactionWriteEvent(eventTimer.getElapsed());
+                                return result;
+                            });
                 case ABORTED:
                 case COMMITTED:
                     return CompletableFuture.completedFuture(status);
@@ -687,6 +706,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     return CompletableFuture.completedFuture(status);
             }
         }, executor).thenComposeAsync(status -> {
+            Timer removeTimer = new Timer();
             // Step 4. Remove txn from timeoutService, and from the index.
             timeoutService.removeTxn(scope, stream, txnId);
             log.debug(requestId, "Txn={}, removed from timeout service", txnId);
@@ -695,6 +715,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     log.debug(requestId, "Txn={}, failed removing txn from host-txn index of host={}", txnId, hostId);
                 } else {
                     log.debug(requestId, "Txn={}, removed txn from host-txn index of host={}", txnId, hostId);
+                    TransactionMetrics.getInstance().committingTransactionRemoveTimeoutSvc(removeTimer.getElapsed());
                 }
             }).thenApply(x -> status);
         }, executor);

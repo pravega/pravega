@@ -40,10 +40,15 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger createTxnAddToTimeoutSvcLatency;
     private final OpStatsLogger commitTransactionLatency;
     private final OpStatsLogger commitTransactionSegmentsLatency;
+    private final OpStatsLogger committingTxnAddToIndexLatency;
+    private final OpStatsLogger committingTxnSealLatency;
+    private final OpStatsLogger committingTxnWriteEventLatency;
+    private final OpStatsLogger committingTxnRemoveTimeoutSvcLatency;
     private final OpStatsLogger committingTransactionLatency;
     private final OpStatsLogger abortTransactionLatency;
     private final OpStatsLogger abortTransactionSegmentsLatency;
     private final OpStatsLogger abortingTransactionLatency;
+
 
     private TransactionMetrics() {
         createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
@@ -58,6 +63,11 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         createTxnAddTxnToIndexLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_ADD_TO_INDEX_LATENCY);
         createTxnCreateInStoreLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_IN_STORE_LATENCY);
         createTxnAddToTimeoutSvcLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_ADD_TIMEOUT_SVC_LATENCY);
+
+        committingTxnAddToIndexLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_ADD_TO_INDEX_LATENCY);
+        committingTxnSealLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEAL_LATENCY);
+        committingTxnWriteEventLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_WRITE_EVENT_LATENCY);
+        committingTxnRemoveTimeoutSvcLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_REMOVE_TIMEOUT_SVC_LATENCY);
     }
 
     /**
@@ -156,6 +166,42 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
      */
     public void committingTransaction(Duration latency) {
         committingTransactionLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method accounts for the time taken for a client to set a Transaction to COMMITTING state.
+     *
+     * @param latency    Latency of the abort Transaction operation.
+     */
+    public void committingTransactionAddToIndex(Duration latency) {
+        committingTxnAddToIndexLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method accounts for the time taken for a client to set a Transaction to COMMITTING state.
+     *
+     * @param latency    Latency of the abort Transaction operation.
+     */
+    public void committingTransactionSeal(Duration latency) {
+        committingTxnSealLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method accounts for the time taken for a client to set a Transaction to COMMITTING state.
+     *
+     * @param latency    Latency of the abort Transaction operation.
+     */
+    public void committingTransactionWriteEvent(Duration latency) {
+        committingTxnWriteEventLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method accounts for the time taken for a client to set a Transaction to COMMITTING state.
+     *
+     * @param latency    Latency of the abort Transaction operation.
+     */
+    public void committingTransactionRemoveTimeoutSvc(Duration latency) {
+        committingTxnRemoveTimeoutSvcLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
