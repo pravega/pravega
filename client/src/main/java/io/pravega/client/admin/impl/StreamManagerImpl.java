@@ -39,6 +39,7 @@ import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
@@ -151,6 +152,23 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    public Iterator<Stream> listStreams(String scopeName, String tagName) {
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Listing streams in scope: {} which has tag: {}", scopeName, tagName);
+        AsyncIterator<Stream> asyncIterator = controller.listStreamsForTag(scopeName, tagName);
+        return asyncIterator.asIterator();
+    }
+
+    @Override
+    public Set<String> getStreamTags(String scopeName, String streamName) {
+        NameUtils.validateUserScopeName(scopeName);
+        NameUtils.validateUserStreamName(streamName);
+        log.info("Fetching tags associated with stream: {}/{}", scopeName, streamName);
+        return Futures.getThrowingException(controller.getStreamConfiguration(scopeName, streamName)
+                                                      .thenApply(StreamConfiguration::getTags));
+    }
+
+    @Override
     public boolean checkStreamExists(String scopeName, String streamName) {
         log.info("Checking if stream {} exists in scope {}", streamName, scopeName);
         return  Futures.getThrowingException(controller.checkStreamExists(scopeName, streamName));
@@ -203,16 +221,17 @@ public class StreamManagerImpl implements StreamManager {
      * @return A future representing {@link StreamInfo}.
      */
     private CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
-        //Fetch the stream cut representing the current TAIL and current HEAD of the stream.
+        // Fetch the stream configuration which includes the tags associated with the stream.
+        CompletableFuture<StreamConfiguration> streamConfiguration = controller.getStreamConfiguration(stream.getScope(), stream.getStreamName());
+        // Fetch the stream cut representing the current TAIL and current HEAD of the stream.
         CompletableFuture<StreamCut> currentTailStreamCut = streamCutHelper.fetchTailStreamCut(stream);
         CompletableFuture<StreamCut> currentHeadStreamCut = streamCutHelper.fetchHeadStreamCut(stream);
-        return currentTailStreamCut.thenCombine(currentHeadStreamCut,
-                                                (tailSC, headSC) -> {
-                                                    boolean isSealed = ((StreamCutImpl) tailSC).getPositions().isEmpty();
-                                                    return new StreamInfo(stream.getScope(),
-                                                            stream.getStreamName(),
-                                                            tailSC, headSC, isSealed);
-                                                });
+        return CompletableFuture.allOf(streamConfiguration, currentHeadStreamCut, currentTailStreamCut)
+                                .thenApply(v -> {
+                                    boolean isSealed = ((StreamCutImpl) currentTailStreamCut.join()).getPositions().isEmpty();
+                                    return new StreamInfo(stream.getScope(), stream.getStreamName(), streamConfiguration.join(),
+                                                          currentTailStreamCut.join(), currentHeadStreamCut.join(), isSealed);
+                                });
     }
 
     @Override

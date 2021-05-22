@@ -246,7 +246,6 @@ public class PravegaTablesScope implements Scope {
     public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(String tag, int limit, String continuationToken, Executor executor,
                                                                            OperationContext context) {
 
-        List<String> tableList = new ArrayList<>();
         Preconditions.checkNotNull(context, "Operation context cannot be null");
 
         return getNextTableSegment(tag, continuationToken, context).thenCompose(pair -> {
@@ -256,14 +255,6 @@ public class PravegaTablesScope implements Scope {
                 return CompletableFuture.completedFuture(pair);
             }
         });
-        // continuationToken is empty
-        // chunk id = fetchChunkIdToReadFrom(continuationToken)
-        // if Empty fetch the next one.
-        //TODO: Handle chunking of inverted index.
-//        return getStreamTagsInScopeTableName(context)
-//
-//                .thenCompose(table -> storeHelper.getEntry(table, tag, TagRecord::fromBytes, context.getRequestId()))
-//                .thenApply(ver -> new ImmutablePair<>(new ArrayList<>(ver.getObject().getStreams()), continuationToken)); // identity token
     }
 
     CompletableFuture<Pair<List<String>, String>> getNextTableSegment(String tag, String ct, OperationContext context) {
