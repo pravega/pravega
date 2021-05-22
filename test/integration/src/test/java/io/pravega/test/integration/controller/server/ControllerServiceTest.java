@@ -44,6 +44,8 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.List;
@@ -130,20 +132,25 @@ public class ControllerServiceTest {
         assertEquals(Set.of("t2", "t3"), controller.getStreamConfiguration(scope, stream).join().getTags());
 
         // List Streams with tag t2. only one stream should be listed
-        assertEquals(stream, controller.listStreamsForTag(scope, "t2").getNext().join().getStreamName());
+        assertEquals(Collections.singletonList(stream), listStreamsForTag(scope, controller, "t2"));
+
 
         // Create stream2 with tags t1, t2
         controller.createStream(scope, stream2, strCfg).join();
 
         // List Streams with tag t2. two stream should be listed
-        val result = new ArrayList<>();
-        Iterator<Stream> iter = controller.listStreamsForTag(scope, "t2").asIterator();
-        result.add(iter.next().getStreamName());
-        result.add(iter.next().getStreamName());
-        assertArrayEquals(new String[] {stream2, stream}, result.toArray());
+        assertEquals(Arrays.asList(stream2, stream), listStreamsForTag(scope, controller, "t2"));
 
     }
-    
+
+    private ArrayList<String> listStreamsForTag(String scope, Controller controller, String tag) {
+        ArrayList<String> resultList = new ArrayList<String>();
+        controller.listStreamsForTag(scope, tag)
+                  .collectRemaining(stream1 -> resultList.add(stream1.getStreamName()))
+                  .join();
+        return resultList;
+    }
+
     @Test(timeout = 40000)
     public void streamMetadataTest() throws Exception {
         final String scope = "testScope";
