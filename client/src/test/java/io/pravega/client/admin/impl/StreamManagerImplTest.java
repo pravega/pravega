@@ -40,6 +40,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
@@ -250,7 +251,7 @@ public class StreamManagerImplTest {
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                 connectionFactory, true);
-        
+
         ConnectionPoolImpl pool = new ConnectionPoolImpl(ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
         @Cleanup
         final StreamManager streamManager = new StreamManagerImpl(mockController, pool);
@@ -305,7 +306,7 @@ public class StreamManagerImplTest {
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                 connectionFactory, true);
-        
+
         ConnectionPoolImpl pool = new ConnectionPoolImpl(ClientConfig.builder().maxConnectionsPerSegmentStore(1).build(), connectionFactory);
         @Cleanup
         final StreamManager streamManager = new StreamManagerImpl(mockController, pool);
@@ -315,9 +316,10 @@ public class StreamManagerImplTest {
         String stream2 = "stream2";
         String stream3 = "stream3";
         streamManager.createScope(scope);
-        
+
         streamManager.createStream(scope, stream1, StreamConfiguration.builder()
                                                                         .scalingPolicy(ScalingPolicy.fixed(3))
+                                                                        .tag("t1")
                                                                         .build());
         streamManager.createStream(scope, stream2, StreamConfiguration.builder()
                                                                         .scalingPolicy(ScalingPolicy.fixed(3))
@@ -339,8 +341,17 @@ public class StreamManagerImplTest {
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream1)));
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream2)));
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream3)));
+        assertEquals(Collections.singleton("t1"), streamManager.getStreamTags(scope, stream1));
+        ArrayList<Stream> t = Lists.newArrayList((streamManager.listStreams(scope, "t1")));
+        assertEquals(Collections.singletonList(Stream.of(scope, stream1)), t);
+
+        streamManager.updateStream(scope, stream1, StreamConfiguration.builder()
+                                                                     .scalingPolicy(ScalingPolicy.fixed(3))
+                                                                     .build());
+        assertEquals(Collections.emptySet(), streamManager.getStreamTags(scope, stream1));
+
     }
-    
+
     @Test(timeout = 10000)
     public void testForceDeleteScope() throws ConnectionFailedException, DeleteScopeFailedException {
         // Setup Mocks
@@ -388,7 +399,7 @@ public class StreamManagerImplTest {
         String stream2 = "stream2";
         String stream3 = "stream3";
         streamManager.createScope(scope);
-        
+
         streamManager.createStream(scope, stream1, StreamConfiguration.builder()
                                                                         .scalingPolicy(ScalingPolicy.fixed(3))
                                                                         .build());
@@ -399,22 +410,22 @@ public class StreamManagerImplTest {
                                                                         .scalingPolicy(ScalingPolicy.fixed(3))
                                                                         .build());
         Set<Stream> streams = Sets.newHashSet(streamManager.listStreams(scope));
-        
+
         assertEquals(3, streams.size());
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream1)));
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream2)));
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream3)));
 
-        // mock controller client to throw exceptions when attempting to seal and delete for stream 1. 
+        // mock controller client to throw exceptions when attempting to seal and delete for stream 1.
         doAnswer(x -> Futures.failedFuture(new ControllerFailureException("Unable to seal stream"))).when(mockController).sealStream(scope, stream1);
         doAnswer(x -> Futures.failedFuture(new IllegalArgumentException("Stream not sealed"))).when(mockController).deleteStream(scope, stream1);
 
-        AssertExtensions.assertThrows("Should have thrown exception", () -> streamManager.deleteScope(scope, true), 
+        AssertExtensions.assertThrows("Should have thrown exception", () -> streamManager.deleteScope(scope, true),
                 e -> Exceptions.unwrap(e) instanceof DeleteScopeFailedException);
 
         // reset mock controller
         reset(mockController);
-        
+
         // throw invalid stream for stream 2. Delete should happen despite invalid stream exception.
         doAnswer(x -> Futures.failedFuture(new InvalidStreamException("Stream does not exist"))).when(mockController).sealStream(scope, stream2);
 

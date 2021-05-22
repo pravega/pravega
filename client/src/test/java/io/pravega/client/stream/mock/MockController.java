@@ -142,9 +142,15 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<StreamConfiguration> getStreamConfiguration(String scopeName, String streamName) {
-        CompletableFuture<StreamConfiguration> cf = new CompletableFuture<>();
-        cf.completeExceptionally(new NotImplementedException("GetStreamConfiguration is not implemented"));
-        return cf;
+        MockScope mockScope = this.createdScopes.get(scopeName);
+        Stream stream = Stream.of(scopeName, streamName);
+        if (mockScope != null && mockScope.streams.get(stream) != null) {
+            return CompletableFuture.completedFuture(mockScope.streams.get(stream));
+        } else {
+            CompletableFuture<StreamConfiguration> cf = new CompletableFuture<>();
+            cf.completeExceptionally(new IllegalStateException("Scope does not exist"));
+            return cf;
+        }
     }
 
     @Override
@@ -165,11 +171,11 @@ public class MockController implements Controller {
 
     @Override
     public AsyncIterator<Stream> listStreamsForTag(String scopeName, String tag) {
-        return () -> {
-            CompletableFuture<Stream> cf = new CompletableFuture<>();
-            cf.completeExceptionally(new NotImplementedException("GetStreamConfiguration is not implemented"));
-            return cf;
-        };
+        return list(scopeName, ms -> ms.streams.entrySet()
+                                               .stream()
+                                               .filter(e -> e.getValue().getTags().contains(tag))
+                                               .map(Map.Entry::getKey).collect(Collectors.toList()),
+                    Stream::getStreamName);
     }
 
     @Override
@@ -288,7 +294,13 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> updateStream(String scope, String streamName, StreamConfiguration streamConfig) {
-        throw new UnsupportedOperationException();
+        MockScope mockScope = this.createdScopes.get(scope);
+        if (mockScope != null) {
+            mockScope.streams.put(Stream.of(scope, streamName), streamConfig);
+            return CompletableFuture.completedFuture(true);
+        } else {
+            return CompletableFuture.completedFuture(false);
+        }
     }
 
     @Override

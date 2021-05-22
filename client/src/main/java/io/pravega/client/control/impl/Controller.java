@@ -126,6 +126,14 @@ public interface Controller extends AutoCloseable {
      */
     CompletableFuture<Boolean> checkStreamExists(final String scopeName, final String streamName);
 
+    /**
+     * Fetch the current Stream Configuration. This includes the {@link io.pravega.client.stream.ScalingPolicy},
+     * {@link io.pravega.client.stream.RetentionPolicy} and tags for the given stream.
+     *
+     * @param scopeName name of scope.
+     * @param streamName name of stream.
+     * @return CompletableFuture which returns the current stream configuration.
+     */
     CompletableFuture<StreamConfiguration> getStreamConfiguration(final String scopeName, final String streamName);
 
     /**

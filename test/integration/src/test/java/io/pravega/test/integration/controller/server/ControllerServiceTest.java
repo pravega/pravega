@@ -30,7 +30,6 @@ import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.AsyncIterator;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -46,7 +45,6 @@ import io.pravega.test.integration.demo.ControllerWrapper;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
@@ -57,14 +55,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -133,7 +129,6 @@ public class ControllerServiceTest {
 
         // List Streams with tag t2. only one stream should be listed
         assertEquals(Collections.singletonList(stream), listStreamsForTag(scope, controller, "t2"));
-
 
         // Create stream2 with tags t1, t2
         controller.createStream(scope, stream2, strCfg).join();

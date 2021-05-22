@@ -127,7 +127,6 @@ public class ScopeTest {
         assertTrue((listedStreams.size() == expectedStreams.size()) && listedStreams.containsAll(expectedStreams) &&
                            expectedStreams.containsAll(listedStreams));
 
-
         // update a stream tag and verify if it is reflected.
         manager.updateStream(scope, stream3, cfg.toBuilder().clearTags().tag("t4").tag("t5").build());
         listedStreams = newArrayList(manager.listStreams(scope, "t3"));
