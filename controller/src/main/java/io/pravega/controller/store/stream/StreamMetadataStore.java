@@ -260,8 +260,19 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Pair<List<String>, String>> listStream(final String scopeName, final String continuationToken,
                                                              final int limit, final Executor executor, OperationContext context);
 
+    /**
+     * List streams with the provided tag inside a scope with pagination. This api continues listing streams from the supplied continuation token
+     * and returns list of streams and a new continuation token.
+     *
+     * @param scopeName Name of the scope
+     * @param tag Stream tag.
+     * @param continuationToken continuation token
+     * @param context operation context
+     * @param executor executor
+     * @return A pair of list of streams in scope with the continuation token.
+     */
     CompletableFuture<Pair<List<String>, String>> listStreamsForTag(final String scopeName, final String tag, final String continuationToken,
-                                                             final int limit, final Executor executor, OperationContext context);
+                                                                    final Executor executor, OperationContext context);
 
     /**
      * List Scopes in cluster.

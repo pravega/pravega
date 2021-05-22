@@ -828,17 +828,16 @@ public class ControllerService {
      * @param scope Name of the scope.
      * @param tag Tag name.
      * @param token continuation token
-     * @param limit limit for number of streams to return.
      * @param requestId request id
      * @return List of streams in scope.
      */
-    public CompletableFuture<Pair<List<String>, String>> listStreams(final String scope, final String tag, final String token, final int limit,
-                                                                     final long requestId) {
+    public CompletableFuture<Pair<List<String>, String>> listStreams(final String scope, final String tag,
+                                                                     final String token, final long requestId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(tag, "tag");
         OperationContext context = streamStore.createScopeContext(scope, requestId);
 
-        return streamStore.listStreamsForTag(scope, tag, token, limit, executor, context);
+        return streamStore.listStreamsForTag(scope, tag, token, executor, context);
     }
 
     /**

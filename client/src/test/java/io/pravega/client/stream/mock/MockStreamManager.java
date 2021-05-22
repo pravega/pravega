@@ -45,6 +45,7 @@ import io.pravega.shared.NameUtils;
 import java.net.URI;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -88,6 +89,18 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     public Iterator<Stream> listStreams(String scopeName) {
         AsyncIterator<Stream> asyncIterator = controller.listStreams(scopeName);
         return asyncIterator.asIterator();
+    }
+
+    @Override
+    public Iterator<Stream> listStreams(String scopeName, String tagName) {
+        AsyncIterator<Stream> asyncIterator = controller.listStreamsForTag(scopeName, tagName);
+        return asyncIterator.asIterator();
+    }
+
+    @Override
+    public Set<String> getStreamTags(String scopeName, String streamName) {
+        return Futures.getAndHandleExceptions(controller.getStreamConfiguration(scopeName, streamName),
+                                              RuntimeException::new).getTags();
     }
 
     @Override

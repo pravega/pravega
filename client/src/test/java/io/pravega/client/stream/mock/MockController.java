@@ -211,7 +211,7 @@ public class MockController implements Controller {
 
     @Synchronized
     List<Segment> getSegmentsForStream(Stream stream) {
-        StreamConfiguration config = getStreamConfiguration(stream);
+        StreamConfiguration config = getStreamConfig(stream);
         Preconditions.checkArgument(config != null, "Stream " + stream.getScopedName() + " must be created first");
         ScalingPolicy scalingPolicy = config.getScalingPolicy();
         if (scalingPolicy.getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
@@ -243,7 +243,7 @@ public class MockController implements Controller {
 
     @Synchronized
     List<SegmentWithRange> getSegmentsWithRanges(Stream stream) {
-        StreamConfiguration config = getStreamConfiguration(stream);
+        StreamConfiguration config = getStreamConfig(stream);
         Preconditions.checkArgument(config != null, "Stream must be created first");
         ScalingPolicy scalingPolicy = config.getScalingPolicy();
         if (scalingPolicy.getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
@@ -256,7 +256,7 @@ public class MockController implements Controller {
         return result;
     }
 
-    private StreamConfiguration getStreamConfiguration(Stream stream) {
+    private StreamConfiguration getStreamConfig(Stream stream) {
         for (MockScope scope : createdScopes.values()) {
             StreamConfiguration sc = scope.streams.get(stream);
             if (sc != null) {
@@ -709,7 +709,7 @@ public class MockController implements Controller {
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         final Stream segmentStream = Stream.of(segment.getScopedStreamName());
         final CompletableFuture<StreamSegmentsWithPredecessors> result = new CompletableFuture<>();
-        if (getStreamConfiguration(segmentStream) == null) {
+        if (getStreamConfig(segmentStream) == null) {
             result.completeExceptionally(new RuntimeException("Stream is deleted"));
         } else {
             result.complete(new StreamSegmentsWithPredecessors(Collections.emptyMap(), ""));
@@ -719,7 +719,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<StreamSegmentSuccessors> getSuccessors(StreamCut from) {
-        StreamConfiguration configuration = getStreamConfiguration(from.asImpl().getStream());
+        StreamConfiguration configuration = getStreamConfig(from.asImpl().getStream());
         if (configuration.getScalingPolicy().getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
             throw new IllegalArgumentException("getSuccessors not supported with dynamic scaling on mock controller");
         }

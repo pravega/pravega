@@ -114,7 +114,7 @@ public abstract class ControllerServiceImplTest {
     protected static final String KVTABLE3 = "kvtable3";
 
     //Ensure each test completes within 10 seconds.
-//    @Rule
+    @Rule
     public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
     ControllerServiceImpl controllerService;

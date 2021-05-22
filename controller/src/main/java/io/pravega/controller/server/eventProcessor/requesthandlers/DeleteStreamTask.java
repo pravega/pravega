@@ -80,7 +80,9 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
                         return Futures.failedFuture(new RuntimeException("Stream not sealed"));
                     }
                     return deleteAssociatedStreams(scope, stream, requestId)
-                        .thenCompose(v -> notifyAndDelete(context, scope, stream, requestId));
+                            .thenCompose(v -> streamMetadataStore.getConfiguration(scope, stream, context, executor))
+                            .thenCompose(cfg -> streamMetadataStore.removeTagsFromIndex(scope, stream, cfg.getTags(), context, executor))
+                            .thenCompose(v -> notifyAndDelete(context, scope, stream, requestId));
                 }, executor)
                 .exceptionally(e -> {
                     if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {

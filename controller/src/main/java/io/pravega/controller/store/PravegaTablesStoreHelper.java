@@ -297,7 +297,8 @@ public class PravegaTablesStoreHelper {
                     updatedBytes = TagRecord.builder().tagName(k).build().toBytes();
                 } else {
                     TagRecord record = TagRecord.fromBytes(array);
-                    updatedBytes = record.toBuilder().removeStream(removeValue).build().toBytes();
+                    TagRecord tep = record.toBuilder().removeStream(removeValue).build();
+                    updatedBytes = tep.toBytes();
                 }
                 return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
                                                    updatedBytes,

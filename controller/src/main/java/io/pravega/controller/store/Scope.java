@@ -63,7 +63,7 @@ public interface Scope {
     CompletableFuture<Pair<List<String>, String>> listStreams(final int limit, final String continuationToken, Executor executor,
                                                               OperationContext context);
 
-    CompletableFuture<Pair<List<String>, String>> listStreamsForTag(final String tag, final int limit, final String continuationToken, Executor executor,
+    CompletableFuture<Pair<List<String>, String>> listStreamsForTag(final String tag, final String continuationToken, Executor executor,
                                                               OperationContext context);
 
     /**

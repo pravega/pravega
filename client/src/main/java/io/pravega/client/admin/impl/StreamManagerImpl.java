@@ -84,6 +84,7 @@ public class StreamManagerImpl implements StreamManager {
         return  Futures.getThrowingException(controller.createStream(scopeName, streamName, StreamConfiguration.builder()
                         .scalingPolicy(config.getScalingPolicy())
                         .retentionPolicy(config.getRetentionPolicy())
+                        .tags(config.getTags())
                         .build()));
     }
 
@@ -92,10 +93,12 @@ public class StreamManagerImpl implements StreamManager {
         NameUtils.validateUserStreamName(streamName);
         NameUtils.validateUserScopeName(scopeName);
         log.info("Updating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
-        return Futures.getThrowingException(controller.updateStream(scopeName, streamName, StreamConfiguration.builder()
-                        .scalingPolicy(config.getScalingPolicy())
-                        .retentionPolicy(config.getRetentionPolicy())
-                        .build()));
+        return Futures.getThrowingException(controller.updateStream(scopeName, streamName,
+                                                                    StreamConfiguration.builder()
+                                                                                       .scalingPolicy(config.getScalingPolicy())
+                                                                                       .retentionPolicy(config.getRetentionPolicy())
+                                                                                       .tags(config.getTags())
+                                                                                       .build()));
     }
 
     @Override

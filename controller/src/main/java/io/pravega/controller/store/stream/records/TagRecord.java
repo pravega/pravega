@@ -26,6 +26,7 @@ import lombok.Cleanup;
 import lombok.Data;
 import lombok.Singular;
 import lombok.SneakyThrows;
+import org.apache.commons.io.IOUtils;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -157,12 +158,14 @@ public class TagRecord {
     }
 
     private static Set<String> decompressArrayOption(final byte[] compressed) throws IOException {
+        @Cleanup
         InputStream in = new InflaterInputStream(new ByteArrayInputStream(compressed));
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        byte[] buffer = new byte[8192];
-        int len;
-        while ((len = in.read(buffer)) > 0)
-            baos.write(buffer, 0, len);
-        return Arrays.stream(baos.toString(StandardCharsets.UTF_8).split(",")).collect(Collectors.toSet());
+        IOUtils.copy(in, baos);
+        String streams = baos.toString(StandardCharsets.UTF_8);
+        if (streams.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return Arrays.stream(streams.split(",")).collect(Collectors.toSet());
     }
 }

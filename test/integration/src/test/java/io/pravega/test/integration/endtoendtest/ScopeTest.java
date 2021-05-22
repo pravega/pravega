@@ -36,15 +36,22 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
 import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static java.util.Collections.singletonList;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -85,6 +92,54 @@ public class ScopeTest {
         server.close();
         serviceBuilder.close();
         zkTestServer.close();
+    }
+
+    @Test
+    public void testListStreamForTag() {
+        final String scope = "sc";
+        final String stream1 = "s1";
+        final String stream2 = "s2";
+        final String stream3 = "s3";
+        final Set<String> tagSet1 = Set.of("t1", "t2", "t3");
+        final Set<String> tagSet2 = Set.of("t2", "t3", "t4");
+        final Set<String> tagSet3 = Set.of("t3", "t4", "t5");
+        StreamConfiguration cfg = StreamConfiguration.builder()
+                                                     .scalingPolicy(ScalingPolicy.byDataRate(10, 2, 4))
+                                                     .build();
+        @Cleanup
+        Controller controller = controllerWrapper.getController();
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost")).build();
+        @Cleanup
+        ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        @Cleanup
+        StreamManager manager = new StreamManagerImpl(controller, cp);
+        manager.createScope(scope);
+
+        manager.createStream(scope, stream1, cfg.toBuilder().tags(tagSet1).build());
+        manager.createStream(scope, stream2, cfg.toBuilder().tags(tagSet2).build());
+        manager.createStream(scope, stream3, cfg.toBuilder().tags(tagSet3).build());
+        assertEquals(tagSet1, manager.getStreamTags(scope, stream1));
+        assertEquals(tagSet2, manager.getStreamTags(scope, stream2));
+        assertEquals(tagSet3, manager.getStreamTags(scope, stream3));
+        assertEquals(singletonList(Stream.of(scope, stream1)), newArrayList(manager.listStreams(scope, "t1")));
+        List<Stream> listedStreams = newArrayList(manager.listStreams(scope, "t3"));
+        List<Stream> expectedStreams = Arrays.asList(Stream.of(scope, stream3), Stream.of(scope, stream2), Stream.of(scope, stream1));
+        assertTrue((listedStreams.size() == expectedStreams.size()) && listedStreams.containsAll(expectedStreams) &&
+                           expectedStreams.containsAll(listedStreams));
+
+
+        // update a stream tag and verify if it is reflected.
+        manager.updateStream(scope, stream3, cfg.toBuilder().clearTags().tag("t4").tag("t5").build());
+        listedStreams = newArrayList(manager.listStreams(scope, "t3"));
+        expectedStreams = Arrays.asList(Stream.of(scope, stream2), Stream.of(scope, stream1));
+        assertTrue((listedStreams.size() == expectedStreams.size()) && listedStreams.containsAll(expectedStreams) &&
+                           expectedStreams.containsAll(listedStreams));
+
+        // seal and delete stream
+        manager.sealStream(scope, stream2);
+        manager.deleteStream(scope, stream2);
+        //check if list streams is updated.
+        assertEquals(singletonList(Stream.of(scope, stream1)), newArrayList(manager.listStreams(scope, "t3")));
     }
 
     @Test(timeout = 30000)

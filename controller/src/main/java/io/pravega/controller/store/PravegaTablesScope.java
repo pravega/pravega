@@ -24,7 +24,6 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.TagRecord;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -243,14 +242,14 @@ public class PravegaTablesScope implements Scope {
     }
 
     @Override
-    public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(String tag, int limit, String continuationToken, Executor executor,
+    public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(String tag, String continuationToken, Executor executor,
                                                                            OperationContext context) {
 
         Preconditions.checkNotNull(context, "Operation context cannot be null");
 
         return getNextTableSegment(tag, continuationToken, context).thenCompose(pair -> {
             if (pair.getLeft().isEmpty() && !pair.getRight().contains(LAST_TAG_CHUNK)) {
-                return listStreamsForTag(tag, limit, pair.getRight(), executor, context);
+                return listStreamsForTag(tag, pair.getRight(), executor, context);
             } else {
                 return CompletableFuture.completedFuture(pair);
             }

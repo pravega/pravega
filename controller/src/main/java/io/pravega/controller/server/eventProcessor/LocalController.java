@@ -149,7 +149,7 @@ public class LocalController implements Controller {
     @Override
     public AsyncIterator<Stream> listStreamsForTag(String scopeName, String tag) {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
-                controller.listStreams(scopeName, tag, token, PAGE_LIMIT, requestIdGenerator.nextLong())
+                controller.listStreams(scopeName, tag, token, requestIdGenerator.nextLong())
                           .thenApply(result -> {
                               List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m))
                                                                 .collect(Collectors.toList());

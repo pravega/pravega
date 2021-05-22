@@ -25,7 +25,6 @@ import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.AuthorizationException;
 import io.pravega.client.control.impl.ModelHelper;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTag;
@@ -1017,7 +1016,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     if (e != null) {
                         throw new CompletionException(e);
                     } else {
-                        StreamConfiguration t = response;
                         return decode(scope, stream, response);
 
                     }
@@ -1082,7 +1080,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         final AuthContext ctx = this.grpcAuthHelper.isAuthEnabled() ? AuthContext.current() : null;
         Function<String, CompletableFuture<Controller.StreamsInScopeResponse>> streamsFn = delegationToken ->
                 listWithFilter(request.getContinuationToken().getToken(), pageLimit,
-                               (x, y) -> controllerService.listStreams(scopeName, tag, x, y, requestTag.getRequestId()),
+                               (x, y) -> controllerService.listStreams(scopeName, tag, x, requestTag.getRequestId()),
                                x -> grpcAuthHelper.isAuthorized(authorizationResource.ofStreamInScope(scopeName, x),
                                                                 AuthHandler.Permissions.READ, ctx),
                                x -> StreamInfo.newBuilder().setScope(scopeName).setStream(x).build(), requestTag.getRequestId())
