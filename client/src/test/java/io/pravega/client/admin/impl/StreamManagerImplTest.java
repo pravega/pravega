@@ -15,7 +15,6 @@
  */
 package io.pravega.client.admin.impl;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamInfo;
@@ -55,6 +54,7 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -269,7 +269,7 @@ public class StreamManagerImplTest {
         streamManager.createStream(scope, stream1, StreamConfiguration.builder()
                                                                       .scalingPolicy(ScalingPolicy.fixed(3))
                                                                       .build());
-        ArrayList<String> result = Lists.newArrayList(streamManager.listScopes());
+        ArrayList<String> result = newArrayList(streamManager.listScopes());
         assertEquals(result.size(), 4);
         assertTrue(streamManager.checkScopeExists(scope));
         assertFalse(streamManager.checkScopeExists("nonExistent"));
@@ -342,8 +342,7 @@ public class StreamManagerImplTest {
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream2)));
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream3)));
         assertEquals(Collections.singleton("t1"), streamManager.getStreamTags(scope, stream1));
-        ArrayList<Stream> t = Lists.newArrayList((streamManager.listStreams(scope, "t1")));
-        assertEquals(Collections.singletonList(Stream.of(scope, stream1)), t);
+        assertEquals(Collections.singletonList(Stream.of(scope, stream1)), newArrayList(streamManager.listStreams(scope, "t1")));
 
         streamManager.updateStream(scope, stream1, StreamConfiguration.builder()
                                                                      .scalingPolicy(ScalingPolicy.fixed(3))
