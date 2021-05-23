@@ -300,7 +300,9 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
-    public CompletableFuture<Void> removeTagsFromIndex(String scope, String streamName, Set<String> tagsRemoved, OperationContext context, Executor executor) {
+    public CompletableFuture<Void> removeTagsFromIndex(String scope, String streamName, Set<String> tagsRemoved,
+                                                       OperationContext ctx, Executor executor) {
+        OperationContext context = getOperationContext(ctx);
         if (streamName.startsWith(NameUtils.INTERNAL_NAME_PREFIX)) {
             // Tags are not allowed on internal streams.
             return CompletableFuture.completedFuture(null);
@@ -309,7 +311,6 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                               .removeTagsUnderScope(streamName, tagsRemoved, context), executor);
         }
     }
-
 
     @Override
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,

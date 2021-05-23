@@ -319,6 +319,7 @@ public class PravegaTablesStoreHelper {
         return segmentHelper.readTable(tableName, keys, authToken.get(), requestId) // read the latest version of keys.
                             .whenComplete((v, ex) -> releaseKeys(keys))
                             .thenCompose(currentEntries -> {
+
                                 List<TableSegmentEntry> updatedList = currentEntries.stream().map(entry -> {
                                     String k = entry.getKey().getKey().toString(Charset.defaultCharset());
                                     // this can be externalized as a function.

@@ -230,7 +230,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     public CompletableFuture<Void> removeTagsFromIndex(String scope, String name, Set<String> tagsRemoved, OperationContext context, Executor executor) {
-        return null;
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
