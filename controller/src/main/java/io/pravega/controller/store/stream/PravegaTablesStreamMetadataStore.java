@@ -288,7 +288,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     public CompletableFuture<Void> addStreamTagsToIndex(String scope, String streamName, StreamConfiguration config,
-                                                        OperationContext context, Executor executor) {
+                                                        OperationContext ctx, Executor executor) {
+        OperationContext context = getOperationContext(ctx);
         if (streamName.startsWith(NameUtils.INTERNAL_NAME_PREFIX)) {
             // Tags are not allowed on internal streams.
             return CompletableFuture.completedFuture(null);
