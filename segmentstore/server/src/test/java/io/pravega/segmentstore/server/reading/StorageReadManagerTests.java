@@ -112,20 +112,23 @@ public class StorageReadManagerTests extends ThreadPooledTestSuite {
         @Cleanup
         Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
-        byte[] segmentData = populateSegment(storage);
-        @Cleanup
-        StorageReadManager reader = new StorageReadManager(SEGMENT_METADATA, storage, executorService());
 
         // Segment does not exist.
         AssertExtensions.assertThrows(
                 "Request was not failed when StreamSegment does not exist.",
                 () -> {
-                    SegmentMetadata sm = new StreamSegmentMetadata("foo", 0, 0);
+                    SegmentMetadata sm = new StreamSegmentMetadata(SEGMENT_METADATA.getName(), 0, 0);
                     @Cleanup
                     StorageReadManager nonExistentReader = new StorageReadManager(sm, storage, executorService());
                     sendRequest(nonExistentReader, 0, 1).join();
                 },
                 ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // Now create segment, it should exist and request should succeed.
+        byte[] segmentData = populateSegment(storage);
+        @Cleanup
+        StorageReadManager reader = new StorageReadManager(SEGMENT_METADATA, storage, executorService());
+        sendRequest(reader, 0, 1).join();
 
         // Invalid read offset.
         AssertExtensions.assertSuppliedFutureThrows(
@@ -138,6 +141,9 @@ public class StorageReadManagerTests extends ThreadPooledTestSuite {
                 "Request was not failed when bad offset + length was provided.",
                 () -> sendRequest(reader, segmentData.length - 1, 2),
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
+
+        // Make sure valid request succeeds after invalid one
+        sendRequest(reader, 0, 1).join();
     }
 
     private CompletableFuture<StorageReadManager.Result> sendRequest(StorageReadManager reader, long offset, int length) {
