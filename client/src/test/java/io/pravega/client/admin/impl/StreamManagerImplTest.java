@@ -329,6 +329,7 @@ public class StreamManagerImplTest {
         
         streamManager.createStream(scope, stream1, StreamConfiguration.builder()
                                                                         .scalingPolicy(ScalingPolicy.fixed(3))
+                                                                        .tag("t1")
                                                                         .build());
         streamManager.createStream(scope, stream2, StreamConfiguration.builder()
                                                                         .scalingPolicy(ScalingPolicy.fixed(3))
