@@ -189,7 +189,8 @@ public interface StreamManager extends AutoCloseable {
 
     /**
      * Get information about a given Stream, {@link StreamInfo}.
-     * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream.
+     * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream and the current
+     * {@link StreamConfiguration}
      *
      * @param scopeName The scope of the stream.
      * @param streamName The stream name.

@@ -823,7 +823,7 @@ public class ControllerService {
     }
 
     /**
-     * List streams matching the provided tag in a scope..
+     * List streams matching the provided tag in a scope.
      *
      * @param scope Name of the scope.
      * @param tag Tag name.
