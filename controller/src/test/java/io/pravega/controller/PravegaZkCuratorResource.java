@@ -35,8 +35,16 @@ public class PravegaZkCuratorResource extends ExternalResource {
     public TestingServer zkTestServer;
     public StoreClient storeClient;
     public RetryPolicy retryPolicy;
+    public int sessionTimeoutMs;
+    public int connectionTimeoutMs;
 
     public PravegaZkCuratorResource(RetryPolicy retryPolicy) {
+        this.retryPolicy = retryPolicy;
+    }
+
+    public PravegaZkCuratorResource(int sessionTimeoutMs, int connectionTimeoutMs, RetryPolicy retryPolicy) {
+        this.sessionTimeoutMs = sessionTimeoutMs;
+        this.connectionTimeoutMs = connectionTimeoutMs;
         this.retryPolicy = retryPolicy;
     }
 
@@ -47,7 +55,11 @@ public class PravegaZkCuratorResource extends ExternalResource {
         String connectionString = zkTestServer.getConnectString();
 
         //Initialize ZK client
-        client = CuratorFrameworkFactory.newClient(connectionString, retryPolicy);
+        if (sessionTimeoutMs == 0 && connectionTimeoutMs == 0) {
+            client = CuratorFrameworkFactory.newClient(connectionString, retryPolicy);
+        } else {
+            client = CuratorFrameworkFactory.newClient(connectionString, sessionTimeoutMs, connectionTimeoutMs, retryPolicy);
+        }
         client.start();
         storeClient = StoreClientFactory.createZKStoreClient(client);
     }
