@@ -28,9 +28,7 @@ import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
 import org.apache.curator.RetryPolicy;
-import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -61,8 +59,6 @@ public class SegmentContainerMonitorTest {
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
-    private TestingServer zkTestServer;
-    private CuratorFramework zkClient;
     private Cluster cluster;
 
     @Before
@@ -144,7 +140,7 @@ public class SegmentContainerMonitorTest {
             }
         }
 
-        SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), zkClient,
+        SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), PRAVEGA_ZK_CURATOR_RESOURCE.client,
                 new UniformContainerBalancer(), 2);
         monitor.startAsync().awaitRunning();
 
