@@ -82,32 +82,32 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
 
         // TruncationOffset < Compaction offset, and CompactionOffset >= LastIndexedOffset.
         setSegmentState(50, 50, 1, 100, 50, c);
-        Assert.assertFalse("Unexpected result when CompactionOffset is equal to IndexOffset.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        Assert.assertFalse("Unexpected result when CompactionOffset is equal to IndexOffset.", c.compactor.isCompactionRequired());
 
         // TruncationOffset > Compaction offset, and TruncationOffset >= LastIndexedOffset.
         c.segmentMetadata.setStartOffset(50);
         setSegmentState(10, 50, 1, 100, 50, c);
-        Assert.assertFalse("Unexpected result when TruncationOffset is equal to IndexOffset.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        Assert.assertFalse("Unexpected result when TruncationOffset is equal to IndexOffset.", c.compactor.isCompactionRequired());
 
         // Utilization == Threshold
         setSegmentState(0, 100, 50, 100, 50, c);
-        Assert.assertFalse("Unexpected result when Utilization==MinUtilization.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        Assert.assertFalse("Unexpected result when Utilization==MinUtilization.", c.compactor.isCompactionRequired());
 
         // Utilization > Threshold
         setSegmentState(0, 100, 51, 100, 50, c);
-        Assert.assertFalse("Unexpected result when Utilization>MinUtilization.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        Assert.assertFalse("Unexpected result when Utilization>MinUtilization.", c.compactor.isCompactionRequired());
 
         // Empty table
         setSegmentState(0, 100, 10, 0, 50, c);
-        Assert.assertFalse("Unexpected result when TotalEntryCount==0.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        Assert.assertFalse("Unexpected result when TotalEntryCount==0.", c.compactor.isCompactionRequired());
 
         // Utilization < Threshold, but not enough "uncompacted" length.
         setSegmentState(0, 100, 49, 100, 50, c);
-        Assert.assertFalse("Unexpected result when Utilization>MinUtilization.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        Assert.assertFalse("Unexpected result when Utilization>MinUtilization.", c.compactor.isCompactionRequired());
 
         // Utilization < Threshold, and enough "uncompacted" length (IndexLength-Max(StartOffset,CompactOffset))>ReadLength.
         setSegmentState(0, 151, 49, 100, 50, c);
-        Assert.assertTrue("Unexpected result when Utilization>MinUtilization.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        Assert.assertTrue("Unexpected result when Utilization>MinUtilization.", c.compactor.isCompactionRequired());
     }
 
     /**
@@ -124,27 +124,27 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
 
         // 1. If we encountered compacted items during indexing.
         Assert.assertEquals("Unexpected result when highestCopiedOffset>0.",
-                1, c.compactor.calculateTruncationOffset(c.segmentMetadata, 1));
+                1, c.compactor.calculateTruncationOffset(1));
         Assert.assertEquals("Unexpected result when highestCopiedOffset>0.",
-                101, c.compactor.calculateTruncationOffset(c.segmentMetadata, 101));
+                101, c.compactor.calculateTruncationOffset(101));
 
         // 2. No compacted items during indexing.
         // Segment is not fully indexed.
         setLastIndexedOffset(c.segmentMetadata.getLength() - 1, c);
         Assert.assertEquals("Unexpected result when segment not fully indexed.",
-                noOffset, c.compactor.calculateTruncationOffset(c.segmentMetadata, 0));
+                noOffset, c.compactor.calculateTruncationOffset(0));
 
         // Segment is fully indexed, but segment is already truncated at compaction offset.
         setLastIndexedOffset(c.segmentMetadata.getLength(), c);
         c.segmentMetadata.setStartOffset(compactionOffset);
         Assert.assertEquals("Unexpected result when segment already truncated at compaction offset.",
-                noOffset, c.compactor.calculateTruncationOffset(c.segmentMetadata, 0));
+                noOffset, c.compactor.calculateTruncationOffset(0));
 
         // Segment is fully indexed, and COMPACTION_OFFSET is higher than start offset.
         compactionOffset += 5;
         setCompactionOffset(compactionOffset, c);
         Assert.assertEquals("Unexpected result when segment is truncated before compaction offset.",
-                compactionOffset, c.compactor.calculateTruncationOffset(c.segmentMetadata, 0));
+                compactionOffset, c.compactor.calculateTruncationOffset(0));
     }
 
     /**
@@ -162,14 +162,14 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         long length = context.segmentMetadata.getLength();
         setCompactionOffset(length, context);
         setMinUtilization(100, context);
-        Assert.assertFalse("Not expecting compaction to be required.", context.compactor.isCompactionRequired(context.segmentMetadata));
+        Assert.assertFalse("Not expecting compaction to be required.", context.compactor.isCompactionRequired());
         context.compactor.compact(context.segment, context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Not expecting any segment modifications.", length, context.segmentMetadata.getLength());
         Assert.assertEquals("Not expecting any compaction changes.", length, context.indexWriter.getCompactionOffset(context.segmentMetadata));
 
         // Set the COMPACTION_OFFSET to an invalid value and verify the appropriate exception is thrown.
         setCompactionOffset(length + 1, context);
-        Assert.assertFalse("Not expecting compaction to be required.", context.compactor.isCompactionRequired(context.segmentMetadata));
+        Assert.assertFalse("Not expecting compaction to be required.", context.compactor.isCompactionRequired());
         AssertExtensions.assertSuppliedFutureThrows(
                 "compact() worked with invalid segment state.",
                 () -> context.compactor.compact(context.segment, context.timer),
@@ -178,7 +178,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         // Set Segment's StartOffset to max.
         setCompactionOffset(length - 1, context);
         context.segmentMetadata.setStartOffset(length);
-        Assert.assertFalse("Not expecting compaction to be required.", context.compactor.isCompactionRequired(context.segmentMetadata));
+        Assert.assertFalse("Not expecting compaction to be required.", context.compactor.isCompactionRequired());
         context.compactor.compact(context.segment, context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Not expecting any segment modifications.", length, context.segmentMetadata.getLength());
         Assert.assertEquals("Not expecting any compaction changes.", length - 1, context.indexWriter.getCompactionOffset(context.segmentMetadata));

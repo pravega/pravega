@@ -23,7 +23,6 @@ import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
@@ -205,10 +204,8 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      */
     private CompletableFuture<Void> compactIfNeeded(DirectSegmentAccess segment, long highestCopiedOffset, TimeoutTimer timer) {
         // Decide if compaction is needed. If not, bail out early.
-        SegmentProperties info = segment.getInfo();
-
         CompletableFuture<Void> result;
-        if (this.compactor.isCompactionRequired(info)) {
+        if (this.compactor.isCompactionRequired()) {
             result = this.compactor.compact(segment, timer);
         } else {
             log.debug("{}: No compaction required at this time.", this.traceObjectId);
@@ -218,7 +215,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         return result
                 .thenComposeAsync(v -> {
                     // Calculate the safe truncation offset.
-                    long truncateOffset = this.compactor.calculateTruncationOffset(segment.getInfo(), highestCopiedOffset);
+                    long truncateOffset = this.compactor.calculateTruncationOffset(highestCopiedOffset);
 
                     // Truncate if necessary.
                     if (truncateOffset > 0) {

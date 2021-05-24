@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
@@ -25,7 +26,6 @@ import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -70,36 +70,40 @@ import lombok.val;
 class TableCompactor {
     //region Members
 
-    @NonNull
     private final TableWriterConnector connector;
-    @NonNull
     private final IndexReader indexReader;
-    @NonNull
     private final Executor executor;
+    private final String traceLogId;
 
     //endregion
 
+    TableCompactor(@NonNull TableWriterConnector connector, @NonNull IndexReader indexReader, @NonNull Executor executor) {
+        this.connector = connector;
+        this.indexReader = indexReader;
+        this.executor = executor;
+        this.traceLogId = String.format("TableCompactor[%s-%s]", connector.getMetadata().getContainerId(), connector.getMetadata().getId());
+    }
+
     /**
-     * Determines if Table Compaction is required on a Table Segment.
+     * Determines if Table Compaction is required on the Table Segment.
      *
-     * @param info The {@link SegmentProperties} associated with the Table Segment to inquire about.
      * @return True if compaction is required, false otherwise.
      */
-    boolean isCompactionRequired(SegmentProperties info) {
-        long startOffset = getCompactionStartOffset(info);
-        long lastIndexOffset = this.indexReader.getLastIndexedOffset(info);
+    boolean isCompactionRequired() {
+        long startOffset = getCompactionStartOffset();
+        long lastIndexOffset = this.indexReader.getLastIndexedOffset(this.connector.getMetadata());
         if (startOffset + this.connector.getMaxCompactionSize() >= lastIndexOffset) {
             // Either:
             // 1. Nothing was indexed
             // 2. Compaction has already reached the indexed limit.
-            // 3. Not enough "uncompacted" data - at least this.maxCompactLength must be accumulated to trigger a compaction.
+            // 3. Not enough "uncompacted" data - at least this.connector.getMaxCompactionSize() must be accumulated to trigger a compaction.
             return false;
         }
 
-        long totalEntryCount = this.indexReader.getTotalEntryCount(info);
-        long entryCount = this.indexReader.getEntryCount(info);
+        long totalEntryCount = this.indexReader.getTotalEntryCount(this.connector.getMetadata());
+        long entryCount = this.indexReader.getEntryCount(this.connector.getMetadata());
         long utilization = totalEntryCount == 0 ? 100 : MathHelpers.minMax(Math.round(100.0 * entryCount / totalEntryCount), 0, 100);
-        long utilizationThreshold = (int) MathHelpers.minMax(this.indexReader.getCompactionUtilizationThreshold(info), 0, 100);
+        long utilizationThreshold = (int) MathHelpers.minMax(this.indexReader.getCompactionUtilizationThreshold(this.connector.getMetadata()), 0, 100);
         return utilization < utilizationThreshold;
     }
 
@@ -118,26 +122,26 @@ class TableCompactor {
      * indexer hasn't gotten to yet. As such, it is only safe to truncate at {@link TableAttributes#COMPACTION_OFFSET}
      * if the indexer has indexed all the entries in the Table Segment.
      *
-     * @param info                The {@link SegmentProperties} associated with the Table Segment to inquire about.
      * @param highestCopiedOffset The highest offset that was copied from a lower offset during a compaction. If the copied
      *                            entry has already been index then it is guaranteed that every entry prior to this
      *                            offset is no longer part of the index and can be safely truncated away.
      * @return The calculated truncation offset or a negative number if no truncation is required or possible given the
      * arguments provided.
      */
-    long calculateTruncationOffset(SegmentProperties info, long highestCopiedOffset) {
+    long calculateTruncationOffset(long highestCopiedOffset) {
+        val m = this.connector.getMetadata();
         long truncateOffset = -1;
         if (highestCopiedOffset > 0) {
             // Due to the nature of compaction (all entries are copied in order of their original versions), if we encounter
             // any copied Table Entries then the highest explicit version defined on any of them is where we can truncate.
             truncateOffset = highestCopiedOffset;
-        } else if (this.indexReader.getLastIndexedOffset(info) >= info.getLength()) {
+        } else if (this.indexReader.getLastIndexedOffset(m) >= m.getLength()) {
             // Did not encounter any copied entries. If we were able to index the whole segment, then we should be safe
             // to truncate at wherever the compaction last finished.
-            truncateOffset = this.indexReader.getCompactionOffset(info);
+            truncateOffset = this.indexReader.getCompactionOffset(m);
         }
 
-        if (truncateOffset <= info.getStartOffset()) {
+        if (truncateOffset <= m.getStartOffset()) {
             // The segment is already truncated at the compaction offset; no need for more.
             truncateOffset = -1;
         }
@@ -146,9 +150,10 @@ class TableCompactor {
     }
 
     /**
-     * Performs a compaction of a Table Segment. Refer to this class' Javadoc for a description of the compaction process.
+     * Performs a compaction of the Table Segment. Refer to this class' Javadoc for a description of the compaction process.
      *
-     * @param segment A {@link DirectSegmentAccess} providing access to the Table Segment to compact.
+     * @param segment A {@link DirectSegmentAccess} providing access to the Table Segment to compact. This must match the
+     *                Segment that the {@link #connector} is referring to.
      * @param timer   Timer for the operation.
      * @return A CompletableFuture that, when completed, indicate the compaction completed. When this future completes,
      * some of the Segment's Table Attributes may change to reflect the modifications to the Segment and/or compaction progress.
@@ -159,17 +164,18 @@ class TableCompactor {
      * </ul>
      */
     CompletableFuture<Void> compact(@NonNull DirectSegmentAccess segment, TimeoutTimer timer) {
-        SegmentProperties info = segment.getInfo();
-        long startOffset = getCompactionStartOffset(info);
-        int maxLength = (int) Math.min(this.connector.getMaxCompactionSize(), this.indexReader.getLastIndexedOffset(info) - startOffset);
+        val m = this.connector.getMetadata();
+        Preconditions.checkArgument(segment.getSegmentId() == m.getId(), "%s: Given segment has unexpected Id %s.", this.traceLogId, segment.getSegmentId());
+        long startOffset = getCompactionStartOffset();
+        int maxLength = (int) Math.min(this.connector.getMaxCompactionSize(), this.indexReader.getLastIndexedOffset(m) - startOffset);
         if (startOffset < 0 || maxLength < 0) {
             // The Segment's Compaction offset must be a value between 0 and the current LastIndexedOffset.
             return Futures.failedFuture(new DataCorruptionException(String.format(
-                    "Segment[%s] (%s) has CompactionStartOffset=%s and CompactionLength=%s.",
-                    segment.getSegmentId(), info.getName(), startOffset, maxLength)));
+                    "%s: '%s' has CompactionStartOffset=%s and CompactionLength=%s.",
+                    this.traceLogId, m.getName(), startOffset, maxLength)));
         } else if (maxLength == 0) {
             // Nothing to do.
-            log.debug("TableCompactor[{}]: Up to date.", segment.getSegmentId());
+            log.debug("{}: Up to date.", this.traceLogId);
             return CompletableFuture.completedFuture(null);
         }
 
@@ -314,7 +320,7 @@ class TableCompactor {
             toWrite.sort(Comparator.comparingLong(c -> c.getKey().getVersion()));
             BufferView appendData = this.connector.getSerializer().serializeUpdateWithExplicitVersion(toWrite);
             result = segment.append(appendData, attributes, timer.getRemaining());
-            log.debug("TableCompactor[{}]: Compacting {}, CopyCount={}, CopyLength={}.", segment.getSegmentId(), args, toWrite.size(), totalLength);
+            log.debug("{}: Compacting {}, CopyCount={}, CopyLength={}.", this.traceLogId, args, toWrite.size(), totalLength);
         }
 
         return Futures.toVoid(result);
@@ -345,11 +351,11 @@ class TableCompactor {
      * Calculates the Segment Offset where to start the compaction at. This is the maximum of the Segment's
      * {@link TableAttributes#COMPACTION_OFFSET} attribute and the Segment's StartOffset (where it is truncated).
      *
-     * @param info A {@link SegmentProperties} representing the current state of the Segment.
      * @return The Segment Offset where to begin compaction at.
      */
-    private long getCompactionStartOffset(SegmentProperties info) {
-        return Math.max(this.indexReader.getCompactionOffset(info), info.getStartOffset());
+    private long getCompactionStartOffset() {
+        val m = this.connector.getMetadata();
+        return Math.max(this.indexReader.getCompactionOffset(m), m.getStartOffset());
     }
 
     //region Helper Classes
