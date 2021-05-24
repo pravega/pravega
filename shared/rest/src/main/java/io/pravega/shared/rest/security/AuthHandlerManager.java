@@ -24,7 +24,6 @@ import io.pravega.auth.AuthenticationException;
 import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.ServiceLoader;
 import javax.annotation.concurrent.GuardedBy;
 
@@ -183,7 +182,7 @@ public class AuthHandlerManager {
                                 continue;
                             }
                         }
-                        if (Objects.nonNull(builder)) {
+                        if (builder != null) {
                             builder.intercept(new AuthInterceptor(handler));
                         }
                     } catch (Exception e) {

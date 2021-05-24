@@ -73,7 +73,6 @@ public class RESTServerConfigImpl implements RESTServerConfig {
     @Override
     public Properties toAuthHandlerProperties() {
         Properties props = new Properties();
-        // Props to include?
         return props;
     }
 }

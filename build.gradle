@@ -305,7 +305,7 @@ project('shared:protocol') {
 project ('shared:rest') {
     dependencies {
         compile project(':common')
-        compile project(':client')
+        compile "io.grpc:grpc-core:" + grpcVersion
         compile project(":shared:authplugin")
         compile project(":shared:basic-authplugin")
         compile project(":shared:security")
