@@ -365,10 +365,11 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     })
                     .thenRun(() -> TransactionMetrics.getInstance().commitTransaction(scope, stream, timer.getElapsed()));
         }
-        
+
         return future
                 .thenCompose(v -> bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope,
-                        stream, executor));
+                        stream, executor))
+                .thenAccept(v -> TransactionMetrics.getInstance().reportCommitTransactionBatchCount(scope, stream, transactionsToCommit.size()));
     }
 
     /**

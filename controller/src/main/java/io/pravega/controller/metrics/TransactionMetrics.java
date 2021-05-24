@@ -48,6 +48,7 @@ import static io.pravega.shared.MetricsNames.COMMITTING_TRANSACTION_WRITE_EVENT_
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_START_LATENCY;
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_COMPLETE_LATENCY;
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_ROLLOVER_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_BATCH_COUNT;
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
 import static io.pravega.shared.MetricsTags.transactionTags;
@@ -72,13 +73,14 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger committingTxnWriteEventLatency;
     private final OpStatsLogger committingTxnRemoveTimeoutSvcLatency;
     private final OpStatsLogger committingTransactionLatency;
-    private final OpStatsLogger abortTransactionLatency;
-    private final OpStatsLogger abortTransactionSegmentsLatency;
-    private final OpStatsLogger abortingTransactionLatency;
     private final OpStatsLogger commitTxnStartLatency;
     private final OpStatsLogger commitTxnRecordOffsetsLatency;
     private final OpStatsLogger commitTxnRolloverLatency;
     private final OpStatsLogger commitTxnCompleteLatency;
+    private final OpStatsLogger abortTransactionLatency;
+    private final OpStatsLogger abortTransactionSegmentsLatency;
+    private final OpStatsLogger abortingTransactionLatency;
+
 
     private TransactionMetrics() {
         createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
@@ -299,6 +301,16 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     }
 
     /**
+     * This method reports the number of transactions committed by this Commit Event.
+     * @param scope      Scope.
+     * @param streamName Name of the Stream.
+     * @param txnsInBatchCount   Number of transactions committed as part of this Commit Event Processing.
+     */
+    public void reportCommitTransactionBatchCount(String scope, String streamName, int txnsInBatchCount) {
+        DYNAMIC_LOGGER.reportGaugeValue(COMMIT_TRANSACTION_BATCH_COUNT, txnsInBatchCount, streamTags(scope, streamName));
+    }
+
+    /**
      * This method increments the global, Stream-related and Transaction-related counters of failed commit operations.
      *
      * @param scope      Scope.
@@ -388,6 +400,16 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
             old.abortTransactionLatency.close();
             old.abortTransactionSegmentsLatency.close();
             old.abortingTransactionLatency.close();
+            old.committingTxnAddToIndexLatency.close();
+            old.committingTxnSealLatency.close();
+            old.committingTxnWriteEventLatency.close();
+            old.committingTxnRemoveTimeoutSvcLatency.close();
+            old.commitTxnStartLatency.close();
+            old.commitTxnRolloverLatency.close();
+            old.commitTxnCompleteLatency.close();
+            old.createTxnGenIdLatency.close();
+            old.createTxnAddToTimeoutSvcLatency.close();
+            old.createTxnCreateInStoreLatency.close();
         }
         INSTANCE.set(new TransactionMetrics());
     }

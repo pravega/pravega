@@ -313,6 +313,7 @@ public final class MetricsNames {
     public static final String COMMIT_TRANSACTION_RECORD_OFFSETS_LATENCY = PREFIX + "controller.transactions.committed_record_offsets_latency_ms";                    // Histogram
     public static final String COMMIT_TRANSACTION_ROLLOVER_LATENCY = PREFIX + "controller.transactions.committed_rollover_latency_ms";                                       // Counter and Per-stream Counter
     public static final String COMMIT_TRANSACTION_COMPLETE_LATENCY = PREFIX + "controller.transactions.committed_complete_latency_ms";                                       // Counter and Per-stream Counter
+    public static final String COMMIT_TRANSACTION_BATCH_COUNT = PREFIX + "controller.transactions.committed_batch_Count";                                       // Counter and Per-stream Counter
 
     public static final String COMMIT_TRANSACTION_FAILED = PREFIX + "controller.transactions.commit_failed";                            // Counter, Per-stream Counter, Per-transaction Counter
     public static final String ABORTING_TRANSACTION_LATENCY = PREFIX + "controller.transactions.aborting_latency_ms";                   // Histogram
