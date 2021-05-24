@@ -60,7 +60,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private final AtomicLong lastAddedOffset;
     private final AtomicBoolean closed;
     private final String traceObjectId;
-    private final TableCompactor compactor;
+    private final TableCompactor.Config tableCompactorConfig;
 
     //endregion
 
@@ -76,11 +76,11 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         this.connector = connector;
         this.executor = executor;
         this.indexWriter = new IndexWriter(connector.getKeyHasher(), executor);
-        this.aggregator = new OperationAggregator(this.indexWriter.getLastIndexedOffset(this.connector.getMetadata()));
+        this.aggregator = new OperationAggregator(IndexReader.getLastIndexedOffset(this.connector.getMetadata()));
         this.lastAddedOffset = new AtomicLong(-1);
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("TableProcessor[%d-%d]", this.connector.getMetadata().getContainerId(), this.connector.getMetadata().getId());
-        this.compactor = new TableCompactor(connector, this.indexWriter, this.executor);
+        this.tableCompactorConfig = new TableCompactor.Config(this.connector.getMaxCompactionSize());
     }
 
     //endregion
@@ -204,9 +204,10 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      */
     private CompletableFuture<Void> compactIfNeeded(DirectSegmentAccess segment, long highestCopiedOffset, TimeoutTimer timer) {
         // Decide if compaction is needed. If not, bail out early.
+        val compactor = new HashTableCompactor(segment, this.tableCompactorConfig, this.indexWriter, this.connector.getKeyHasher(), this.executor);
         CompletableFuture<Void> result;
-        if (this.compactor.isCompactionRequired()) {
-            result = this.compactor.compact(segment, timer);
+        if (compactor.isCompactionRequired()) {
+            result = compactor.compact(timer);
         } else {
             log.debug("{}: No compaction required at this time.", this.traceObjectId);
             result = CompletableFuture.completedFuture(null);
@@ -215,7 +216,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         return result
                 .thenComposeAsync(v -> {
                     // Calculate the safe truncation offset.
-                    long truncateOffset = this.compactor.calculateTruncationOffset(highestCopiedOffset);
+                    long truncateOffset = compactor.calculateTruncationOffset(highestCopiedOffset);
 
                     // Truncate if necessary.
                     if (truncateOffset > 0) {
@@ -309,7 +310,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
     @SneakyThrows(DataCorruptionException.class)
     private void reconcileTableIndexOffset() {
-        long tableIndexOffset = this.indexWriter.getLastIndexedOffset(this.connector.getMetadata());
+        long tableIndexOffset = IndexReader.getLastIndexedOffset(this.connector.getMetadata());
         if (tableIndexOffset < this.aggregator.getLastIndexedOffset()) {
             // This should not happen, ever!
             throw new DataCorruptionException(String.format("Cannot reconcile INDEX_OFFSET attribute (%s) for Segment '%s'. "

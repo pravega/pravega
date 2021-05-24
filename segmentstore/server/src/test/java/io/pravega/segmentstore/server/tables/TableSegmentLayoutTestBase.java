@@ -418,7 +418,7 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
 
         // Verify we have had at least one compaction during this test.
         val ir = new IndexReader(executorService());
-        AssertExtensions.assertGreaterThan("No compaction occurred.", 0, ir.getCompactionOffset(context.segment().getInfo()));
+        AssertExtensions.assertGreaterThan("No compaction occurred.", 0, IndexReader.getCompactionOffset(context.segment().getInfo()));
         AssertExtensions.assertGreaterThan("No truncation occurred", 0, context.segment().getInfo().getStartOffset());
 
         // Finally, remove all data and delete the segment.

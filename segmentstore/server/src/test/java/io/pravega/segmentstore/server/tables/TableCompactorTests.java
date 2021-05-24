@@ -163,25 +163,25 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         setCompactionOffset(length, context);
         setMinUtilization(100, context);
         Assert.assertFalse("Not expecting compaction to be required.", context.compactor.isCompactionRequired());
-        context.compactor.compact(context.segment, context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        context.compactor.compact(context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Not expecting any segment modifications.", length, context.segmentMetadata.getLength());
-        Assert.assertEquals("Not expecting any compaction changes.", length, context.indexWriter.getCompactionOffset(context.segmentMetadata));
+        Assert.assertEquals("Not expecting any compaction changes.", length, IndexReader.getCompactionOffset(context.segmentMetadata));
 
         // Set the COMPACTION_OFFSET to an invalid value and verify the appropriate exception is thrown.
         setCompactionOffset(length + 1, context);
         Assert.assertFalse("Not expecting compaction to be required.", context.compactor.isCompactionRequired());
         AssertExtensions.assertSuppliedFutureThrows(
                 "compact() worked with invalid segment state.",
-                () -> context.compactor.compact(context.segment, context.timer),
+                () -> context.compactor.compact(context.timer),
                 ex -> ex instanceof DataCorruptionException);
 
         // Set Segment's StartOffset to max.
         setCompactionOffset(length - 1, context);
         context.segmentMetadata.setStartOffset(length);
         Assert.assertFalse("Not expecting compaction to be required.", context.compactor.isCompactionRequired());
-        context.compactor.compact(context.segment, context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        context.compactor.compact(context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Not expecting any segment modifications.", length, context.segmentMetadata.getLength());
-        Assert.assertEquals("Not expecting any compaction changes.", length - 1, context.indexWriter.getCompactionOffset(context.segmentMetadata));
+        Assert.assertEquals("Not expecting any compaction changes.", length - 1, IndexReader.getCompactionOffset(context.segmentMetadata));
     }
 
     /**
@@ -213,10 +213,10 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         val sortedEntries = sort(keyData, context).listIterator();
 
         // Keep track of various segment state and attributes - we will be progressively be checking it at each step.
-        long compactionOffset = context.indexWriter.getCompactionOffset(context.segmentMetadata);
-        final long lastIndexedOffset = context.indexWriter.getLastIndexedOffset(context.segmentMetadata);
-        long totalEntryCount = context.indexWriter.getTotalEntryCount(context.segmentMetadata);
-        final long entryCount = context.indexWriter.getEntryCount(context.segmentMetadata);
+        long compactionOffset = IndexReader.getCompactionOffset(context.segmentMetadata);
+        final long lastIndexedOffset = IndexReader.getLastIndexedOffset(context.segmentMetadata);
+        long totalEntryCount = IndexReader.getTotalEntryCount(context.segmentMetadata);
+        final long entryCount = IndexReader.getEntryCount(context.segmentMetadata);
 
         // Perform compaction, step-by-step, until there is nothing left to compact.
         int expectedCopyOnReadCount = 0;
@@ -231,21 +231,21 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
             long initialLength = context.segmentMetadata.getLength();
 
             // Execute a compaction.
-            context.compactor.compact(context.segment, context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            context.compactor.compact(context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Check that the appropriate Table Segment attributes changed as expected.
             long expectedCompactionOffset = compactionOffset + candidatesLength;
-            long newCompactionOffset = context.indexWriter.getCompactionOffset(context.segmentMetadata);
+            long newCompactionOffset = IndexReader.getCompactionOffset(context.segmentMetadata);
             Assert.assertEquals("Expected COMPACTION_OFFSET to have advanced.", expectedCompactionOffset, newCompactionOffset);
-            long newTotalEntryCount = context.indexWriter.getTotalEntryCount(context.segmentMetadata);
+            long newTotalEntryCount = IndexReader.getTotalEntryCount(context.segmentMetadata);
             Assert.assertEquals("Expected TOTAL_ENTRY_COUNT to have decreased.",
                     totalEntryCount - candidates.size(), newTotalEntryCount);
 
             // Check that these attributes have NOT changed.
             Assert.assertEquals("Not expecting LAST_INDEX_OFFSET to have changed.",
-                    lastIndexedOffset, context.indexWriter.getLastIndexedOffset(context.segmentMetadata));
+                    lastIndexedOffset, IndexReader.getLastIndexedOffset(context.segmentMetadata));
             Assert.assertEquals("Not expecting ENTRY_COUNT to have changed.",
-                    entryCount, context.indexWriter.getEntryCount(context.segmentMetadata));
+                    entryCount, IndexReader.getEntryCount(context.segmentMetadata));
 
             if (copyCandidates.size() > 0) {
                 // Check that the segment's length has increased (which would indicate copied entries).
@@ -279,7 +279,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         // TOTAL_ENTRY_COUNT should have been reduced to 0 at the end - we have moved all entries out of the index.
         // In the real world, the IndexWriter will readjust this number as appropriate when reindexing these values.
         Assert.assertEquals("Expecting TOTAL_ENTRY_COUNT to be 0 after a full compaction.",
-                0, context.indexWriter.getTotalEntryCount(context.segmentMetadata));
+                0, IndexReader.getTotalEntryCount(context.segmentMetadata));
     }
 
     /**
@@ -356,13 +356,13 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
 
         // Sanity checks before we can move on with any test.
         Assert.assertEquals("Expecting the whole segment to have been indexed.",
-                context.segmentMetadata.getLength(), context.indexWriter.getLastIndexedOffset(context.segmentMetadata));
+                context.segmentMetadata.getLength(), IndexReader.getLastIndexedOffset(context.segmentMetadata));
         Assert.assertEquals("Not expecting any changes to the COMPACTION_OFFSET attribute.",
-                0, context.indexWriter.getCompactionOffset(context.segmentMetadata));
+                0, IndexReader.getCompactionOffset(context.segmentMetadata));
         AssertExtensions.assertLessThan("Expecting fewer active Table Entries than keys.",
-                keys.size(), context.indexWriter.getEntryCount(context.segmentMetadata));
+                keys.size(), IndexReader.getEntryCount(context.segmentMetadata));
         AssertExtensions.assertGreaterThan("Expecting more total Table Entries than keys.",
-                keys.size(), context.indexWriter.getTotalEntryCount(context.segmentMetadata));
+                keys.size(), IndexReader.getTotalEntryCount(context.segmentMetadata));
         return keys.stream().collect(Collectors.toMap(k -> k.key, k -> k));
     }
 
@@ -518,7 +518,8 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
             this.indexWriter = new IndexWriter(KEY_HASHER, executorService());
             this.serializer = new EntrySerializer();
             this.writerConnector = new TestConnector(this.segment, this.serializer, KEY_HASHER, maxCompactLength);
-            this.compactor = new TableCompactor(this.writerConnector, this.indexWriter, executorService());
+            val config = new TableCompactor.Config(this.writerConnector.getMaxCompactionSize());
+            this.compactor = new HashTableCompactor(this.segment, config, this.indexWriter, this.writerConnector.keyHasher, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);
         }
 
@@ -530,7 +531,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
 
     @Getter
     @RequiredArgsConstructor
-    private class TestConnector implements TableWriterConnector {
+    private static class TestConnector implements TableWriterConnector {
         private final SegmentMock segment;
         private final EntrySerializer serializer;
         private final KeyHasher keyHasher;

@@ -15,7 +15,6 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import com.google.common.base.Preconditions;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
@@ -31,16 +30,17 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.BiConsumer;
+import lombok.Data;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -48,9 +48,9 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
- * Performs {@link TableEntry} compaction in Table Segments.
- *
- * A Compaction is performed along these lines:
+ * Base Table Segment Compactor. Performs {@link TableEntry} compaction in Table Segments.
+ * <p>
+ * A Compaction is performed along these lines, regardless of Table Segment Type:
  * - Compaction begins at the Table Segment's {@link TableAttributes#COMPACTION_OFFSET} offset.
  * - A number of {@link TableEntry} instances are parsed out until a maximum length is reached.
  * - A parsed {@link TableEntry} is discarded if any of the following are true:
@@ -66,23 +66,57 @@ import lombok.val;
  * will pick them up and index them.
  */
 @Slf4j
-@RequiredArgsConstructor
-class TableCompactor {
+abstract class TableCompactor {
     //region Members
 
-    private final TableWriterConnector connector;
-    private final IndexReader indexReader;
-    private final Executor executor;
-    private final String traceLogId;
+    private static final EntrySerializer SERIALIZER = new EntrySerializer();
+    protected final DirectSegmentAccess segment;
+    protected final SegmentMetadata metadata;
+    protected final Config config;
+    protected final Executor executor;
+    protected final String traceLogId;
 
     //endregion
 
-    TableCompactor(@NonNull TableWriterConnector connector, @NonNull IndexReader indexReader, @NonNull Executor executor) {
-        this.connector = connector;
-        this.indexReader = indexReader;
+    //region Constructor
+
+    TableCompactor(@NonNull DirectSegmentAccess segment, @NonNull Config config, @NonNull Executor executor) {
+        this.segment = segment;
+        this.config = config;
         this.executor = executor;
-        this.traceLogId = String.format("TableCompactor[%s-%s]", connector.getMetadata().getContainerId(), connector.getMetadata().getId());
+        this.metadata = segment.getInfo();
+        this.traceLogId = String.format("TableCompactor[%s-%s]", this.metadata.getContainerId(), this.metadata.getId());
     }
+
+    //endregion
+
+    //region Layout-Specific Properties.
+
+    /**
+     * Gets the offset up to which all Table Entries have been indexed in this Table Segment.
+     *
+     * @return The last indexed offset.
+     */
+    protected abstract long getLastIndexedOffset();
+
+    /**
+     * Gets the number of unique keys in the Table Segment.
+     *
+     * @return The number of unique keys.
+     */
+    protected abstract long getUniqueEntryCount();
+
+    /**
+     * Creates a new instance of the {@link CompactionArgs} (or an implementation specific sub-class).
+     *
+     * @param startOffset The offset at which compaction begins.
+     * @return A new {@link CompactionArgs} instance.
+     */
+    protected CompactionArgs newCompactionArgs(long startOffset) {
+        return new CompactionArgs(startOffset);
+    }
+
+    //endregion
 
     /**
      * Determines if Table Compaction is required on the Table Segment.
@@ -91,8 +125,8 @@ class TableCompactor {
      */
     boolean isCompactionRequired() {
         long startOffset = getCompactionStartOffset();
-        long lastIndexOffset = this.indexReader.getLastIndexedOffset(this.connector.getMetadata());
-        if (startOffset + this.connector.getMaxCompactionSize() >= lastIndexOffset) {
+        long lastIndexOffset = getLastIndexedOffset();
+        if (startOffset + this.config.getMaxCompactionSize() >= lastIndexOffset) {
             // Either:
             // 1. Nothing was indexed
             // 2. Compaction has already reached the indexed limit.
@@ -100,10 +134,10 @@ class TableCompactor {
             return false;
         }
 
-        long totalEntryCount = this.indexReader.getTotalEntryCount(this.connector.getMetadata());
-        long entryCount = this.indexReader.getEntryCount(this.connector.getMetadata());
+        long totalEntryCount = IndexReader.getTotalEntryCount(this.metadata);
+        long entryCount = getUniqueEntryCount();
         long utilization = totalEntryCount == 0 ? 100 : MathHelpers.minMax(Math.round(100.0 * entryCount / totalEntryCount), 0, 100);
-        long utilizationThreshold = (int) MathHelpers.minMax(this.indexReader.getCompactionUtilizationThreshold(this.connector.getMetadata()), 0, 100);
+        long utilizationThreshold = (int) MathHelpers.minMax(IndexReader.getCompactionUtilizationThreshold(this.metadata), 0, 100);
         return utilization < utilizationThreshold;
     }
 
@@ -129,19 +163,18 @@ class TableCompactor {
      * arguments provided.
      */
     long calculateTruncationOffset(long highestCopiedOffset) {
-        val m = this.connector.getMetadata();
         long truncateOffset = -1;
         if (highestCopiedOffset > 0) {
             // Due to the nature of compaction (all entries are copied in order of their original versions), if we encounter
             // any copied Table Entries then the highest explicit version defined on any of them is where we can truncate.
             truncateOffset = highestCopiedOffset;
-        } else if (this.indexReader.getLastIndexedOffset(m) >= m.getLength()) {
+        } else if (getLastIndexedOffset() >= this.metadata.getLength()) {
             // Did not encounter any copied entries. If we were able to index the whole segment, then we should be safe
             // to truncate at wherever the compaction last finished.
-            truncateOffset = this.indexReader.getCompactionOffset(m);
+            truncateOffset = IndexReader.getCompactionOffset(this.metadata);
         }
 
-        if (truncateOffset <= m.getStartOffset()) {
+        if (truncateOffset <= this.metadata.getStartOffset()) {
             // The segment is already truncated at the compaction offset; no need for more.
             truncateOffset = -1;
         }
@@ -152,9 +185,7 @@ class TableCompactor {
     /**
      * Performs a compaction of the Table Segment. Refer to this class' Javadoc for a description of the compaction process.
      *
-     * @param segment A {@link DirectSegmentAccess} providing access to the Table Segment to compact. This must match the
-     *                Segment that the {@link #connector} is referring to.
-     * @param timer   Timer for the operation.
+     * @param timer Timer for the operation.
      * @return A CompletableFuture that, when completed, indicate the compaction completed. When this future completes,
      * some of the Segment's Table Attributes may change to reflect the modifications to the Segment and/or compaction progress.
      * Notable exceptions:
@@ -163,16 +194,14 @@ class TableCompactor {
      * was executing. In this case, no change will be performed and it can be resolved with a retry.</li>
      * </ul>
      */
-    CompletableFuture<Void> compact(@NonNull DirectSegmentAccess segment, TimeoutTimer timer) {
-        val m = this.connector.getMetadata();
-        Preconditions.checkArgument(segment.getSegmentId() == m.getId(), "%s: Given segment has unexpected Id %s.", this.traceLogId, segment.getSegmentId());
+    CompletableFuture<Void> compact(TimeoutTimer timer) {
         long startOffset = getCompactionStartOffset();
-        int maxLength = (int) Math.min(this.connector.getMaxCompactionSize(), this.indexReader.getLastIndexedOffset(m) - startOffset);
+        int maxLength = (int) Math.min(this.config.getMaxCompactionSize(), getLastIndexedOffset() - startOffset);
         if (startOffset < 0 || maxLength < 0) {
             // The Segment's Compaction offset must be a value between 0 and the current LastIndexedOffset.
             return Futures.failedFuture(new DataCorruptionException(String.format(
                     "%s: '%s' has CompactionStartOffset=%s and CompactionLength=%s.",
-                    this.traceLogId, m.getName(), startOffset, maxLength)));
+                    this.traceLogId, this.metadata.getName(), startOffset, maxLength)));
         } else if (maxLength == 0) {
             // Nothing to do.
             log.debug("{}: Up to date.", this.traceLogId);
@@ -180,27 +209,25 @@ class TableCompactor {
         }
 
         // Read the Table Entries beginning at the specified offset, without exceeding the given maximum length.
-        return readCandidates(segment, startOffset, maxLength, timer)
-                .thenComposeAsync(candidates -> this.indexReader
-                                .locateBuckets(segment, candidates.candidates.keySet(), timer)
-                                .thenComposeAsync(buckets -> excludeObsolete(segment, candidates, buckets, timer), this.executor)
-                                .thenComposeAsync(v -> copyCandidates(segment, candidates, timer), this.executor),
+        return readCandidates(startOffset, maxLength, timer)
+                .thenComposeAsync(candidates -> excludeObsolete(candidates, timer)
+                                .thenComposeAsync(v -> copyCandidates(candidates, timer), this.executor),
                         this.executor);
     }
+
 
     /**
      * Reads a set of compaction candidates from the Segment and generates a {@link CompactionArgs} with them grouped
      * by their Key Hash.
      *
-     * @param segment     The Segment to read from.
      * @param startOffset The offset to start reading from.
      * @param maxLength   The maximum number of bytes to read. The actual number of bytes read will be at most this, since
      *                    we can only read whole Table Entries.
      * @param timer       Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain a {@link CompactionArgs} with the result.
      */
-    private CompletableFuture<CompactionArgs> readCandidates(DirectSegmentAccess segment, long startOffset, int maxLength, TimeoutTimer timer) {
-        ReadResult rr = segment.read(startOffset, maxLength, timer.getRemaining());
+    private CompletableFuture<CompactionArgs> readCandidates(long startOffset, int maxLength, TimeoutTimer timer) {
+        ReadResult rr = this.segment.read(startOffset, maxLength, timer.getRemaining());
         return AsyncReadResultProcessor.processAll(rr, this.executor, timer.getRemaining())
                 .thenApply(inputData -> parseEntries(inputData, startOffset, maxLength));
     }
@@ -217,31 +244,22 @@ class TableCompactor {
      */
     @SneakyThrows(SerializationException.class)
     private CompactionArgs parseEntries(BufferView inputData, long startOffset, int maxLength) {
-        val entries = new HashMap<UUID, CandidateSet>();
-        int count = 0;
-        long nextOffset = startOffset;
+        val result = newCompactionArgs(startOffset);
         final long maxOffset = startOffset + maxLength;
         val input = inputData.getBufferViewReader();
         try {
-            while (nextOffset < maxOffset) {
-                // TODO: Handle error when compaction offset is not on Entry boundary (https://github.com/pravega/pravega/issues/3560).
-                val e = AsyncTableEntryReader.readEntryComponents(input, nextOffset, this.connector.getSerializer());
+            while (result.getEndOffset() < maxOffset) {
+                val e = AsyncTableEntryReader.readEntryComponents(input, result.getEndOffset(), SERIALIZER);
 
                 // We only care about updates, and not removals.
                 if (!e.getHeader().isDeletion()) {
-                    // Group by KeyHash, and deduplicate (based on key).
-                    val hash = this.connector.getKeyHasher().hash(e.getKey());
-                    CandidateSet candidates = entries.computeIfAbsent(hash, h -> new CandidateSet());
-                    candidates.add(new Candidate(nextOffset,
-                            TableEntry.versioned(e.getKey(), e.getValue(), e.getVersion())));
+                    // Deduplicate (based on key).
+                    result.add(new Candidate(result.getEndOffset(), TableEntry.versioned(e.getKey(), e.getValue(), e.getVersion())));
                 }
 
                 // Every entry, even if deleted or duplicated, must be counted, as we will need to adjust the Segment's
                 // TOTAL_ENTRY_COUNT attribute at the end.
-                count++;
-
-                // Update the offset to the beginning of the next entry.
-                nextOffset += e.getHeader().getTotalLength();
+                result.entryProcessed(e.getHeader().getTotalLength());
             }
         } catch (BufferView.Reader.OutOfBoundsException ex) {
             // We chose an arbitrary compact length, so it is quite possible we stopped reading in the middle of an entry.
@@ -249,62 +267,25 @@ class TableCompactor {
             // we will have collected the total compact length in segmentOffset.
         }
 
-        return new CompactionArgs(startOffset, nextOffset, count, entries);
+        return result;
     }
 
-    /**
-     * Processes the given {@link CompactionArgs} and eliminates all {@link Candidate}s that meet at least one of the
-     * following criteria:
-     * - The Key's Table Bucket is no longer part of the index (removal)
-     * - The Key exists in the Index, but the Index points to a newer version of it.
-     *
-     * @param segment A {@link DirectSegmentAccess} representing the Segment to operate on.
-     * @param args    A {@link CompactionArgs} representing the set of {@link Candidate}s for compaction. This set
-     *                will be modified based on the outcome of this method.
-     * @param buckets The Buckets retrieved via the {@link IndexReader} for the {@link Candidate}s.
-     * @param timer   Timer for the operation.
-     * @return A CompletableFuture that, when completed, will indicate the operation has finished.
-     */
-    private CompletableFuture<Void> excludeObsolete(DirectSegmentAccess segment, CompactionArgs args,
-                                                    Map<UUID, TableBucket> buckets, TimeoutTimer timer) {
-        // Exclude all those Table Entries whose buckets altogether do not exist.
-        args.candidates.keySet().removeIf(hash -> {
-            val bucket = buckets.get(hash);
-            return bucket == null || !bucket.exists();
-        });
-
-        // For every Bucket that still exists, find all its Keys and match with our candidates and figure out if our
-        // candidates are still eligible for compaction.
-        val br = TableBucketReader.key(segment, this.indexReader::getBackpointerOffset, this.executor);
-        val candidates = args.candidates.entrySet().iterator();
-        return Futures.loop(
-                candidates::hasNext,
-                () -> {
-                    val e = candidates.next();
-                    long bucketOffset = buckets.get(e.getKey()).getSegmentOffset();
-                    BiConsumer<TableKey, Long> handler = (key, offset) -> e.getValue().handleExistingKey(key, offset);
-                    return br.findAll(bucketOffset, handler, timer);
-                },
-                this.executor);
-    }
+    protected abstract CompletableFuture<Void> excludeObsolete(CompactionArgs args, TimeoutTimer timer);
 
     /**
      * Copies the {@link Candidate}s in the given {@link CompactionArgs} set to a contiguous block at the end of the Segment.
      *
-     * @param segment A {@link DirectSegmentAccess} representing the Segment to operate on.
-     * @param args    A {@link CompactionArgs} containing the {@link Candidate}s to copy.
-     * @param timer   Timer for the operation.
+     * @param args  A {@link CompactionArgs} containing the {@link Candidate}s to copy.
+     * @param timer Timer for the operation.
      * @return A CompletableFuture that, when completed, indicate the candidates have been copied.
      */
-    private CompletableFuture<Void> copyCandidates(DirectSegmentAccess segment, CompactionArgs args, TimeoutTimer timer) {
+    private CompletableFuture<Void> copyCandidates(CompactionArgs args, TimeoutTimer timer) {
         // Collect all the candidates for copying and calculate the total serialization length.
         val toWrite = new ArrayList<TableEntry>();
         int totalLength = 0;
-        for (val list : args.candidates.values()) {
-            for (val c : list.getAll()) {
-                toWrite.add(c.entry);
-                totalLength += this.connector.getSerializer().getUpdateLength(c.entry);
-            }
+        for (val c : args.getAll()) {
+            toWrite.add(c.entry);
+            totalLength += SERIALIZER.getUpdateLength(c.entry);
         }
 
         // Generate the necessary AttributeUpdates that will need to be applied regardless of whether we copy anything or not.
@@ -313,13 +294,13 @@ class TableCompactor {
         if (totalLength == 0) {
             // Nothing to do; update the necessary segment attributes.
             assert toWrite.size() == 0;
-            result = segment.updateAttributes(attributes, timer.getRemaining());
+            result = this.segment.updateAttributes(attributes, timer.getRemaining());
         } else {
             // Perform a Segment Append with re-serialized entries (Explicit versions), and atomically update the necessary
             // segment attributes.
             toWrite.sort(Comparator.comparingLong(c -> c.getKey().getVersion()));
-            BufferView appendData = this.connector.getSerializer().serializeUpdateWithExplicitVersion(toWrite);
-            result = segment.append(appendData, attributes, timer.getRemaining());
+            BufferView appendData = SERIALIZER.serializeUpdateWithExplicitVersion(toWrite);
+            result = this.segment.append(appendData, attributes, timer.getRemaining());
             log.debug("{}: Compacting {}, CopyCount={}, CopyLength={}.", this.traceLogId, args, toWrite.size(), totalLength);
         }
 
@@ -343,8 +324,8 @@ class TableCompactor {
      */
     private AttributeUpdateCollection generateAttributeUpdates(CompactionArgs candidates) {
         return AttributeUpdateCollection.from(
-                new AttributeUpdate(TableAttributes.COMPACTION_OFFSET, AttributeUpdateType.ReplaceIfEquals, candidates.endOffset, candidates.startOffset),
-                new AttributeUpdate(TableAttributes.TOTAL_ENTRY_COUNT, AttributeUpdateType.Accumulate, -candidates.count));
+                new AttributeUpdate(TableAttributes.COMPACTION_OFFSET, AttributeUpdateType.ReplaceIfEquals, candidates.getEndOffset(), candidates.getStartOffset()),
+                new AttributeUpdate(TableAttributes.TOTAL_ENTRY_COUNT, AttributeUpdateType.Accumulate, -candidates.getCount()));
     }
 
     /**
@@ -354,73 +335,79 @@ class TableCompactor {
      * @return The Segment Offset where to begin compaction at.
      */
     private long getCompactionStartOffset() {
-        val m = this.connector.getMetadata();
-        return Math.max(this.indexReader.getCompactionOffset(m), m.getStartOffset());
+        return Math.max(IndexReader.getCompactionOffset(this.metadata), this.metadata.getStartOffset());
     }
 
     //region Helper Classes
 
-    @RequiredArgsConstructor
-    private static class CompactionArgs {
+    protected static class CompactionArgs {
         /**
          * Offset where compaction began from.
          */
-        final long startOffset;
+        @Getter
+        private final long startOffset;
 
         /**
          * Last offset that was processed for compaction. This will lie at a TableEntry's boundary and indicates the
          * location where the next compaction can begin from.
          */
-        final long endOffset;
+        @Getter
+        private long endOffset;
 
         /**
          * Number of Table Entries processed, including duplicates, obsoletes and removals.
          */
-        final int count;
+        @Getter
+        private int count;
 
-        /**
-         * Candidates for compaction, grouped by their Key Hash.
-         */
-        final Map<UUID, CandidateSet> candidates;
-
-        @Override
-        public String toString() {
-            return String.format("StartOffset=%s, EndOffset=%s, ProcessedCount=%s, CandidateCount=%s",
-                    this.startOffset, this.endOffset, this.count, this.candidates.size());
-        }
-    }
-
-    private static class CandidateSet {
         /**
          * Candidates, indexed by their TableKey.
          */
-        final Map<BufferView, Candidate> byKey = new HashMap<>();
+        private final Map<BufferView, Candidate> candidatesByKey = new HashMap<>();
+
+        CompactionArgs(long startOffset) {
+            this.startOffset = startOffset;
+            this.endOffset = this.startOffset;
+            this.count = 0;
+        }
+
+        void entryProcessed(int serializationLength) {
+            this.endOffset += serializationLength;
+            this.count++;
+        }
 
         /**
          * Adds the given {@link Candidate}, but only if its Key does not exist or exists with a lower version.
          *
          * @param c The {@link Candidate} to add.
          */
-        void add(Candidate c) {
+        boolean add(Candidate c) {
             val key = c.entry.getKey().getKey();
-            val existing = this.byKey.get(key);
+            val existing = this.candidatesByKey.get(key);
             if (existing == null || existing.entry.getKey().getVersion() < c.entry.getKey().getVersion()) {
                 // Either first time seeing this key or we saw it before with a smaller version - use this one.
-                this.byKey.put(key, c);
+                this.candidatesByKey.put(key, c);
+                return true;
             }
+
+            return false;
+        }
+
+        void removeAll(Collection<Candidate> candidates) {
+            candidates.forEach(c -> this.candidatesByKey.remove(c.entry.getKey().getKey()));
         }
 
         /**
-         * Excludes any {@link Candidate}s from the {@link CandidateSet} that match the given key but have
+         * Excludes any {@link Candidate}s from the {@link CompactionArgs} that match the given key but have
          *
          * @param existingKey       A {@link TableKey} that exists and is included in the index.
          * @param existingKeyOffset The existing Key's offset.
          */
-        void handleExistingKey(TableKey existingKey, long existingKeyOffset) {
+        protected void handleExistingKey(TableKey existingKey, long existingKeyOffset) {
             val key = existingKey.getKey();
-            val c = this.byKey.get(key);
+            val c = this.candidatesByKey.get(key);
             if (c != null && c.segmentOffset < existingKeyOffset) {
-                this.byKey.remove(key);
+                this.candidatesByKey.remove(key);
             }
         }
 
@@ -430,12 +417,18 @@ class TableCompactor {
          * @return The result.
          */
         Collection<Candidate> getAll() {
-            return this.byKey.values();
+            return this.candidatesByKey.values();
+        }
+
+        @Override
+        public String toString() {
+            return String.format("StartOffset=%s, EndOffset=%s, ProcessedCount=%s, CandidateCount=%s",
+                    this.startOffset, this.endOffset, this.count, this.candidatesByKey.size());
         }
     }
 
     @RequiredArgsConstructor
-    private static class Candidate {
+    protected static class Candidate {
         /**
          * The offset at which this candidate resides.
          */
@@ -450,6 +443,11 @@ class TableCompactor {
         public String toString() {
             return String.format("Offset = %d, Entry = {%s}", this.segmentOffset, this.entry);
         }
+    }
+
+    @Data
+    static class Config {
+        private final int maxCompactionSize;
     }
 
     //endregion

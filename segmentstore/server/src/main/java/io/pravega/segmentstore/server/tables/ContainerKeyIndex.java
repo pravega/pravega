@@ -196,7 +196,7 @@ class ContainerKeyIndex implements AutoCloseable {
         } else {
             // Get the number of indexed Table Buckets.
             SegmentProperties sp = segment.getInfo();
-            long indexedBucketCount = this.indexReader.getBucketCount(sp);
+            long indexedBucketCount = IndexReader.getBucketCount(sp);
             if (tailRemovals.isEmpty()) {
                 // No removals in the Tail index, so we can derive our response from the total number of indexed buckets.
                 return CompletableFuture.completedFuture(indexedBucketCount <= 0);
@@ -410,7 +410,7 @@ class ContainerKeyIndex implements AutoCloseable {
         // Ensure the cache knows about the Last Indexed Offset segment for this Segment. If it doesn't we need to fetch it.
         // This is necessary so we can properly record new backpointers into the cache which occur beyond the Last Indexed Offset
         // for this segment.
-        this.cache.updateSegmentIndexOffsetIfMissing(segment.getSegmentId(), () -> this.indexReader.getLastIndexedOffset(segment.getInfo()));
+        this.cache.updateSegmentIndexOffsetIfMissing(segment.getSegmentId(), () -> IndexReader.getLastIndexedOffset(segment.getInfo()));
 
         // Update the cache with the contents of the batch.
         return this.cache.includeUpdateBatch(segment.getSegmentId(), batch, batchOffset);
@@ -798,7 +798,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 throttler = this.throttlers.getOrDefault(segment.getSegmentId(), null);
                 if (throttler == null) {
                     val si = segment.getInfo();
-                    long initialDelta = Math.max(0, si.getLength() - ContainerKeyIndex.this.indexReader.getLastIndexedOffset(si));
+                    long initialDelta = Math.max(0, si.getLength() - IndexReader.getLastIndexedOffset(si));
                     throttler = new AsyncSemaphore(config.getMaxUnindexedLength(), initialDelta, String.format("%s-%s", containerId, segment.getSegmentId()));
                     this.throttlers.put(segment.getSegmentId(), throttler);
                 }
@@ -844,7 +844,7 @@ class ContainerKeyIndex implements AutoCloseable {
                         // Nobody waiting on it either.
                         SegmentProperties sp = segment.getInfo();
                         segmentLength = sp.getLength();
-                        lastIndexedOffset = ContainerKeyIndex.this.indexReader.getLastIndexedOffset(sp);
+                        lastIndexedOffset = IndexReader.getLastIndexedOffset(sp);
                         if (lastIndexedOffset >= segmentLength) {
                             // Already caught up.
                             this.recoveredSegments.add(segment.getSegmentId());

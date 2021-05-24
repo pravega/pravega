@@ -191,7 +191,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         int attributeCountAfter = context.segmentMock.getAttributeCount();
         Assert.assertEquals("flush() seems to have modified the index after failed attempt", attributeCountBefore, attributeCountAfter);
         Assert.assertEquals("flush() seems to have modified the index after failed attempt.",
-                INITIAL_LAST_INDEXED_OFFSET - 1, context.indexReader.getLastIndexedOffset(context.metadata));
+                INITIAL_LAST_INDEXED_OFFSET - 1, IndexReader.getLastIndexedOffset(context.metadata));
 
         // 2. INDEX_OFFSET changes to middle of append.
         context.metadata.updateAttributes(Collections.singletonMap(TableAttributes.INDEX_OFFSET, INITIAL_LAST_INDEXED_OFFSET + 1));
@@ -203,7 +203,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         attributeCountAfter = context.segmentMock.getAttributeCount();
         Assert.assertEquals("flush() seems to have modified the index after failed attempt", attributeCountBefore, attributeCountAfter);
         Assert.assertEquals("flush() seems to have modified the index after failed attempt.",
-                INITIAL_LAST_INDEXED_OFFSET + 1, context.indexReader.getLastIndexedOffset(context.metadata));
+                INITIAL_LAST_INDEXED_OFFSET + 1, IndexReader.getLastIndexedOffset(context.metadata));
 
         // 3. INDEX_OFFSET changes after the first append, but before the second one.
         context.metadata.updateAttributes(Collections.singletonMap(TableAttributes.INDEX_OFFSET, append2.getStreamSegmentOffset()));
@@ -213,7 +213,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         attributeCountAfter = context.segmentMock.getAttributeCount();
         AssertExtensions.assertGreaterThan("flush() did not modify the index partial reconciliation.", attributeCountBefore, attributeCountAfter);
         Assert.assertEquals("flush() did not modify the index partial reconciliation.",
-                append2.getLastStreamSegmentOffset(), context.indexReader.getLastIndexedOffset(context.metadata));
+                append2.getLastStreamSegmentOffset(), IndexReader.getLastIndexedOffset(context.metadata));
         Assert.assertFalse("Unexpected result from mustFlush() after partial reconciliation.", context.processor.mustFlush());
 
         // 4. INDEX_OFFSET changes beyond the last append.
@@ -229,7 +229,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         attributeCountAfter = context.segmentMock.getAttributeCount();
         Assert.assertEquals("flush() seems to have modified the index after full reconciliation.", attributeCountBefore, attributeCountAfter);
         Assert.assertEquals("flush() did not properly update INDEX_OFFSET after full reconciliation.",
-                append3.getLastStreamSegmentOffset() + 1, context.indexReader.getLastIndexedOffset(context.metadata));
+                append3.getLastStreamSegmentOffset() + 1, IndexReader.getLastIndexedOffset(context.metadata));
         Assert.assertFalse("Unexpected result from mustFlush() after full reconciliation.", context.processor.mustFlush());
     }
 
@@ -281,13 +281,13 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             // We expect some compactions to happen. If this is the case, then we want to index all the moved entries
             // so that we may check compaction worked well.
             context.setMinUtilization(0); // disable compaction - we want to do a proper verification now.
-            long compactionOffset = context.indexReader.getCompactionOffset(context.metadata);
+            long compactionOffset = IndexReader.getCompactionOffset(context.metadata);
             AssertExtensions.assertGreaterThan("Expected at least one compaction.", 0, compactionOffset);
 
             // We need to simulate adding the compacted/copied entries to the index so that the WriterTableProcessor may
             // index them. As such, we add a new simulated append so that those entries can be indexed and the segment
             // truncated.
-            long lIdx = context.indexReader.getLastIndexedOffset(context.metadata);
+            long lIdx = IndexReader.getLastIndexedOffset(context.metadata);
             context.processor.add(generateSimulatedAppend(lIdx, (int) (context.metadata.getLength() - lIdx), context));
             context.processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
@@ -576,7 +576,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             }
 
             void refreshLastIndexedOffset() {
-                this.previousLastIndexedOffset.set(indexReader.getLastIndexedOffset(segmentMock.getInfo()));
+                this.previousLastIndexedOffset.set(IndexReader.getLastIndexedOffset(segmentMock.getInfo()));
             }
 
             @Override
@@ -602,7 +602,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             @Override
             public void notifyIndexOffsetChanged(long lastIndexedOffset, int processedSizeBytes) {
                 Assert.assertEquals("Unexpected value for lastIndexedOffset.",
-                        indexReader.getLastIndexedOffset(segmentMock.getInfo()), lastIndexedOffset);
+                        IndexReader.getLastIndexedOffset(segmentMock.getInfo()), lastIndexedOffset);
 
                 AssertExtensions.assertGreaterThanOrEqual("Expecting processedSizeBytes to be positive", 0, processedSizeBytes);
                 long expectedProcessedSize = Math.max(0, lastIndexedOffset - this.previousLastIndexedOffset.get());
