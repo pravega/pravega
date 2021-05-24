@@ -62,11 +62,11 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final DeleteStreamEvent request) {
-        final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
-
         String scope = request.getScope();
         String stream = request.getStream();
         long requestId = request.getRequestId();
+        final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
+        log.debug(requestId, "Deleting {}/{} stream", scope, stream);
 
         return streamMetadataStore.getCreationTime(scope, stream, context, executor)
             .thenAccept(creationTime -> Preconditions.checkArgument(request.getCreationTime() == 0 ||
@@ -93,7 +93,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
 
     private CompletableFuture<Void> deleteAssociatedStreams(String scope, String stream, long requestId) {
         String markStream = NameUtils.getMarkStreamForStream(stream);
-        OperationContext context = streamMetadataStore.createContext(scope, markStream);
+        OperationContext context = streamMetadataStore.createStreamContext(scope, markStream, requestId);
         return Futures.exceptionallyExpecting(notifyAndDelete(context, scope, markStream, requestId),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null);
     }
@@ -102,7 +102,8 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         log.info(requestId, "{}/{} deleting segments", scope, stream);
         return Futures.exceptionallyExpecting(streamMetadataStore.getAllSegmentIds(scope, stream, context, executor)
                 .thenComposeAsync(allSegments -> 
-                    streamMetadataTasks.notifyDeleteSegments(scope, stream, allSegments, streamMetadataTasks.retrieveDelegationToken(), requestId)),
+                    streamMetadataTasks.notifyDeleteSegments(scope, stream, allSegments, 
+                            streamMetadataTasks.retrieveDelegationToken(), requestId)),
                             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
                             .thenComposeAsync(x -> CompletableFuture.allOf(
                                     bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, 

@@ -28,7 +28,8 @@ import java.util.UUID;
 @Data
 @AllArgsConstructor
 public class VersionedTransactionData {
-    public static final VersionedTransactionData EMPTY = new VersionedTransactionData(Integer.MIN_VALUE, new UUID(0, 0), null,
+    public static final VersionedTransactionData EMPTY = new VersionedTransactionData(Integer.MIN_VALUE,
+            new UUID(0, 0), null,
             TxnStatus.UNKNOWN, Long.MIN_VALUE, Long.MIN_VALUE, "", Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of());
 
     private final int epoch;

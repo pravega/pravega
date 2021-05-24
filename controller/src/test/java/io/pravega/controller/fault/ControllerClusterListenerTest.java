@@ -51,7 +51,9 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -69,6 +71,8 @@ import static org.mockito.Mockito.verify;
  */
 @Slf4j
 public class ControllerClusterListenerTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
 
     @ClassRule
     public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
@@ -76,7 +80,6 @@ public class ControllerClusterListenerTest {
 
     private LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue<>();
     private LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue<>();
-
 
     @Before
     public void setup() throws Exception {
@@ -122,7 +125,7 @@ public class ControllerClusterListenerTest {
 
         // Create txn sweeper.
         @Cleanup
-        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(PRAVEGA_ZK_CURATOR_RESOURCE.executor);
+        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(PRAVEGA_ZK_CURATOR_RESOURCE.executor)
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, PRAVEGA_ZK_CURATOR_RESOURCE.executor, host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper());

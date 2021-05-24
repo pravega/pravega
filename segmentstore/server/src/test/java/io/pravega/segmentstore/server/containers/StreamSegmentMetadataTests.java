@@ -22,12 +22,16 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -209,6 +213,25 @@ public class StreamSegmentMetadataTests {
         Assert.assertEquals("Sizes differ.", expected.size(), actual.size());
         for (val e : actual.entrySet()) {
             Assert.assertEquals("Unexpected value found.", expected.get(e.getKey()), e.getValue());
+        }
+    }
+
+    /**
+     * Validates that we can safely iterate over a StreamSegmentMetadata.AttributesView elements while the backing
+     * StreamSegmentMetadata maps are being modified.
+     */
+    @Test
+    public void testAttributeConcurrentOperations() throws ExecutionException, InterruptedException, TimeoutException {
+        StreamSegmentMetadata metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
+
+        metadata.updateAttributes(generateAttributes(new Random(0)));
+        Iterator<Long> attributes = metadata.getAttributes().values().iterator();
+        Assert.assertNotNull(attributes.next());
+        // Put some more attributes, modifying the underlying collection with different elements.
+        metadata.updateAttributes(generateAttributes(new Random(1)));
+        // This should not throw java.util.ConcurrentModificationException
+        while (attributes.hasNext()) {
+            attributes.next();
         }
     }
 

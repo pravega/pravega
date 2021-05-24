@@ -26,14 +26,19 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Tests for ControllerServiceConfig.
  */
 public class ControllerServiceConfigTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
 
     @Test
     public void configTests() {
