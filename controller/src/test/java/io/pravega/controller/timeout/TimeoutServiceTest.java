@@ -18,6 +18,7 @@ package io.pravega.controller.timeout;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.metrics.StreamMetrics;
@@ -54,14 +55,20 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Before;
+import org.apache.curator.RetryPolicy;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.retry.RetryOneTime;
 import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.ClassRule;
-import org.junit.Assert;
+import org.junit.rules.Timeout;
 import org.mockito.Mock;
 
 /**
@@ -70,9 +77,9 @@ import org.mockito.Mock;
 @Slf4j
 public abstract class TimeoutServiceTest {
 
+    private static final  RetryPolicy RETRY_POLICY = new RetryOneTime(2000);
     @ClassRule
-    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
-
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(RETRY_POLICY);
     private final static String SCOPE = "SCOPE";
     private final static String STREAM = "STREAM";
 
@@ -81,7 +88,8 @@ public abstract class TimeoutServiceTest {
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
 
-    //protected static CuratorFramework CLIENT;
+    protected ScheduledExecutorService executor;
+    protected CuratorFramework client;
     protected SegmentHelper segmentHelper;
 
     private StreamMetadataStore streamStore;
@@ -95,23 +103,23 @@ public abstract class TimeoutServiceTest {
     @Mock
     private TableMetadataTasks kvtMetadataTasks;
 
-
     @Before
     public void setUp() throws Exception {
         final String hostId = "host";
 
-        // Create STREAM store, host store, and task metadata store.
+        // Initialize the executor service.
+        executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
         segmentHelper = getSegmentHelper();
         streamStore = getStore();
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(PRAVEGA_ZK_CURATOR_RESOURCE.storeClient, PRAVEGA_ZK_CURATOR_RESOURCE.executor);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(PRAVEGA_ZK_CURATOR_RESOURCE.storeClient, executor);
 
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore,
-                SegmentHelperMock.getSegmentHelperMock(), PRAVEGA_ZK_CURATOR_RESOURCE.executor, hostId, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
-                SegmentHelperMock.getSegmentHelperMock(), PRAVEGA_ZK_CURATOR_RESOURCE.executor, hostId, TimeoutServiceConfig.defaultConfig(),
+                SegmentHelperMock.getSegmentHelperMock(), executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
+                SegmentHelperMock.getSegmentHelperMock(), executor, hostId, TimeoutServiceConfig.defaultConfig(),
                 new LinkedBlockingQueue<>(5), GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
@@ -120,7 +128,7 @@ public abstract class TimeoutServiceTest {
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
 
         controllerService = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, SegmentHelperMock.getSegmentHelperMock(), PRAVEGA_ZK_CURATOR_RESOURCE.executor, null);
+                streamTransactionMetadataTasks, SegmentHelperMock.getSegmentHelperMock(), executor, null, requestTracker);
 
         // Create scope and stream
         streamStore.createScope(SCOPE, null, executor).join();
@@ -128,8 +136,8 @@ public abstract class TimeoutServiceTest {
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1)).build();
 
-        streamStore.createStream(SCOPE, STREAM, streamConfiguration, System.currentTimeMillis(), null, PRAVEGA_ZK_CURATOR_RESOURCE.executor)
-                   .thenCompose(x -> streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor)).join();
+        streamStore.createStream(SCOPE, STREAM, streamConfiguration, System.currentTimeMillis(), null, executor)
+                .thenCompose(x -> streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor)).join();
     }
 
     abstract SegmentHelper getSegmentHelper();
@@ -141,6 +149,7 @@ public abstract class TimeoutServiceTest {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         streamStore.close();
+        ExecutorServiceHelpers.shutdown(executor);
         timeoutService.stopAsync();
         timeoutService.awaitTerminated();
         StreamMetrics.reset();
@@ -149,9 +158,9 @@ public abstract class TimeoutServiceTest {
 
     @Test(timeout = 10000)
     public void testTimeout() throws InterruptedException {
-        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId, LEASE, 10 * LEASE,
-                null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+                null, executor).join();
 
         long begin = System.currentTimeMillis();
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
@@ -164,7 +173,7 @@ public abstract class TimeoutServiceTest {
         log.info("Delay until timeout = " + (end - begin));
         Assert.assertTrue((end - begin) >= LEASE);
 
-        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.ABORTING, status);
 
     }
@@ -173,11 +182,11 @@ public abstract class TimeoutServiceTest {
     public void testControllerTimeout() throws InterruptedException {
         long begin = System.currentTimeMillis();
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, 0L)
-                                      .thenApply(x -> x.getKey())
-                                      .join();
+                .thenApply(x -> x.getKey())
+                .join();
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue()
-                                                   .poll((long) (1.3 * LEASE), TimeUnit.MILLISECONDS);
+                .poll((long) (1.3 * LEASE), TimeUnit.MILLISECONDS);
         long end = System.currentTimeMillis();
         Assert.assertNotNull(result);
 
@@ -190,9 +199,9 @@ public abstract class TimeoutServiceTest {
 
     @Test(timeout = 10000)
     public void testPingSuccess() throws InterruptedException {
-        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId, LEASE, 10 * LEASE,
-                null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+                null, executor).join();
 
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime());
@@ -200,7 +209,7 @@ public abstract class TimeoutServiceTest {
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
         Assert.assertNull(result);
 
-        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
         PingTxnStatus pingStatus = timeoutService.pingTxn(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE);
@@ -209,21 +218,21 @@ public abstract class TimeoutServiceTest {
         result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
         Assert.assertNull(result);
 
-        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
         result = timeoutService.getTaskCompletionQueue().poll((long) (0.8 * LEASE), TimeUnit.MILLISECONDS);
         Assert.assertNotNull(result);
 
-        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.ABORTING, status);
     }
 
     @Test(timeout = 10000)
     public void testControllerPingSuccess() throws InterruptedException {
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, 9L)
-                                      .thenApply(x -> x.getKey())
-                                      .join();
+                .thenApply(x -> x.getKey())
+                .join();
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
         Assert.assertNull(result);
@@ -252,15 +261,15 @@ public abstract class TimeoutServiceTest {
         StreamMetadataStore streamStore2 = getStore();
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(PRAVEGA_ZK_CURATOR_RESOURCE.storeClient, PRAVEGA_ZK_CURATOR_RESOURCE.executor);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(PRAVEGA_ZK_CURATOR_RESOURCE.storeClient, executor);
 
         SegmentHelper helperMock = SegmentHelperMock.getSegmentHelperMock();
         @Cleanup
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamStore2, bucketStore, taskMetadataStore,
-                helperMock, PRAVEGA_ZK_CURATOR_RESOURCE.executor, "2", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                helperMock, executor, "2", GrpcAuthHelper.getDisabledAuthHelper());
         @Cleanup
         StreamTransactionMetadataTasks streamTransactionMetadataTasks2 = new StreamTransactionMetadataTasks(streamStore2,
-                helperMock, PRAVEGA_ZK_CURATOR_RESOURCE.executor, "2", TimeoutServiceConfig.defaultConfig(),
+                helperMock, executor, "2", TimeoutServiceConfig.defaultConfig(),
                 new LinkedBlockingQueue<>(5), GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks2.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
@@ -268,13 +277,13 @@ public abstract class TimeoutServiceTest {
         TimerWheelTimeoutService timeoutService2 = (TimerWheelTimeoutService) streamTransactionMetadataTasks2.getTimeoutService();
 
         ControllerService controllerService2 = new ControllerService(kvtStore, kvtMetadataTasks, streamStore2, bucketStore, streamMetadataTasks2,
-                streamTransactionMetadataTasks2, helperMock, PRAVEGA_ZK_CURATOR_RESOURCE.executor, null);
+                streamTransactionMetadataTasks2, helperMock, executor, null, requestTracker);
 
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, 9L)
-                                       .thenApply(x -> x.getKey())
-                                       .join();
+                .thenApply(x -> x.getKey())
+                .join();
 
-        VersionedTransactionData txnData = streamStore.getTransactionData(SCOPE, STREAM, txnId, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        VersionedTransactionData txnData = streamStore.getTransactionData(SCOPE, STREAM, txnId, null, executor).join();
         Assert.assertEquals(txnData.getVersion(), getVersion(0));
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
@@ -287,7 +296,7 @@ public abstract class TimeoutServiceTest {
         PingTxnStatus pingStatus = controllerService2.pingTransaction(SCOPE, STREAM, txnId, 2 * LEASE, 9L).join();
         Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
 
-        txnData = streamStore.getTransactionData(SCOPE, STREAM, txnId, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        txnData = streamStore.getTransactionData(SCOPE, STREAM, txnId, null, executor).join();
         Assert.assertEquals(txnData.getVersion(), getVersion(1));
 
         // timeoutService1 should believe that LEASE has expired and should get non empty completion tasks
@@ -314,9 +323,9 @@ public abstract class TimeoutServiceTest {
 
     @Test(timeout = 10000)
     public void testPingLeaseTooLarge() {
-        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId, LEASE, 10 * LEASE,
-                null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+                null, executor).join();
 
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime());
@@ -333,8 +342,8 @@ public abstract class TimeoutServiceTest {
     public void testControllerPingLeaseTooLarge() {
         int lease = 10;
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, lease, 9L)
-                                      .thenApply(x -> x.getKey())
-                                      .join();
+                .thenApply(x -> x.getKey())
+                .join();
 
         PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, Config.MAX_LEASE_VALUE + 1, 9L).join();
         Assert.assertEquals(PingTxnStatus.Status.LEASE_TOO_LARGE, pingStatus.getStatus());
@@ -342,9 +351,9 @@ public abstract class TimeoutServiceTest {
         pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, 1000 * lease + 1, 9L).join();
         Assert.assertEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, pingStatus.getStatus());
 
-        UUID txnId1 = streamStore.generateTransactionId(SCOPE, STREAM, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        UUID txnId1 = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId1, LEASE,
-                2 * LEASE, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+                2 * LEASE, null, executor).join();
 
         txnId = txData.getId();
 
@@ -363,21 +372,21 @@ public abstract class TimeoutServiceTest {
 
     @Test(timeout = 10000)
     public void testPingFailureMaxExecutionTimeExceeded() throws InterruptedException {
-        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId, LEASE,
-                2 * LEASE, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+                2 * LEASE, null, executor).join();
 
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime());
 
-        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
         // 3 * LEASE > 2 * LEASE
         PingTxnStatus pingStatus = timeoutService.pingTxn(SCOPE, STREAM, txData.getId(), txData.getVersion(), 3 * LEASE);
         Assert.assertEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, pingStatus.getStatus());
 
-        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
     }
 
@@ -385,8 +394,8 @@ public abstract class TimeoutServiceTest {
     public void testControllerPingFailureMaxExecutionTimeExceeded() throws InterruptedException {
         int lease = 10;
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, lease, 9L)
-                                      .thenApply(x -> x.getKey())
-                                      .join();
+                .thenApply(x -> x.getKey())
+                .join();
 
         TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId, 9L).join();
         Assert.assertEquals(TxnState.State.OPEN, txnState.getState());
@@ -400,9 +409,9 @@ public abstract class TimeoutServiceTest {
 
     @Test(timeout = 10000)
     public void testPingFailureDisconnected() throws InterruptedException {
-        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId, LEASE,
-                10 * LEASE, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+                10 * LEASE, null, executor).join();
 
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime());
@@ -410,7 +419,7 @@ public abstract class TimeoutServiceTest {
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
         Assert.assertNull(result);
 
-        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
         // Stop timeoutService, and then try pinging the transaction.
@@ -423,7 +432,7 @@ public abstract class TimeoutServiceTest {
         Assert.assertNull(result);
 
         // Check that the transaction status is still open, since timeoutService has been stopped.
-        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
     }
 
@@ -431,8 +440,8 @@ public abstract class TimeoutServiceTest {
     public void testControllerPingFailureDisconnected() throws InterruptedException {
 
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, 0L)
-                                      .thenApply(x -> x.getKey())
-                                      .join();
+                .thenApply(x -> x.getKey())
+                .join();
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
         Assert.assertNull(result);
@@ -456,9 +465,9 @@ public abstract class TimeoutServiceTest {
 
     @Test(timeout = 10000)
     public void testTimeoutTaskFailureInvalidVersion() throws InterruptedException {
-        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId, LEASE,
-                10 * LEASE, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+                10 * LEASE, null, executor).join();
 
         // Submit transaction to TimeoutService with incorrect tx version identifier.
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), getNextVersion(txData.getVersion()), LEASE,
@@ -469,7 +478,7 @@ public abstract class TimeoutServiceTest {
         Assert.assertTrue(result.isPresent());
         Assert.assertEquals(StoreException.WriteConflictException.class, result.get().getClass());
 
-        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
     }
@@ -478,9 +487,9 @@ public abstract class TimeoutServiceTest {
 
     @Test(timeout = 5000)
     public void testCloseUnknownTxn() {
-        UUID txId = streamStore.generateTransactionId(SCOPE, STREAM, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        UUID txId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txId, LEASE,
-                10 * LEASE, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+                10 * LEASE, null, executor).join();
         UUID txnId = txData.getId();
 
         Controller.TxnState state = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId, 0L).join();
@@ -492,13 +501,13 @@ public abstract class TimeoutServiceTest {
 
     @Test(timeout = 10000)
     public void testUnknownTxnPingSuccess() throws InterruptedException {
-        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, txnId, LEASE, 10 * LEASE,
-                null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+                null, executor).join();
 
         controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE, 0L).join();
 
-        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, PRAVEGA_ZK_CURATOR_RESOURCE.executor).join();
+        TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
     }
 

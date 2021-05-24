@@ -15,28 +15,30 @@
  */
 package io.pravega.controller;
 
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.test.common.TestingServerStarter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.rules.ExternalResource;
 
 
-import java.util.concurrent.ScheduledExecutorService;
 
 @Slf4j
 public class PravegaZkCuratorResource extends ExternalResource {
-    public ScheduledExecutorService executor;
     public CuratorFramework client;
 
     public TestingServer zkTestServer;
     public StoreClient storeClient;
+    public RetryPolicy retryPolicy;
+
+    public PravegaZkCuratorResource(RetryPolicy retryPolicy) {
+        this.retryPolicy = retryPolicy;
+    }
 
     @Override
     public void before() throws Exception {
@@ -44,11 +46,8 @@ public class PravegaZkCuratorResource extends ExternalResource {
         zkTestServer = new TestingServerStarter().start();
         String connectionString = zkTestServer.getConnectString();
 
-        //Initialize the executor service.
-        executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
-
         //Initialize ZK client
-        client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
+        client = CuratorFrameworkFactory.newClient(connectionString, retryPolicy);
         client.start();
         storeClient = StoreClientFactory.createZKStoreClient(client);
     }
@@ -56,7 +55,6 @@ public class PravegaZkCuratorResource extends ExternalResource {
     @Override
     @SneakyThrows
     public void after() {
-        ExecutorServiceHelpers.shutdown(executor);
         client.close();
         storeClient.close();
         zkTestServer.close();

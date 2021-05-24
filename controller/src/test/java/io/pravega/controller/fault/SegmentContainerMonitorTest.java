@@ -21,20 +21,21 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.store.host.ZKHostStore;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
-import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.RetryPolicy;
+import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.ClassRule;
 import org.junit.rules.Timeout;
 
 import java.util.Arrays;
@@ -51,29 +52,27 @@ import static org.junit.Assert.assertTrue;
 
 public class SegmentContainerMonitorTest {
 
-    @ClassRule
-    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private final static String CLUSTER_NAME = "testcluster";
-    
+    private final static RetryPolicy RETRY_POLICY = new ExponentialBackoffRetry(200, 10, 5000);
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(RETRY_POLICY);
+
     //Ensure each test completes within 30 seconds.
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
+    private TestingServer zkTestServer;
+    private CuratorFramework zkClient;
     private Cluster cluster;
 
     @Before
     public void startZookeeper() throws Exception {
-        PRAVEGA_ZK_CURATOR_RESOURCE.zkTestServer = new TestingServerStarter().start();
-
-        PRAVEGA_ZK_CURATOR_RESOURCE.client = CuratorFrameworkFactory.newClient(PRAVEGA_ZK_CURATOR_RESOURCE.zkTestServer.getConnectString(), new ExponentialBackoffRetry(200, 10, 5000));
-        PRAVEGA_ZK_CURATOR_RESOURCE.client.start();
         cluster = new ClusterZKImpl(PRAVEGA_ZK_CURATOR_RESOURCE.client, ClusterType.HOST);
     }
 
     @After
     public void stopZookeeper() throws Exception {
         cluster.close();
-        PRAVEGA_ZK_CURATOR_RESOURCE.client.close();
     }
 
     @Test(timeout = 30000)
@@ -128,12 +127,12 @@ public class SegmentContainerMonitorTest {
                 //Notify the test case of the update.
                 sync.release();
             }
-            
+
             @Override
             public int getContainerCount() {
                 return hostStore.getContainerCount();
             }
-            
+
             @Override
             public Host getHostForSegment(String scope, String stream, long segmentNumber) {
                 return null;
@@ -145,7 +144,7 @@ public class SegmentContainerMonitorTest {
             }
         }
 
-        SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), PRAVEGA_ZK_CURATOR_RESOURCE.client,
+        SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), zkClient,
                 new UniformContainerBalancer(), 2);
         monitor.startAsync().awaitRunning();
 
