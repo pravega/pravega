@@ -113,38 +113,6 @@ public class TagRecord {
         }
     }
 
-    // This was discarded since it is slower.
-    private static byte[] compressArrayOptionA(final Set<String> set) throws IOException {
-        ByteArrayOutputStream obj = new ByteArrayOutputStream();
-        GZIPOutputStream gzip = new GZIPOutputStream(obj);
-        for (String s: set) {
-            gzip.write(s.getBytes(StandardCharsets.UTF_8));
-            // use comma
-            gzip.write(',');
-        }
-        gzip.flush();
-        gzip.close();
-        return obj.toByteArray();
-    }
-
-    // This was discarded since it is slower.
-    private static Set<String> decompressArrayOptionA(final byte[] compressed) throws IOException {
-        final StringBuilder outStr = new StringBuilder();
-        if ((compressed == null) || (compressed.length == 0)) {
-            return Collections.emptySet();
-        }
-        @Cleanup
-        final GZIPInputStream gis = new GZIPInputStream(new ByteArrayInputStream(compressed));
-        @Cleanup
-        final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(gis, StandardCharsets.UTF_8));
-
-        String line;
-        while ((line = bufferedReader.readLine()) != null) {
-            outStr.append(line);
-        }
-        return Arrays.stream(outStr.toString().split(",")).collect(Collectors.toSet());
-    }
-
     private static byte[] compressArrayOption(final Set<String> set) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         OutputStream out = new DeflaterOutputStream(baos);

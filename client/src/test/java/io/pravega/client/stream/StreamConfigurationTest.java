@@ -19,7 +19,10 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
@@ -59,6 +62,9 @@ public class StreamConfigurationTest {
         // Invalid tag with length greater than 256
         String s = new String(new char[257]);
         assertThrows(IllegalArgumentException.class, () -> StreamConfiguration.builder().tag(s).build());
+        // Exceed the permissible number of tags for String.
+        List<String> tags = IntStream.range(0, 130).mapToObj(String::valueOf).collect(Collectors.toList());
+        assertThrows(IllegalArgumentException.class, () -> StreamConfiguration.builder().tags(tags).build());
     }
 
     @Test
@@ -66,10 +72,12 @@ public class StreamConfigurationTest {
         StreamConfiguration cfg1 = StreamConfiguration.builder().tag("t1").tag("t1").build();
         StreamConfiguration cfg2 = StreamConfiguration.builder().build();
         StreamConfiguration cfg3 = StreamConfiguration.builder().retentionPolicy(RetentionPolicy.bySizeBytes(100)).build();
+        StreamConfiguration cfg4 = StreamConfiguration.builder().tag("t2").tag("t3").build();
         assertEquals(cfg1, cfg2);
         assertTrue(StreamConfiguration.isTagOnlyChange(cfg1, cfg2));
         assertNotEquals(cfg2, cfg3);
         assertFalse(StreamConfiguration.isTagOnlyChange(cfg1, cfg3));
         assertFalse(StreamConfiguration.isTagOnlyChange(cfg2, cfg3));
+        assertTrue(StreamConfiguration.isTagOnlyChange(cfg1, cfg4));
     }
 }

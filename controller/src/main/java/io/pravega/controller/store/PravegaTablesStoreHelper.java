@@ -253,14 +253,11 @@ public class PravegaTablesStoreHelper {
         Supplier<String> errorMessage = () -> String.format("remove values: on table: %s", tableName);
 
         // read values and add values
-        return withRetries(() -> removeValuesTables(tableName, appendValue, tableKeys, requestId).exceptionally(e -> {
-            log.debug("append values to table name {} for keys {} with value {} threw an exception {}", tableName, tableKeys, appendValue, e.getMessage());
-            log.warn("ERROR while appending tags", e);
-            throw new CompletionException(e);
-        }).thenApplyAsync(x -> {
-            log.trace("appendValues {} updated to table {} with version {}", appendValue, tableName, x);
-            return x.stream().map(v -> (Version) new Version.LongVersion(v.getSegmentVersion())).collect(Collectors.toList());
-        }), errorMessage, true, requestId);
+        return withRetries(() -> removeValuesTables(tableName, appendValue, tableKeys, requestId)
+                .thenApplyAsync(x -> {
+                    log.trace("appendValues {} updated to table {} with version {}", appendValue, tableName, x);
+                    return x.stream().map(v -> (Version) new Version.LongVersion(v.getSegmentVersion())).collect(Collectors.toList());
+                }), errorMessage, true, requestId);
     }
 
 
@@ -268,14 +265,11 @@ public class PravegaTablesStoreHelper {
         Supplier<String> errorMessage = () -> String.format("append values: on table: %s", tableName);
 
         // read values and add values
-        return withRetries(() -> appendValuesTable(tableName, appendValue, tableKeys, requestId).exceptionally(e -> {
-            log.debug("append values to table name {} for keys {} with value {} threw an exception {}", tableName, tableKeys, appendValue, e.getMessage());
-            log.warn("ERROR while appending tags", e);
-            throw new CompletionException(e);
-        }).thenApplyAsync(x -> {
-            log.trace("appendValues {} updated to table {} with version {}", appendValue, tableName, x);
-            return x.stream().map(v -> (Version) new Version.LongVersion(v.getSegmentVersion())).collect(Collectors.toList());
-        }), errorMessage, true, requestId);
+        return withRetries(() -> appendValuesTable(tableName, appendValue, tableKeys, requestId)
+                .thenApplyAsync(x -> {
+                    log.trace("appendValues {} updated to table {} with version {}", appendValue, tableName, x);
+                    return x.stream().map(v -> (Version) new Version.LongVersion(v.getSegmentVersion())).collect(Collectors.toList());
+                }), errorMessage, true, requestId);
     }
 
     private CompletableFuture<List<TableSegmentKeyVersion>> removeValuesTables(String tableName, String removeValue, Set<String> tableKeys, long requestId) {
@@ -289,8 +283,6 @@ public class PravegaTablesStoreHelper {
         f1.thenCompose(currentEntries -> {
             List<TableSegmentEntry> updatedList = currentEntries.stream().map(entry -> {
                 String k = entry.getKey().getKey().toString(Charset.defaultCharset());
-
-                // this can be externalized as a function.
                 byte[] array = getArray(entry.getValue());
                 byte[] updatedBytes;
                 if (array.length == 0) {
@@ -322,7 +314,6 @@ public class PravegaTablesStoreHelper {
 
                                 List<TableSegmentEntry> updatedList = currentEntries.stream().map(entry -> {
                                     String k = entry.getKey().getKey().toString(Charset.defaultCharset());
-                                    // this can be externalized as a function.
                                     byte[] array = getArray(entry.getValue());
                                     byte[] updatedBytes;
                                     if (array.length == 0) {

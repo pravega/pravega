@@ -107,6 +107,12 @@ public class StreamConfiguration implements Serializable {
         }
     }
 
+    /**
+     * Check if only the tags have been modified between the two StreamConfigurations.
+     * @param cfg1 StreamConfiguration.
+     * @param cfg2 StreamConfiguration.
+     * @return boolean indicating if it is a tag only change.
+     */
     public static boolean isTagOnlyChange(StreamConfiguration cfg1, StreamConfiguration cfg2) {
         return cfg1.equals(cfg2) && !cfg1.tags.equals(cfg2.tags);
     }

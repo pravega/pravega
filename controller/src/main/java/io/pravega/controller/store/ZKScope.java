@@ -209,9 +209,7 @@ public class ZKScope implements Scope {
 
     @Override
     public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(String tag, String continuationToken, Executor executor, OperationContext context) {
-        CompletableFuture<Pair<List<String>, String>> cf = new CompletableFuture<>();
-        cf.completeExceptionally(new NotImplementedException("ListStreamsForTag not implemented for ZK scope"));
-        return cf;
+        return Futures.failedFuture(new NotImplementedException("ListStreamsForTag not implemented for ZK scope"));
     }
 
     private Pair<List<String>, Integer> filterStreams(List<String> streams, int bottomFloor, int limit) {

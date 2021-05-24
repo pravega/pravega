@@ -70,6 +70,8 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
@@ -80,8 +82,11 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -232,5 +237,123 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         AssertExtensions.assertThrows("Timeout did not happen", result2::get, deadlineExceededPredicate);
         reset(streamRequestHandler);
         streamMetadataTasks.setCompletionTimeoutMillis(Duration.ofMinutes(2).toMillis());
+    }
+
+    @Test
+    public void streamsInScopeForTagTest() {
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build();
+        final StreamConfiguration cfgWithTags = StreamConfiguration.builder()
+                                                                   .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                   .tag("tag1")
+                                                                   .tag("tag2")
+                                                                   .build();
+        final StreamConfiguration cfgWithTag = StreamConfiguration.builder()
+                                                                  .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                  .tag("tag1")
+                                                                  .build();
+
+        // Create Scope
+        ResultObserver<Controller.CreateScopeStatus> result = new ResultObserver<>();
+        Controller.ScopeInfo scopeInfo = Controller.ScopeInfo.newBuilder().setScope(SCOPE1).build();
+        this.controllerService.createScope(scopeInfo, result);
+        Assert.assertEquals(result.get().getStatus(), Controller.CreateScopeStatus.Status.SUCCESS);
+
+        // Create Streams
+        ResultObserver<Controller.CreateStreamStatus> createStreamStatus1 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration), createStreamStatus1);
+        Controller.CreateStreamStatus status = createStreamStatus1.get();
+        Assert.assertEquals(status.getStatus(), Controller.CreateStreamStatus.Status.SUCCESS);
+
+        ResultObserver<Controller.CreateStreamStatus> createStreamStatus2 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM2, cfgWithTag), createStreamStatus2);
+        status = createStreamStatus2.get();
+        Assert.assertEquals(status.getStatus(), Controller.CreateStreamStatus.Status.SUCCESS);
+
+        ResultObserver<Controller.CreateStreamStatus> createStreamStatus3 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM3, cfgWithTags), createStreamStatus3);
+        status = createStreamStatus3.get();
+        Assert.assertEquals(status.getStatus(), Controller.CreateStreamStatus.Status.SUCCESS);
+
+        // Verify with valid tag.
+        Controller.StreamsInScopeWithTagRequest request = Controller.StreamsInScopeWithTagRequest.newBuilder().setScope(scopeInfo).setTag("tag2").build();
+        ResultObserver<Controller.StreamsInScopeResponse> response = new ResultObserver<>();
+        this.controllerService.listStreamsInScopeForTag(request, response);
+
+        List<Controller.StreamInfo> streams = response.get().getStreamsList();
+        assertEquals(1, streams.size());
+        assertEquals(STREAM3, streams.get(0).getStream());
+
+        // Verify with missing tag.
+        request = Controller.StreamsInScopeWithTagRequest.newBuilder().setScope(scopeInfo).setTag("tagx").build();
+        response = new ResultObserver<>();
+        this.controllerService.listStreamsInScopeForTag(request, response);
+        streams = response.get().getStreamsList();
+        assertEquals(0, streams.size());
+
+        // Verify with nonExistentScope
+        request = Controller.StreamsInScopeWithTagRequest.newBuilder().setScope(Controller.ScopeInfo.newBuilder()
+                                                                                                    .setScope("NonExistent")
+                                                                                                    .build())
+                                                         .setTag("tagx").build();
+        response = new ResultObserver<>();
+        this.controllerService.listStreamsInScopeForTag(request, response);
+        assertEquals(response.get().getStatus(), Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND);
+
+        // Verify with multiple streams.
+        request = Controller.StreamsInScopeWithTagRequest.newBuilder().setScope(scopeInfo).setTag("tag1").build();
+        response = new ResultObserver<>();
+        this.controllerService.listStreamsInScopeForTag(request, response);
+
+        List<Controller.StreamInfo> resultStreams = new ArrayList<>();
+        resultStreams.addAll(response.get().getStreamsList());
+        if (resultStreams.size() == 1) {
+            request = Controller.StreamsInScopeWithTagRequest.newBuilder().setScope(scopeInfo).setTag("tag1").setContinuationToken(response.get().getContinuationToken()).build();
+            response = new ResultObserver<>();
+            this.controllerService.listStreamsInScopeForTag(request, response);
+            resultStreams.addAll(response.get().getStreamsList());
+        }
+        assertEquals(2, resultStreams.size());
+        Controller.StreamInfo streamInfo = Controller.StreamInfo.newBuilder().setStream(STREAM3).setScope(SCOPE1).build();
+        assertTrue(resultStreams.contains(streamInfo));
+        streamInfo = Controller.StreamInfo.newBuilder().setStream(STREAM2).setScope(SCOPE1).build();
+        assertTrue(resultStreams.contains(streamInfo));
+    }
+
+    @Test
+    public void deleteStreamWithTagsTest() {
+        final StreamConfiguration cfgWithTags = StreamConfiguration.builder()
+                                                                   .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                   .tag("tag1")
+                                                                   .tag("tag2")
+                                                                   .build();
+
+        // Create Scope
+        ResultObserver<Controller.CreateScopeStatus> result = new ResultObserver<>();
+        Controller.ScopeInfo scopeInfo = Controller.ScopeInfo.newBuilder().setScope(SCOPE1).build();
+        this.controllerService.createScope(scopeInfo, result);
+        Assert.assertEquals(result.get().getStatus(), Controller.CreateScopeStatus.Status.SUCCESS);
+
+        // Create Stream
+        ResultObserver<Controller.CreateStreamStatus> createStreamStatus1 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, cfgWithTags), createStreamStatus1);
+        Controller.CreateStreamStatus status = createStreamStatus1.get();
+        Assert.assertEquals(status.getStatus(), Controller.CreateStreamStatus.Status.SUCCESS);
+
+        Controller.StreamInfo streamInfo = Controller.StreamInfo.newBuilder().setScope(SCOPE1).setStream(STREAM1).build();
+
+        // Get Stream Configuration
+        ResultObserver<Controller.StreamConfig> getStreamConfigResult = new ResultObserver<>();
+        this.controllerService.getStreamConfiguration(streamInfo, getStreamConfigResult);
+        assertEquals(cfgWithTags, ModelHelper.encode(getStreamConfigResult.get()));
+
+        // Seal Stream.
+        ResultObserver<Controller.UpdateStreamStatus> sealStreamResult = new ResultObserver<>();
+        this.controllerService.sealStream(streamInfo, sealStreamResult);
+        assertEquals(Controller.UpdateStreamStatus.Status.SUCCESS, sealStreamResult.get().getStatus());
+
+        // Delete Stream
+        ResultObserver<Controller.DeleteStreamStatus> deleteStreamResult = new ResultObserver<>();
+        this.controllerService.deleteStream(streamInfo, deleteStreamResult);
+        assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, deleteStreamResult.get().getStatus());
     }
 }
