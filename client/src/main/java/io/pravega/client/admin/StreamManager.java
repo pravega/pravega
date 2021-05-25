@@ -23,8 +23,8 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import java.net.URI;
+import java.util.Collection;
 import java.util.Iterator;
-import java.util.Set;
 
 /**
  * Used to create, delete, and manage Streams and ReaderGroups.
@@ -155,7 +155,7 @@ public interface StreamManager extends AutoCloseable {
      * @param streamName Stream name.
      * @return Tags associated with the stream.
      */
-    Set<String> getStreamTags(String scopeName, String streamName);
+    Collection<String> getStreamTags(String scopeName, String streamName);
 
     /**
      * Checks if a stream exists in scope. 

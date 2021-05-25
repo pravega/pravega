@@ -99,9 +99,7 @@ public class StreamConfiguration implements Serializable {
                     tagsSet = Collections.singleton(this.tags.get(0));
                     break;
                 default:
-                    tagsSet = new HashSet<>(this.tags.size());
-                    tagsSet.addAll(this.tags);
-                    tagsSet = java.util.Collections.unmodifiableSet(tagsSet);
+                    tagsSet = java.util.Collections.unmodifiableSet(new HashSet<>(this.tags));
             }
             return tagsSet;
         }

@@ -42,9 +42,9 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
@@ -170,7 +170,7 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public Set<String> getStreamTags(String scopeName, String streamName) {
+    public Collection<String> getStreamTags(String scopeName, String streamName) {
         NameUtils.validateUserScopeName(scopeName);
         NameUtils.validateUserStreamName(streamName);
         log.info("Fetching tags associated with stream: {}/{}", scopeName, streamName);

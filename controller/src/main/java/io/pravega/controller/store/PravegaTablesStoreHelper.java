@@ -313,7 +313,7 @@ public class PravegaTablesStoreHelper {
                             .thenCompose(currentEntries -> {
 
                                 List<TableSegmentEntry> updatedList = currentEntries.stream().map(entry -> {
-                                    String k = entry.getKey().getKey().toString(Charset.defaultCharset());
+                                    String k = entry.getKey().getKey().toString(StandardCharsets.UTF_8);
                                     byte[] array = getArray(entry.getValue());
                                     byte[] updatedBytes;
                                     if (array.length == 0) {

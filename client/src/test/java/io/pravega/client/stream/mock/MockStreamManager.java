@@ -45,10 +45,10 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -102,7 +102,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public Set<String> getStreamTags(String scopeName, String streamName) {
+    public Collection<String> getStreamTags(String scopeName, String streamName) {
         return Futures.getAndHandleExceptions(controller.getStreamConfiguration(scopeName, streamName),
                                               RuntimeException::new).getTags();
     }
