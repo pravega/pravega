@@ -155,10 +155,10 @@ public abstract class RequestHandlersTest {
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         clientFactory = mock(EventStreamClientFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executor, hostId, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         doAnswer(x -> new EventStreamWriterMock<>()).when(clientFactory).createEventWriter(anyString(), any(), any());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executor, hostId, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
@@ -169,7 +169,7 @@ public abstract class RequestHandlersTest {
         // add a host in zk
         // mock pravega
         // create a stream
-        streamStore.createScope(scope).get();
+        streamStore.createScope(scope, null, executor).get();
     }
 
     abstract StreamMetadataStore getStore();
@@ -488,7 +488,113 @@ public abstract class RequestHandlersTest {
         streamStore2.close();
     }
 
-    abstract int getVersionNumber(Version version); 
+    abstract int getVersionNumber(Version version);
+
+    @Test(timeout = 300000)
+    public void idempotentUpdatePartialScaleCompleted() throws Exception {
+        String stream = "update2";
+        StreamMetadataStore streamStore1 = getStore();
+        StreamMetadataStore streamStore1Spied = spy(getStore());
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
+                ScalingPolicy.fixed(1)).build();
+        streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
+
+        StreamMetadataStore streamStore2 = getStore();
+
+        UpdateStreamTask requestHandler1 = new UpdateStreamTask(streamMetadataTasks, streamStore1Spied, bucketStore, executor);
+        UpdateStreamTask requestHandler2 = new UpdateStreamTask(streamMetadataTasks, streamStore2, bucketStore, executor);
+
+        CompletableFuture<Void> wait = new CompletableFuture<>();
+        CompletableFuture<Void> signal = new CompletableFuture<>();
+        config = StreamConfiguration.builder().scalingPolicy(
+                ScalingPolicy.fixed(2)).build();
+
+        streamStore1.startUpdateConfiguration(scope, stream, config, null, executor).join();
+
+        UpdateStreamEvent event = new UpdateStreamEvent(scope, stream, System.currentTimeMillis());
+
+        // make this wait at reset epoch transition. this has already changed the state to updating. both executions are 
+        // performing the same update. 
+        doAnswer(x -> {
+            signal.complete(null);
+            wait.join();
+            return streamStore1.scaleSegmentsSealed(x.getArgument(0), x.getArgument(1),
+                    x.getArgument(2), x.getArgument(3), x.getArgument(4), x.getArgument(5));
+        }).when(streamStore1Spied).scaleSegmentsSealed(anyString(), anyString(), any(), any(), any(), any());
+
+        CompletableFuture<Void> future1 = CompletableFuture.completedFuture(null)
+                                                           .thenComposeAsync(v -> requestHandler1.execute(event), executor);
+        signal.join();
+        requestHandler2.execute(event).join();
+        wait.complete(null);
+
+        AssertExtensions.assertSuppliedFutureThrows("first update job should fail", () -> future1,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+
+        VersionedMetadata<StreamConfigurationRecord> versioned = streamStore1.getConfigurationRecord(scope, stream, null, executor).join();
+        assertFalse(versioned.getObject().isUpdating());
+        assertEquals(2, getVersionNumber(versioned.getVersion()));
+        assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+        assertEquals(1, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
+        
+        // repeat the above experiment with complete scale step also having been performed. 
+        streamStore1.close();
+        streamStore2.close();
+    }
+
+    @Test(timeout = 300000)
+    public void idempotentUpdateCompletedScale() throws Exception {
+        String stream = "update3";
+        StreamMetadataStore streamStore1 = getStore();
+        StreamMetadataStore streamStore1Spied = spy(getStore());
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
+                ScalingPolicy.fixed(1)).build();
+        streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
+
+        StreamMetadataStore streamStore2 = getStore();
+
+        UpdateStreamTask requestHandler1 = new UpdateStreamTask(streamMetadataTasks, streamStore1Spied, bucketStore, executor);
+        UpdateStreamTask requestHandler2 = new UpdateStreamTask(streamMetadataTasks, streamStore2, bucketStore, executor);
+
+        CompletableFuture<Void> wait = new CompletableFuture<>();
+        CompletableFuture<Void> signal = new CompletableFuture<>();
+        config = StreamConfiguration.builder().scalingPolicy(
+                ScalingPolicy.fixed(2)).build();
+
+        streamStore1.startUpdateConfiguration(scope, stream, config, null, executor).join();
+
+        UpdateStreamEvent event = new UpdateStreamEvent(scope, stream, System.currentTimeMillis());
+
+        // make this wait at reset epoch transition. this has already changed the state to updating. both executions are 
+        // performing the same update. 
+        doAnswer(x -> {
+            signal.complete(null);
+            wait.join();
+            return streamStore1.completeScale(x.getArgument(0), x.getArgument(1),
+                    x.getArgument(2), x.getArgument(3), x.getArgument(4));
+        }).when(streamStore1Spied).completeScale(anyString(), anyString(), any(), any(), any());
+
+        CompletableFuture<Void> future1 = CompletableFuture.completedFuture(null)
+                                                           .thenComposeAsync(v -> requestHandler1.execute(event), executor);
+        signal.join();
+        requestHandler2.execute(event).join();
+        wait.complete(null);
+
+        AssertExtensions.assertSuppliedFutureThrows("first update job should fail", () -> future1,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+
+        VersionedMetadata<StreamConfigurationRecord> versioned = streamStore1.getConfigurationRecord(scope, stream, null, executor).join();
+        assertFalse(versioned.getObject().isUpdating());
+        assertEquals(2, getVersionNumber(versioned.getVersion()));
+        assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+        assertEquals(1, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
+
+        // repeat the above experiment with complete scale step also having been performed. 
+        streamStore1.close();
+        streamStore2.close();
+    }
 
     // concurrent truncate stream
     @SuppressWarnings("unchecked")
@@ -561,7 +667,7 @@ public abstract class RequestHandlersTest {
         assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
 
         // mark stream should still be present and active
-        assertTrue(streamStore.checkStreamExists(scope, markStream).join());
+        assertTrue(streamStore.checkStreamExists(scope, markStream, null, executor).join());
         assertEquals(streamStore.getState(scope, markStream, true, null, executor).join(), State.ACTIVE);
 
         // delete the stream
@@ -570,7 +676,7 @@ public abstract class RequestHandlersTest {
         deleteStreamTask.execute(firstDeleteEvent).join();
 
         // verify that mark stream is also deleted
-        assertFalse(streamStore.checkStreamExists(scope, markStream).join());
+        assertFalse(streamStore.checkStreamExists(scope, markStream, null, executor).join());
     }
 
     @Test
@@ -679,9 +785,9 @@ public abstract class RequestHandlersTest {
                 streamStore,
                 executor);
         String fairness = "fairness";
-        streamStore.createScope(fairness).join();
+        streamStore.createScope(fairness, null, executor).join();
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
-                System.currentTimeMillis()).join();
+                System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
         doAnswer(x -> Futures.failedFuture(new RuntimeException()))
@@ -732,9 +838,9 @@ public abstract class RequestHandlersTest {
                 streamStore,
                 executor);
         String fairness = "fairness";
-        streamStore.createScope(fairness).join();
+        streamStore.createScope(fairness, null, executor).join();
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
-                System.currentTimeMillis()).join();
+                System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
         doAnswer(x -> Futures.failedFuture(new RuntimeException()))
@@ -784,9 +890,9 @@ public abstract class RequestHandlersTest {
                 streamStore,
                 executor);
         String fairness = "fairness";
-        streamStore.createScope(fairness).join();
+        streamStore.createScope(fairness, null, executor).join();
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
-                System.currentTimeMillis()).join();
+                System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
         doAnswer(x -> Futures.failedFuture(new RuntimeException()))
@@ -823,18 +929,21 @@ public abstract class RequestHandlersTest {
     
     @Test
     public void testCommitTxnIgnoreFairness() {
-        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, 
+                streamTransactionMetadataTasks, bucketStore, executor);
         String fairness = "fairness";
-        streamStore.createScope(fairness).join();
+        streamStore.createScope(fairness, null, executor).join();
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
-                System.currentTimeMillis()).join();
+                System.currentTimeMillis(), 0L).join();
 
-        UUID txn = streamTransactionMetadataTasks.createTxn(fairness, fairness, 30000, null).join().getKey().getId();
-        streamStore.sealTransaction(fairness, fairness, txn, true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
+        UUID txn = streamTransactionMetadataTasks.createTxn(fairness, fairness, 30000, 0L).join().getKey().getId();
+        streamStore.sealTransaction(fairness, fairness, txn, true, Optional.empty(), "", Long.MIN_VALUE, 
+                null, executor).join();
         
         // 1. set segment helper mock to throw exception
         doAnswer(x -> Futures.failedFuture(new RuntimeException()))
-                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), anyString());
+                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+                anyString(), anyLong());
         
         streamStore.startCommitTransactions(fairness, fairness, 100, null, executor).join();
         
@@ -847,14 +956,16 @@ public abstract class RequestHandlersTest {
         AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
-        verify(segmentHelper, atLeastOnce()).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), anyString());
+        verify(segmentHelper, atLeastOnce()).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+                anyString(), anyLong());
         
         // 3. set waiting processor to "random name"
         streamStore.createWaitingRequestIfAbsent(fairness, fairness, "myProcessor", null, executor).join();
         
         // 4. reset segment helper to return success
-        doAnswer(x -> CompletableFuture.completedFuture(null))
-                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), anyString());
+        doAnswer(x -> CompletableFuture.completedFuture(0L))
+                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
+                anyString(), anyLong());
         
         // 5. process again. it should succeed while ignoring waiting processor
         requestHandler.process(event, () -> false).join();
@@ -881,9 +992,9 @@ public abstract class RequestHandlersTest {
                 streamStore,
                 executor);
         String fairness = "fairness";
-        streamStore.createScope(fairness).join();
+        streamStore.createScope(fairness, null, executor).join();
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
-                System.currentTimeMillis()).join();
+                System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
         doAnswer(x -> Futures.failedFuture(new RuntimeException()))
@@ -932,10 +1043,10 @@ public abstract class RequestHandlersTest {
                 streamStore,
                 executor);
         String fairness = "fairness";
-        streamStore.createScope(fairness).join();
+        streamStore.createScope(fairness, null, executor).join();
         long createTimestamp = System.currentTimeMillis();
         streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
-                createTimestamp).join();
+                createTimestamp, 0L).join();
 
         // 1. set segment helper mock to throw exception
         doAnswer(x -> Futures.failedFuture(new RuntimeException()))

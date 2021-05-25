@@ -144,7 +144,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
+    public CompletableFuture<Integer> getNumberOfOngoingTransactions(OperationContext context) {
         synchronized (txnsLock) {
             return CompletableFuture.completedFuture(activeTxns.size());
         }
@@ -156,12 +156,13 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> deleteStream() {
+    CompletableFuture<Void> deleteStream(OperationContext context) {
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    CompletableFuture<CreateStreamResponse> checkStreamExists(StreamConfiguration configuration, long timestamp, final int startingSegmentNumber) {
+    CompletableFuture<CreateStreamResponse> checkStreamExists(StreamConfiguration configuration, long timestamp, 
+                                                              final int startingSegmentNumber, OperationContext context) {
         CompletableFuture<CreateStreamResponse> result = new CompletableFuture<>();
 
         final long time;
@@ -175,7 +176,8 @@ public class InMemoryStream extends PersistentStreamBase {
 
         if (time != Long.MIN_VALUE) {
             if (config != null) {
-                handleStreamMetadataExists(timestamp, result, time, startingSegmentNumber, config.getStreamConfiguration(), currentState);
+                handleStreamMetadataExists(timestamp, result, time, startingSegmentNumber, config.getStreamConfiguration(), 
+                        currentState, context);
             } else {
                 result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, time, startingSegmentNumber));
             }
@@ -187,12 +189,13 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createStreamMetadata() {
+    CompletableFuture<Void> createStreamMetadata(OperationContext context) {
         return CompletableFuture.completedFuture(null);
     }
 
     private void handleStreamMetadataExists(final long timestamp, CompletableFuture<CreateStreamResponse> result, final long time,
-                                            final int startingSegmentNumber, final StreamConfiguration config, VersionedMetadata<StateRecord> currentState) {
+                                            final int startingSegmentNumber, final StreamConfiguration config, 
+                                            VersionedMetadata<StateRecord> currentState, OperationContext context) {
         if (currentState != null) {
             State stateVal = currentState.getObject().getState();
             if (stateVal.equals(State.UNKNOWN) || stateVal.equals(State.CREATING)) {
@@ -212,18 +215,18 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> storeCreationTimeIfAbsent(long timestamp) {
+    CompletableFuture<Void> storeCreationTimeIfAbsent(long timestamp, OperationContext context) {
         creationTime.compareAndSet(Long.MIN_VALUE, timestamp);
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<Long> getCreationTime() {
+    public CompletableFuture<Long> getCreationTime(OperationContext context) {
         return CompletableFuture.completedFuture(creationTime.get());
     }
 
     @Override
-    CompletableFuture<Void> createConfigurationIfAbsent(StreamConfigurationRecord config) {
+    CompletableFuture<Void> createConfigurationIfAbsent(StreamConfigurationRecord config, OperationContext context) {
         Preconditions.checkNotNull(config);
 
         synchronized (lock) {
@@ -235,7 +238,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createTruncationDataIfAbsent(StreamTruncationRecord truncation) {
+    CompletableFuture<Void> createTruncationDataIfAbsent(StreamTruncationRecord truncation, OperationContext context) {
         Preconditions.checkNotNull(truncation);
 
         synchronized (lock) {
@@ -247,7 +250,8 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> setConfigurationData(VersionedMetadata<StreamConfigurationRecord> newConfig) {
+    CompletableFuture<Version> setConfigurationData(VersionedMetadata<StreamConfigurationRecord> newConfig, 
+                                                    OperationContext context) {
         Preconditions.checkNotNull(newConfig);
 
         CompletableFuture<Version> result = new CompletableFuture<>();
@@ -268,7 +272,8 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<StreamConfigurationRecord>> getConfigurationData(boolean ignoreCached) {
+    CompletableFuture<VersionedMetadata<StreamConfigurationRecord>> getConfigurationData(boolean ignoreCached, 
+                                                                                         OperationContext context) {
         synchronized (lock) {
             if (this.configuration == null) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
@@ -278,7 +283,8 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> setTruncationData(VersionedMetadata<StreamTruncationRecord> truncationRecord) {
+    CompletableFuture<Version> setTruncationData(VersionedMetadata<StreamTruncationRecord> truncationRecord, 
+                                                 OperationContext context) {
         Preconditions.checkNotNull(truncationRecord);
 
         CompletableFuture<Version> result = new CompletableFuture<>();
@@ -297,7 +303,8 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getTruncationData(boolean ignoreCached) {
+    CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getTruncationData(boolean ignoreCached, 
+                                                                                   OperationContext context) {
         synchronized (lock) {
             if (this.truncationRecord == null) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
@@ -307,7 +314,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createStateIfAbsent(StateRecord state) {
+    CompletableFuture<Void> createStateIfAbsent(StateRecord state, OperationContext context) {
         Preconditions.checkNotNull(state);
 
         synchronized (lock) {
@@ -319,13 +326,13 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createSubscribersRecordIfAbsent() {
+    CompletableFuture<Void> createSubscribersRecordIfAbsent(OperationContext context) {
         Preconditions.checkNotNull(streamSubscribers);
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    CompletableFuture<Version> setStateData(VersionedMetadata<StateRecord> newState) {
+    CompletableFuture<Version> setStateData(VersionedMetadata<StateRecord> newState, OperationContext context) {
         Preconditions.checkNotNull(newState);
 
         CompletableFuture<Version> result = new CompletableFuture<>();
@@ -342,7 +349,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<StateRecord>> getStateData(boolean ignoreCached) {
+    CompletableFuture<VersionedMetadata<StateRecord>> getStateData(boolean ignoreCached, OperationContext context) {
         synchronized (lock) {
             if (this.state == null) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
@@ -353,7 +360,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createStreamCutRecordData(long key, StreamCutRecord tData) {
+    CompletableFuture<Void> createStreamCutRecordData(long key, StreamCutRecord tData, OperationContext context) {
         Preconditions.checkNotNull(state);
 
         synchronized (lock) {
@@ -364,7 +371,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<StreamCutRecord>> getStreamCutRecordData(long recordingTime) {
+    CompletableFuture<VersionedMetadata<StreamCutRecord>> getStreamCutRecordData(long recordingTime, OperationContext context) {
         synchronized (lock) {
             if (!this.streamCutRecords.containsKey(recordingTime)) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
@@ -375,7 +382,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> deleteStreamCutRecordData(long recordingTime) {
+    CompletableFuture<Void> deleteStreamCutRecordData(long recordingTime, OperationContext context) {
         synchronized (lock) {
             this.streamCutRecords.remove(recordingTime);
 
@@ -384,7 +391,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createHistoryTimeSeriesChunkDataIfAbsent(int chunkNumber, HistoryTimeSeries data) {
+    CompletableFuture<Void> createHistoryTimeSeriesChunkDataIfAbsent(int chunkNumber, HistoryTimeSeries data, OperationContext context) {
         Preconditions.checkNotNull(data);
 
         VersionedMetadata<HistoryTimeSeries> copy = new VersionedMetadata<>(data, new Version.IntVersion(0));
@@ -395,7 +402,9 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<HistoryTimeSeries>> getHistoryTimeSeriesChunkData(int chunkNumber, boolean ignoreCached) {
+    CompletableFuture<VersionedMetadata<HistoryTimeSeries>> getHistoryTimeSeriesChunkData(int chunkNumber, 
+                                                                                          boolean ignoreCached, 
+                                                                                          OperationContext context) {
         synchronized (lock) {
             if (!this.historyTimeSeries.containsKey(chunkNumber)) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
@@ -405,7 +414,8 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateHistoryTimeSeriesChunkData(int historyChunk, VersionedMetadata<HistoryTimeSeries> updated) {
+    CompletableFuture<Version> updateHistoryTimeSeriesChunkData(int historyChunk, VersionedMetadata<HistoryTimeSeries> updated,
+                                                                OperationContext context) {
         Preconditions.checkNotNull(updated);
         Preconditions.checkNotNull(updated.getObject());
 
@@ -427,7 +437,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(EpochRecord data) {
+    CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(EpochRecord data, OperationContext context) {
         Preconditions.checkNotNull(data);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -442,7 +452,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateCurrentEpochRecordData(VersionedMetadata<EpochRecord> updated) {
+    CompletableFuture<Version> updateCurrentEpochRecordData(VersionedMetadata<EpochRecord> updated, OperationContext context) {
         Preconditions.checkNotNull(updated);
         Preconditions.checkNotNull(updated.getObject());
 
@@ -464,7 +474,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<EpochRecord>> getCurrentEpochRecordData(boolean ignoreCached) {
+    CompletableFuture<VersionedMetadata<EpochRecord>> getCurrentEpochRecordData(boolean ignoreCached, OperationContext context) {
         synchronized (lock) {
             if (this.currentEpochRecord == null) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
@@ -475,7 +485,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, EpochRecord data) {
+    CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, EpochRecord data, OperationContext context) {
         Preconditions.checkNotNull(data);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -488,7 +498,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<EpochRecord>> getEpochRecordData(int epoch) {
+    CompletableFuture<VersionedMetadata<EpochRecord>> getEpochRecordData(int epoch, OperationContext context) {
         synchronized (lock) {
             if (!this.epochRecords.containsKey(epoch)) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
@@ -499,7 +509,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createSealedSegmentSizesMapShardDataIfAbsent(int shardNumber, SealedSegmentsMapShard data) {
+    CompletableFuture<Void> createSealedSegmentSizesMapShardDataIfAbsent(int shardNumber, SealedSegmentsMapShard data, OperationContext context) {
         Preconditions.checkNotNull(data);
 
         VersionedMetadata<SealedSegmentsMapShard> copy = new VersionedMetadata<>(data, new Version.IntVersion(0));
@@ -510,7 +520,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<SealedSegmentsMapShard>> getSealedSegmentSizesMapShardData(int shard) {
+    CompletableFuture<VersionedMetadata<SealedSegmentsMapShard>> getSealedSegmentSizesMapShardData(int shard, OperationContext context) {
         synchronized (lock) {
             if (!this.sealedSegmentsShards.containsKey(shard)) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
@@ -520,7 +530,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateSealedSegmentSizesMapShardData(int shard, VersionedMetadata<SealedSegmentsMapShard> updated) {
+    CompletableFuture<Version> updateSealedSegmentSizesMapShardData(int shard, VersionedMetadata<SealedSegmentsMapShard> updated, OperationContext context) {
         Preconditions.checkNotNull(updated);
         Preconditions.checkNotNull(updated.getObject());
 
@@ -542,11 +552,12 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createSegmentSealedEpochRecords(Collection<Long> segmentToSeal, int epoch) {
-        return Futures.allOf(segmentToSeal.stream().map(x -> createSegmentSealedEpochRecordData(x, epoch)).collect(Collectors.toList()));
+    CompletableFuture<Void> createSegmentSealedEpochRecords(Collection<Long> segmentToSeal, int epoch, OperationContext context) {
+        return Futures.allOf(segmentToSeal.stream().map(x -> createSegmentSealedEpochRecordData(x, epoch, context))
+                                          .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<Void> createSegmentSealedEpochRecordData(long segment, int epoch) {
+    private CompletableFuture<Void> createSegmentSealedEpochRecordData(long segment, int epoch, OperationContext context) {
         Preconditions.checkNotNull(epoch);
 
         synchronized (lock) {
@@ -556,7 +567,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<Integer>> getSegmentSealedRecordData(long segmentId) {
+    CompletableFuture<VersionedMetadata<Integer>> getSegmentSealedRecordData(long segmentId, OperationContext context) {
         synchronized (lock) {
             if (!this.segmentSealingEpochs.containsKey(segmentId)) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
@@ -566,7 +577,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> createNewTransaction(int epoch, UUID txId, ActiveTxnRecord data) {
+    CompletableFuture<Version> createNewTransaction(int epoch, UUID txId, ActiveTxnRecord data, OperationContext context) {
         Preconditions.checkNotNull(txId);
 
         final CompletableFuture<Version> result = new CompletableFuture<>();
@@ -588,7 +599,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<ActiveTxnRecord>> getActiveTx(int epoch, UUID txId) {
+    CompletableFuture<VersionedMetadata<ActiveTxnRecord>> getActiveTx(int epoch, UUID txId, OperationContext context) {
         synchronized (txnsLock) {
             if (!activeTxns.containsKey(txId)) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
@@ -600,7 +611,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateActiveTx(int epoch, UUID txId, VersionedMetadata<ActiveTxnRecord> data) {
+    CompletableFuture<Version> updateActiveTx(int epoch, UUID txId, VersionedMetadata<ActiveTxnRecord> data, OperationContext context) {
         Preconditions.checkNotNull(data);
 
         CompletableFuture<Version> result = new CompletableFuture<>();
@@ -628,20 +639,20 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Long> addTxnToCommitOrder(UUID txId) {
+    CompletableFuture<Long> addTxnToCommitOrder(UUID txId, OperationContext context) {
         long orderedPosition = counter.getAndIncrement();
         transactionCommitOrder.put(orderedPosition, txId);
         return CompletableFuture.completedFuture(orderedPosition);
     }
 
     @Override
-    CompletableFuture<Void> removeTxnsFromCommitOrder(List<Long> positions) {
+    CompletableFuture<Void> removeTxnsFromCommitOrder(List<Long> positions, OperationContext context) {
         positions.forEach(transactionCommitOrder::remove);
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<CompletedTxnRecord>> getCompletedTx(UUID txId) {
+    CompletableFuture<VersionedMetadata<CompletedTxnRecord>> getCompletedTx(UUID txId, OperationContext context) {
         Preconditions.checkNotNull(txId);
         synchronized (txnsLock) {
             VersionedMetadata<CompletedTxnRecord> value = completedTxns.getIfPresent(txId);
@@ -654,7 +665,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> removeActiveTxEntry(int epoch, UUID txId) {
+    CompletableFuture<Void> removeActiveTxEntry(int epoch, UUID txId, OperationContext context) {
         Preconditions.checkNotNull(txId);
 
         synchronized (txnsLock) {
@@ -672,7 +683,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createCompletedTxEntry(UUID txId, CompletedTxnRecord complete) {
+    CompletableFuture<Void> createCompletedTxEntry(UUID txId, CompletedTxnRecord complete, OperationContext context) {
         Preconditions.checkNotNull(txId);
 
         synchronized (txnsLock) {
@@ -685,7 +696,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createMarkerData(long segmentId, long timestamp) {
+    CompletableFuture<Void> createMarkerData(long segmentId, long timestamp, OperationContext context) {
         synchronized (markersLock) {
             markers.putIfAbsent(segmentId, new VersionedMetadata<>(timestamp, new Version.IntVersion(0)));
         }
@@ -693,7 +704,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateMarkerData(long segmentId, VersionedMetadata<Long> data) {
+    CompletableFuture<Version> updateMarkerData(long segmentId, VersionedMetadata<Long> data, OperationContext context) {
         CompletableFuture<Version> result = new CompletableFuture<>();
         VersionedMetadata<Long> next = updatedCopy(data);
         synchronized (markersLock) {
@@ -717,7 +728,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> removeMarkerData(long segmentId) {
+    CompletableFuture<Void> removeMarkerData(long segmentId, OperationContext context) {
         synchronized (markersLock) {
             markers.remove(segmentId);
         }
@@ -725,7 +736,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<Long>> getMarkerData(long segmentId) {
+    CompletableFuture<VersionedMetadata<Long>> getMarkerData(long segmentId, OperationContext context) {
         synchronized (markersLock) {
             if (!markers.containsKey(segmentId)) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
@@ -736,7 +747,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(OperationContext context) {
         synchronized (txnsLock) {
             return CompletableFuture.completedFuture(Collections.unmodifiableMap(
                     activeTxns.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getObject()))));
@@ -744,7 +755,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch(int limit) {
+    CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch(int limit, OperationContext context) {
         List<Long> toPurge = new ArrayList<>();
         Map<UUID, ActiveTxnRecord> committing = new HashMap<>();
         AtomicInteger smallestEpoch = new AtomicInteger(Integer.MAX_VALUE);
@@ -794,14 +805,14 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns() {
+    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns(OperationContext context) {
         synchronized (txnsLock) {
             return CompletableFuture.completedFuture(Collections.unmodifiableMap(transactionCommitOrder));
         }
     }
 
     @Override
-    CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch) {
+    CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch, OperationContext context) {
         synchronized (txnsLock) {
             Set<UUID> transactions = epochTxnMap.get(epoch);
             Map<UUID, ActiveTxnRecord> map;
@@ -817,7 +828,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
      
     @Override
-    CompletableFuture<Void> createRetentionSetDataIfAbsent(RetentionSet retention) {
+    CompletableFuture<Void> createRetentionSetDataIfAbsent(RetentionSet retention, OperationContext context) {
         Preconditions.checkNotNull(retention);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -830,7 +841,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<RetentionSet>> getRetentionSetData() {
+    CompletableFuture<VersionedMetadata<RetentionSet>> getRetentionSetData(OperationContext context) {
         CompletableFuture<VersionedMetadata<RetentionSet>> result = new CompletableFuture<>();
 
         synchronized (lock) {
@@ -844,7 +855,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> addSubscriber(String subscriber, long generation) {
+    public CompletableFuture<Void> addSubscriber(String subscriber, long generation, OperationContext context) {
         synchronized (subscribersLock) {
             Optional<VersionedMetadata<StreamSubscriber>> foundSubscriber = streamSubscribers.stream()
                     .filter(sub -> sub.getObject().getSubscriber().equals(subscriber)).findAny();
@@ -855,7 +866,7 @@ public class InMemoryStream extends PersistentStreamBase {
                 if (foundSubscriber.get().getObject().getGeneration() < generation) {
                     setSubscriberData(new VersionedMetadata<>(new StreamSubscriber(subscriber, generation,
                             foundSubscriber.get().getObject().getTruncationStreamCut(),
-                            System.currentTimeMillis()), foundSubscriber.get().getVersion()));
+                            System.currentTimeMillis()), foundSubscriber.get().getVersion()), context);
                 }
             }
         }
@@ -863,7 +874,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation) {
+    public CompletableFuture<Void> deleteSubscriber(final String subscriber, final long generation, OperationContext context) {
         synchronized (subscribersLock) {
             Optional<VersionedMetadata<StreamSubscriber>> foundSubscriber = streamSubscribers.stream()
                     .filter(sub -> sub.getObject().getSubscriber().equals(subscriber)).findAny();
@@ -875,7 +886,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriberRecord(String subscriber) {
+    public CompletableFuture<VersionedMetadata<StreamSubscriber>> getSubscriberRecord(String subscriber, OperationContext context) {
         CompletableFuture<VersionedMetadata<StreamSubscriber>> result = new CompletableFuture<>();
         synchronized (subscribersLock) {
             Optional<VersionedMetadata<StreamSubscriber>> existingSubscriber = streamSubscribers.stream()
@@ -890,7 +901,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<List<String>> listSubscribers() {
+    public CompletableFuture<List<String>> listSubscribers(OperationContext context) {
         List<String> result;
         synchronized (subscribersLock) {
             result = streamSubscribers.stream().map(s -> s.getObject().getSubscriber()).collect(Collectors.toList());
@@ -899,7 +910,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriberData) {
+    public CompletableFuture<Version> setSubscriberData(final VersionedMetadata<StreamSubscriber> subscriberData, OperationContext context) {
         VersionedMetadata<StreamSubscriber> updatedSubscriber = updatedCopy(subscriberData);
         synchronized (subscribersLock) {
             Optional<VersionedMetadata<StreamSubscriber>> previousSubscriber = streamSubscribers.stream()
@@ -913,7 +924,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateRetentionSetData(VersionedMetadata<RetentionSet> retention) {
+    CompletableFuture<Version> updateRetentionSetData(VersionedMetadata<RetentionSet> retention, OperationContext context) {
         Preconditions.checkNotNull(retention);
         Preconditions.checkNotNull(retention.getObject());
 
@@ -935,7 +946,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createEpochTransitionIfAbsent(EpochTransitionRecord epochTransitionData) {
+    CompletableFuture<Void> createEpochTransitionIfAbsent(EpochTransitionRecord epochTransitionData, OperationContext context) {
         Preconditions.checkNotNull(epochTransitionData);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -949,7 +960,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateEpochTransitionNode(VersionedMetadata<EpochTransitionRecord> record) {
+    CompletableFuture<Version> updateEpochTransitionNode(VersionedMetadata<EpochTransitionRecord> record, OperationContext context) {
         Preconditions.checkNotNull(record);
 
         CompletableFuture<Version> result = new CompletableFuture<>();
@@ -968,7 +979,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransitionNode() {
+    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransitionNode(OperationContext context) {
         CompletableFuture<VersionedMetadata<EpochTransitionRecord>> result = new CompletableFuture<>();
 
         synchronized (lock) {
@@ -982,7 +993,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createCommitTxnRecordIfAbsent(CommittingTransactionsRecord committingTxns) {
+    CompletableFuture<Void> createCommitTxnRecordIfAbsent(CommittingTransactionsRecord committingTxns, OperationContext context) {
         Preconditions.checkNotNull(committingTxns);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -997,7 +1008,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getCommitTxnRecord() {
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getCommitTxnRecord(OperationContext context) {
         CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> result = new CompletableFuture<>();
 
         synchronized (lock) {
@@ -1011,7 +1022,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateCommittingTxnRecord(VersionedMetadata<CommittingTransactionsRecord> record) {
+    CompletableFuture<Version> updateCommittingTxnRecord(VersionedMetadata<CommittingTransactionsRecord> record, OperationContext context) {
         Preconditions.checkNotNull(record);
 
         CompletableFuture<Version> result = new CompletableFuture<>();
@@ -1030,7 +1041,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String data) {
+    public CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String data, OperationContext context) {
         synchronized (lock) {
             if (waitingRequestNode == null) {
                 waitingRequestNode = data;
@@ -1040,7 +1051,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<String> getWaitingRequestNode() {
+    public CompletableFuture<String> getWaitingRequestNode(OperationContext context) {
         CompletableFuture<String> result = new CompletableFuture<>();
 
         synchronized (lock) {
@@ -1054,7 +1065,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> deleteWaitingRequestNode() {
+    public CompletableFuture<Void> deleteWaitingRequestNode(OperationContext context) {
         synchronized (lock) {
             this.waitingRequestNode = null;
         }
@@ -1062,7 +1073,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position) {
+    CompletableFuture<Void> createWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, OperationContext context) {
         WriterMark mark = new WriterMark(timestamp, position);
 
         synchronized (writersLock) {
@@ -1077,7 +1088,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> removeWriterRecord(String writer, Version version) {
+    public CompletableFuture<Void> removeWriterRecord(String writer, Version version, OperationContext context) {
         synchronized (writersLock) {
             VersionedMetadata<WriterMark> existing = writerMarks.get(writer);
             if (existing != null && !Objects.equals(existing.getVersion(), version)) {
@@ -1090,7 +1101,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<WriterMark>> getWriterMarkRecord(String writer) {
+    CompletableFuture<VersionedMetadata<WriterMark>> getWriterMarkRecord(String writer, OperationContext context) {
         CompletableFuture<VersionedMetadata<WriterMark>> result = new CompletableFuture<>();
         
         synchronized (writersLock) {
@@ -1106,7 +1117,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Map<String, WriterMark>> getAllWriterMarks() {
+    public CompletableFuture<Map<String, WriterMark>> getAllWriterMarks(OperationContext context) {
         Map<String, WriterMark> result;
         synchronized (writersLock) {
             result = writerMarks.entrySet().stream().collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue().getObject()));
@@ -1116,7 +1127,7 @@ public class InMemoryStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, 
-                                                   boolean isAlive, Version version) {
+                                                   boolean isAlive, Version version, OperationContext context) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         VersionedMetadata<WriterMark> updatedCopy = updatedCopy(new VersionedMetadata<>(new WriterMark(timestamp, position, isAlive), version));
         synchronized (writersLock) {

@@ -304,7 +304,7 @@ public class BatchClientTest extends ThreadPooledTestSuite {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
-        controllerWrapper.getControllerService().createScope(SCOPE).join();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).join();
         assertTrue("Create Stream operation", controllerWrapper.getController().createStream(SCOPE, STREAM, config).join());
     }
 

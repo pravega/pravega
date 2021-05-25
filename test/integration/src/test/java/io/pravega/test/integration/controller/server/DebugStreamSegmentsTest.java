@@ -185,7 +185,7 @@ public class DebugStreamSegmentsTest {
     }
 
     private void createScope(final String scopeName) throws InterruptedException, ExecutionException {
-        controllerWrapper.getControllerService().createScope(scopeName).get();
+        controllerWrapper.getControllerService().createScope(scopeName, 0L).get();
     }
 
     private void createStream(String streamName) throws Exception {
