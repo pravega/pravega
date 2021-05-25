@@ -1013,6 +1013,35 @@ public class AppendProcessorTest extends ThreadPooledTestSuite {
         verifyNoMoreInteractions(store);
     }
 
+    @Test
+    public void testPostAppendFromOldWriterState() {
+        String streamSegmentName = "scope/stream/0.#epoch.0";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        ConnectionTracker tracker = mock(ConnectionTracker.class);
+        val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
+        AppendProcessor processor = AppendProcessor.defaultBuilder()
+                .store(store)
+                .connection(new TrackedConnection(connection, tracker))
+                .statsRecorder(mockedRecorder)
+                .build();
+
+        setupGetAttributes(streamSegmentName, clientId, store);
+        val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture((long) data.length));
+
+        SetupAppend setupAppendCommand = new SetupAppend(1, clientId, streamSegmentName, "");
+        processor.setupAppend(setupAppendCommand);
+        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+
+        // Now, an "old" append gets processed. At this point, we simulate that the writer has reconnected and has a
+        // different initialEventNumber in WriterState.
+        AssertExtensions.assertThrows(IllegalStateException.class, () ->
+                processor.validateWriterStatePostAppend(new Append(streamSegmentName, clientId, data.length, 0, Unpooled.wrappedBuffer(data), null, requestId),
+                new WriterState(1), false));
+    }
+
     private <T> CompletableFuture<T> delayedResponse(T value) {
         return Futures.delayedFuture(Duration.ofMillis(1), executorService()).thenApply(v -> value);
     }

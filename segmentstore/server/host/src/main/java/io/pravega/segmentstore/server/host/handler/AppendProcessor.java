@@ -413,9 +413,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      *
      * @param append  Append being processed.
      * @param state   Initial state for this writer.
+     *
      * @param success Whether the append was successdully processed by the Segment Store.
      */
-    private void validateWriterStatePostAppend(Append append, WriterState state, boolean success) {
+    @VisibleForTesting
+    void validateWriterStatePostAppend(Append append, WriterState state, boolean success) {
         Preconditions.checkNotNull(state, "state");
         WriterState current = this.writerStates.get(Pair.of(append.getSegment(), append.getWriterId()));
         if (current != null) {
