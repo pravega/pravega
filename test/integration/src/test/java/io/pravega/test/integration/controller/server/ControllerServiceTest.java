@@ -147,8 +147,8 @@ public class ControllerServiceTest {
     public void testControllerService() throws Exception {
         final String scope1 = "scope1";
         final String scope2 = "scope2";
-        controllerWrapper.getControllerService().createScope("scope1").get();
-        controllerWrapper.getControllerService().createScope("scope2").get();
+        controllerWrapper.getControllerService().createScope("scope1", 0L).get();
+        controllerWrapper.getControllerService().createScope("scope2", 0L).get();
         Controller controller = controllerWrapper.getController();
 
         final String streamName1 = "stream1";
@@ -245,7 +245,7 @@ public class ControllerServiceTest {
                                                   final String streamName) throws InterruptedException,
                                                                            ExecutionException {
         CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(new StreamImpl(scope, streamName), System.currentTimeMillis() - 36000);
-        assertFalse("FAILURE: Fetching positions at given time before stream creation failed", segments.get().size() != controller.getCurrentSegments(scope, streamName).get().getSegments().size());
+        assertFalse("FAILURE: Fetching positions at given time before stream creation failed", segments.get().size() == 1);
        
     }
 
@@ -293,6 +293,7 @@ public class ControllerServiceTest {
         assertTrue(controller.updateStream(scope, streamName, StreamConfiguration.builder()
                                           .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
                                           .build()).get());
+        assertEquals(3, controller.getCurrentSegments(scope, streamName).get().getSegments().size());
     }
 
     private static void updateScaleFactor(Controller controller, final String scope,
@@ -506,7 +507,7 @@ public class ControllerServiceTest {
     private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,
                                    final ScalingPolicy scalingPolicy, final String scopeSeal,
                                    final String streamNameSeal) throws InterruptedException, ExecutionException {
-        controllerWrapper.getControllerService().createScope("scopeSeal").get();
+        controllerWrapper.getControllerService().createScope("scopeSeal", 0L).get();
 
         final StreamConfiguration configSeal = StreamConfiguration.builder()
                 .scalingPolicy(scalingPolicy)

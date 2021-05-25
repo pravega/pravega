@@ -23,6 +23,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.controller.store.TestOperationContext;
 import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.VersionedMetadata;
@@ -39,6 +40,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -48,13 +50,17 @@ import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 
 public class StreamTest extends ThreadPooledTestSuite {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     private TestingServer zkTestServer;
     private CuratorFramework cli;
     private ZkOrderedStore orderer;
@@ -83,15 +89,20 @@ public class StreamTest extends ThreadPooledTestSuite {
         PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(
                 SegmentHelperMock.getSegmentHelperMockForTables(executorService()), GrpcAuthHelper.getDisabledAuthHelper(), executorService());
         PravegaTablesScope scope = new PravegaTablesScope("test", storeHelper);
-        scope.createScope().join();
-        scope.addStreamToScope("test").join();
+        OperationContext context = getContext();
+        scope.createScope(context).join();
+        scope.addStreamToScope("test", context).join();
 
         PravegaTablesStream stream = new PravegaTablesStream("test", "test",
                 storeHelper, orderer, () -> 0,
                 scope::getStreamsInScopeTableName, executorService());
         testStream(stream);
     }
-    
+
+    private OperationContext getContext() {
+        return new TestOperationContext();
+    }
+
     @Test(timeout = 10000)
     public void testZkCreateStream() throws ExecutionException, InterruptedException {
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executorService());
@@ -114,62 +125,63 @@ public class StreamTest extends ThreadPooledTestSuite {
         final int startingSegmentNumber = 0;
         final StreamConfiguration streamConfig1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         final StreamConfiguration streamConfig2 = StreamConfiguration.builder().scalingPolicy(policy2).build();
+        OperationContext context = getContext();
 
-        CreateStreamResponse response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
+        CreateStreamResponse response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        stream.createStreamMetadata().join();
-        stream.storeCreationTimeIfAbsent(creationTime1).get();
+        stream.createStreamMetadata(context).join();
+        stream.storeCreationTimeIfAbsent(creationTime1, context).join();
 
-        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
 
-        stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete("test", "test", streamConfig1)).get();
+        stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete("test", "test", streamConfig1), context).join();
 
-        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_CREATING, response.getStatus());
 
-        stream.createStateIfAbsent(StateRecord.builder().state(State.UNKNOWN).build()).get();
+        stream.createStateIfAbsent(StateRecord.builder().state(State.UNKNOWN).build(), context).join();
 
-        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_CREATING, response.getStatus());
 
-        stream.updateState(State.CREATING).get();
+        stream.updateState(State.CREATING, context).join();
 
-        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_CREATING, response.getStatus());
 
-        stream.updateState(State.ACTIVE).get();
+        stream.updateState(State.ACTIVE, context).join();
 
-        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
 
-        stream.updateState(State.SEALING).get();
+        stream.updateState(State.SEALING, context).join();
 
-        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime1, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
+        response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber, context).join();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
     }
 
@@ -192,8 +204,10 @@ public class StreamTest extends ThreadPooledTestSuite {
             testConcurrentGetSuccessorScale(store, (x, y) -> {
                 PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executorService());
                 PravegaTablesScope scope = new PravegaTablesScope(x, storeHelper);
-                Futures.exceptionallyExpecting(scope.createScope(), e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null).join();
-                scope.addStreamToScope(y).join();
+                OperationContext context = getContext();
+                Futures.exceptionallyExpecting(scope.createScope(context), 
+                        e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null).join();
+                scope.addStreamToScope(y, context).join();
                 return new PravegaTablesStream(x, y, storeHelper, orderer, () -> 0, scope::getStreamsInScopeTableName, executorService());
             });
         }
@@ -204,7 +218,7 @@ public class StreamTest extends ThreadPooledTestSuite {
 
         final String streamName = "test";
         String scopeName = "test";
-        store.createScope(scopeName).get();
+        store.createScope(scopeName, null, executorService()).join();
 
         Stream stream = spy(createStream.apply(scopeName, streamName));
 
@@ -212,8 +226,8 @@ public class StreamTest extends ThreadPooledTestSuite {
                 .scalingPolicy(policy)
                 .build();
 
-        store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executorService()).get();
-        store.setState(scopeName, streamName, State.ACTIVE, null, executorService()).get();
+        store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executorService()).join();
+        store.setState(scopeName, streamName, State.ACTIVE, null, executorService()).join();
 
         List<Map.Entry<Double, Double>> newRanges;
 
@@ -223,27 +237,30 @@ public class StreamTest extends ThreadPooledTestSuite {
         ArrayList<Long> sealedSegments = Lists.newArrayList(0L);
         long one = NameUtils.computeSegmentId(1, 1);
         long two = NameUtils.computeSegmentId(2, 1);
-        VersionedMetadata<EpochTransitionRecord> response = stream.submitScale(sealedSegments, newRanges, scale, null).join();
+        OperationContext context = getContext();
+        VersionedMetadata<EpochTransitionRecord> response = stream.submitScale(sealedSegments, newRanges, scale, 
+                null, context).join();
         Map<Long, Map.Entry<Double, Double>> newSegments = response.getObject().getNewSegmentsWithRange();
-        VersionedMetadata<State> state = stream.getVersionedState().join();
-        state = stream.updateVersionedState(state, State.SCALING).join();
-        stream.startScale(false, response, state).join();
-        stream.scaleCreateNewEpoch(response).get();
+        VersionedMetadata<State> state = stream.getVersionedState(context).join();
+        state = stream.updateVersionedState(state, State.SCALING, context).join();
+        stream.startScale(false, response, state, context).join();
+        stream.scaleCreateNewEpoch(response, context).join();
         // history table has a partial record at this point.
         // now we could have sealed the segments so get successors could be called.
 
-        Map<Long, List<Long>> successors = stream.getSuccessorsWithPredecessors(0).get()
-                                                   .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
+        Map<Long, List<Long>> successors = stream.getSuccessorsWithPredecessors(0, context).join()
+                                                   .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(),
+                        Map.Entry::getValue));
 
         assertTrue(successors.containsKey(one) && successors.containsKey(two));
 
         // reset mock so that we can resume scale operation
 
-        stream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response).get();
-        stream.completeScale(response).join();
+        stream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response, context).join();
+        stream.completeScale(response, context).join();
 
-        successors = stream.getSuccessorsWithPredecessors(0).get()
-                             .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
+        successors = stream.getSuccessorsWithPredecessors(0, context).join()
+                             .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), Map.Entry::getValue));
 
         assertTrue(successors.containsKey(one) && successors.containsKey(two));
     }

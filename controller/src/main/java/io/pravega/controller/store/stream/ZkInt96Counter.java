@@ -119,26 +119,28 @@ public class ZkInt96Counter {
 
     @VisibleForTesting
     CompletableFuture<Void> getRefreshFuture() {
-        return storeHelper.createZNodeIfNotExist(COUNTER_PATH, Int96.ZERO.toBytes())
-                          .thenCompose(v -> storeHelper.getData(COUNTER_PATH, Int96::fromBytes)
-                                                       .thenCompose(data -> {
-                                                           Int96 previous = data.getObject();
-                                                           Int96 nextLimit = previous.add(COUNTER_RANGE);
-                                                           return storeHelper.setData(COUNTER_PATH, nextLimit.toBytes(), data.getVersion())
-                                                                             .thenAccept(x -> {
-                                                                                 // Received new range, we should reset the counter and limit under the lock
-                                                                                 // and then reset refreshfutureref to null
-                                                                                 synchronized (lock) {
-                                                                                     // Note: counter is set to previous range's highest value. Always get the
-                                                                                     // next counter by calling counter.incrementAndGet otherwise there will
-                                                                                     // be a collision with counter used by someone else.
-                                                                                     counter.set(previous.getMsb(), previous.getLsb());
-                                                                                     limit.set(nextLimit.getMsb(), nextLimit.getLsb());
-                                                                                     refreshFutureRef = null;
-                                                                                     log.info("Refreshed counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
-                                                                                 }
-                                                                             });
-                                                       }));
+        return storeHelper
+                .createZNodeIfNotExist(COUNTER_PATH, Int96.ZERO.toBytes())
+                .thenCompose(v -> storeHelper.getData(COUNTER_PATH, Int96::fromBytes)
+                           .thenCompose(data -> {
+                               Int96 previous = data.getObject();
+                               Int96 nextLimit = previous.add(COUNTER_RANGE);
+                               return storeHelper.setData(COUNTER_PATH, nextLimit.toBytes(), data.getVersion())
+                                     .thenAccept(x -> {
+                                         // Received new range, we should reset the counter and limit under the lock
+                                         // and then reset refreshfutureref to null
+                                         synchronized (lock) {
+                                             // Note: counter is set to previous range's highest value. Always get the
+                                             // next counter by calling counter.incrementAndGet otherwise there will
+                                             // be a collision with counter used by someone else.
+                                             counter.set(previous.getMsb(), previous.getLsb());
+                                             limit.set(nextLimit.getMsb(), nextLimit.getLsb());
+                                             refreshFutureRef = null;
+                                             log.info("Refreshed counter range. Current counter is {}. Current limit is {}",
+                                                     counter.get(), limit.get());
+                                         }
+                                     });
+                           }));
     }
 
     // region getters and setters for testing

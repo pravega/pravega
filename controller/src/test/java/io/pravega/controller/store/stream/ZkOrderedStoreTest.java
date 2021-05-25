@@ -76,25 +76,25 @@ public class ZkOrderedStoreTest {
         ZkOrderedStore store = new ZkOrderedStore(test, zkStoreHelper, executor, 1);
         
         // add 5 entities
-        long position1 = store.addEntity(scope, stream, test + 1).join();
+        long position1 = store.addEntity(scope, stream, test + 1, 0L).join();
         assertEquals(0L, position1);
         // verify that set 0 is not sealed
         assertFalse(store.isSealed(scope, stream, 0).join());
         
-        long position2 = store.addEntity(scope, stream, test + 2).join();
+        long position2 = store.addEntity(scope, stream, test + 2, 0L).join();
         assertEquals(1L, position2);
         // verify that set 0 is still not sealed
         assertFalse(store.isSealed(scope, stream, 0).join());
 
-        long position3 = store.addEntity(scope, stream, test + 3).join();
+        long position3 = store.addEntity(scope, stream, test + 3, 0L).join();
         assertEquals(ZkOrderedStore.Position.toLong(1, 0), position3);
         // verify that set 0 is sealed
         assertTrue(store.isSealed(scope, stream, 0).join());
 
-        long position4 = store.addEntity(scope, stream, test + 4).join();
+        long position4 = store.addEntity(scope, stream, test + 4, 0L).join();
         assertEquals(ZkOrderedStore.Position.toLong(1, 1), position4);
         
-        long position5 = store.addEntity(scope, stream, test + 5).join();
+        long position5 = store.addEntity(scope, stream, test + 5, 0L).join();
         assertEquals(ZkOrderedStore.Position.toLong(2, 0), position5);
         // verify that set 1 is sealed
         assertTrue(store.isSealed(scope, stream, 1).join());
@@ -149,7 +149,7 @@ public class ZkOrderedStoreTest {
         ZKStoreHelper zkStoreHelper = spy(this.zkStoreHelper);
         ZkOrderedStore store = new ZkOrderedStore(test, zkStoreHelper, executor, 1);
         
-        store.addEntity(scope, stream, test + 1).join();
+        store.addEntity(scope, stream, test + 1, 0L).join();
         store.getEntitiesWithPosition(scope, stream).join();
         
         verify(zkStoreHelper, times(1)).sync(any());

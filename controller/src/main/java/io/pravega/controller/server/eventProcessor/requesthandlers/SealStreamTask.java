@@ -67,7 +67,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
         String scope = request.getScope();
         String stream = request.getStream();
         long requestId = request.getRequestId();
-        final OperationContext context = streamMetadataStore.createContext(scope, stream);
+        final OperationContext context = streamMetadataStore.createStreamContext(scope, stream, requestId);
 
         // when seal stream task is picked, if the state is sealing/sealed, process sealing, else postpone.
         return streamMetadataStore.getState(scope, stream, true, context, executor)

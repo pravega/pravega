@@ -27,6 +27,7 @@ import io.pravega.controller.store.ZKStoreHelper;
 import io.pravega.controller.store.kvtable.records.KVTConfigurationRecord;
 import io.pravega.controller.store.kvtable.records.KVTEpochRecord;
 import io.pravega.controller.store.kvtable.records.KVTStateRecord;
+import io.pravega.controller.store.stream.OperationContext;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -86,7 +87,9 @@ class ZookeeperKVTable extends AbstractKVTableBase {
 
     // region overrides
     @Override
-    public CompletableFuture<CreateKVTableResponse> checkKeyValueTableExists(final KeyValueTableConfiguration configuration, final long creationTime, final int startingSegmentNumber) {
+    public CompletableFuture<CreateKVTableResponse> checkKeyValueTableExists(final KeyValueTableConfiguration configuration,
+                                                                             final long creationTime, final int startingSegmentNumber, 
+                                                                             OperationContext context) {
         // If stream exists, but is in a partially complete state, then fetch its creation time and configuration and any
         // metadata that is available from a previous run. If the existing stream has already been created successfully earlier,
         return zkStoreHelper.checkExists(creationPath).thenCompose(exists -> {
@@ -95,10 +98,11 @@ class ZookeeperKVTable extends AbstractKVTableBase {
                         configuration, creationTime, startingSegmentNumber));
             }
 
-            return getCreationTime().thenCompose(storedCreationTime ->
+            return getCreationTime(context).thenCompose(storedCreationTime ->
                     zkStoreHelper.checkExists(configurationPath).thenCompose(configExists -> {
                         if (configExists) {
-                            return handleConfigExists(storedCreationTime, startingSegmentNumber, storedCreationTime == creationTime);
+                            return handleConfigExists(storedCreationTime, startingSegmentNumber, 
+                                    storedCreationTime == creationTime, context);
                         } else {
                             return CompletableFuture.completedFuture(new CreateKVTableResponse(CreateKVTableResponse.CreateStatus.NEW,
                                     configuration, storedCreationTime, startingSegmentNumber));
@@ -108,40 +112,42 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<Void> createKVTableMetadata() {
+    CompletableFuture<Void> createKVTableMetadata(OperationContext context) {
         return Futures.toVoid(zkStoreHelper.createZNodeIfNotExist(getKvtablePath()));
     }
 
-    private CompletableFuture<CreateKVTableResponse> handleConfigExists(long creationTime, int startingSegmentNumber, boolean creationTimeMatched) {
+    private CompletableFuture<CreateKVTableResponse> handleConfigExists(long creationTime, int startingSegmentNumber,
+                                                                        boolean creationTimeMatched, OperationContext context) {
         CreateKVTableResponse.CreateStatus status = creationTimeMatched ?
                 CreateKVTableResponse.CreateStatus.NEW : CreateKVTableResponse.CreateStatus.EXISTS_CREATING;
 
-        return getConfiguration().thenCompose(config -> zkStoreHelper.checkExists(statePath)
-                                                             .thenCompose(stateExists -> {
-                                                                 if (!stateExists) {
-                                                                     return CompletableFuture.completedFuture(new CreateKVTableResponse(status, config, creationTime, startingSegmentNumber));
-                                                                 }
+        return getConfiguration(context).thenCompose(config -> zkStoreHelper.checkExists(statePath)
+                 .thenCompose(stateExists -> {
+                     if (!stateExists) {
+                         return CompletableFuture.completedFuture(new CreateKVTableResponse(status, 
+                                 config, creationTime, startingSegmentNumber));
+                     }
 
-                                                                 return getState(false).thenApply(state -> {
-                                                                     if (state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
-                                                                         return new CreateKVTableResponse(status, config, creationTime, startingSegmentNumber);
-                                                                     } else {
-                                                                         return new CreateKVTableResponse(CreateKVTableResponse.CreateStatus.EXISTS_ACTIVE,
-                                                                                 config, creationTime, startingSegmentNumber);
-                                                                     }
-                                                                 });
-                                                             }));
+                     return getState(false, context).thenApply(state -> {
+                         if (state.equals(KVTableState.UNKNOWN) || state.equals(KVTableState.CREATING)) {
+                             return new CreateKVTableResponse(status, config, creationTime, startingSegmentNumber);
+                         } else {
+                             return new CreateKVTableResponse(CreateKVTableResponse.CreateStatus.EXISTS_ACTIVE,
+                                     config, creationTime, startingSegmentNumber);
+                         }
+                     });
+                 }));
     }
 
     @Override
-    public CompletableFuture<Long> getCreationTime() {
-        return getId().thenCompose(id -> zkStoreHelper.getCachedData(creationPath, id, x -> BitConverter.readLong(x, 0))
+    public CompletableFuture<Long> getCreationTime(OperationContext context) {
+        return getId(context).thenCompose(id -> zkStoreHelper.getCachedData(creationPath, id, x -> BitConverter.readLong(x, 0))
                 .thenApply(VersionedMetadata::getObject));
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getCurrentEpochRecordData(boolean ignoreCached) {
-        return getId().thenCompose(id -> {
+    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getCurrentEpochRecordData(boolean ignoreCached, OperationContext context) {
+        return getId(context).thenCompose(id -> {
 
             CompletableFuture<VersionedMetadata<Integer>> future;
             if (ignoreCached) {
@@ -149,19 +155,19 @@ class ZookeeperKVTable extends AbstractKVTableBase {
             } else {
                 future = zkStoreHelper.getCachedData(currentEpochRecordPath, id, x -> BitConverter.readInt(x, 0));
             }
-            return future.thenCompose(versionedEpochNumber -> getEpochRecord(versionedEpochNumber.getObject())
+            return future.thenCompose(versionedEpochNumber -> getEpochRecord(versionedEpochNumber.getObject(), context)
                     .thenApply(epochRecord -> new VersionedMetadata<>(epochRecord, versionedEpochNumber.getVersion())));
         });
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getEpochRecordData(int epoch) {
+    CompletableFuture<VersionedMetadata<KVTEpochRecord>> getEpochRecordData(int epoch, OperationContext context) {
         String path = String.format(epochRecordPathFormat, epoch);
-        return getId().thenCompose(id -> zkStoreHelper.getCachedData(path, id, KVTEpochRecord::fromBytes));
+        return getId(context).thenCompose(id -> zkStoreHelper.getCachedData(path, id, KVTEpochRecord::fromBytes));
     }
 
     @Override
-    CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime) {
+    CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime, OperationContext context) {
         byte[] b = new byte[Long.BYTES];
         BitConverter.writeLong(b, 0, creationTime);
 
@@ -169,8 +175,8 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTConfigurationRecord>> getConfigurationData(boolean ignoreCached) {
-        return getId().thenCompose(id -> {
+    CompletableFuture<VersionedMetadata<KVTConfigurationRecord>> getConfigurationData(boolean ignoreCached, OperationContext context) {
+        return getId(context).thenCompose(id -> {
             if (ignoreCached) {
                 return zkStoreHelper.getData(configurationPath, KVTConfigurationRecord::fromBytes);
             }
@@ -180,12 +186,12 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<Void> createConfigurationIfAbsent(final KVTConfigurationRecord configuration) {
+    CompletableFuture<Void> createConfigurationIfAbsent(final KVTConfigurationRecord configuration, OperationContext context) {
         return Futures.toVoid(zkStoreHelper.createZNodeIfNotExist(configurationPath, configuration.toBytes()));
     }
 
     @Override
-    CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data) {
+    CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(KVTEpochRecord data, OperationContext context) {
         byte[] epochData = new byte[Integer.BYTES];
         BitConverter.writeInt(epochData, 0, data.getEpoch());
 
@@ -193,14 +199,14 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data) {
+    CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, KVTEpochRecord data, OperationContext context) {
         String path = String.format(epochRecordPathFormat, epoch);
         return Futures.toVoid(zkStoreHelper.createZNodeIfNotExist(path, data.toBytes()));
     }
 
     @Override
-    CompletableFuture<Version> setStateData(final VersionedMetadata<KVTStateRecord> state) {
-        return getId().thenCompose(id -> zkStoreHelper.setData(statePath, state.getObject().toBytes(), state.getVersion())
+    CompletableFuture<Version> setStateData(final VersionedMetadata<KVTStateRecord> state, OperationContext context) {
+        return getId(context).thenCompose(id -> zkStoreHelper.setData(statePath, state.getObject().toBytes(), state.getVersion())
                     .thenApply(r -> {
                         zkStoreHelper.invalidateCache(statePath, id);
                         return new Version.IntVersion(r);
@@ -208,8 +214,8 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    CompletableFuture<VersionedMetadata<KVTStateRecord>> getStateData(boolean ignoreCached) {
-        return getId().thenCompose(id -> {
+    CompletableFuture<VersionedMetadata<KVTStateRecord>> getStateData(boolean ignoreCached, OperationContext context) {
+        return getId(context).thenCompose(id -> {
             if (ignoreCached) {
                 return zkStoreHelper.getData(statePath, KVTStateRecord::fromBytes);
             }
@@ -230,7 +236,7 @@ class ZookeeperKVTable extends AbstractKVTableBase {
 
 
     @Override
-    public CompletableFuture<String> getId() {
+    public CompletableFuture<String> getId(OperationContext context) {
         String id = this.idRef.get();
         if (!Strings.isNullOrEmpty(id)) {
             return CompletableFuture.completedFuture(id);
@@ -251,12 +257,12 @@ class ZookeeperKVTable extends AbstractKVTableBase {
     }
 
     @Override
-    public CompletableFuture<Void> delete() {
+    public CompletableFuture<Void> delete(OperationContext context) {
         return zkStoreHelper.deleteTree(kvtablePath);
     }
 
     @Override
-    CompletableFuture<Void> createStateIfAbsent(KVTStateRecord state) {
+    CompletableFuture<Void> createStateIfAbsent(KVTStateRecord state, OperationContext context) {
         return Futures.toVoid(zkStoreHelper.createZNodeIfNotExist(statePath, state.toBytes()));
     }
 }
