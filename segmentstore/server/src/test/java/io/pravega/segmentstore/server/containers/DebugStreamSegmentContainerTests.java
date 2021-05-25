@@ -511,8 +511,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         return StreamSegmentInformation.builder()
                 .name(segmentName)
-                .sealed(RANDOM.nextBoolean())
-                .deleted(RANDOM.nextBoolean())
+                .sealed(false)
+                .deleted(false)
                 .startOffset(0)
                 .length(RANDOM.nextInt(10000))
                 .attributes(attributes)
