@@ -375,11 +375,11 @@ public class ContainerRecoveryUtils {
     }
 
     /**
-     * Registers a segment in the {@link MetadataStore} of the given {@link DebugStreamSegmentContainer} instance using the
-     * details from the given from the given {@link SegmentProperties}, then the core attributes the segment are also updated
-     * using the attributes from the given {@link SegmentProperties}.
-     * @param container     A {@link DebugStreamSegmentContainer} instance for registering the given segment and updating its
-     *                      attributes.
+     * Registers a segment in the {@link MetadataStore} of the given {@link DebugStreamSegmentContainer} instance using
+     * the details from the given from the given {@link SegmentProperties}, and then the core attributes of the segment
+     * are also updated using the attributes from the given {@link SegmentProperties}.
+     * @param container     A {@link DebugStreamSegmentContainer} instance for registering the given segment and updating
+     *                      its core attributes.
      * @param segment       A {@link SegmentProperties} instance which has properties of the segment.
      * @param timeout       Timeout for the operation.
      * @return              A CompletableFuture which when completed will indicate the operation has completed.
