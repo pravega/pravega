@@ -25,6 +25,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
@@ -38,14 +39,13 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestingServerStarter;
 import lombok.Synchronized;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
 import org.junit.Test;
+import org.junit.ClassRule;
 
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
@@ -83,31 +83,24 @@ import static org.mockito.Mockito.spy;
  */
 public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
-    private TestingServer zkServer;
-    private CuratorFramework cli;
+    private static final RetryPolicy RETRY_POLICY = new RetryOneTime(2000);
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(8000, 5000, RETRY_POLICY);
     private SegmentHelper segmentHelperMockForTables;
 
     @Override
     public void setupStore() throws Exception {
-        zkServer = new TestingServerStarter().start();
-        zkServer.start();
-        int sessionTimeout = 8000;
-        int connectionTimeout = 5000;
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
-        cli.start();
         segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(executor);
-        store = new TestPravegaStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(1), GrpcAuthHelper.getDisabledAuthHelper());
+        store = new TestPravegaStore(segmentHelperMockForTables, PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, Duration.ofSeconds(1), GrpcAuthHelper.getDisabledAuthHelper());
         ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
                 BucketStore.ServiceType.WatermarkingService, 1);
 
-        bucketStore = StreamStoreFactory.createZKBucketStore(map, cli, executor);
+        bucketStore = StreamStoreFactory.createZKBucketStore(map, PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
     }
 
     @Override
     public void cleanupStore() throws Exception {
         store.close();
-        cli.close();
-        zkServer.close();
     }
     
     @Test
@@ -254,7 +247,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
     @Test
     public void testGarbageCollection() {
         try (PravegaTablesStreamMetadataStore testStore = new PravegaTablesStreamMetadataStore(
-                segmentHelperMockForTables, cli, executor, Duration.ofSeconds(100), GrpcAuthHelper.getDisabledAuthHelper())) {
+                segmentHelperMockForTables, PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, Duration.ofSeconds(100), GrpcAuthHelper.getDisabledAuthHelper())) {
             AtomicInteger currentBatch = new AtomicInteger(0);
             Supplier<Integer> supplier = currentBatch::get;
             ZKGarbageCollector gc = mock(ZKGarbageCollector.class);
