@@ -375,14 +375,6 @@ public class ContainerRecoveryUtils {
     }
 
     /**
-     * * This method takes a {@link DebugStreamSegmentContainer} instance and a {@link SegmentProperties} object as arguments
-     *      * and takes one of the following actions:
-     *      * 1. If the segment is present in the {@link MetadataStore} of the container and its length or sealed status or both
-     *      * doesn't match with the corresponding details from the given {@link SegmentProperties}, then it is deleted from there
-     *      * and registered using the details from the given {@link SegmentProperties} instance.
-     *      * 2. If the segment is absent in the {@link MetadataStore}, then it is registered using the details from the given
-     *      * {@link SegmentProperties}.
-     *
      * Registers a segment in the {@link MetadataStore} of the given {@link DebugStreamSegmentContainer} instance using the
      * details from the given from the given {@link SegmentProperties}, then the core attributes the segment are also updated
      * using the attributes from the given {@link SegmentProperties}.
@@ -400,7 +392,7 @@ public class ContainerRecoveryUtils {
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
                 .collect(Collectors.toList());
         return container.registerSegment(segment.getName(), segment.getLength(), segment.isSealed())
-                .thenAccept(x -> container.updateAttributes(segment.getName(), attributeUpdates, timeout));
+                .thenCompose(x -> container.updateAttributes(segment.getName(), attributeUpdates, timeout));
     }
 
     /**
