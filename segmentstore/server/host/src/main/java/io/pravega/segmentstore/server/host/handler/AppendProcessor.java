@@ -235,8 +235,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         long traceId = LoggerHelpers.traceEnter(log, "append", append);
         UUID id = append.getWriterId();
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
-        Preconditions.checkState(state != null && state.getFlowId() == append.getFlowId(),
-            "Data from unexpected connection: Segment=%s, WriterId=%s, FlowId=%s.", append.getSegment(), id, append.getFlowId());
+        Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s, FlowId=%s.",
+                append.getSegment(), id, append.getFlowId());
+        Preconditions.checkState(state.getFlowId() == append.getFlowId(), "Data from a previous connection: Segment=%s, WriterId=%s, FlowId=%s.",
+                append.getSegment(), id, append.getFlowId());
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
         this.connection.adjustOutstandingBytes(appendLength);
