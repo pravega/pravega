@@ -66,10 +66,10 @@ class WriterState {
     @GuardedBy("this")
     private long smallestFailedEventNumber;
     /**
-     * Flow id for this Connection.
+     * Initial event number when SetupAppend was invoked for this {@link WriterState}.
      */
     @GuardedBy("this")
-    private long flowId;
+    private long initialEventNumber;
     /**
      * The {@link ErrorContext}s that have been recorded for this instance.
      */
@@ -85,12 +85,12 @@ class WriterState {
      *
      * @param initialEventNumber The current Event Number on the Segment associated with this writer.
      */
-    WriterState(long initialEventNumber, long flowId) {
+    WriterState(long initialEventNumber) {
         this.inFlightCount = 0;
         this.smallestFailedEventNumber = NO_FAILED_EVENT_NUMBER; // Nothing failed yet.
         this.lastStoredEventNumber = initialEventNumber;
         this.lastAckedEventNumber = initialEventNumber;
-        this.flowId = flowId;
+        this.initialEventNumber = initialEventNumber;
     }
 
     //endregion
@@ -190,12 +190,12 @@ class WriterState {
     }
 
     /**
-     * Gets the Flow Id associated to the {@link WriterState}.
+     * Gets the initial event number associated to the {@link WriterState}.
      *
-     * @return The Flow Id for this {@link WriterState}.
+     * @return The initial event number for this {@link WriterState}.
      */
-    synchronized long getFlowId() {
-        return this.flowId;
+    synchronized long getInitialEventNumber() {
+        return this.initialEventNumber;
     }
 
     /**
@@ -246,7 +246,8 @@ class WriterState {
 
     @Override
     public synchronized String toString() {
-        return String.format("Stored=%s, Acked=%s, InFlight=%s", this.lastStoredEventNumber, this.lastAckedEventNumber, this.inFlightCount);
+        return String.format("Stored=%s, Acked=%s, InFlight=%s, InitialEvent=%s", this.lastStoredEventNumber,
+                this.lastAckedEventNumber, this.inFlightCount, this.initialEventNumber);
     }
 
     //endregion

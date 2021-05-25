@@ -187,7 +187,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                                     // It should be noted that only one connection for a given segment writer is created by the client.
                                     // The event number sent by the AppendSetup command is an implicit ack, the writer acks all events
                                     // below the specified event number.
-                                    WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber, setupAppend.getRequestId()));
+                                    WriterState current = this.writerStates.put(Pair.of(newSegment, writer), new WriterState(eventNumber));
                                     if (current != null) {
                                         log.info("SetupAppend invoked again for writer {}. Last event number from store is {}. Prev writer state {}",
                                                 writer, eventNumber, current);
@@ -237,8 +237,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         WriterState state = this.writerStates.get(Pair.of(append.getSegment(), id));
         Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s, FlowId=%s.",
                 append.getSegment(), id, append.getFlowId());
-        Preconditions.checkState(state.getFlowId() == append.getFlowId(), "Data from a previous connection: Segment=%s, WriterId=%s, FlowId=%s.",
-                append.getSegment(), id, append.getFlowId());
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
         this.connection.adjustOutstandingBytes(appendLength);
@@ -267,8 +265,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     private void handleAppendResult(final Append append, Long newWriteOffset, Throwable exception, WriterState state, Timer elapsedTimer) {
-        Preconditions.checkNotNull(state, "state");
         boolean success = exception == null;
+        validateWriterStatePostAppend(append, state, success);
         try {
             if (success) {
                 synchronized (state.getAckLock()) {
@@ -407,6 +405,26 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Error (Segment = '{}', Operation = 'append'): {}.", segment, u.toString());
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
+        }
+    }
+
+    /**
+     * Validates that the {@link WriterState} post append is still valid.
+     *
+     * @param append  Append being processed.
+     * @param state   Initial state for this writer.
+     * @param success Whether the append was successdully processed by the Segment Store.
+     */
+    private void validateWriterStatePostAppend(Append append, WriterState state, boolean success) {
+        Preconditions.checkNotNull(state, "state");
+        WriterState current = this.writerStates.get(Pair.of(append.getSegment(), append.getWriterId()));
+        if (current != null) {
+            // If the getInitialEventNumber is different between the passed WriterState and the one in the writerStates
+            // map, it means that a reconnection has occurred while this append was being processed. In this case, we
+            // can just fail the pre-condition and forget about this append, as the writer is writing appends on a new
+            // connection.
+            Preconditions.checkState(state.getInitialEventNumber() == current.getInitialEventNumber(),
+                    "Append post processing from old connection: Segment=%s, WriterId=%s, Success=%s.", append.getSegment(), append.getWriterId(), success);
         }
     }
 
