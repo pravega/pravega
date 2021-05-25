@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.checkpoint;
 
@@ -143,6 +149,29 @@ class ZKCheckpointStore implements CheckpointStore {
             throw new CheckpointStoreException(CheckpointStoreException.Type.NodeNotEmpty, "ReaderGroup is not empty.");
         }
         removeEmptyNode(path);
+    }
+    
+    @Override
+    public Map<String, Position> removeProcessFromGroup(String process, String readerGroup) throws CheckpointStoreException {
+        String path = getReaderGroupPath(process, readerGroup);
+
+        try {
+            updateReaderGroupData(path, groupData ->
+                    new ReaderGroupData(ReaderGroupData.State.Sealed, groupData.getReaderIds()));
+            Map<String, Position> result = getPositions(process, readerGroup);
+            for (String readerId : result.keySet()) {
+                removeReader(process, readerGroup, readerId);
+            }
+            removeReaderGroup(process, readerGroup);
+            return result;
+        } catch (KeeperException.NoNodeException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.NoNode, e);
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException
+                | KeeperException.SessionExpiredException e) {
+            throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
+        } catch (Exception e) {
+            throw new CheckpointStoreException(e);
+        }
     }
 
     @Override

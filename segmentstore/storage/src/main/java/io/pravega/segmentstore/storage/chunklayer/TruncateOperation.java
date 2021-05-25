@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -31,6 +37,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_TRUNCATE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_TRUNCATE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_TRUNCATE_LATENCY;
 
@@ -85,7 +92,8 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                                                 txn.update(segmentMetadata);
 
                                                 // Check invariants.
-                                                Preconditions.checkState(segmentMetadata.getLength() == oldLength, "truncate should not change segment length");
+                                                Preconditions.checkState(segmentMetadata.getLength() == oldLength,
+                                                        "truncate should not change segment length. oldLength=%s Segment=%s", oldLength, segmentMetadata);
                                                 segmentMetadata.checkInvariants();
 
                                                 // Remove read index block entries.
@@ -114,6 +122,10 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         val elapsed = timer.getElapsed();
         SLTS_TRUNCATE_LATENCY.reportSuccessEvent(elapsed);
         SLTS_TRUNCATE_COUNT.inc();
+        if (segmentMetadata.isStorageSystemSegment()) {
+            SLTS_SYSTEM_TRUNCATE_COUNT.inc();
+            chunkedSegmentStorage.reportMetricsForSystemSegment(segmentMetadata);
+        }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
             log.warn("{} truncate - late op={}, segment={}, offset={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, elapsed.toMillis());
@@ -140,16 +152,13 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     private CompletableFuture<Void> commit(MetadataTransaction txn) {
         // Commit system logs.
         if (chunkedSegmentStorage.isStorageSystemSegment(segmentMetadata)) {
-            txn.setExternalCommitStep(() -> {
-                chunkedSegmentStorage.getSystemJournal().commitRecord(
-                        SystemJournal.TruncationRecord.builder()
-                                .segmentName(handle.getSegmentName())
-                                .offset(offset)
-                                .firstChunkName(segmentMetadata.getFirstChunk())
-                                .startOffset(startOffset.get())
-                                .build());
-                return null;
-            });
+            txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecord(
+                                                SystemJournal.TruncationRecord.builder()
+                                                        .segmentName(handle.getSegmentName())
+                                                        .offset(offset)
+                                                        .firstChunkName(segmentMetadata.getFirstChunk())
+                                                        .startOffset(startOffset.get())
+                                                        .build()));
         }
 
         // Finally commit.
@@ -165,7 +174,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
                 () -> txn.get(currentChunkName)
                         .thenAcceptAsync(storageMetadata -> {
                             currentMetadata = (ChunkMetadata) storageMetadata;
-                            Preconditions.checkState(null != currentMetadata, "currentMetadata is null.");
+                            Preconditions.checkState(null != currentMetadata, "currentMetadata is null. Segment=%s currentChunkName=%s", segmentMetadata, currentChunkName);
 
                             // If for given chunk start <= offset < end  then we have found the chunk that will be the first chunk.
                             if ((startOffset.get() <= offset) && (startOffset.get() + currentMetadata.getLength() > offset)) {
@@ -218,8 +227,7 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private void checkPreconditions() {
-        Preconditions.checkArgument(null != handle, "handle");
-        Preconditions.checkArgument(!handle.isReadOnly(), "handle");
-        Preconditions.checkArgument(offset >= 0, "offset");
+        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read only. Segment = %s", handle.getSegmentName());
+        Preconditions.checkArgument(offset >= 0, "offset must be non-negative. Segment = %s offset = %s", handle.getSegmentName(), offset);
     }
 }

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
@@ -18,6 +24,8 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ContainerException;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
@@ -41,10 +49,15 @@ import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
+import lombok.Data;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -59,13 +72,14 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
     // region Members
 
     private static final MetadataCheckpointSerializer METADATA_CHECKPOINT_SERIALIZER = new MetadataCheckpointSerializer();
+    private static final MetadataCheckpointIncrementalDeserializer METADATA_CHECKPOINT_INCREMENTAL_DESERIALIZER = new MetadataCheckpointIncrementalDeserializer();
     private static final StorageCheckpointSerializer STORAGE_CHECKPOINT_SERIALIZER = new StorageCheckpointSerializer();
     /**
      * Pointer to the real (live) ContainerMetadata. Used when needing access to live information (such as Storage Info).
      */
     private final ContainerMetadata realMetadata;
     private final HashMap<Long, SegmentMetadataUpdateTransaction> segmentUpdates;
-    private final HashMap<Long, UpdateableSegmentMetadata> newSegments;
+    private final HashMap<Long, StreamSegmentMetadata> newSegments;
     private final HashMap<String, Long> newSegmentNames;
     private final List<Long> newTruncationPoints;
     @Getter
@@ -267,6 +281,23 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         resetNewSequenceNumber();
     }
 
+    private boolean isNewSegment(long segmentId) {
+        return this.newSegments.containsKey(segmentId);
+    }
+
+    private void removeNewSegment(long segmentId) {
+        assert isRecoveryMode();
+        val sm = this.newSegments.remove(segmentId);
+        if (sm != null) {
+            sm.markInactive();
+            this.newSegmentNames.remove(sm.getName());
+            val ut = this.segmentUpdates.remove(segmentId);
+            if (ut != null) {
+                ut.setActive(false);
+            }
+        }
+    }
+
     private void resetNewSequenceNumber() {
         if (this.baseMetadata.isRecoveryMode()) {
             this.newSequenceNumber = ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER;
@@ -396,22 +427,25 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 // metadata is serialized in this operation. We need to discard whatever we have accumulated so far
                 // and rebuild the metadata from the information we have so far.
                 if (this.processedCheckpoint) {
+                    // A MetadataCheckpoint should be processed fully only if is the first checkpoint encountered.
+                    // Any subsequent MetadataCheckpoints should be partially processed and applied.
                     // But we can (should) only process at most one MetadataCheckpoint per recovery. Any additional
                     // ones are redundant (used just for Truncation purposes) and contain the same information as
                     // if we processed every operation in order, up to them.
-                    log.debug("MetadataUpdate[{}-{}}]: Skipping MetadataCheckpointOperation with SequenceNumber {} because we already have metadata changes.",
-                            this.containerId, this.transactionId, operation.getSequenceNumber());
-                    return;
-                }
+                    log.info("MetadataUpdate[{}]: Recovering MetadataCheckpointOperation({}) and applying incrementally.",
+                            this.containerId, operation.getSequenceNumber());
+                    METADATA_CHECKPOINT_INCREMENTAL_DESERIALIZER.deserialize(operation.getContents(), this);
+                } else {
+                    log.info("MetadataUpdate[{}]: Recovering MetadataCheckpointOperation({}).",
+                            this.containerId, operation.getSequenceNumber());
+                    clear();
 
-                log.info("MetadataUpdate[{}-{}}]: Recovering MetadataCheckpointOperation with SequenceNumber {}.",
-                        this.containerId, this.transactionId, operation.getSequenceNumber());
-                clear();
+                    METADATA_CHECKPOINT_SERIALIZER.deserialize(operation.getContents(), this);
+                    this.processedCheckpoint = true;
+                }
 
                 // This is not retrieved from serialization, but rather from the operation itself.
                 setOperationSequenceNumber(operation.getSequenceNumber());
-                METADATA_CHECKPOINT_SERIALIZER.deserialize(operation.getContents(), this);
-                this.processedCheckpoint = true;
             } else {
                 // In non-Recovery Mode, a MetadataCheckpointOperation means we need to serialize the current state of
                 // the Metadata, both the base Container Metadata and the current Transaction.
@@ -567,13 +601,13 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
      * Creates a new UpdateableSegmentMetadata for the given Segment and registers it.
      */
     private UpdateableSegmentMetadata createSegmentMetadata(String segmentName, long segmentId) {
-        UpdateableSegmentMetadata metadata = new StreamSegmentMetadata(segmentName, segmentId, this.containerId);
+        StreamSegmentMetadata metadata = new StreamSegmentMetadata(segmentName, segmentId, this.containerId);
         this.newSegments.put(metadata.getId(), metadata);
         this.newSegmentNames.put(metadata.getName(), metadata.getId());
         return metadata;
     }
 
-    private void copySegmentMetadata(Collection<UpdateableSegmentMetadata> newSegments, UpdateableContainerMetadata target) {
+    private void copySegmentMetadata(Collection<StreamSegmentMetadata> newSegments, UpdateableContainerMetadata target) {
         for (SegmentMetadata newMetadata : newSegments) {
             // Update real metadata with all the information from the new metadata.
             UpdateableSegmentMetadata existingMetadata = target.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId());
@@ -647,7 +681,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void write00(ContainerMetadataUpdateTransaction t, RevisionDataOutput output) throws IOException {
+        protected void write00(ContainerMetadataUpdateTransaction t, RevisionDataOutput output) throws IOException {
             // Intentionally skipping over the Sequence Number. There is no need for that here; it will be set on the
             // operation anyway when it gets serialized.
             output.writeCompactInt(t.containerId);
@@ -675,7 +709,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 throw new SerializationException(String.format("Invalid ContainerId. Expected '%d', actual '%d'.", t.containerId, containerId));
             }
 
-            input.readCollection(s -> readSegmentMetadata00(s, t));
+            Collection<UpdateableSegmentMetadata> checkpointMetadata = input.readCollection(s -> readSegmentMetadata00(s, t));
+            postRead(checkpointMetadata, t);
         }
 
         private void writeSegmentMetadata00(RevisionDataOutput output, SegmentMetadata sm) throws IOException {
@@ -699,7 +734,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             long segmentId = input.readLong();
             String name = input.readUTF();
 
-            UpdateableSegmentMetadata metadata = t.getOrCreateSegmentUpdateTransaction(name, segmentId);
+            UpdateableSegmentMetadata metadata = getSegmentMetadata(name, segmentId, t);
 
             metadata.setLength(input.readLong());
             metadata.setStorageLength(input.readLong());
@@ -735,6 +770,190 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             val attributes = input.readMap(RevisionDataInput::readUUID, RevisionDataInput::readLong);
             metadata.updateAttributes(attributes);
             return metadata;
+        }
+
+        protected UpdateableSegmentMetadata getSegmentMetadata(String name, long segmentId, ContainerMetadataUpdateTransaction t) {
+            return t.getOrCreateSegmentUpdateTransaction(name, segmentId);
+        }
+
+        protected void postRead(Collection<UpdateableSegmentMetadata> checkpointMetadata, ContainerMetadataUpdateTransaction t) {
+            // This method intentionally left blank. Will be overridden in derived classes.
+        }
+    }
+
+    //endregion
+
+    //region MetadataCheckpointPartialDeserializer
+
+    private static class MetadataCheckpointIncrementalDeserializer extends MetadataCheckpointSerializer {
+        @Override
+        protected void write00(ContainerMetadataUpdateTransaction t, RevisionDataOutput output) {
+            throw new UnsupportedOperationException("MetadataCheckpointPartialDeserializer may not be used for serialization.");
+        }
+
+        @Override
+        protected UpdateableSegmentMetadata getSegmentMetadata(String name, long segmentId, ContainerMetadataUpdateTransaction t) {
+            return new PartialSegmentMetadata(name, segmentId);
+        }
+
+        @Override
+        protected void postRead(Collection<UpdateableSegmentMetadata> checkpointMetadata, ContainerMetadataUpdateTransaction t) {
+            Preconditions.checkState(t.isRecoveryMode(), "MetadataCheckpointPartialDeserializer can only be used in recovery mode.");
+
+            // Index checkpointed metadata by segment id.
+            val byId = checkpointMetadata.stream().collect(Collectors.toMap(SegmentMetadata::getId, m -> m));
+
+            // Update any segment that we encountered. This includes unregistering a missing segment (eviction) or updating
+            // its storage state as necessary.
+            for (val segmentId : t.getAllStreamSegmentIds()) {
+                val m = byId.getOrDefault(segmentId, null);
+                if (m == null) {
+                    val existingMetadata = t.getStreamSegmentMetadata(segmentId);
+                    if (t.isNewSegment(segmentId) && existingMetadata != null && canUnregister(existingMetadata)) {
+                        // This segment existed in our Update Transaction/Base Metadata, however this checkpoint no longer has it.
+                        // This means that the segment has been evicted at one point between the last checkpoint and this one,
+                        // so it should be safe to remove it from our list (if possible).
+                        log.debug("MetadataUpdate[{}]: Un-mapping Segment Id '%s' because it is no longer present in a MetadataCheckpoint.", t.containerId);
+                        t.removeNewSegment(segmentId);
+                    }
+                } else {
+                    // Update segment's state with latest info.
+                    val segmentUpdate = t.getOrCreateSegmentUpdateTransaction(m.getName(), m.getId());
+                    if (m.isSealedInStorage()) {
+                        segmentUpdate.markSealed();
+                    }
+
+                    if (m.isDeletedInStorage()) {
+                        segmentUpdate.markDeleted();
+                    }
+
+                    segmentUpdate.updateStorageState(m.getStorageLength(), m.isSealedInStorage(), m.isDeleted(), m.isDeletedInStorage());
+                }
+            }
+        }
+
+        private boolean canUnregister(SegmentMetadata existingMetadata) {
+            return existingMetadata.isDeleted()
+                    || existingMetadata.getStorageLength() >= existingMetadata.getLength();
+        }
+
+        @Data
+        private static class PartialSegmentMetadata implements UpdateableSegmentMetadata {
+            private final String name;
+            private final long id;
+            private long storageLength;
+            private long startOffset;
+            private long length;
+            private boolean sealed;
+            private boolean sealedInStorage;
+            private boolean deleted;
+            private boolean deletedInStorage;
+            private boolean merged;
+
+            @Override
+            public void markSealed() {
+                this.sealed = true;
+            }
+
+            @Override
+            public void markSealedInStorage() {
+                this.sealedInStorage = true;
+            }
+
+            @Override
+            public void markDeleted() {
+                this.deleted = true;
+            }
+
+            @Override
+            public void markDeletedInStorage() {
+                this.deletedInStorage = true;
+            }
+
+            @Override
+            public void markMerged() {
+                this.merged = true;
+            }
+
+            // region Unimplemented methods
+
+            @Override
+            public boolean isActive() {
+                return true;
+            }
+
+            @Override
+            public void updateAttributes(Map<UUID, Long> attributeValues) {
+                // Not relevant here.
+            }
+
+            @Override
+            public void setLastModified(ImmutableDate date) {
+                // Not relevant here.
+            }
+
+            @Override
+            public void copyFrom(SegmentMetadata other) {
+                throw new UnsupportedOperationException("copyFrom not supported on " + PartialSegmentMetadata.class.getSimpleName());
+            }
+
+            @Override
+            public void refreshType() {
+                // Not relevant here.
+            }
+
+            @Override
+            public int getContainerId() {
+                return -1;
+            }
+
+
+            @Override
+            public long getLastUsed() {
+                return 0;
+            }
+
+            @Override
+            public void setLastUsed(long value) {
+                // Not relevant here.
+            }
+
+            @Override
+            public SegmentProperties getSnapshot() {
+                return this;
+            }
+
+            @Override
+            public void markPinned() {
+                // Not relevant here.
+            }
+
+            @Override
+            public boolean isPinned() {
+                return false;
+            }
+
+            @Override
+            public ImmutableDate getLastModified() {
+                return null;
+            }
+
+            @Override
+            public Map<UUID, Long> getAttributes() {
+                return Collections.emptyMap();
+            }
+
+            @Override
+            public Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter) {
+                return Collections.emptyMap();
+            }
+
+            @Override
+            public SegmentType getType() {
+                return null;
+            }
+
+            //endregion
         }
     }
 

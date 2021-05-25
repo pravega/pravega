@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
@@ -41,8 +47,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -70,10 +79,13 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     @GuardedBy("lock")
     private final HashMap<Long, PendingMerge> pendingMergers; //Key = Source Segment Id, Value = Pending Merge Info.
     private final StorageReadManager storageReadManager;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final ReadIndexSummary summary;
     private final ScheduledExecutorService executor;
     private SegmentMetadata metadata;
     private final AtomicLong lastAppendedOffset;
+    private volatile boolean storageCacheDisabled; // True (Disabled): No Storage inserts; False (Enabled): all cache inserts.
     private boolean recoveryMode;
     private boolean closed;
     private boolean merged;
@@ -116,6 +128,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         this.executor = executor;
         this.summary = new ReadIndexSummary();
         this.storageReadAlignment = alignToCacheBlockSize(this.config.getStorageReadAlignment());
+        this.storageCacheDisabled = false;
     }
 
     private int alignToCacheBlockSize(int value) {
@@ -210,26 +223,36 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     }
 
     @Override
-    public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
+    public boolean updateGenerations(int currentGeneration, int oldestGeneration, boolean essentialOnly) {
         Exceptions.checkNotClosed(this.closed, this);
+
+        // If we are told that only essential cache entries must be inserted, then we need to disable Storage read
+        // cache inserts (as we can always re-read that data from Storage).
+        this.storageCacheDisabled = essentialOnly;
 
         // Update the current generation with the provided info.
         this.summary.setCurrentGeneration(currentGeneration);
+        return evictCacheEntries(entry -> isEvictable(entry, oldestGeneration)) > 0;
+    }
 
+    private boolean isEvictable(ReadIndexEntry entry, int oldestGeneration) {
+        // We can only evict if both these conditions are met:
+        // 1. The entry is a Cache Entry (Redirect entries cannot be removed).
+        // 2. Every single byte in the entry has to exist in Storage.
+        // In addition, we are free to evict (regardless of Generation, but still subject to the above rules) if
+        // every single byte in the entry has been truncated out.
+        long lastOffset = entry.getLastStreamSegmentOffset();
+        return entry.isDataEntry()
+                && lastOffset < this.metadata.getStorageLength()
+                && (entry.getGeneration() < oldestGeneration || lastOffset < this.metadata.getStartOffset());
+    }
+
+    private long evictCacheEntries(Predicate<ReadIndexEntry> isEvictable) {
         // Identify & collect those entries that can be removed, then remove them from the index.
         ArrayList<ReadIndexEntry> toRemove = new ArrayList<>();
         synchronized (this.lock) {
             this.indexEntries.forEach(entry -> {
-                // We can only evict if both these conditions are met:
-                // 1. The entry is a Cache Entry (Redirect entries cannot be removed).
-                // 2. Every single byte in the entry has to exist in Storage.
-                // In addition, we are free to evict (regardless of Generation, but still subject to the above rules) if
-                // every single byte in the entry has been truncated out.
-                long lastOffset = entry.getLastStreamSegmentOffset();
-                boolean canRemove = entry.isDataEntry()
-                        && lastOffset < this.metadata.getStorageLength()
-                        && (entry.getGeneration() < oldestGeneration || lastOffset < this.metadata.getStartOffset());
-                if (canRemove) {
+                if (isEvictable.test(entry)) {
                     toRemove.add(entry);
                 }
             });
@@ -239,12 +262,18 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         // Update the summary (no need for holding the lock here; we are not modifying the index).
+        val totalSize = new AtomicLong();
         toRemove.forEach(e -> {
             deleteData(e);
             this.summary.removeOne(e.getGeneration());
+            totalSize.addAndGet(e.getLength());
         });
 
-        return !toRemove.isEmpty();
+        if (!toRemove.isEmpty()) {
+            log.debug("{}: Evicted {} entries totalling {} bytes.", this.traceObjectId, toRemove.size(), totalSize);
+        }
+
+        return totalSize.get();
     }
 
     //endregion
@@ -314,7 +343,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      */
     public void exitRecoveryMode(SegmentMetadata newMetadata) {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.recoveryMode, "Read Index is not in recovery mode.");
+        Preconditions.checkState(this.recoveryMode, "ReadIndex[%s] is not in recovery mode.", this.traceObjectId);
         Preconditions.checkNotNull(newMetadata, "newMetadata");
         Exceptions.checkArgument(newMetadata.getId() == this.metadata.getId(), "newMetadata", "New Metadata StreamSegmentId is different from existing one.");
         Exceptions.checkArgument(newMetadata.getLength() == this.metadata.getLength(), "newMetadata", "New Metadata Length is different from existing one.");
@@ -326,6 +355,15 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         this.metadata = newMetadata;
         this.recoveryMode = false;
         log.debug("{}: Exit RecoveryMode.", this.traceObjectId);
+    }
+
+    /**
+     * Evicts every eligible entry from the Cache that does not need to be there. See {@link #isEvictable} for conditions.
+     */
+    long trimCache() {
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(this.recoveryMode, "ReadIndex[%s] is not in recovery mode.", this.traceObjectId);
+        return evictCacheEntries(entry -> isEvictable(entry, Integer.MAX_VALUE)); // Evict anything we don't absolutely need.
     }
 
     //endregion
@@ -501,6 +539,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     }
 
     private void insert(long offset, ByteArraySegment data) {
+        if (this.storageCacheDisabled) {
+            log.debug("{}: Not inserting (Offset = {}, Length = {}) due to Storage Cache disabled.", this.traceObjectId, offset, data.getLength());
+            return;
+        }
+
         log.debug("{}: Insert (Offset = {}, Length = {}).", this.traceObjectId, offset, data.getLength());
 
         // There is a very small chance we might be adding data twice, if we get two concurrent requests that slipped past

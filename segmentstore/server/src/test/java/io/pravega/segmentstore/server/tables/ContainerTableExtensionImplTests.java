@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.tables;
 
@@ -39,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -56,7 +63,6 @@ import org.junit.rules.Timeout;
  * Unit tests for the {@link ContainerTableExtensionImpl} class.
  */
 public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
-    private static final int CONTAINER_ID = 1;
     private static final long SEGMENT_ID = 2L;
     private static final String SEGMENT_NAME = "TableSegment";
     private static final int MAX_KEY_LENGTH = 128;
@@ -67,8 +73,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int ITERATOR_BATCH_UPDATE_COUNT = 1000; // Iterators are slower to check, so we reduce our test size.
     private static final int ITERATOR_BATCH_UPDATE_SIZE = 69;
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
-    private static final int DEFAULT_COMPACTION_SIZE = -1; // Inherits from parent.
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration THROTTLE_CHECK_TIMEOUT = Duration.ofMillis(500);
     private static final Comparator<BufferView> KEY_COMPARATOR = BufferViewComparator.create()::compare;
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
@@ -84,15 +90,16 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testCreateDelete() {
         @Cleanup
-        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
+        val context = new TableContext(executorService());
         val nonTableSegmentProcessors = context.ext.createWriterSegmentProcessors(context.createSegmentMetadata());
         Assert.assertTrue("Not expecting any Writer Table Processors for non-table segment.", nonTableSegmentProcessors.isEmpty());
 
         context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         Assert.assertNotNull("Segment not created", context.segment());
 
-        val attributes = context.segment().getAttributes(ContainerTableExtensionImpl.DEFAULT_COMPACTION_ATTRIBUTES.keySet(), false, TIMEOUT).join();
-        AssertExtensions.assertMapEquals("Unexpected compaction attributes.", ContainerTableExtensionImpl.DEFAULT_COMPACTION_ATTRIBUTES, attributes);
+        val expectedAttributes = context.ext.getConfig().getDefaultCompactionAttributes();
+        val attributes = context.segment().getAttributes(expectedAttributes.keySet(), false, TIMEOUT).join();
+        AssertExtensions.assertMapEquals("Unexpected compaction attributes.", expectedAttributes, attributes);
 
         val tableSegmentProcessors = context.ext.createWriterSegmentProcessors(context.segment().getMetadata());
         Assert.assertFalse("Expecting Writer Table Processors for table segment.", tableSegmentProcessors.isEmpty());
@@ -131,7 +138,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testDeleteIfEmpty() {
         @Cleanup
-        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
+        val context = new TableContext(executorService());
         context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
         val key1 = new ByteArraySegment("key1".getBytes());
         val key2 = new ByteArraySegment("key2".getBytes());
@@ -177,7 +184,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testUnimplementedMethods() {
         @Cleanup
-        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
+        val context = new TableContext(executorService());
         AssertExtensions.assertThrows(
                 "merge() is implemented.",
                 () -> context.ext.merge(SEGMENT_NAME, SEGMENT_NAME, TIMEOUT),
@@ -216,7 +223,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         context.ext.remove(SEGMENT_NAME, Collections.singletonList(TableKey.versioned(key1, v1.get(0))), TIMEOUT).join();
         //// Make sure its been removed.
         val entries = context.ext.get(SEGMENT_NAME, Collections.singletonList(key1), TIMEOUT).join();
-        Assert.assertTrue(entries.size() == 1);
+        Assert.assertEquals(1, entries.size());
     }
 
     /**
@@ -375,9 +382,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
     @SneakyThrows
     private void testTableSegmentCompacted(KeyHasher keyHasher, CheckTable checkTable) {
-        final int maxCompactionLength = (MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * BATCH_SIZE;
+        val config = TableExtensionConfig.builder()
+                .maxCompactionSize((MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * BATCH_SIZE)
+                .build();
         @Cleanup
-        val context = new TableContext(maxCompactionLength, executorService());
+        val context = new TableContext(config, keyHasher, executorService());
 
         // Create the segment and the Table Writer Processor.
         context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
@@ -513,10 +522,154 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         checkIteratorsSorted(data.get(data.size() - 1).expectedEntries, ext2);
     }
 
+    /**
+     * Tests throttling for unsorted Table Segments.
+     */
+    @Test
+    public void testThrottlingNonSorted() throws Exception {
+        testThrottling(false);
+    }
+
+    /**
+     * Tests throttling for sorted Table Segments.
+     */
+    @Test
+    public void testThrottlingSorted() throws Exception {
+        testThrottling(true);
+    }
+
+    private void testThrottling(boolean sorted) throws Exception {
+        final int keyLength = 256;
+        final int valueLength = 1024 - keyLength;
+        final int unthrottledCount = 9;
+
+        // Sorted Table Segments have a KeyTranslator that adds a 1-byte prefix to keys. Account for that here.
+        Function<Integer, Integer> adjustSerializedLength = entryLength -> entryLength + (sorted ? 1 : 0);
+
+        // We set up throttling such that we allow 'unthrottledCount' through, but block (throttle) on the next one.
+        val config = TableExtensionConfig.builder()
+                .maxUnindexedLength(unthrottledCount * adjustSerializedLength.apply(keyLength + valueLength + EntrySerializer.HEADER_LENGTH))
+                .build();
+
+        val s = new EntrySerializer();
+        @Cleanup
+        val context = new TableContext(config, executorService());
+
+        // Create the Segment and set up the WriterTableProcessor.
+        context.ext.createSegment(SEGMENT_NAME, sorted ? SegmentType.TABLE_SEGMENT_SORTED : SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+        @Cleanup
+        val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
+        Assert.assertNotNull(processor);
+
+        // Update. We expect all these keys to go through.
+        val expectedEntries = new HashMap<BufferView, BufferView>();
+        val allEntries = new ArrayList<TableEntry>();
+        for (int i = 0; i < unthrottledCount; i++) {
+            val toUpdate = TableEntry.unversioned(createRandomData(keyLength, context), createRandomData(valueLength, context));
+            context.ext.put(SEGMENT_NAME, Collections.singletonList(toUpdate), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            expectedEntries.put(toUpdate.getKey().getKey(), toUpdate.getValue());
+            allEntries.add(toUpdate);
+        }
+
+        // Make sure everything we have so far checks out.
+        check(expectedEntries, Collections.emptyList(), context.ext);
+
+        // Attempt to add one more entry. This one should be blocked.
+        val throttledEntry = TableEntry.unversioned(createRandomData(keyLength, context), createRandomData(valueLength, context));
+        val throttledUpdate = context.ext.put(SEGMENT_NAME, Collections.singletonList(throttledEntry), TIMEOUT);
+        expectedEntries.put(throttledEntry.getKey().getKey(), throttledEntry.getValue());
+        allEntries.add(throttledEntry);
+        AssertExtensions.assertThrows(
+                "Not expected throttled update to have been accepted.",
+                () -> throttledUpdate.get(THROTTLE_CHECK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                ex -> ex instanceof TimeoutException);
+
+        // Simulate moving the first update through the pipeline. Add it to the WriterTableProcessor and flush it down.
+        int firstEntryLength = adjustSerializedLength.apply(s.getUpdateLength(allEntries.get(0)));
+        addToProcessor(0, firstEntryLength, processor);
+        processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        if (sorted) {
+            // This shouldn't be unblocked yet. The WriterTableProcessor flush should have just added a non-throttled
+            // SortedIndex TableEntry which should have acquired enough credits to prevent the new entry from being unblocked.
+            AssertExtensions.assertThrows(
+                    "Not expected throttled update to have been accepted.",
+                    () -> throttledUpdate.get(THROTTLE_CHECK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                    ex -> ex instanceof TimeoutException);
+
+            // Process the second entry.
+            addToProcessor(firstEntryLength, adjustSerializedLength.apply(s.getUpdateLength(allEntries.get(1))), processor);
+            processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        }
+
+        // The throttled update should now be unblocked.
+        throttledUpdate.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Final check and delete.
+        check(expectedEntries, Collections.emptyList(), context.ext);
+        if (sorted) {
+            checkIteratorsSorted(expectedEntries, context.ext);
+        } else {
+            checkIterators(expectedEntries, context.ext);
+        }
+
+        context.ext.deleteSegment(SEGMENT_NAME, false, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Tests the {@link ContainerTableExtensionImpl#putInternalNonAtomic} method.
+     */
+    @Test
+    public void testPutNonAtomic() throws Exception {
+        final int keyLength = 256;
+        final int valueLength = 1024;
+        final int maxBatchSize = (keyLength + valueLength) * 10; // About 10 entries per batch.
+        final int maxSize = 10 * maxBatchSize; // We expect about 10 splits.
+
+        val s = new EntrySerializer();
+        @Cleanup
+        val context = new TableContext(TableExtensionConfig.builder().maxBatchSize(maxBatchSize).build(), executorService());
+
+        // Create the Segment
+        context.ext.createSegment(SEGMENT_NAME, SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
+
+        // Generate Table Entries as long as we are under the total max size limit.
+        val allEntries = new ArrayList<TableEntry>();
+        val keys = new ArrayList<BufferView>();
+        int totalSize = 0;
+        while (totalSize < maxSize) {
+            val toUpdate = TableEntry.unversioned(createRandomData(keyLength, context), createRandomData(valueLength, context));
+            allEntries.add(toUpdate);
+            keys.add(toUpdate.getKey().getKey());
+            totalSize += s.getUpdateLength(toUpdate);
+        }
+
+        // Apply the update.
+        val updateResult = context.ext.putInternalNonAtomic(SEGMENT_NAME, allEntries, TIMEOUT)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Validate the result.
+        val getResult = context.ext.get(SEGMENT_NAME, keys, TIMEOUT)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected number of versions returned.", allEntries.size(), updateResult.size());
+        for (int i = 0; i < updateResult.size(); i++) {
+            Assert.assertEquals("Unexpected update version at index " + i, getResult.get(i).getKey().getVersion(), (long) updateResult.get(i));
+            Assert.assertEquals("Unexpected value at index " + i, allEntries.get(i).getValue(), getResult.get(i).getValue());
+        }
+
+        // Validate the (impossible) case when a single update exceeds the maximum batch. There should be other guards
+        // in the system to prevent this, but we should check it here nonetheless.
+        val largeEntry = TableEntry.unversioned(createRandomData(keyLength, context), createRandomData(maxBatchSize, context));
+        AssertExtensions.assertSuppliedFutureThrows(
+                "putInternalNonAtomic accepted a single update exceeding the max batch size limit.",
+                () -> context.ext.putInternalNonAtomic(SEGMENT_NAME, Collections.singletonList(largeEntry), TIMEOUT),
+                ex -> ex instanceof ContainerTableExtensionImpl.UpdateBatchTooLargeException);
+    }
+
     @SneakyThrows
     private void testSingleUpdates(KeyHasher hasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
         @Cleanup
-        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
+        val context = new TableContext(hasher, executorService());
 
         // Generate the keys.
         val keys = IntStream.range(0, SINGLE_UPDATE_COUNT)
@@ -575,7 +728,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private void testBatchUpdates(int updateCount, int maxBatchSize, boolean sortedTableSegment, KeyHasher keyHasher,
                                   EntryGenerator generateToUpdate, KeyGenerator generateToRemove, CheckTable checkTable) {
         @Cleanup
-        val context = new TableContext(DEFAULT_COMPACTION_SIZE, executorService());
+        val context = new TableContext(keyHasher, executorService());
 
         // Create the segment and the Table Writer Processor. We make `sortedTableSegment` configurable because some tests
         // explicitly test the offsets that are written to the segment, which would be very hard to do in the presence of
@@ -718,7 +871,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         // Check that invalid serializer state is handled properly.
         val emptyEntryIterator = ext.entryIterator(SEGMENT_NAME, emptyIteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualEmptyEntries = collectIteratorItems(emptyEntryIterator);
-        Assert.assertTrue("Unexpected entries returned.", actualEmptyEntries.size() == 0);
+        Assert.assertEquals("Unexpected entries returned.", 0, actualEmptyEntries.size());
 
         val iteratorArgs = IteratorArgs.builder().fetchTimeout(TIMEOUT).build();
         // Collect and verify all Table Entries.

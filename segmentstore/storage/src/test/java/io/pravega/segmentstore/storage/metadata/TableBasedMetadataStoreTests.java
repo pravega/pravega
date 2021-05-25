@@ -1,17 +1,24 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.metadata;
 
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.storage.chunklayer.ChunkStorage;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedRollingStorageTests;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageTests;
 import io.pravega.segmentstore.storage.chunklayer.SimpleStorageTests;
 import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
@@ -28,7 +35,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
     @Before
     public void setUp() throws Exception {
         val tableStore = new InMemoryTableStore(executorService());
-        metadataStore = new TableBasedMetadataStore("TEST", tableStore, executorService());
+        metadataStore = new TableBasedMetadataStore("TEST", tableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
     }
 
     /**
@@ -43,7 +50,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
         protected ChunkMetadataStore getMetadataStore() throws Exception {
             TableStore tableStore = new InMemoryTableStore(executorService());
             String tableName = "TableBasedMetadataSimpleStorageTests";
-            return new TableBasedMetadataStore(tableName, tableStore, executorService());
+            return new TableBasedMetadataStore(tableName, tableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         }
 
         @Override
@@ -51,7 +58,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
             TableBasedMetadataStore tableBasedMetadataStore = (TableBasedMetadataStore) metadataStore;
             TableStore tableStore = InMemoryTableStore.clone((InMemoryTableStore) tableBasedMetadataStore.getTableStore());
             String tableName =  tableBasedMetadataStore.getTableName();
-            val retValue = new TableBasedMetadataStore(tableName, tableStore, executorService());
+            val retValue = new TableBasedMetadataStore(tableName, tableStore, tableBasedMetadataStore.getConfig(), executorService());
             TableBasedMetadataStore.copyVersion(tableBasedMetadataStore, retValue);
             return retValue;
         }
@@ -68,7 +75,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
         protected ChunkMetadataStore getMetadataStore() throws Exception {
             TableStore tableStore = new InMemoryTableStore(executorService());
             String tableName = "TableBasedMetadataSimpleStorageTests";
-            return new TableBasedMetadataStore(tableName, tableStore, executorService());
+            return new TableBasedMetadataStore(tableName, tableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         }
     }
 
@@ -80,7 +87,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
         public ChunkMetadataStore createMetadataStore() throws Exception {
             TableStore tableStore = new InMemoryTableStore(executorService());
             String tableName = "TableBasedMetadataSimpleStorageTests";
-            return new TableBasedMetadataStore(tableName, tableStore, executorService());
+            return new TableBasedMetadataStore(tableName, tableStore, ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
         }
 
         public TestContext getTestContext() throws Exception {
@@ -110,7 +117,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
                 val thisMetadataStore = (TableBasedMetadataStore) this.metadataStore;
                 TableStore tableStore = InMemoryTableStore.clone((InMemoryTableStore) thisMetadataStore.getTableStore());
                 String tableName =  thisMetadataStore.getTableName();
-                val retValue = new TableBasedMetadataStore(tableName, tableStore, executor);
+                val retValue = new TableBasedMetadataStore(tableName, tableStore, config, executor);
                 TableBasedMetadataStore.copyVersion(thisMetadataStore, retValue);
                 return retValue;
             }
@@ -118,7 +125,7 @@ public class TableBasedMetadataStoreTests extends ChunkMetadataStoreTests {
             private ChunkMetadataStore createChunkMetadataStore() {
                 TableStore tableStore = new InMemoryTableStore(executor);
                 String tableName = "TableBasedMetadataSimpleStorageTests";
-                return new TableBasedMetadataStore(tableName, tableStore, executor);
+                return new TableBasedMetadataStore(tableName, tableStore, config, executor);
             }
         }
     }

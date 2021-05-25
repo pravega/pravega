@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.contracts;
 
@@ -103,6 +109,16 @@ public class Attributes {
      * This attribute cannot be modified once set on the Segment.
      */
     public static final UUID ATTRIBUTE_SEGMENT_TYPE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 9);
+
+    /**
+     * Defines an attribute that is used to store SLTS snapshot id.
+     */
+    public static final UUID ATTRIBUTE_SLTS_LATEST_SNAPSHOT_ID = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 10);
+
+    /**
+     * Defines an attribute that is used to store SLTS snapshot epoch.
+     */
+    public static final UUID ATTRIBUTE_SLTS_LATEST_SNAPSHOT_EPOCH = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 11);
 
     /**
      * Determines whether the given attribute cannot be modified once originally set on the Segment.

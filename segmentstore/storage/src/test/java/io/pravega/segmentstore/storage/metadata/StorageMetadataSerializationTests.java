@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.metadata;
 
@@ -74,9 +80,65 @@ public class StorageMetadataSerializationTests {
                 .build());
     }
 
+
     @Test
-    public void testReadIndexBlockMetadataSerialization() throws Exception {
-        testStorageMetadataSerialization(ReadIndexBlockMetadata.builder()
+    public void testMockMetadataDeepCopy() throws Exception {
+        testStorageMetadataDeepCopy(new MockStorageMetadata("Foo", "Bar"));
+    }
+
+    @Test
+    public void testSegmentMetadataDeepCopy() throws Exception {
+        testStorageMetadataDeepCopy(SegmentMetadata.builder()
+                .name("name")
+                .length(1)
+                .chunkCount(2)
+                .startOffset(3)
+                .status(5)
+                .maxRollinglength(6)
+                .firstChunk("firstChunk")
+                .lastChunk("lastChunk")
+                .lastModified(7)
+                .firstChunkStartOffset(8)
+                .lastChunkStartOffset(9)
+                .ownerEpoch(10)
+                .build());
+
+        // With nullable values
+        testStorageMetadataDeepCopy(SegmentMetadata.builder()
+                .name("name")
+                .length(1)
+                .chunkCount(2)
+                .startOffset(3)
+                .status(5)
+                .maxRollinglength(6)
+                .firstChunk(null)
+                .lastChunk(null)
+                .lastModified(7)
+                .firstChunkStartOffset(8)
+                .lastChunkStartOffset(9)
+                .ownerEpoch(10)
+                .build());
+    }
+
+    @Test
+    public void testChunkMetadataDeepCopy() throws Exception {
+        testStorageMetadataDeepCopy(ChunkMetadata.builder()
+                .name("name")
+                .nextChunk("nextChunk")
+                .length(1)
+                .status(2)
+                .build());
+        // With nullable values
+        testStorageMetadataDeepCopy(ChunkMetadata.builder()
+                .name("name")
+                .length(1)
+                .status(2)
+                .build());
+    }
+
+    @Test
+    public void testReadIndexBlockMetadataDeepCopy() throws Exception {
+        testStorageMetadataDeepCopy(ReadIndexBlockMetadata.builder()
                 .name("name")
                 .chunkName("chunkName")
                 .startOffset(1)
@@ -94,7 +156,7 @@ public class StorageMetadataSerializationTests {
         Assert.assertTrue(index.isActive());
         Assert.assertEquals(3, index.getStatus());
 
-        testStorageMetadataSerialization(ReadIndexBlockMetadata.builder()
+        testStorageMetadataDeepCopy(ReadIndexBlockMetadata.builder()
                 .name("name")
                 .chunkName("chunkName")
                 .startOffset(1)
@@ -106,6 +168,11 @@ public class StorageMetadataSerializationTests {
         val serializer = new StorageMetadata.StorageMetadataSerializer();
         val bytes = serializer.serialize(original);
         val obj = serializer.deserialize(bytes);
+        Assert.assertEquals(original, obj);
+    }
+
+    private void testStorageMetadataDeepCopy(StorageMetadata original) throws Exception {
+        val obj = original.deepCopy();
         Assert.assertEquals(original, obj);
     }
 

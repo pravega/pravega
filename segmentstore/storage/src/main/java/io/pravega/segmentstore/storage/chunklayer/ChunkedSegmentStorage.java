@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -60,6 +66,8 @@ import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLT
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_CREATE_LATENCY;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_DELETE_LATENCY;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_NUM_CHUNKS;
+import static io.pravega.shared.MetricsNames.STORAGE_METADATA_SIZE;
 
 /**
  * Implements storage for segments using {@link ChunkStorage} and {@link ChunkMetadataStore}.
@@ -79,7 +87,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Metadata store containing all storage data.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap()}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore)} ()}.
      */
     @Getter
     private final ChunkMetadataStore metadataStore;
@@ -110,7 +118,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
 
     /**
      * Id of the current Container.
-     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap()}.
+     * Initialized by segment container via {@link ChunkedSegmentStorage#bootstrap(SnapshotInfoStore)} ()}.
      */
     @Getter
     private final int containerId;
@@ -163,14 +171,16 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.readIndexCache = new ReadIndexCache(config.getMaxIndexedSegments(),
                 config.getMaxIndexedChunks());
-        this.systemJournal = new SystemJournal(containerId,
-                chunkStorage,
-                metadataStore,
-                config);
         this.taskProcessor = new MultiKeySequentialProcessor<>(this.executor);
         this.garbageCollector = new GarbageCollector(containerId,
                 chunkStorage,
                 metadataStore,
+                config,
+                executor);
+        this.systemJournal = new SystemJournal(containerId,
+                chunkStorage,
+                metadataStore,
+                garbageCollector,
                 config,
                 executor);
         this.closed = new AtomicBoolean(false);
@@ -180,17 +190,15 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     /**
      * Initializes the ChunkedSegmentStorage and bootstrap the metadata about storage metadata segments by reading and processing the journal.
      *
-     * @throws Exception In case of any errors.
+     * @param snapshotInfoStore Store that saves {@link SnapshotInfo}.
      */
-    public CompletableFuture<Void> bootstrap() throws Exception {
+    public CompletableFuture<Void> bootstrap(SnapshotInfoStore snapshotInfoStore) {
 
         this.logPrefix = String.format("ChunkedSegmentStorage[%d]", containerId);
 
         // Now bootstrap
-        log.debug("{} STORAGE BOOT: Started.", logPrefix);
-        return this.systemJournal.bootstrap(epoch)
-                .thenRun(() -> garbageCollector.initialize())
-                .thenRun(() -> log.debug("{} STORAGE BOOT: Ended.", logPrefix));
+        return this.systemJournal.bootstrap(epoch, snapshotInfoStore)
+                .thenRun(() -> garbageCollector.initialize());
     }
 
     @Override
@@ -384,10 +392,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
         checkInitialized();
         if (null == handle) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle"));
-        }
-        if (null == handle.getSegmentName()) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle.segmentName"));
+            return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
         }
         return executeSerialized(new WriteOperation(this, handle, offset, data, length), handle.getSegmentName());
     }
@@ -410,7 +415,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
             Preconditions.checkNotNull(handle, "handle");
             String streamSegmentName = handle.getSegmentName();
             Preconditions.checkNotNull(streamSegmentName, "streamSegmentName");
-            Preconditions.checkArgument(!handle.isReadOnly(), "handle");
+            Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read only. Segment=%s", handle.getSegmentName());
 
             return tryWith(metadataStore.beginTransaction(false, handle.getSegmentName()), txn ->
                     txn.get(streamSegmentName)
@@ -447,13 +452,10 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
         checkInitialized();
         if (null == targetHandle) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle"));
-        }
-        if (null == targetHandle.getSegmentName()) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle.segmentName"));
+            return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
         }
         if (null == sourceSegment) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("sourceSegment"));
+            return CompletableFuture.failedFuture(new IllegalArgumentException("sourceSegment must not be null"));
         }
 
         return executeSerialized(new ConcatOperation(this, targetHandle, offset, sourceSegment), targetHandle.getSegmentName(), sourceSegment);
@@ -492,10 +494,12 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
         checkInitialized();
+        if (null == handle) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
+        }
         return executeSerialized(() -> {
             val traceId = LoggerHelpers.traceEnter(log, "delete", handle);
             val timer = new Timer();
-
             val streamSegmentName = handle.getSegmentName();
             return tryWith(metadataStore.beginTransaction(false, streamSegmentName), txn -> txn.get(streamSegmentName)
                     .thenComposeAsync(storageMetadata -> {
@@ -547,10 +551,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
         checkInitialized();
         if (null == handle) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle"));
-        }
-        if (null == handle.getSegmentName()) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("handle.segmentName"));
+            return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
         }
 
         return executeSerialized(new TruncateOperation(this, handle, offset), handle.getSegmentName());
@@ -670,6 +671,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         garbageCollector.report();
         metadataStore.report();
         chunkStorage.report();
+        readIndexCache.report();
     }
 
     @Override
@@ -697,8 +699,11 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
      * Adds block index entries for given chunk.
      */
     void addBlockIndexEntriesForChunk(MetadataTransaction txn, String segmentName, String chunkName, long chunkStartOffset, long fromOffset, long toOffset) {
-        Preconditions.checkState(chunkStartOffset <= fromOffset);
-        Preconditions.checkState(fromOffset <= toOffset);
+        Preconditions.checkState(chunkStartOffset <= fromOffset,
+                "chunkStartOffset must be less than or equal to fromOffset. Segment=%s Chunk=%s chunkStartOffset=%s fromOffset=%s",
+                segmentName, chunkName, chunkStartOffset, fromOffset);
+        Preconditions.checkState(fromOffset <= toOffset, "fromOffset must be less than or equal to toOffset. Segment=%s Chunk=%s toOffset=%s fromOffset=%s",
+                segmentName, chunkName, toOffset, fromOffset);
         val blockSize = config.getIndexBlockSize();
         val startBlock = fromOffset / blockSize;
         // For each block start that falls on this chunk, add block index entry.
@@ -724,6 +729,16 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         for (long offset = firstBlock * config.getIndexBlockSize(); offset < endOffset; offset += config.getIndexBlockSize()) {
             txn.delete(NameUtils.getSegmentReadIndexBlockName(segmentName, offset));
         }
+    }
+
+    /**
+     * Report size related metrics for the given system segment.
+     * @param segmentMetadata Segment metadata.
+     */
+    void reportMetricsForSystemSegment(SegmentMetadata segmentMetadata) {
+        val name = segmentMetadata.getName().substring(segmentMetadata.getName().lastIndexOf('/') + 1).replace('$', '_');
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_SIZE + name, segmentMetadata.getLength() - segmentMetadata.getStartOffset());
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(STORAGE_METADATA_NUM_CHUNKS + name, segmentMetadata.getChunkCount());
     }
 
 
@@ -862,7 +877,6 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     }
 
     private void checkInitialized() {
-        Preconditions.checkState(null != this.metadataStore, "metadata store must not be null");
         Preconditions.checkState(0 != this.epoch, "epoch must not be zero");
         Preconditions.checkState(!closed.get(), "ChunkedSegmentStorage instance must not be closed");
     }

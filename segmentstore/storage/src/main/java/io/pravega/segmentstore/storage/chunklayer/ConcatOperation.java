@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -189,8 +195,8 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         sourceSegmentMetadata.checkInvariants();
 
         // This is a critical assumption at this point which should not be broken,
-        Preconditions.checkState(!targetSegmentMetadata.isStorageSystemSegment(), "Storage system segments cannot be concatenated.");
-        Preconditions.checkState(!sourceSegmentMetadata.isStorageSystemSegment(), "Storage system segments cannot be concatenated.");
+        Preconditions.checkState(!targetSegmentMetadata.isStorageSystemSegment(), "Storage system segments cannot be concatenated. Segment=%s", targetSegmentMetadata.getName());
+        Preconditions.checkState(!sourceSegmentMetadata.isStorageSystemSegment(), "Storage system segments cannot be concatenated. Segment=%s", sourceSegmentMetadata.getName());
 
         checkSealed(sourceSegmentMetadata);
         chunkedSegmentStorage.checkOwnership(targetSegmentMetadata.getName(), targetSegmentMetadata);
@@ -205,10 +211,8 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private void checkPreconditions() {
-        Preconditions.checkArgument(null != targetHandle, "targetHandle");
-        Preconditions.checkArgument(!targetHandle.isReadOnly(), "targetHandle");
-        Preconditions.checkArgument(null != sourceSegment, "targetHandle");
-        Preconditions.checkArgument(offset >= 0, "offset");
+        Preconditions.checkArgument(!targetHandle.isReadOnly(), "targetHandle must not be read only. Segment=%s", targetHandle.getSegmentName());
+        Preconditions.checkArgument(offset >= 0, "offset must be non negative. Segment=%s offset=%s", targetHandle.getSegmentName(), offset);
     }
 
     private void checkSealed(SegmentMetadata sourceSegmentMetadata) {

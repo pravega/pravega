@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.host;
 
@@ -13,6 +19,7 @@ import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentStoreTestBase;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import java.io.File;
 import java.nio.file.Files;
 import lombok.AccessLevel;
@@ -67,6 +74,8 @@ public abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTe
         String id = Integer.toString(instanceId);
         return configBuilder
                 .makeCopy()
+                .include(BookKeeperConfig.builder().with(BookKeeperConfig.BK_ENFORCE_MIN_NUM_RACKS_PER_WRITE, false)
+                                                   .with(BookKeeperConfig.BK_MIN_NUM_RACKS_PER_WRITE_QUORUM, 1))                    
                 .include(ServiceConfig.builder().with(ServiceConfig.INSTANCE_ID, id))
                 .build();
     }

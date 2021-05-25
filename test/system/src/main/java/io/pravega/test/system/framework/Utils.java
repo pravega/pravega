@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system.framework;
 
@@ -28,6 +34,7 @@ import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreSer
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
 
@@ -57,6 +64,7 @@ public class Utils {
     public static final ImmutableMap<String, String> PRAVEGA_PROPERTIES = readPravegaProperties();
     public static final String DEFAULT_TRUSTSTORE_PATH = TLS_MOUNT_PATH + "/tls.crt";
     public static final boolean VALIDATE_HOSTNAME = false;
+    public static final String CONFIGS = "configs";
 
     /**
      * Get Configuration from environment or system property.
@@ -146,6 +154,13 @@ public class Utils {
             resourceName = PROPERTIES_FILE_WITH_TLS;
         }
         Properties props = new Properties();
+        if (System.getProperty(CONFIGS) != null) {
+            try {
+                props.load(new StringReader(System.getProperty(CONFIGS)));
+            } catch (IOException e) {
+                log.error("Error reading custom config file.", e);
+            }
+        }
         try {
             props.load(Utils.class.getClassLoader().getResourceAsStream(resourceName));
         } catch (IOException e) {
@@ -215,5 +230,10 @@ public class Utils {
     private static boolean isTLSEnabled() {
         String tlsEnabled = Utils.getConfig("tlsEnabled", "false");
         return Boolean.valueOf(tlsEnabled);
+    }
+
+    public static boolean isSkipLogDownloadEnabled() {
+        String config = getConfig("skipLogDownload", "false");
+        return config.trim().equalsIgnoreCase("true") ? true : false;
     }
 }

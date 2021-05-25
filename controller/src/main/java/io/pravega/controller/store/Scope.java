@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store;
 import io.pravega.common.util.BitConverter;
@@ -14,6 +20,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+
+import io.pravega.controller.store.stream.OperationContext;
 import org.apache.commons.lang3.tuple.Pair;
 
 /**
@@ -30,17 +38,18 @@ public interface Scope {
 
     /**
      * Create the scope.
-     *
+     * @param context operation context
      * @return null on success and exception on failure.
      */
-    CompletableFuture<Void> createScope();
+    CompletableFuture<Void> createScope(OperationContext context);
 
     /**
      * Delete the scope.
      *
+     * @param context operation context
      * @return null on success and exception on failure.
      */
-    CompletableFuture<Void> deleteScope();
+    CompletableFuture<Void> deleteScope(OperationContext context);
     
     /**
      * A paginated api on the scope to get requested number of streams from under the scope starting from the continuation token. 
@@ -48,17 +57,18 @@ public interface Scope {
      * @param limit maximum number of streams to return
      * @param continuationToken continuation token from where to start.
      * @param executor executor
+     * @param context operation context
      * @return A future, which upon completion, will hold a pair of list of stream names and a new continuation token. 
      */
-    CompletableFuture<Pair<List<String>, String>> listStreams(final int limit, final String continuationToken,
-                                                              final Executor executor);
+    CompletableFuture<Pair<List<String>, String>> listStreams(final int limit, final String continuationToken, Executor executor,
+                                                              OperationContext context);
 
     /**
      * List existing streams in scopes.
-     *
+     * @param context operation context
      * @return List of streams in scope
      */
-    CompletableFuture<List<String>> listStreamsInScope();
+    CompletableFuture<List<String>> listStreamsInScope(OperationContext context);
 
     /**
      * Refresh the scope object. Typically to be used to invalidate any caches.
@@ -72,18 +82,17 @@ public interface Scope {
      *
      * @param limit maximum number of kvtables to return
      * @param continuationToken continuation token from where to start.
+     * @param context operation context
      * @param executor executor
      * @return A future, which upon completion, will hold a pair of list of kvtable names and a new continuation token.
      */
-    CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final int limit, final String continuationToken,
-                                                              final Executor executor);
+    CompletableFuture<Pair<List<String>, String>> listKeyValueTables(final int limit, final String continuationToken, 
+                                                                     final Executor executor, OperationContext context);
 
-    CompletableFuture<UUID> getReaderGroupId(String rgName);
+    CompletableFuture<UUID> getReaderGroupId(String rgName, OperationContext context);
 
-    default byte[] newId() {
-        byte[] b = new byte[2 * Long.BYTES];
-        BitConverter.writeUUID(new ByteArraySegment(b), UUID.randomUUID());
-        return b;
+    default UUID newId() {
+        return UUID.randomUUID();
     }
 
     default byte[] getIdInBytes(UUID id) {

@@ -1,18 +1,28 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.segmentstore.server.ManualTimer;
 import io.pravega.segmentstore.server.WriterFlushResult;
+import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
+import java.util.LinkedList;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -47,6 +57,28 @@ public class WriterStateTests {
 
         s.setLastReadSequenceNumber(123);
         Assert.assertEquals(123, s.getLastReadSequenceNumber());
+    }
+
+    /**
+     * Tests {@link WriterState#getLastRead()} and {@link WriterState#setLastRead}.
+     */
+    @Test
+    public void testLastRead() {
+        val s = new WriterState();
+        Assert.assertNull(s.getLastRead());
+
+        val q = new LinkedList<Operation>();
+        q.add(new MetadataCheckpointOperation());
+        q.add(new StorageMetadataCheckpointOperation());
+
+        s.setLastRead(q);
+        Assert.assertSame(q, s.getLastRead());
+
+        q.removeFirst();
+        Assert.assertEquals(1, s.getLastRead().size());
+
+        q.removeFirst();
+        Assert.assertNull(s.getLastRead());
     }
 
     /**

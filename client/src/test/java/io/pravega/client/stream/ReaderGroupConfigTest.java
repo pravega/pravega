@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream;
 
@@ -15,11 +21,14 @@ import io.pravega.client.stream.impl.CheckpointImpl;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.UUID;
+
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Mockito.when;
 
 public class ReaderGroupConfigTest {
@@ -187,6 +196,21 @@ public class ReaderGroupConfigTest {
                          .stream(Stream.of(SCOPE, "s1"), getStreamCut("s1", 0, 7),
                                  getStreamCut("s1", 5, 4, 6))
                          .build();
+    }
+
+    @Test
+    public void testEquals() {
+        ReaderGroupConfig cfg1 = ReaderGroupConfig.builder()
+                                                  .stream(Stream.of(SCOPE, "s1"), StreamCut.UNBOUNDED)
+                                                  .build();
+
+        ReaderGroupConfig cfg2 = ReaderGroupConfig.cloneConfig(cfg1, UUID.randomUUID(), 100L);
+        assertEquals(cfg1, cfg2);
+        ReaderGroupConfig cfg3 = ReaderGroupConfig.builder()
+                                                  .stream(Stream.of(SCOPE, "s1"), StreamCut.UNBOUNDED)
+                                                  .stream(Stream.of(SCOPE, "s2"), StreamCut.UNBOUNDED)
+                                                  .build();
+        assertNotEquals(cfg2, cfg3);
     }
 
     @Test

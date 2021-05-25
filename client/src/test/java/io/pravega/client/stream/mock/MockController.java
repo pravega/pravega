@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.mock;
 
@@ -270,6 +276,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<ReaderGroupConfig> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+        createRGStream(scopeName, rgName);
         createInScope(scopeName, getScopedReaderGroupName(scopeName, getStreamForReaderGroup(rgName)), config, s -> s.readerGroups,
                 this::getSegmentsForReaderGroup, Segment::getScopedName, this::createSegment);
         return CompletableFuture.completedFuture(config);
@@ -282,8 +289,9 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName, final UUID readerGroupId) {
-        String key = getScopedReaderGroupName(scope, getStreamForReaderGroup(rgName));
-        return deleteFromScope(scope, key, s -> s.readerGroups, this::getSegmentsForReaderGroup, Segment::getScopedName, this::deleteSegment);
+        String key = getScopedReaderGroupName(scope, rgName);
+        deleteFromScope(scope, key, s -> s.readerGroups, this::getSegmentsForReaderGroup, Segment::getScopedName, this::deleteSegment);
+        return deleteStream(scope, getStreamForReaderGroup(rgName));
     }
 
     @Override

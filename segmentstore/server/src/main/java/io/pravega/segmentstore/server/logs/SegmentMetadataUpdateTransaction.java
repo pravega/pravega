@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
@@ -39,6 +45,7 @@ import java.util.UUID;
 import java.util.function.BiPredicate;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
+import lombok.Setter;
 
 /**
  * An update transaction that can apply changes to a SegmentMetadata.
@@ -79,6 +86,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Getter
     private long lastUsed;
     private boolean isChanged;
+    @Getter
+    @Setter
+    private boolean active;
 
     //endregion
 
@@ -108,6 +118,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         this.baseAttributeValues = baseMetadata.getAttributes();
         this.attributeUpdates = new HashMap<>();
         this.lastUsed = baseMetadata.getLastUsed();
+        this.active = true;
     }
 
     //endregion
@@ -126,11 +137,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Override
     public long getStorageLength() {
         return this.storageLength < 0 ? this.baseStorageLength : this.storageLength;
-    }
-
-    @Override
-    public boolean isActive() {
-        return true;
     }
 
     @Override
@@ -685,6 +691,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 "Target Segment Id mismatch. Expected %s, given %s.", this.id, target.getId());
         Preconditions.checkArgument(target.getName().equals(this.name),
                 "Target Segment Name mismatch. Expected %s, given %s.", name, target.getName());
+        Preconditions.checkState(isActive(), "Cannot apply changes for an inactive segment. Segment Id = %s, Segment Name = '%s'.", this.id, this.name);
 
         // Apply to base metadata.
         target.setLastUsed(this.lastUsed);

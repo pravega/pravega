@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.state.impl;
 
@@ -37,7 +43,7 @@ public class RevisionImpl implements Revision, Serializable {
     public int compareTo(Revision o) {
         Preconditions.checkArgument(segment.equals(o.asImpl().getSegment()));
         int result = Long.compare(offsetInSegment, o.asImpl().offsetInSegment);
-        return result != 0 ? result : Integer.compare(eventAtOffset, o.asImpl().eventAtOffset); 
+        return result != 0 ? result : Integer.compare(eventAtOffset, o.asImpl().eventAtOffset);
     }
 
     @Override
@@ -47,7 +53,7 @@ public class RevisionImpl implements Revision, Serializable {
 
     @Override
     public String toString() {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         sb.append(segment.getScopedName());
         sb.append(":");
         sb.append(offsetInSegment);
@@ -68,7 +74,7 @@ public class RevisionImpl implements Revision, Serializable {
     private Object writeReplace() throws ObjectStreamException {
         return new SerializedForm(toString());
     }
-    
+
     @Data
     private static class SerializedForm implements Serializable {
         private static final long serialVersionUID = 1L;

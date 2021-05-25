@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.mocks;
 
@@ -68,14 +74,14 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         TxnStatus txnStatus = TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
         doReturn(CompletableFuture.completedFuture(txnStatus)).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(txnStatus)).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any());
+        doReturn(CompletableFuture.completedFuture(0L)).when(helper).commitTransaction(
+                anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());
@@ -83,8 +89,9 @@ public class SegmentHelperMock {
         doReturn(CompletableFuture.completedFuture(null)).when(helper).truncateSegment(
                 anyString(), anyString(), anyLong(), anyLong(), any(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(0L, "", true, true, false, 0L, 0L, 0L))).when(helper).getSegmentInfo(
-                anyString(), anyString(), anyLong(), anyString());
+        doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(
+                0L, "", true, true, false, 0L, 0L, 0L)))
+                .when(helper).getSegmentInfo(anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTableSegment(
                 anyString(), anyString(), anyLong(), anyBoolean());
@@ -110,13 +117,13 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());

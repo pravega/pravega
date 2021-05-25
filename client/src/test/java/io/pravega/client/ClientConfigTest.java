@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client;
 
@@ -106,5 +112,39 @@ public class ClientConfigTest {
                                    .metricListener(null)
                                    .build();
         assertNull("Metrics listener is not configured", clientConfig.getMetricListener());
+    }
+
+    @Test
+    public void testOverrideMaxConnections() {
+        // create a client config with default number of for the max connections.
+        ClientConfig clientConfig = ClientConfig.builder()
+                .controllerURI(URI.create("//hostname:9090"))
+                .build();
+        assertEquals(ClientConfig.DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE, clientConfig.getMaxConnectionsPerSegmentStore());
+        assertTrue(clientConfig.isDefaultMaxConnections());
+        ClientConfig clientConfigUpdated = clientConfig.toBuilder().maxConnectionsPerSegmentStore(1).build();
+        assertEquals(1, clientConfigUpdated.getMaxConnectionsPerSegmentStore());
+        assertFalse(clientConfigUpdated.isDefaultMaxConnections());
+        assertEquals(clientConfig.isEnableTls(), clientConfigUpdated.isEnableTls());
+        assertEquals(clientConfig.isEnableTlsToController(), clientConfigUpdated.isEnableTlsToController());
+        assertEquals(clientConfig.isEnableTlsToSegmentStore(), clientConfigUpdated.isEnableTlsToSegmentStore());
+    }
+
+    @Test
+    public void testPreventOverrideMaxConnections() {
+        ClientConfig clientConfig = ClientConfig.builder()
+                .controllerURI(URI.create("//hostname:9090"))
+                .maxConnectionsPerSegmentStore(5)
+                .build();
+        assertFalse(clientConfig.isDefaultMaxConnections());
+        // try resetting the number of connections to 1.
+        ClientConfig.ClientConfigBuilder clientConfigBuilder = clientConfig.toBuilder();
+        ClientConfig clientConfigUpdated = clientConfigBuilder.maxConnectionsPerSegmentStore(1).build();
+        // no changes expected with the max connection configuration.
+        assertEquals(5, clientConfigUpdated.getMaxConnectionsPerSegmentStore());
+        assertFalse(clientConfigUpdated.isDefaultMaxConnections());
+        assertEquals(clientConfig.isEnableTls(), clientConfigUpdated.isEnableTls());
+        assertEquals(clientConfig.isEnableTlsToController(), clientConfigUpdated.isEnableTlsToController());
+        assertEquals(clientConfig.isEnableTlsToSegmentStore(), clientConfigUpdated.isEnableTlsToSegmentStore());
     }
 }

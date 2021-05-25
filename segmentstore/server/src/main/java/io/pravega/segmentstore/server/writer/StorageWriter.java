@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.writer;
 
@@ -22,6 +28,7 @@ import io.pravega.common.concurrent.SequentialProcessor;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
+import io.pravega.segmentstore.server.ServiceHaltException;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
@@ -187,10 +194,22 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      * @return A CompletableFuture that, when complete, will indicate that the read has been performed in its entirety.
      */
     private CompletableFuture<Queue<Operation>> readData(Void ignored) {
+        val lastRead = this.state.getLastRead();
+        if (lastRead != null && !lastRead.isEmpty()) {
+            // This happens if, during a previous iteration, we had an unexpected error preventing processReadResult from
+            // execution to completion (i.e., SegmentAggregator.initialize() failed). In that case, it is imperative that
+            // we do not miss out on operations, otherwise that can translate to either a blocking error (no progress can
+            // be made) or a data loss.
+            log.info("{}: Iteration[{}] Not performing a new read because there are still {} items unprocessed from the previous iteration.",
+                    this.traceObjectId, this.state.getIterationId(), lastRead.size());
+            return CompletableFuture.completedFuture(lastRead);
+        }
+
         try {
             Duration readTimeout = getReadTimeout();
             return this.dataSource
                     .read(this.config.getMaxItemsToReadAtOnce(), readTimeout)
+                    .thenApply(this.state::setLastRead)
                     .exceptionally(ex -> {
                         ex = Exceptions.unwrap(ex);
                         if (ex instanceof TimeoutException) {
@@ -233,16 +252,24 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         return Futures.loop(
                 () -> canRun() && !readResult.isEmpty(),
                 () -> {
-                    Operation op = readResult.poll();
+                    // Peek, but do not remove, the first operation. We want to ensure that we have properly processed it
+                    // so that we don't lose track of it.
+                    Operation op = readResult.peek();
                     return processOperation(op).thenRun(() -> {
                         // We have now internalized all operations from this batch; and even if subsequent operations in this iteration
                         // fail, we no longer need to re-read these operations, so update the state with the last read SeqNo.
                         this.state.setLastReadSequenceNumber(op.getSequenceNumber());
+                        readResult.poll(); // Actually remove the operation now.
                         result.operationProcessed(op);
                     });
                 },
                 this.executor)
-                .thenRun(() -> logStageEvent("InputRead", result));
+                .thenRun(() -> {
+                    // Clear the last read result from the state before exiting.
+                    Preconditions.checkState(readResult.isEmpty(), "processReadResult exited normally but there are still {} items to process.", readResult.size());
+                    this.state.setLastRead(null);
+                    logStageEvent("InputRead", result);
+                });
     }
 
     private CompletableFuture<Void> processOperation(Operation op) {
@@ -258,7 +285,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
             return processMetadataOperation((MetadataOperation) op);
         } else {
             // Unknown operation. Better throw an error rather than skipping over what could be important data.
-            return Futures.failedFuture(new DataCorruptionException(String.format("Unsupported operation %s.", op)));
+            return Futures.failedFuture(new ServiceHaltException(String.format("Unsupported operation %s.", op)));
         }
     }
 
@@ -281,8 +308,14 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                 .thenAccept(aggregator -> {
                     try {
                         aggregator.add(op);
-                    } catch (DataCorruptionException ex) {
+                    } catch (ServiceHaltException ex) {
+                        // Covers DataCorruptionException
+                        // Re-throw.
                         throw new CompletionException(ex);
+                    } catch (Exception ex) {
+                        // If we get any exception while processing this, then we will likely get it every time we attempt
+                        // to do it again. Best if we bail out and attempt a recovery in this case.
+                        throw new CompletionException(new ServiceHaltException("Unable to process operation " + op, ex));
                     }
                 });
     }
@@ -439,7 +472,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private boolean isCriticalError(Throwable ex) {
         ex = Exceptions.unwrap(ex);
         return Exceptions.mustRethrow(ex)
-                || ex instanceof DataCorruptionException     // Data corruption - stop processing to prevent more damage.
+                || ex instanceof ServiceHaltException     // Service halt or Data corruption - stop processing to prevent more damage.
                 || ex instanceof StorageNotPrimaryException  // Fenced out - another instance took over.
                 || ex instanceof DataLogWriterNotPrimaryException;  // Fenced out at the DurableLog level.
     }
@@ -634,7 +667,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         }
 
         @Override
-        public void add(SegmentOperation operation) throws DataCorruptionException {
+        public void add(SegmentOperation operation) throws ServiceHaltException {
             for (WriterSegmentProcessor wsp : this.processors) {
                 wsp.add(operation);
             }

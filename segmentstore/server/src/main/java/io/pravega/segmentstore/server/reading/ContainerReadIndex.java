@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
@@ -264,13 +270,35 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
+    public long trimCache() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkState(isRecoveryMode(), "trimCache can only be invoked in recovery mode.");
+
+        List<StreamSegmentReadIndex> indices;
+        synchronized (this.lock) {
+            indices = new ArrayList<>(this.readIndices.values());
+        }
+
+        long totalTrimmedBytes = 0;
+        for (StreamSegmentReadIndex index : indices) {
+            totalTrimmedBytes += index.trimCache();
+        }
+
+        if (totalTrimmedBytes > 0) {
+            log.info("{}: Trimmed {} bytes.", this.traceObjectId, totalTrimmedBytes);
+        }
+
+        return totalTrimmedBytes;
+    }
+
+    @Override
     public void enterRecoveryMode(ContainerMetadata recoveryMetadataSource) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(!isRecoveryMode(), "Read Index is already in recovery mode.");
         Preconditions.checkNotNull(recoveryMetadataSource, "recoveryMetadataSource");
         Preconditions.checkArgument(recoveryMetadataSource.isRecoveryMode(), "Given ContainerMetadata is not in recovery mode.");
 
-        // Swap metadata with recovery metadata (but still keep track of recovery metadata.
+        // Swap metadata with recovery metadata (but still keep track of recovery metadata).
         synchronized (this.lock) {
             Preconditions.checkArgument(this.metadata.getContainerId() == recoveryMetadataSource.getContainerId(),
                     "Given ContainerMetadata refers to a different container than this ReadIndex.");
@@ -339,7 +367,7 @@ public class ContainerReadIndex implements ReadIndex {
      * @param streamSegmentId The Id of the StreamSegment whose ReadIndex to get.
      */
     @VisibleForTesting
-    StreamSegmentReadIndex getIndex(long streamSegmentId) {
+    public StreamSegmentReadIndex getIndex(long streamSegmentId) {
         synchronized (this.lock) {
             return this.readIndices.getOrDefault(streamSegmentId, null);
         }
