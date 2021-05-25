@@ -18,26 +18,27 @@ package io.pravega.controller.store.stream.records;
 import com.google.common.base.Preconditions;
 import io.pravega.client.tables.impl.TableSegment;
 import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.ByteBufferOutputStream;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
 import lombok.Builder;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.Singular;
 import lombok.SneakyThrows;
-import org.apache.commons.io.IOUtils;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
 
@@ -91,16 +92,13 @@ public class TagRecord {
         private void read00(RevisionDataInput revisionDataInput, TagRecord.TagRecordBuilder configurationRecordBuilder)
                 throws IOException {
             configurationRecordBuilder.tagName(revisionDataInput.readUTF());
-            byte[] comp = revisionDataInput.readArray();
-            Set<String> set = decompressArrayOption(comp);
-            configurationRecordBuilder.streams(set);
+            configurationRecordBuilder.streams(decompressArrayOption(revisionDataInput.readArray()));
         }
 
         private void write00(TagRecord streamConfigurationRecord, RevisionDataOutput revisionDataOutput)
                 throws IOException {
             revisionDataOutput.writeUTF(streamConfigurationRecord.getTagName());
-            byte[] comp = compressArrayOption(streamConfigurationRecord.getStreams());
-            revisionDataOutput.writeArray(comp);
+            revisionDataOutput.writeBuffer(compressArrayOption(streamConfigurationRecord.getStreams()));
         }
 
         @Override
@@ -109,27 +107,29 @@ public class TagRecord {
         }
     }
 
-    private static byte[] compressArrayOption(final Set<String> set) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        OutputStream out = new DeflaterOutputStream(baos);
-        for (String s : set) {
-            out.write(s.getBytes(StandardCharsets.UTF_8));
-            out.write(',');
+    private static ByteArraySegment compressArrayOption(final Set<String> tags) throws IOException {
+        ByteBufferOutputStream baos = new ByteBufferOutputStream();
+        DataOutputStream dout = new DataOutputStream(new DeflaterOutputStream(baos));
+        for (String t : tags) {
+            dout.writeUTF(t);
         }
-        out.flush();
-        out.close();
-        return baos.toByteArray();
+        dout.flush();
+        dout.close();
+        return baos.getData();
     }
 
-    private static Set<String> decompressArrayOption(final byte[] compressed) throws IOException {
-        @Cleanup
+    private static Collection<String> decompressArrayOption(final byte[] compressed) throws IOException {
         InputStream in = new InflaterInputStream(new ByteArrayInputStream(compressed));
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        IOUtils.copy(in, baos);
-        String streams = baos.toString(StandardCharsets.UTF_8);
-        if (streams.isEmpty()) {
-            return Collections.emptySet();
+        @Cleanup
+        DataInputStream din = new DataInputStream(in);
+        List<String> tags = new ArrayList<>();
+        while (true) {
+            try {
+                tags.add(din.readUTF());
+            } catch (EOFException e) {
+                break;
+            }
         }
-        return Arrays.stream(streams.split(",")).collect(Collectors.toSet());
+        return tags;
     }
 }

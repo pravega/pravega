@@ -16,6 +16,7 @@
 package io.pravega.controller.store.stream.records;
 
 import org.junit.Test;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.TreeSet;
@@ -23,14 +24,6 @@ import java.util.TreeSet;
 import static org.junit.Assert.assertEquals;
 
 public class TagRecordTest {
-
-    @Test
-    public void testAPI() {
-        TagRecord r1 = TagRecord.builder().tagName("t1").stream("s1").stream("s2").build();
-        TagRecord r2 = r1.toBuilder().stream("s3").build();
-        System.out.println(r1);
-        System.out.println(r2);
-    }
 
     @Test
     public void testEmptyStreams() {
@@ -55,26 +48,4 @@ public class TagRecordTest {
         byte[] ser = r.toBytes();
         assertEquals(r, TagRecord.fromBytes(ser));
     }
-
-    //    @Test
-    //    public void testSerializationLength() {
-    //        TreeSet<String> streamSet = new TreeSet<>();
-    //        int length = 0;
-    //        String tag = "tag1";
-    //        while (length < 1024 * 1024 - 10 * 1024) { // 1MB
-    //            List<String> newStreams = new ArrayList<>(50);
-    //            for (int i = 0; i < 100; i++) {
-    //                newStreams.add(RandomStringUtils.random(255, true, true));
-    //            }
-    //            streamSet.addAll(newStreams);
-    //            TagRecord rec = TagRecord.builder().tagName("tag1").streams(streamSet).build();
-    //            Timer timer = new Timer();
-    //            byte[] ser = rec.toBytes();
-    //            length = ser.length;
-    //            assertEquals(rec, TagRecord.fromBytes(ser));
-    //            long elapsedNS = timer.getElapsedNanos();
-    //            System.out.println("Serialization length " + length + " number of streams " + streamSet.size() + " time " + elapsedNS);
-    //        }
-    //    }
-
 }
