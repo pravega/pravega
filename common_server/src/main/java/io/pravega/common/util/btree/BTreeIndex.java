@@ -876,7 +876,6 @@ public class BTreeIndex {
     private void setState(long length, long rootPageOffset, int rootPageLength) {
         this.state = new IndexState(length, rootPageOffset, rootPageLength);
         log.debug("{}: IndexState: {}, Stats: {}.", this.traceObjectId, this.state, this.statistics);
-        //System.out.println(String.format("%s: IndexState: %s, Stats: %s.", this.traceObjectId, this.state, this.statistics));
     }
 
     private long getFooterOffset(long indexLength) {
