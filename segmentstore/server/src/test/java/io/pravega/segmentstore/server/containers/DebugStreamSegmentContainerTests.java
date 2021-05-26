@@ -426,11 +426,12 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
                         Assert.assertEquals("Unexpected length for " + sc.getKey(), expectedData.length, si.getLength());
 
                         // Attributes.
-                        val attributes = container2.getAttributes(sc.getKey(), Collections.singleton(attributeReplace), false, TIMEOUT).join();
+                        val attributes = container2.getAttributes(sc.getKey(), Collections.singleton(attributeReplace),
+                                false, TIMEOUT).join();
                         Assert.assertEquals("Unexpected attribute for " + sc.getKey(), expectedAttributeValue, (long) attributes.get(attributeReplace));
                     }
                     return CompletableFuture.completedFuture(null);
-                }).join();
+                }).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private SegmentType getSegmentType(String segmentName) {
