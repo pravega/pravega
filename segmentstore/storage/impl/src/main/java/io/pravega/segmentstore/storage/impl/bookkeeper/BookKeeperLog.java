@@ -50,6 +50,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -112,6 +114,8 @@ class BookKeeperLog implements DurableDataLog {
     private final BookKeeperMetrics.BookKeeperLog metrics;
     private final ScheduledFuture<?> metricReporter;
     private final ThrottlerSourceListenerCollection queueStateChangeListeners;
+    private final Consumer<Throwable> onFailureCallback;
+
     //endregion
 
     //region Constructor
@@ -119,13 +123,15 @@ class BookKeeperLog implements DurableDataLog {
     /**
      * Creates a new instance of the BookKeeper log class.
      *
-     * @param containerId     The Id of the Container whose BookKeeperLog to open.
-     * @param zkClient        A reference to the CuratorFramework client to use.
-     * @param bookKeeper      A reference to the BookKeeper client to use.
-     * @param config          Configuration to use.
-     * @param executorService An Executor to use for async operations.
+     * @param containerId       The Id of the Container whose BookKeeperLog to open.
+     * @param zkClient          A reference to the CuratorFramework client to use.
+     * @param bookKeeper        A reference to the BookKeeper client to use.
+     * @param config            Configuration to use.
+     * @param onFailureCallback Callback that is executed upon a failure
+     * @param executorService   An Executor to use for async operations.
      */
-    BookKeeperLog(int containerId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executorService) {
+    BookKeeperLog(int containerId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config,
+                  Consumer<Throwable> onFailureCallback, ScheduledExecutorService executorService) {
         Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative integer.");
         this.logId = containerId;
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient");
@@ -142,6 +148,7 @@ class BookKeeperLog implements DurableDataLog {
         this.metrics = new BookKeeperMetrics.BookKeeperLog(containerId);
         this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
         this.queueStateChangeListeners = new ThrottlerSourceListenerCollection();
+        this.onFailureCallback = onFailureCallback;
     }
 
     private Retry.RetryAndThrowBase<? extends Exception> createRetryPolicy(int maxWriteAttempts, int writeTimeout) {
@@ -341,7 +348,7 @@ class BookKeeperLog implements DurableDataLog {
     @Override
     public CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException {
         ensurePreconditions();
-        return new LogReader(this.logId, getLogMetadata(), this.bookKeeper, this.config);
+        return new LogReader(this.logId, getLogMetadata(), this.bookKeeper, this.config, this.onFailureCallback);
     }
 
     @Override
@@ -633,6 +640,8 @@ class BookKeeperLog implements DurableDataLog {
             log.warn("{}: Caught ObjectClosedException but not closed; closing now.", this.traceObjectId, ex);
             close();
         }
+        // Call the failure callback upon a write exception.
+        this.onFailureCallback.accept(ex);
     }
 
     /**

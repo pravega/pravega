@@ -27,6 +27,7 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import java.io.InputStream;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +55,7 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
     private final AtomicBoolean closed;
     private final BookKeeperConfig config;
     private ReadLedger currentLedger;
+    private final Consumer<Throwable> onFailureCallback;
 
     //endregion
 
@@ -67,12 +69,13 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
      * @param bookKeeper A reference to the BookKeeper client to use.
      * @param config     Configuration to use.
      */
-    LogReader(int logId, LogMetadata metadata, BookKeeper bookKeeper, BookKeeperConfig config) {
+    LogReader(int logId, LogMetadata metadata, BookKeeper bookKeeper, BookKeeperConfig config, Consumer<Throwable> onFailureCallback) {
         this.logId = logId;
         this.metadata = Preconditions.checkNotNull(metadata, "metadata");
         this.bookKeeper = Preconditions.checkNotNull(bookKeeper, "bookKeeper");
         this.config = Preconditions.checkNotNull(config, "config");
         this.closed = new AtomicBoolean();
+        this.onFailureCallback = onFailureCallback;
     }
 
     //endregion
@@ -97,17 +100,23 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
     public DurableDataLog.ReadItem getNext() throws DurableDataLogException {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
-        if (this.currentLedger == null) {
-            // First time we call this. Locate the first ledger based on the metadata truncation address. We don't know
-            // how many entries are in that first ledger, so open it anyway so we can figure out.
-            openNextLedger(this.metadata.getNextAddress(this.metadata.getTruncationAddress(), Long.MAX_VALUE));
-        }
+        try {
+            if (this.currentLedger == null) {
+                // First time we call this. Locate the first ledger based on the metadata truncation address. We don't know
+                // how many entries are in that first ledger, so open it anyway so we can figure out.
+                openNextLedger(this.metadata.getNextAddress(this.metadata.getTruncationAddress(), Long.MAX_VALUE));
+            }
 
-        while (this.currentLedger != null && (!this.currentLedger.canRead())) {
-            // We have reached the end of the current ledger. Find next one, and skip over empty ledgers).
-            val lastAddress = new LedgerAddress(this.currentLedger.metadata, this.currentLedger.handle.getLastAddConfirmed());
-            this.currentLedger.close();
-            openNextLedger(this.metadata.getNextAddress(lastAddress, this.currentLedger.handle.getLastAddConfirmed()));
+            while (this.currentLedger != null && (!this.currentLedger.canRead())) {
+                // We have reached the end of the current ledger. Find next one, and skip over empty ledgers).
+                val lastAddress = new LedgerAddress(this.currentLedger.metadata, this.currentLedger.handle.getLastAddConfirmed());
+                this.currentLedger.close();
+                openNextLedger(this.metadata.getNextAddress(lastAddress, this.currentLedger.handle.getLastAddConfirmed()));
+            }
+        } catch (Exception e) {
+            // If we found an error while opening a Bookkeeper ledger, run the failure callback before rethrowing.
+            this.onFailureCallback.accept(e);
+            throw e;
         }
 
         // Try to read from the current reader.

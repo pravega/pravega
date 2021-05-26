@@ -72,7 +72,7 @@ public class DebugLogWrapper implements AutoCloseable {
      * @param executor   An Executor to use for async operations.
      */
     DebugLogWrapper(int logId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executor) {
-        this.log = new BookKeeperLog(logId, zkClient, bookKeeper, config, executor);
+        this.log = new BookKeeperLog(logId, zkClient, bookKeeper, config, ex -> {}, executor);
         this.bkClient = bookKeeper;
         this.config = config;
         this.initialized = new AtomicBoolean();
@@ -267,7 +267,7 @@ public class DebugLogWrapper implements AutoCloseable {
 
         @Override
         public CloseableIterator<ReadItem, DurableDataLogException> getReader() {
-            return new LogReader(this.logId, this.logMetadata, DebugLogWrapper.this.bkClient, DebugLogWrapper.this.config);
+            return new LogReader(this.logId, this.logMetadata, DebugLogWrapper.this.bkClient, DebugLogWrapper.this.config, ex -> {});
         }
 
         @Override

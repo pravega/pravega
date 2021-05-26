@@ -29,9 +29,11 @@ import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.api.BookKeeper;
 import org.apache.bookkeeper.client.DefaultEnsemblePlacementPolicy;
 import org.apache.bookkeeper.client.RackawareEnsemblePlacementPolicy;
@@ -54,7 +56,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     private final BookKeeperConfig config;
     private final ScheduledExecutorService executor;
     @GuardedBy("this")
-    private final Map<Integer, LogInitializationRecord> logInitializationTracker = new HashMap<>();
+    private final Map<Long, LogInitializationRecord> logInitializationTracker = new HashMap<>();
     @GuardedBy("this")
     private final AtomicReference<Timer> lastBookkeeperClientReset = new AtomicReference<>(new Timer());
 
@@ -122,7 +124,8 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     public DurableDataLog createDurableDataLog(int logId) {
         Preconditions.checkState(this.bookKeeper.get() != null, "BookKeeperLogFactory is not initialized.");
         tryResetBookkeeperClient(logId);
-        return new BookKeeperLog(logId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+        Consumer<Throwable> onFailureCallback = e -> incrementAttemptsForBKClientReset(logId, e);
+        return new BookKeeperLog(logId, this.zkClient, this.bookKeeper.get(), this.config, onFailureCallback, this.executor);
     }
 
     /**
@@ -202,8 +205,6 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         synchronized (this) {
             LogInitializationRecord record = logInitializationTracker.get(logId);
             if (record != null) {
-                // Account for a restart of the Bookkeeper log.
-                record.incrementLogCreations();
                 // If the number of restarts for a single container is meets the threshold, let's reset the BK client.
                 if (record.isBookkeeperClientResetNeeded()
                         && lastBookkeeperClientReset.get().getElapsed().compareTo(this.config.getInspectionTimeToResetClient()) > 0) {
@@ -221,14 +222,32 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
                         throw new RuntimeException("Failure resetting the Bookkeeper client", e);
                     }
                 }
-            } else {
-                logInitializationTracker.put(logId, new LogInitializationRecord());
+            }
+        }
+    }
+
+    /**
+     * Increments the failure counter for a given container. Note that the failures that we attempt to count here are
+     * failures that can be solved via a Bookkeeper Client reset (e.g., https://github.com/apache/bookkeeper/issues/2482).
+     */
+    private void incrementAttemptsForBKClientReset(long logId, Throwable ex) {
+        synchronized (this) {
+            // Having successive BKException.BKReadException has been detected as a symptom of DNS entries cached by
+            // the Bookkeeper client permanently. This can be alleviated by re-creating the Bookkeeper client.
+            if (ex instanceof BKException.BKReadException) {
+                LogInitializationRecord record = logInitializationTracker.get(logId);
+                if (record != null) {
+                    // Account for a restart of the Bookkeeper log.
+                    record.incrementLogCreations();
+                } else {
+                    logInitializationTracker.put(logId, new LogInitializationRecord());
+                }
             }
         }
     }
 
     @VisibleForTesting
-    public Map<Integer, LogInitializationRecord> getLogInitializationTracker() {
+    public Map<Long, LogInitializationRecord> getLogInitializationTracker() {
         return logInitializationTracker;
     }
 
