@@ -250,7 +250,7 @@ public class ContainerRecoveryUtils {
         Preconditions.checkNotNull(storage);
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
-        return  CompletableFuture.allOf(deleteSegmentFromStorage(storage, metadataSegmentName, timeout),
+        return CompletableFuture.allOf(deleteSegmentFromStorage(storage, metadataSegmentName, timeout),
                 deleteSegmentFromStorage(storage, attributeSegmentName, timeout));
     }
 
