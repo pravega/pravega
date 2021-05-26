@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
@@ -121,7 +127,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, helperMock);
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = spy(new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
@@ -146,7 +152,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
                 ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
         this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
-                                "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, tableEventHelper);
+                                "host", GrpcAuthHelper.getDisabledAuthHelper(), tableEventHelper);
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), this.kvtStore, executorService);
@@ -159,7 +165,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         latch.await();
 
         return new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
+                streamTransactionMetadataTasks, segmentHelper, executorService, cluster, requestTracker);
     }
 
     @After

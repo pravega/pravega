@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
@@ -44,6 +50,8 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -71,10 +79,13 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     @GuardedBy("lock")
     private final HashMap<Long, PendingMerge> pendingMergers; //Key = Source Segment Id, Value = Pending Merge Info.
     private final StorageReadManager storageReadManager;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final ReadIndexSummary summary;
     private final ScheduledExecutorService executor;
     private SegmentMetadata metadata;
     private final AtomicLong lastAppendedOffset;
+    private volatile boolean storageCacheDisabled; // True (Disabled): No Storage inserts; False (Enabled): all cache inserts.
     private boolean recoveryMode;
     private boolean closed;
     private boolean merged;
@@ -117,6 +128,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         this.executor = executor;
         this.summary = new ReadIndexSummary();
         this.storageReadAlignment = alignToCacheBlockSize(this.config.getStorageReadAlignment());
+        this.storageCacheDisabled = false;
     }
 
     private int alignToCacheBlockSize(int value) {
@@ -211,8 +223,12 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     }
 
     @Override
-    public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
+    public boolean updateGenerations(int currentGeneration, int oldestGeneration, boolean essentialOnly) {
         Exceptions.checkNotClosed(this.closed, this);
+
+        // If we are told that only essential cache entries must be inserted, then we need to disable Storage read
+        // cache inserts (as we can always re-read that data from Storage).
+        this.storageCacheDisabled = essentialOnly;
 
         // Update the current generation with the provided info.
         this.summary.setCurrentGeneration(currentGeneration);
@@ -523,6 +539,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     }
 
     private void insert(long offset, ByteArraySegment data) {
+        if (this.storageCacheDisabled) {
+            log.debug("{}: Not inserting (Offset = {}, Length = {}) due to Storage Cache disabled.", this.traceObjectId, offset, data.getLength());
+            return;
+        }
+
         log.debug("{}: Insert (Offset = {}, Length = {}).", this.traceObjectId, offset, data.getLength());
 
         // There is a very small chance we might be adding data twice, if we get two concurrent requests that slipped past

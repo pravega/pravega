@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.host;
 
@@ -35,7 +41,7 @@ public class InMemoryHostStore implements HostControllerStore {
     InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap, int containerCount) {
         Preconditions.checkNotNull(hostContainerMap, "hostContainerMap");
         this.hostContainerMap = hostContainerMap;
-        segmentMapper = new SegmentToContainerMapper(containerCount);
+        segmentMapper = new SegmentToContainerMapper(containerCount, true);
     }
 
     @Override
@@ -53,12 +59,12 @@ public class InMemoryHostStore implements HostControllerStore {
 
     private Host getHostForContainer(int containerId) {
         Optional<Host> host = hostContainerMap.entrySet().stream()
-                .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
+                .filter(x -> x.getValue().contains(containerId)).map(Map.Entry::getKey).findAny();
         if (host.isPresent()) {
             log.debug("Found owning host: {} for containerId: {}", host.get(), containerId);
             return host.get();
         } else {
-            throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
+            throw new HostStoreException("Could not find host for container id: " + containerId);
         }
     }
 

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.metrics;
 
@@ -485,21 +491,22 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * Closes all the OpsStatLogger objects and cleans up the instance.
+     * Resets the OpsStatLogger objects to their initial state..
      */
     public static synchronized void reset() {
-        if (INSTANCE.get() != null) {
-            INSTANCE.get().createStreamLatency.close();
-            INSTANCE.get().deleteStreamLatency.close();
-            INSTANCE.get().sealStreamLatency.close();
-            INSTANCE.get().updateStreamLatency.close();
-            INSTANCE.get().truncateStreamLatency.close();
-            INSTANCE.get().addReaderGroupLatency.close();
-            INSTANCE.get().deleteReaderGroupLatency.close();
-            INSTANCE.get().updateSubscriberLatency.close();
-            INSTANCE.get().createScopeLatency.close();
-            INSTANCE.get().deleteScopeLatency.close();
-            INSTANCE.set(null);
+        StreamMetrics old = INSTANCE.get();
+        if (old != null) {
+            old.createStreamLatency.close();
+            old.deleteStreamLatency.close();
+            old.sealStreamLatency.close();
+            old.updateStreamLatency.close();
+            old.truncateStreamLatency.close();
+            old.addReaderGroupLatency.close();
+            old.deleteReaderGroupLatency.close();
+            old.updateSubscriberLatency.close();
+            old.createScopeLatency.close();
+            old.deleteScopeLatency.close();
         }
+        INSTANCE.set(new StreamMetrics());
     }
 }

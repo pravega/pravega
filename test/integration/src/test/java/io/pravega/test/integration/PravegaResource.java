@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.pravega.test.integration;
@@ -50,13 +56,14 @@ public class PravegaResource extends ExternalResource {
     private final String serviceHost = "localhost";
     private final int containerCount = 4;
 
-    private final TestingServer zkTestServer;
-    private final ControllerWrapper controllerWrapper;
-    private final PravegaConnectionListener server;
-    private final ServiceBuilder serviceBuilder;
+    // These are initialized in "before" to allow a PravegaResource to be 'reused' because tests that extend from abstract classes may do this.
+    private TestingServer zkTestServer;
+    private ControllerWrapper controllerWrapper;
+    private PravegaConnectionListener server;
+    private ServiceBuilder serviceBuilder;
 
-    @SneakyThrows
-    public PravegaResource() {
+    @Override
+    protected void before() throws Exception {
         // 1. Start ZK
         zkTestServer = new TestingServerStarter().start();
 
@@ -73,29 +80,32 @@ public class PravegaResource extends ExternalResource {
         System.setProperty("controller.watermarking.frequency.seconds", "5");
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 controllerPort, serviceHost, servicePort, containerCount);
-    }
-
-    protected void before() throws Exception {
+        
         controllerWrapper.awaitRunning();
     }
 
+    @Override
     @SneakyThrows
     protected void after() {
         if (controllerWrapper != null) {
             controllerWrapper.close();
+            controllerWrapper = null;
         }
         if (server != null) {
             server.close();
+            server = null;
         }
         if (serviceBuilder != null) {
             serviceBuilder.close();
+            serviceBuilder = null;
         }
         if (zkTestServer != null) {
             zkTestServer.close();
+            zkTestServer = null;
         }
     }
 
-    public Controller getLocalController() throws InterruptedException {
+    public Controller getLocalController() {
         return controllerWrapper.getController();
     }
 

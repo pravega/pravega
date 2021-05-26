@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.writer;
 
@@ -22,6 +28,7 @@ import io.pravega.common.concurrent.SequentialProcessor;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
+import io.pravega.segmentstore.server.ServiceHaltException;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
@@ -278,7 +285,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
             return processMetadataOperation((MetadataOperation) op);
         } else {
             // Unknown operation. Better throw an error rather than skipping over what could be important data.
-            return Futures.failedFuture(new DataCorruptionException(String.format("Unsupported operation %s.", op)));
+            return Futures.failedFuture(new ServiceHaltException(String.format("Unsupported operation %s.", op)));
         }
     }
 
@@ -301,13 +308,14 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                 .thenAccept(aggregator -> {
                     try {
                         aggregator.add(op);
-                    } catch (DataCorruptionException ex) {
+                    } catch (ServiceHaltException ex) {
+                        // Covers DataCorruptionException
                         // Re-throw.
                         throw new CompletionException(ex);
                     } catch (Exception ex) {
                         // If we get any exception while processing this, then we will likely get it every time we attempt
                         // to do it again. Best if we bail out and attempt a recovery in this case.
-                        throw new CompletionException(new DataCorruptionException("Unable to process operation " + op, ex));
+                        throw new CompletionException(new ServiceHaltException("Unable to process operation " + op, ex));
                     }
                 });
     }
@@ -464,7 +472,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private boolean isCriticalError(Throwable ex) {
         ex = Exceptions.unwrap(ex);
         return Exceptions.mustRethrow(ex)
-                || ex instanceof DataCorruptionException     // Data corruption - stop processing to prevent more damage.
+                || ex instanceof ServiceHaltException     // Service halt or Data corruption - stop processing to prevent more damage.
                 || ex instanceof StorageNotPrimaryException  // Fenced out - another instance took over.
                 || ex instanceof DataLogWriterNotPrimaryException;  // Fenced out at the DurableLog level.
     }
@@ -659,7 +667,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         }
 
         @Override
-        public void add(SegmentOperation operation) throws DataCorruptionException {
+        public void add(SegmentOperation operation) throws ServiceHaltException {
             for (WriterSegmentProcessor wsp : this.processors) {
                 wsp.add(operation);
             }

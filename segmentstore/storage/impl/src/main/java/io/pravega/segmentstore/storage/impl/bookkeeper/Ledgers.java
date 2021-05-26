@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
@@ -13,12 +19,16 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -35,7 +45,7 @@ import org.apache.bookkeeper.common.concurrent.FutureUtils;
  * General utilities pertaining to BookKeeper Ledgers.
  */
 @Slf4j
-final class Ledgers {
+public final class Ledgers {
     static final Charset CUSTOM_PROPERTY_CHARSET = Charsets.US_ASCII;
     static final String PROPERTY_APPLICATION = "application";
     static final String PROPERTY_VALUE_APPLICATION = "Pravega";
@@ -78,20 +88,21 @@ final class Ledgers {
      */
     static WriteHandle create(BookKeeper bookKeeper, BookKeeperConfig config, int logId) throws DurableDataLogException {
         try {
-
-            return Exceptions.handleInterruptedCall(() ->
-                    FutureUtils.result(bookKeeper.newCreateLedgerOp()
-                            .withEnsembleSize(config.getBkEnsembleSize())
-                            .withWriteQuorumSize(config.getBkWriteQuorumSize())
-                            .withAckQuorumSize(config.getBkAckQuorumSize())
-                            .withDigestType(config.getDigestType())
-                            .withPassword(config.getBKPassword())
-                            .withCustomMetadata(createLedgerCustomMetadata(logId))
-                            .execute(), BK_EXCEPTION_HANDLER) );
+            CompletableFuture<WriteHandle> future = bookKeeper.newCreateLedgerOp()
+                .withEnsembleSize(config.getBkEnsembleSize())
+                .withWriteQuorumSize(config.getBkWriteQuorumSize())
+                .withAckQuorumSize(config.getBkAckQuorumSize())
+                .withDigestType(config.getDigestType())
+                .withPassword(config.getBKPassword())
+                .withCustomMetadata(createLedgerCustomMetadata(logId))
+                .execute();
+            return Futures.getAndHandleExceptions(future, BK_EXCEPTION_HANDLER, config.getBkWriteTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (BKNotEnoughBookiesException bkEx) {
             throw new DataLogNotAvailableException("Unable to create new BookKeeper Ledger.", bkEx);
         } catch (BKException bkEx) {
             throw new DurableDataLogException("Unable to create new BookKeeper Ledger.", bkEx);
+        } catch (TimeoutException e) {
+            throw new DataLogNotAvailableException("Unable to create new BookKeeper Ledger before timeout.", e);
         }
     }
 
@@ -127,7 +138,7 @@ final class Ledgers {
      * @return A ReadHandle for the newly opened ledger.
      * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
      */
-    static ReadHandle openRead(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
+    public static ReadHandle openRead(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
             return Exceptions.handleInterruptedCall(
                     () -> FutureUtils.result(bookKeeper
@@ -225,7 +236,18 @@ final class Ledgers {
         val iterator = ledgers.listIterator(ledgers.size());
         while (iterator.hasPrevious() && (nonEmptyCount < MIN_FENCE_LEDGER_COUNT)) {
             LedgerMetadata ledgerMetadata = iterator.previous();
-            ReadHandle handle = openFence(ledgerMetadata.getLedgerId(), bookKeeper, config);
+            ReadHandle handle;
+            try {
+                handle = openFence(ledgerMetadata.getLedgerId(), bookKeeper, config);
+            } catch (DurableDataLogException ex) {
+                val c = ex.getCause();
+                if (ledgerMetadata.getStatus() == LedgerMetadata.Status.Empty && (c instanceof BKException.BKNoSuchLedgerExistsOnMetadataServerException || c instanceof BKException.BKNoSuchLedgerExistsException)) {
+                    log.warn("{}: Unable to open-fence EMPTY ledger {}. Skipping.", traceObjectId, ledgerMetadata, ex);
+                    continue;
+                }
+                throw ex;
+            }
+
             if (handle.getLastAddConfirmed() != NO_ENTRY_ID) {
                 // Non-empty.
                 nonEmptyCount++;
@@ -244,13 +266,13 @@ final class Ledgers {
     }
 
     /**
-     * Gets the {@link #PROPERTY_LOG_ID} value from the given {@link LedgerHandle}, as stored in its custom metadata.
+     * Gets the {@link #PROPERTY_LOG_ID} value from the given {@link Handle}, as stored in its custom metadata.
      *
-     * @param handle The {@link LedgerHandle} to query.
+     * @param handle The {@link Handle} to query.
      * @return The Log Id stored in {@link #PROPERTY_LOG_ID}, or {@link #NO_LOG_ID} if not defined (i.e., due to an upgrade
      * from a version that did not store this information).
      */
-    static int getBookKeeperLogId(Handle handle) {
+    public static int getBookKeeperLogId(Handle handle) {
         String appName = getPropertyValue(PROPERTY_APPLICATION, handle);
         if (appName == null || !appName.equalsIgnoreCase(PROPERTY_VALUE_APPLICATION)) {
             log.warn("Property '{}' on Ledger {} does not match expected value '{}' (actual '{}'). This is OK if this ledger was created prior to Pravega 0.7.1.",

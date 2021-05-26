@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package io.pravega.test.system;
@@ -23,6 +29,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
@@ -52,12 +59,14 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
     private static final int BOOKIE_FAILOVER_WAIT_MILLIS = 15 * 1000;
+    private static final int IO_PROGRESS_CHECK_TIMEOUT = 120 * 1000;
+    private static final int EVENTS_TO_WAIT_FOR = 100;
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(8 * 60);
 
     private final String readerGroupName = "testBookieFailoverReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(NUM_READERS);
+    private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(NUM_READERS * 4);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
     private StreamManager streamManager;
@@ -110,10 +119,9 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 
-        executorService = ExecutorServiceHelpers.newScheduledThreadPool( NUM_READERS + NUM_WRITERS + 1, "BookieFailoverTest-main");
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1, "BookieFailoverTest-main");
 
-        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
-                "BookieFailoverTest-controller");
+        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2, "BookieFailoverTest-controller");
 
         //get Controller Uri
         controller = new ControllerImpl(ControllerImplConfig.builder()
@@ -144,23 +152,32 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
     }
 
     @Test
-    public void bookieFailoverTest() throws ExecutionException, InterruptedException {
+    public void bookieFailoverTest() throws Exception {
         createWriters(clientFactory, NUM_WRITERS, SCOPE, STREAM);
         createReaders(clientFactory, readerGroupName, SCOPE, readerGroupManager, STREAM, NUM_READERS);
 
         // Give some time to create readers before forcing a bookie failover.
-        Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
+        AssertExtensions.assertEventuallyEquals("Writers and/or readers not progressing.", true,
+            () -> testState.getEventWrittenCount() > EVENTS_TO_WAIT_FOR && testState.getEventReadCount() > EVENTS_TO_WAIT_FOR,
+                1000, IO_PROGRESS_CHECK_TIMEOUT);
 
         // Scale down bookie.
         Futures.getAndHandleExceptions(bookkeeperService.scaleService(2), ExecutionException::new);
 
-        log.info("Sleeping for {} seconds.", BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
-        Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
+        log.info("Waiting until writers and readers cannot make further progress.");
+        long writeCountDiff, readCountDiff;
+        do {
+            writeCountDiff = testState.getEventWrittenCount();
+            readCountDiff = testState.getEventReadCount();
+            Exceptions.handleInterrupted(() -> Thread.sleep(2000));
+            writeCountDiff = testState.getEventWrittenCount() - writeCountDiff;
+            readCountDiff = testState.getEventReadCount() - readCountDiff;
+            log.info("Written ({}) and read ({}) events after downscale within 2 seconds.", writeCountDiff, readCountDiff);
+        } while (writeCountDiff + readCountDiff > 0);
 
-        long writeCountBeforeSleep  = testState.getEventWrittenCount();
-        long readCountBeforeSleep  = testState.getEventReadCount();
-        log.info("Write count is {} and read count is {} after {} seconds sleep after bookie failover.", writeCountBeforeSleep,
-                readCountBeforeSleep, BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
+        long writeCountAfterFailover = testState.getEventWrittenCount();
+        long readCountAfterFailover = testState.getEventReadCount();
+        log.info("Write count is {} and read count is {} after bookie failover.", writeCountAfterFailover, readCountAfterFailover);
 
         log.info("Sleeping for {} seconds.", BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
         Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
@@ -168,16 +185,18 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         long writeCountAfterSleep  = testState.getEventWrittenCount();
         long readCountAfterSleep  = testState.getEventReadCount();
         log.info("Write count is {} and read count is {} after {} seconds sleep after bookie failover.", writeCountAfterSleep,
-                readCountAfterSleep, 2 * (BOOKIE_FAILOVER_WAIT_MILLIS / 1000));
+                readCountAfterSleep, BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
 
-        Assert.assertEquals("Unexpected writes performed during Bookie failover.", writeCountAfterSleep, writeCountBeforeSleep);
+        Assert.assertEquals("Unexpected writes performed during Bookie failover.", writeCountAfterSleep, writeCountAfterFailover);
         log.info("Writes failed when bookie is scaled down.");
 
         // Bring up a new bookie instance.
         Futures.getAndHandleExceptions(bookkeeperService.scaleService(3), ExecutionException::new);
 
-        // Give some more time to writers to write more events.
-        Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
+        // Wait until writers and readers make further progress.
+        AssertExtensions.assertEventuallyEquals("Writers and/or readers not progressing after failover.", true,
+                () -> testState.getEventWrittenCount() > writeCountAfterFailover + EVENTS_TO_WAIT_FOR &&
+                        testState.getEventReadCount() > readCountAfterFailover + EVENTS_TO_WAIT_FOR, 1000, IO_PROGRESS_CHECK_TIMEOUT);
         stopWriters();
 
         // Also, verify writes happened after bookie is brought back.

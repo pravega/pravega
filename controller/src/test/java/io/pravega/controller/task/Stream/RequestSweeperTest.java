@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.task.Stream;
 
@@ -44,6 +50,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -52,7 +59,9 @@ import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -67,6 +76,8 @@ import static org.mockito.Mockito.spy;
 public abstract class RequestSweeperTest {
     private static final String HOSTNAME = "host-1234";
     private static final String SCOPE = "scope";
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework cli;
 
@@ -95,10 +106,11 @@ public abstract class RequestSweeperTest {
         streamStore = getStream();
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
-        EventHelper helperMock = EventHelperMock.getEventHelperMock(executor, HOSTNAME, ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
+        EventHelper helperMock = EventHelperMock.getEventHelperMock(executor, HOSTNAME, ((AbstractStreamMetadataStore) 
+                streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(),
-                TaskStoreFactory.createInMemoryStore(executor), segmentHelperMock, executor, HOSTNAME, GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker, helperMock);
+                TaskStoreFactory.createInMemoryStore(executor), segmentHelperMock, executor, HOSTNAME, 
+                GrpcAuthHelper.getDisabledAuthHelper(), helperMock);
         requestEventWriter = spy(new EventStreamWriterMock<>());
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
@@ -106,7 +118,7 @@ public abstract class RequestSweeperTest {
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         // region createStream
-        streamStore.createScope(SCOPE).join();
+        streamStore.createScope(SCOPE, null, executor).join();
         long start = System.currentTimeMillis();
         streamStore.createStream(SCOPE, stream1, configuration1, start, null, executor).join();
         streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).join();
@@ -145,7 +157,7 @@ public abstract class RequestSweeperTest {
         }).when(requestEventWriter).writeEvent(any(), any());
         
         streamMetadataTasks.manualScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), 
-                System.currentTimeMillis(), null);
+                System.currentTimeMillis(), 0L);
 
         signal1.join();
         // since we dont complete writeEventFuture, manual scale will not complete and index is not removed

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client;
 
@@ -84,6 +90,12 @@ public class ClientConfig implements Serializable {
      * @return Maximum number of connections per Segment Store for connection pooling.
      */
     private final int maxConnectionsPerSegmentStore;
+
+    /**
+     * An internal property that determines if the client config.
+     */
+    @Getter(AccessLevel.PACKAGE)
+    private final boolean isDefaultMaxConnections;
 
     /**
      * An internal property that determines whether TLS enabled is derived from Controller URI. It cannot be set
@@ -181,6 +193,7 @@ public class ClientConfig implements Serializable {
         private boolean validateHostName = true;
 
         private boolean deriveTlsEnabledFromControllerURI = true;
+        private boolean isDefaultMaxConnections = true;
 
         /**
          * Note: by making this method private, we intend to hide the corresponding property
@@ -191,6 +204,16 @@ public class ClientConfig implements Serializable {
          */
         private ClientConfigBuilder deriveTlsEnabledFromControllerURI(boolean value) {
             this.deriveTlsEnabledFromControllerURI = value;
+            return this;
+        }
+
+        public ClientConfigBuilder maxConnectionsPerSegmentStore(int maxConnectionsPerSegmentStore) {
+            if (this.isDefaultMaxConnections) {
+                this.isDefaultMaxConnections(false);
+                this.maxConnectionsPerSegmentStore = maxConnectionsPerSegmentStore;
+            } else {
+                log.warn("Update to maxConnectionsPerSegmentStore configuration from {} to {} is ignored,", this.maxConnectionsPerSegmentStore, maxConnectionsPerSegmentStore);
+            }
             return this;
         }
 
@@ -215,7 +238,8 @@ public class ClientConfig implements Serializable {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
             }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
-                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore, metricListener);
+                    isDefaultMaxConnections, deriveTlsEnabledFromControllerURI, enableTlsToController,
+                    enableTlsToSegmentStore, metricListener);
         }
 
         /**

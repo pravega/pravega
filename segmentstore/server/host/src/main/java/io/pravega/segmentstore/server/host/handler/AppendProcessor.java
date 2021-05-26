@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.host.handler;
 
@@ -59,7 +65,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicLong;
 
 import io.pravega.shared.security.token.JsonWebToken;
 import lombok.Builder;
@@ -74,33 +79,38 @@ import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 /**
  * Process incoming Append requests and write them to the SegmentStore.
  */
-@Builder
 public class AppendProcessor extends DelegatingRequestProcessor {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final String EMPTY_STACK_TRACE = "";
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AppendProcessor.class));
-    @NonNull
     private final StreamSegmentStore store;
-    @NonNull
-    private final ServerConnection connection;
-    @NonNull
-    private final ConnectionTracker connectionTracker;
+    private final TrackedConnection connection;
     @Getter
-    @NonNull
     private final RequestProcessor nextRequestProcessor;
-    @NonNull
     private final SegmentStatsRecorder statsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
     private final ConcurrentHashMap<Pair<String, UUID>, WriterState> writerStates = new ConcurrentHashMap<>();
-    private final AtomicLong outstandingBytes = new AtomicLong();
     private final ScheduledExecutorService tokenExpiryHandlerExecutor;
 
     //endregion
 
     //region Builder
+
+    @Builder
+    AppendProcessor(@NonNull StreamSegmentStore store, @NonNull TrackedConnection connection, @NonNull RequestProcessor nextRequestProcessor,
+                    @NonNull SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
+                    boolean replyWithStackTraceOnError, ScheduledExecutorService tokenExpiryHandlerExecutor) {
+        this.store = store;
+        this.connection = connection;
+        this.nextRequestProcessor = nextRequestProcessor;
+        this.statsRecorder = statsRecorder;
+        this.tokenVerifier = tokenVerifier;
+        this.replyWithStackTraceOnError = replyWithStackTraceOnError;
+        this.tokenExpiryHandlerExecutor = tokenExpiryHandlerExecutor;
+    }
 
     /**
      * Creates a new {@link AppendProcessorBuilder} instance with all optional arguments set to default values.
@@ -112,7 +122,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         return builder()
                 .nextRequestProcessor(new FailingRequestProcessor())
                 .statsRecorder(SegmentStatsRecorder.noOp())
-                .connectionTracker(new ConnectionTracker())
                 .replyWithStackTraceOnError(false);
     }
 
@@ -229,7 +238,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         Preconditions.checkState(state != null, "Data from unexpected connection: Segment=%s, WriterId=%s.", append.getSegment(), id);
         long previousEventNumber = state.beginAppend(append.getEventNumber());
         int appendLength = append.getData().readableBytes();
-        adjustOutstandingBytes(appendLength);
+        this.connection.adjustOutstandingBytes(appendLength);
         Timer timer = new Timer();
         storeAppend(append, previousEventNumber)
                 .whenComplete((newLength, ex) -> {
@@ -237,14 +246,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, ex);
                 })
                 .whenComplete((v, e) -> {
-                    adjustOutstandingBytes(-appendLength);
+                    this.connection.adjustOutstandingBytes(-appendLength);
                     append.getData().release();
                 });
-    }
-
-    private void adjustOutstandingBytes(int delta) {
-        long currentOutstanding = this.outstandingBytes.updateAndGet(p -> Math.max(0, p + delta));
-        this.connectionTracker.updateOutstandingBytes(this.connection, delta, currentOutstanding);
     }
 
     private CompletableFuture<Long> storeAppend(Append append, long lastEventNumber) {

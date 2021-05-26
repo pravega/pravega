@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -31,6 +37,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_SYSTEM_TRUNCATE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_TRUNCATE_COUNT;
 import static io.pravega.segmentstore.storage.chunklayer.ChunkStorageMetrics.SLTS_TRUNCATE_LATENCY;
 
@@ -115,6 +122,10 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
         val elapsed = timer.getElapsed();
         SLTS_TRUNCATE_LATENCY.reportSuccessEvent(elapsed);
         SLTS_TRUNCATE_COUNT.inc();
+        if (segmentMetadata.isStorageSystemSegment()) {
+            SLTS_SYSTEM_TRUNCATE_COUNT.inc();
+            chunkedSegmentStorage.reportMetricsForSystemSegment(segmentMetadata);
+        }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
             log.warn("{} truncate - late op={}, segment={}, offset={}, latency={}.",
                     chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, elapsed.toMillis());
@@ -141,16 +152,13 @@ class TruncateOperation implements Callable<CompletableFuture<Void>> {
     private CompletableFuture<Void> commit(MetadataTransaction txn) {
         // Commit system logs.
         if (chunkedSegmentStorage.isStorageSystemSegment(segmentMetadata)) {
-            txn.setExternalCommitStep(() -> {
-                chunkedSegmentStorage.getSystemJournal().commitRecord(
-                        SystemJournal.TruncationRecord.builder()
-                                .segmentName(handle.getSegmentName())
-                                .offset(offset)
-                                .firstChunkName(segmentMetadata.getFirstChunk())
-                                .startOffset(startOffset.get())
-                                .build());
-                return null;
-            });
+            txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecord(
+                                                SystemJournal.TruncationRecord.builder()
+                                                        .segmentName(handle.getSegmentName())
+                                                        .offset(offset)
+                                                        .firstChunkName(segmentMetadata.getFirstChunk())
+                                                        .startOffset(startOffset.get())
+                                                        .build()));
         }
 
         // Finally commit.

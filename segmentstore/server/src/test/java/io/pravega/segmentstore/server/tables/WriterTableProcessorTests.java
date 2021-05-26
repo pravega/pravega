@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.tables;
 
@@ -202,6 +208,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
         // 3. INDEX_OFFSET changes after the first append, but before the second one.
         context.metadata.updateAttributes(Collections.singletonMap(TableAttributes.INDEX_OFFSET, append2.getStreamSegmentOffset()));
+        context.connector.refreshLastIndexedOffset();
         attributeCountBefore = context.segmentMock.getAttributeCount();
         context.processor.flush(TIMEOUT).join();
         attributeCountAfter = context.segmentMock.getAttributeCount();
@@ -216,6 +223,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         context.segmentMock.append(append3.getData(), null, TIMEOUT).join();
         context.processor.add(new CachedStreamSegmentAppendOperation(append3));
         context.metadata.updateAttributes(Collections.singletonMap(TableAttributes.INDEX_OFFSET, append3.getLastStreamSegmentOffset() + 1));
+        context.connector.refreshLastIndexedOffset();
 
         attributeCountBefore = context.segmentMock.getAttributeCount();
         context.processor.flush(TIMEOUT).join();
@@ -252,14 +260,17 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
             // Flush.
             val initialNotifyCount = context.connector.notifyCount.get();
-            context.processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            val f1 = context.processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             AssertExtensions.assertGreaterThan("No calls to notifyIndexOffsetChanged().",
                     initialNotifyCount, context.connector.notifyCount.get());
+            Assert.assertTrue(f1.isAnythingFlushed());
 
             // Post-flush validation.
             Assert.assertFalse("Unexpected value from mustFlush() after call to flush().", context.processor.mustFlush());
+            val f2 = context.processor.flush(false, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             Assert.assertEquals("Unexpected LUSN after call to flush().",
                     Operation.NO_SEQUENCE_NUMBER, context.processor.getLowestUncommittedSequenceNumber());
+            Assert.assertFalse(f2.isAnythingFlushed());
 
             // Verify correctness.
             batch.expectedEntries.keySet().forEach(k -> allKeys.put(k, context.keyHasher.hash(k)));
@@ -530,9 +541,9 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.random = new Random(0);
             this.sequenceNumber = new AtomicLong(0);
             initializeSegment();
+            this.indexReader = new IndexReader(executorService());
             this.connector = new TableWriterConnectorImpl();
             this.processor = new WriterTableProcessor(connector, executorService());
-            this.indexReader = new IndexReader(executorService());
             val ds = new SortedKeyIndexDataSource(this.tableStoreMock::put, this.tableStoreMock::remove, this.tableStoreMock::get);
             this.sortedKeyIndex = new SegmentSortedKeyIndexImpl(SEGMENT_NAME, ds, executorService());
         }
@@ -572,6 +583,15 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         private class TableWriterConnectorImpl implements TableWriterConnector {
             private final AtomicInteger notifyCount = new AtomicInteger(0);
             private final AtomicBoolean closed = new AtomicBoolean();
+            private final AtomicLong previousLastIndexedOffset = new AtomicLong(-1);
+
+            TableWriterConnectorImpl() {
+                refreshLastIndexedOffset();
+            }
+
+            void refreshLastIndexedOffset() {
+                this.previousLastIndexedOffset.set(indexReader.getLastIndexedOffset(segmentMock.getInfo()));
+            }
 
             @Override
             public SegmentMetadata getMetadata() {
@@ -599,9 +619,14 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             }
 
             @Override
-            public void notifyIndexOffsetChanged(long lastIndexedOffset) {
+            public void notifyIndexOffsetChanged(long lastIndexedOffset, int processedSizeBytes) {
                 Assert.assertEquals("Unexpected value for lastIndexedOffset.",
                         indexReader.getLastIndexedOffset(segmentMock.getInfo()), lastIndexedOffset);
+
+                AssertExtensions.assertGreaterThanOrEqual("Expecting processedSizeBytes to be positive", 0, processedSizeBytes);
+                long expectedProcessedSize = Math.max(0, lastIndexedOffset - this.previousLastIndexedOffset.get());
+                Assert.assertEquals("Unexpected processedSizeBytes.", expectedProcessedSize, processedSizeBytes);
+                refreshLastIndexedOffset();
                 this.notifyCount.incrementAndGet();
             }
 

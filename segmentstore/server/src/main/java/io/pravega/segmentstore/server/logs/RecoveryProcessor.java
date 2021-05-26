@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
@@ -16,6 +22,7 @@ import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
+import io.pravega.segmentstore.server.ServiceHaltException;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
@@ -72,6 +79,7 @@ class RecoveryProcessor {
      *                   * DataLogWriterNotPrimaryException: If unable to acquire DurableDataLog ownership or the ownership
      *                   has been lost in the process.
      *                   * DataCorruptionException: If an unrecoverable corruption has been detected with the recovered data.
+     *                   * ServiceHaltException: If an unrecoverable state has been detected with the recovered data.
      *                   * SerializationException: If a DataFrame or Operation was unable to be deserialized.
      *                   * IOException: If a general IO exception occurred.
      */
@@ -171,7 +179,7 @@ class RecoveryProcessor {
         return recoveredItemCount;
     }
 
-    protected void recoverOperation(DataFrameRecord<Operation> dataFrameRecord, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
+    protected void recoverOperation(DataFrameRecord<Operation> dataFrameRecord, OperationMetadataUpdater metadataUpdater) throws ServiceHaltException {
         // Update Metadata Sequence Number.
         Operation operation = dataFrameRecord.getItem();
         metadataUpdater.setOperationSequenceNumber(operation.getSequenceNumber());

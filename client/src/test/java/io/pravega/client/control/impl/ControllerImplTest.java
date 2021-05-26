@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.control.impl;
 
@@ -1936,7 +1942,8 @@ public class ControllerImplTest {
         assertEquals(Transaction.Status.OPEN, transaction.get());
 
         transaction = controllerClient.checkTransactionStatus(new StreamImpl("scope1", "stream2"), UUID.randomUUID());
-        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, t -> Exceptions.unwrap(t) instanceof StatusRuntimeException
+                && ((StatusRuntimeException) Exceptions.unwrap(t)).getStatus().equals(Status.NOT_FOUND));
 
         transaction = controllerClient.checkTransactionStatus(new StreamImpl("scope1", "stream3"), UUID.randomUUID());
         assertEquals(Transaction.Status.COMMITTING, transaction.get());

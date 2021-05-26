@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
@@ -22,10 +28,10 @@ import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.StreamingException;
 import io.pravega.segmentstore.server.ContainerOfflineException;
-import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.ServiceHaltException;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -221,11 +227,11 @@ public class DurableLog extends AbstractService implements OperationLog {
         } catch (Exception ex) {
             log.error("{} Recovery FAILED.", this.traceObjectId, ex);
             Throwable cause = Exceptions.unwrap(ex);
-            if (cause instanceof DataCorruptionException || cause instanceof DataLogCorruptedException) {
-                // DataCorruptionException during recovery means we will be unable to execute the recovery successfully
-                // regardless how many times we try. We need to disable the log so that future instances of this class
-                // will not attempt to do so indefinitely (which could wipe away useful debugging information before
-                // someone can manually fix the problem).
+            if (cause instanceof ServiceHaltException || cause instanceof DataLogCorruptedException) {
+                // ServiceHaltException (also covers DataCorruptionException) during recovery means we will be unable to
+                // execute the recovery successfully regardless how many times we try. We need to disable the log so that
+                // future instances of this class will not attempt to do so indefinitely (which could wipe away useful
+                // debugging information before someone can manually fix the problem).
                 try {
                     this.durableDataLog.disable();
                     log.info("{} Log disabled due to {} during recovery.", this.traceObjectId, cause.getClass().getSimpleName());

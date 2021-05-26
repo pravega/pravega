@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -7,6 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 plugins.withId('java') {
     apply plugin: 'checkstyle'
@@ -89,17 +94,17 @@ plugins.withId('java') {
         testLogging.showCauses = true
         testLogging.showExceptions = true
         testLogging.showStackTraces = true
-        testLogging.events = ["FAILED"]
-        maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : 1
+        testLogging.events = ["STARTED", "PASSED", "SKIPPED", "FAILED"]
+        maxParallelForks = System.properties['maxParallelForks'] ? System.properties['maxParallelForks'].toInteger() : Math.min(4, Runtime.runtime.availableProcessors())
         minHeapSize = "128m"
         maxHeapSize = "512m"
         def jvmArgsCopy = jvmArgs
         jvmArgsCopy.add("-XX:MaxDirectMemorySize=4g")
+        jvmArgsCopy.add("-XX:+HeapDumpOnOutOfMemoryError")
         jvmArgs = jvmArgsCopy
-        def outputCache = new LinkedList<String>()
+        def outputCache = new ArrayDeque<String>(301)
 
         beforeTest { descriptor ->
-            logger.lifecycle("\nRunning test: " + descriptor.getClassName() + " > " + descriptor.getDisplayName());
             outputCache.clear()
         }
 
@@ -111,7 +116,9 @@ plugins.withId('java') {
         afterTest { descriptor, result ->
             if (result.resultType == TestResult.ResultType.FAILURE && outputCache.size() > 0) {
                 println()
-                println("Output of ${descriptor.getClassName()}.${descriptor.getDisplayName()} (Last 300 lines):")
+                def red = new String((char) 27) + "[31m"
+                def black = new String((char) 27) + "[0m"
+                println("${red}${descriptor.getClassName()}.${descriptor.getDisplayName()} FAILED. Output (Last 300 lines):${black}")
                 outputCache.each { print(" > $it") }
             }
         }
