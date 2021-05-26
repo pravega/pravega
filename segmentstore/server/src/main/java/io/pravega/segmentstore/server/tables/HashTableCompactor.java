@@ -57,8 +57,8 @@ class HashTableCompactor extends TableCompactor {
     }
 
     @Override
-    protected long getUniqueEntryCount() {
-        return IndexReader.getEntryCount(this.metadata);
+    protected CompletableFuture<Long> getUniqueEntryCount() {
+        return CompletableFuture.completedFuture(IndexReader.getEntryCount(this.metadata));
     }
 
     @Override
@@ -93,6 +93,8 @@ class HashTableCompactor extends TableCompactor {
                     val bucket = buckets.get(k);
                     return bucket == null || !bucket.exists();
                 }).collect(Collectors.toList());
+
+        // Do this in a separate loop since we are modifying args.candidatesByHash with removeBucket().
         for (val bucket : deletedBuckets) {
             args.removeBucket(bucket);
         }

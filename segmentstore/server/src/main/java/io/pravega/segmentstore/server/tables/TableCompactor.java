@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
@@ -102,9 +103,9 @@ abstract class TableCompactor {
     /**
      * Gets the number of unique keys in the Table Segment.
      *
-     * @return The number of unique keys.
+     * @return A CompletableFuture, that, when completed, will contain the number of unique keys.
      */
-    protected abstract long getUniqueEntryCount();
+    protected abstract CompletableFuture<Long> getUniqueEntryCount();
 
     /**
      * Creates a new instance of the {@link CompactionArgs} (or an implementation specific sub-class).
@@ -121,24 +122,27 @@ abstract class TableCompactor {
     /**
      * Determines if Table Compaction is required on the Table Segment.
      *
-     * @return True if compaction is required, false otherwise.
+     * @return A CompletableFuture that will be completed with {@link Boolean#TRUE} if compaction is required, or
+     * {@link Boolean#FALSE} otherwise.
      */
-    boolean isCompactionRequired() {
-        long startOffset = getCompactionStartOffset();
-        long lastIndexOffset = getLastIndexedOffset();
+    CompletableFuture<Boolean> isCompactionRequired() {
+        final long startOffset = getCompactionStartOffset();
+        final long lastIndexOffset = getLastIndexedOffset();
         if (startOffset + this.config.getMaxCompactionSize() >= lastIndexOffset) {
             // Either:
             // 1. Nothing was indexed
             // 2. Compaction has already reached the indexed limit.
             // 3. Not enough "uncompacted" data - at least this.connector.getMaxCompactionSize() must be accumulated to trigger a compaction.
-            return false;
+            return CompletableFuture.completedFuture(false);
         }
 
-        long totalEntryCount = IndexReader.getTotalEntryCount(this.metadata);
-        long entryCount = getUniqueEntryCount();
-        long utilization = totalEntryCount == 0 ? 100 : MathHelpers.minMax(Math.round(100.0 * entryCount / totalEntryCount), 0, 100);
-        long utilizationThreshold = (int) MathHelpers.minMax(IndexReader.getCompactionUtilizationThreshold(this.metadata), 0, 100);
-        return utilization < utilizationThreshold;
+        final long totalEntryCount = IndexReader.getTotalEntryCount(this.metadata);
+        final long utilizationThreshold = (int) MathHelpers.minMax(IndexReader.getCompactionUtilizationThreshold(this.metadata), 0, 100);
+        return getUniqueEntryCount()
+                .thenApply(entryCount -> {
+                    final long utilization = totalEntryCount == 0 ? 100 : MathHelpers.minMax(Math.round(100.0 * entryCount / totalEntryCount), 0, 100);
+                    return utilization < utilizationThreshold;
+                });
     }
 
     /**
@@ -280,25 +284,27 @@ abstract class TableCompactor {
      * @return A CompletableFuture that, when completed, indicate the candidates have been copied.
      */
     private CompletableFuture<Void> copyCandidates(CompactionArgs args, TimeoutTimer timer) {
+        val attributes = generateAttributeUpdates(args);
+
         // Collect all the candidates for copying and calculate the total serialization length.
         val toWrite = new ArrayList<TableEntry>();
-        int totalLength = 0;
-        for (val c : args.getAll()) {
-            toWrite.add(c.entry);
-            totalLength += SERIALIZER.getUpdateLength(c.entry);
-        }
+        val totalLength = new AtomicInteger(0);
+        args.getAll().stream().sorted(Comparator.comparingLong(c -> c.entry.getKey().getVersion()))
+                .forEach(c -> {
+                    toWrite.add(c.entry);
+                    generateIndexUpdates(c, totalLength.get(), attributes);
+                    totalLength.addAndGet(SERIALIZER.getUpdateLength(c.entry));
+                });
 
         // Generate the necessary AttributeUpdates that will need to be applied regardless of whether we copy anything or not.
-        val attributes = generateAttributeUpdates(args);
         CompletableFuture<?> result;
-        if (totalLength == 0) {
+        if (totalLength.get() == 0) {
             // Nothing to do; update the necessary segment attributes.
             assert toWrite.size() == 0;
             result = this.segment.updateAttributes(attributes, timer.getRemaining());
         } else {
             // Perform a Segment Append with re-serialized entries (Explicit versions), and atomically update the necessary
             // segment attributes.
-            toWrite.sort(Comparator.comparingLong(c -> c.getKey().getVersion()));
             BufferView appendData = SERIALIZER.serializeUpdateWithExplicitVersion(toWrite);
             result = this.segment.append(appendData, attributes, timer.getRemaining());
             log.debug("{}: Compacting {}, CopyCount={}, CopyLength={}.", this.traceLogId, args, toWrite.size(), totalLength);
@@ -322,10 +328,14 @@ abstract class TableCompactor {
      * @param candidates The Candidates for compaction.
      * @return The result.
      */
-    private AttributeUpdateCollection generateAttributeUpdates(CompactionArgs candidates) {
+    protected AttributeUpdateCollection generateAttributeUpdates(CompactionArgs candidates) {
         return AttributeUpdateCollection.from(
                 new AttributeUpdate(TableAttributes.COMPACTION_OFFSET, AttributeUpdateType.ReplaceIfEquals, candidates.getEndOffset(), candidates.getStartOffset()),
                 new AttributeUpdate(TableAttributes.TOTAL_ENTRY_COUNT, AttributeUpdateType.Accumulate, -candidates.getCount()));
+    }
+
+    protected void generateIndexUpdates(Candidate c, int batchOffset, AttributeUpdateCollection indexUpdates) {
+        // Default implementation intentionally left blank. Derived classes may override this.
     }
 
     /**
@@ -393,8 +403,12 @@ abstract class TableCompactor {
             return false;
         }
 
+        void remove(Candidate candidate) {
+            this.candidatesByKey.remove(candidate.entry.getKey().getKey());
+        }
+
         void removeAll(Collection<Candidate> candidates) {
-            candidates.forEach(c -> this.candidatesByKey.remove(c.entry.getKey().getKey()));
+            candidates.forEach(this::remove);
         }
 
         /**
@@ -403,7 +417,7 @@ abstract class TableCompactor {
          * @param existingKey       A {@link TableKey} that exists and is included in the index.
          * @param existingKeyOffset The existing Key's offset.
          */
-        protected void handleExistingKey(TableKey existingKey, long existingKeyOffset) {
+        void handleExistingKey(TableKey existingKey, long existingKeyOffset) {
             val key = existingKey.getKey();
             val c = this.candidatesByKey.get(key);
             if (c != null && c.segmentOffset < existingKeyOffset) {

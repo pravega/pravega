@@ -203,17 +203,22 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * future will always complete normally; any exceptions are logged but not otherwise bubbled up.
      */
     private CompletableFuture<Void> compactIfNeeded(DirectSegmentAccess segment, long highestCopiedOffset, TimeoutTimer timer) {
-        // Decide if compaction is needed. If not, bail out early.
+        // Creating a compactor every time is lightweight, so we don't need to cache a reference to it, which would in
+        // turn require a long-lived reference to DirectSegmentAccess.
         val compactor = new HashTableCompactor(segment, this.tableCompactorConfig, this.indexWriter, this.connector.getKeyHasher(), this.executor);
-        CompletableFuture<Void> result;
-        if (compactor.isCompactionRequired()) {
-            result = compactor.compact(timer);
-        } else {
-            log.debug("{}: No compaction required at this time.", this.traceObjectId);
-            result = CompletableFuture.completedFuture(null);
-        }
 
-        return result
+        // Compaction may not be needed any time. Only perform it if necessary.
+        return compactor.isCompactionRequired()
+                .thenComposeAsync(isRequired -> {
+                    if (isRequired) {
+                        return compactor.compact(timer);
+                    } else {
+                        // Note: we should not bail out early; even if no compaction occurred, as a result of our indexing
+                        // it may be that we can truncate the segment, so we have to execute the subsequent callbacks.
+                        log.debug("{}: No compaction required at this time.", this.traceObjectId);
+                        return CompletableFuture.completedFuture(null);
+                    }
+                }, this.executor)
                 .thenComposeAsync(v -> {
                     // Calculate the safe truncation offset.
                     long truncateOffset = compactor.calculateTruncationOffset(highestCopiedOffset);
@@ -234,7 +239,6 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                     return null;
                 });
     }
-
 
     /**
      * Performs a flush attempt, and retries it in case it failed with {@link BadAttributeUpdateException} for the
