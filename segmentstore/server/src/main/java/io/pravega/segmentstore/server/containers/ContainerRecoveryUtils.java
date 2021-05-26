@@ -314,8 +314,8 @@ public class ContainerRecoveryUtils {
                                             Duration timeout) throws InterruptedException, ExecutionException,
             TimeoutException {
         Preconditions.checkState(backUpMetadataSegments.size() == containersMap.size(), "The number of " +
-                "back-up metadata segments = " + backUpMetadataSegments.size() + " and number of containers = "
-                + containersMap.size() + "should match.");
+                "back-up metadata segments = %s and the number of containers = %s should match.", backUpMetadataSegments.size(),
+                containersMap.size());
 
         val args = IteratorArgs.builder().fetchTimeout(timeout).build();
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containersMap.size(), true);
@@ -422,29 +422,28 @@ public class ContainerRecoveryUtils {
      * @return                          A CompletableFuture that, when completed normally, will have a Map of Container
      * Ids to new container metadata segment names.
      */
-    public static synchronized CompletableFuture<Map<Integer, String>> createBackUpMetadataSegments(Storage storage, int containerCount, ExecutorService executorService,
-                                                                    Duration timeout) {
+    public static synchronized CompletableFuture<Map<Integer, String>> createBackUpMetadataSegments(Storage storage,
+                                                                                                    int containerCount,
+                                                                                                    ExecutorService executorService,
+                                                                                                    Duration timeout) {
         String fileSuffix = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         Map<Integer, String> backUpMetadataSegments = new HashMap<>();
 
         val futures = new ArrayList<CompletableFuture<Void>>();
 
-        return CompletableFuture.supplyAsync(() -> {
-            for (int containerId = 0; containerId < containerCount; containerId++) {
-                String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + fileSuffix;
-                String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
-                log.debug("Created '{}' as a back of metadata segment of container Id '{}'", backUpMetadataSegment, containerId);
+        for (int containerId = 0; containerId < containerCount; containerId++) {
+            String backUpMetadataSegment = NameUtils.getMetadataSegmentName(containerId) + fileSuffix;
+            String backUpAttributeSegment = NameUtils.getAttributeSegmentName(backUpMetadataSegment);
+            log.debug("Created '{}' as a back of metadata segment of container Id '{}'", backUpMetadataSegment, containerId);
 
-                val finalContainerId = containerId;
-                futures.add(Futures.exceptionallyExpecting(
-                        ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
-                                backUpMetadataSegment, backUpAttributeSegment, executorService, timeout)
-                                .thenCompose(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout)),
-                                        ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
-                backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment);
-            }
-            Futures.allOf(futures).join();
-            return backUpMetadataSegments;
-        }, executorService);
+            val finalContainerId = containerId;
+            futures.add(Futures.exceptionallyExpecting(
+                    ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
+                            backUpMetadataSegment, backUpAttributeSegment, executorService, timeout)
+                            .thenCompose(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout)),
+                                    ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
+            backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment);
+        }
+        return Futures.allOf(futures).thenApply(v -> backUpMetadataSegments);
     }
 }
