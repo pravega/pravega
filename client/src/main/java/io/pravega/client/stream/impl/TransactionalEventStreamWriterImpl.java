@@ -230,6 +230,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
+        pinger.startPing(txId);
         return new TransactionImpl<Type>(writerId, txId, transactions, segments, controller, stream, pinger);
     }
 
