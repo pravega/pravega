@@ -20,13 +20,17 @@ import io.pravega.segmentstore.storage.metadata.ChunkMetadataStore;
 import io.pravega.segmentstore.storage.metadata.ReadIndexBlockMetadata;
 import io.pravega.segmentstore.storage.metadata.SegmentMetadata;
 import io.pravega.segmentstore.storage.metadata.StorageMetadata;
+import io.pravega.segmentstore.storage.mocks.InMemoryTaskQueue;
 import io.pravega.shared.NameUtils;
 import lombok.val;
 import org.junit.Assert;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Test utility.
@@ -239,10 +243,58 @@ public class TestUtils {
             while (null != current) {
                 val chunk = (ChunkMetadata) txn.get(current).get();
                 Assert.assertNotNull(chunk);
-                chunkList.add(chunk);
+                chunkList.add((ChunkMetadata) chunk.deepCopy());
                 current = chunk.getNextChunk();
             }
             return chunkList;
+        }
+    }
+
+    /**
+     * Gets the list of names of chunks for the given segment.
+     *
+     * @param metadataStore Metadata store to query.
+     * @param key           Key.
+     * @return List of names of chunks for the segment.
+     * @throws Exception Exceptions are thrown in case of any errors.
+     */
+    public static Set<String> getChunkNameList(ChunkMetadataStore metadataStore, String key) throws Exception {
+        return getChunkList(metadataStore, key).stream().map( c -> c.getName()).collect(Collectors.toSet());
+    }
+
+    /**
+     * Checks garbage collection queue to ensure new chunks and truncated chunks are added to GC queue.
+     *
+     * @param chunkedSegmentStorage instance of {@link ChunkedSegmentStorage}
+     * @param beforeSet set of chunks before.
+     * @param afterSet set of chunks after.
+     */
+    public static void checkGarbageCollectionQueue(ChunkedSegmentStorage chunkedSegmentStorage, Set<String> beforeSet, Set<String> afterSet) {
+        // Get the enqueued tasks.
+        // Need to de-dup
+        val tasks = new HashMap<String, GarbageCollector.TaskInfo>();
+        val tasksList = ((InMemoryTaskQueue) chunkedSegmentStorage.getGarbageCollector().getTaskQueue())
+                .drain(chunkedSegmentStorage.getGarbageCollector().getTaskQueueName(), Integer.MAX_VALUE).stream()
+                .collect(Collectors.toList());
+        for (val task : tasksList) {
+            tasks.put(task.getName(), task);
+        }
+
+        // All chunks not in new set must be enqueued for deletion.
+        for ( val oldChunk: beforeSet) {
+            if (!afterSet.contains(oldChunk)) {
+                val task = tasks.get(oldChunk);
+                Assert.assertNotNull(task);
+                Assert.assertEquals(GarbageCollector.TaskInfo.DELETE_CHUNK, task.getTaskType() );
+            }
+        }
+        // All chunks not in old set must be enqueued for deletion.
+        for ( val newChunk: afterSet) {
+            if (!beforeSet.contains(newChunk)) {
+                val task = tasks.get(newChunk);
+                Assert.assertNotNull(task);
+                Assert.assertEquals(GarbageCollector.TaskInfo.DELETE_CHUNK, task.getTaskType() );
+            }
         }
     }
 

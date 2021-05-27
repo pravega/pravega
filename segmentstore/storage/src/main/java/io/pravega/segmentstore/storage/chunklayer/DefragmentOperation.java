@@ -328,7 +328,7 @@ class DefragmentOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private CompletableFuture<Void> updateReadIndex() {
-        return new ChunkIterator(chunkedSegmentStorage, txn, startChunkName, lastChunkName)
+        return new ChunkIterator(chunkedSegmentStorage.getExecutor(), txn, startChunkName, lastChunkName)
                 .forEach((metadata, name) -> {
                     newReadIndexEntries.add(ChunkNameOffsetPair.builder()
                             .chunkName(name)

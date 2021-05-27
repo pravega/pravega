@@ -225,7 +225,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             ChunkedSegmentStorage chunkedStorage = (ChunkedSegmentStorage) this.storage;
             val snapshotInfoStore = getStorageSnapshotInfoStore();
             // Bootstrap
-            return chunkedStorage.bootstrap(snapshotInfoStore);
+            // Note: Temp change to be removed after next PR (part 2 of 3)
+            return chunkedStorage.bootstrap(snapshotInfoStore, null);
+            // Note: Final code below ...
+            //StorageEventProcessor eventProcessor = new StorageEventProcessor(this.metadata.getContainerId(), this.containerEventProcessor, chunkedStorage);
+            //return chunkedStorage.bootstrap(snapshotInfoStore, eventProcessor);
+
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -300,7 +305,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         }
 
         // Delayed start. Secondary services need not be started in order for us to accept requests.
-        delayedStart.thenComposeAsync(v -> startSecondaryServicesAsync(), this.executor)
+        delayedStart
+                .thenComposeAsync( v -> {
+                    if (this.storage instanceof ChunkedSegmentStorage) {
+                        return ((ChunkedSegmentStorage) this.storage).finishBootstrap();
+                    }
+                    return CompletableFuture.completedFuture(null);
+                }, this.executor)
+                .thenComposeAsync(v -> startSecondaryServicesAsync(), this.executor)
                 .whenComplete((v, ex) -> {
                     if (ex == null) {
                         // Successful start.
