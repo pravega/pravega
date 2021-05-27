@@ -26,8 +26,13 @@ plugins.withId('maven') {
                         snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
                             authentication(userName: publishUsername, password: publishPassword)
                         }
-                    }
-                    else {
+                    } else if (publishUrl == "jcenterSnapshot") {
+                        repository(url: "https://oss.jfrog.org/artifactory/oss-snapshot-local/") {
+                            if (project.hasProperty("publishUsername") && project.hasProperty("publishPassword")) {
+                                authentication(userName: publishUsername, password: publishPassword)
+                            }
+                        }
+                    } else {
                         repository(url: publishUrl) {
                             // Only configure credentials if they are provided (allows publishing to the filesystem)
                             if (project.hasProperty("publishUsername") && project.hasProperty("publishPassword")) {
