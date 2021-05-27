@@ -44,6 +44,11 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
                 tokenVerifier, true);
     }
 
+    public AdminRequestProcessorImpl(@NonNull StreamSegmentStore segmentStore, @NonNull TableStore tableStore,
+                                     @NonNull ServerConnection connection) {
+        super(segmentStore, tableStore, connection);
+    }
+
     //endregion
 
     //region RequestProcessor Implementation
@@ -65,7 +70,7 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
     }
 
     @Override
-    public void flushToStorage(WireCommands.FlushStorage flushStorage) {
+    public void flushStorage(WireCommands.FlushStorage flushStorage) {
         final String operation = "flushToStorage";
         long trace = LoggerHelpers.traceEnter(log, operation);
 

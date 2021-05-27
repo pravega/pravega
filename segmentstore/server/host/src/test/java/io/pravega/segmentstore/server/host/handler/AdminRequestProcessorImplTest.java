@@ -20,11 +20,9 @@ public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection);
+        AdminRequestProcessorImpl processor = new AdminRequestProcessorImpl(store, mock(TableStore.class), connection);
 
-        // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
         processor.flushStorage(new WireCommands.FlushStorage("", 1));
         order.verify(connection).send(new WireCommands.StorageFlushed(1));
     }
-
 }
