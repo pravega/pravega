@@ -17,6 +17,7 @@ package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.utils.CommandSender;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -47,8 +48,8 @@ public class FlushToStorageCommand extends SegmentStoreCommand {
         @Cleanup
         CuratorFramework zkClient = createZKClient();
         @Cleanup
-        SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
-        CompletableFuture<WireCommands.FlushedStorage> reply = segmentHelper.flushToStorage(
+        CommandSender commandSender = instantiateCommandSender(zkClient);
+        CompletableFuture<WireCommands.FlushedStorage> reply = commandSender.flushToStorage(
                 new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
         reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         output("Flushed durable log to the storage.");

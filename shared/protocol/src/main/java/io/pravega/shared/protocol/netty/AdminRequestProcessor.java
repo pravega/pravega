@@ -20,4 +20,5 @@ package io.pravega.shared.protocol.netty;
  */
 public interface AdminRequestProcessor extends RequestProcessor {
     // Placeholder for new admin-specific requests to be added in the future.
+    void flushToStorage(WireCommands.FlushStorage flushStorage);
 }

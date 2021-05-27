@@ -114,8 +114,8 @@ public enum WireCommandType {
 
     CONDITIONAL_BLOCK_END(89, WireCommands.ConditionalBlockEnd::readFrom),
 
-    FLUSH_TO_STORAGE(90, WireCommands.FlushToStorage::readFrom),
-    FLUSHED_TO_STORAGE(91, WireCommands.FlushedStorage::readFrom),
+    FLUSH_TO_STORAGE(-126, WireCommands.FlushStorage::readFrom),
+    FLUSHED_TO_STORAGE(-125, WireCommands.StorageFlushed::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 

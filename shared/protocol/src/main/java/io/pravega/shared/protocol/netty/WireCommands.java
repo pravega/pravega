@@ -824,7 +824,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class FlushToStorage implements Request, WireCommand {
+    public static final class FlushStorage implements Request, WireCommand {
         final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
         @ToString.Exclude
         final String delegationToken;
@@ -832,7 +832,7 @@ public final class WireCommands {
 
         @Override
         public void process(RequestProcessor cp) {
-            cp.flushToStorage(this);
+            cp.flushStorage(this);
         }
 
         @Override
@@ -844,18 +844,18 @@ public final class WireCommands {
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             String delegationToken = in.readUTF();
             long requestId = in.available()  >= Long.BYTES ? in.readLong() : -1L;
-            return new FlushToStorage(delegationToken, requestId);
+            return new FlushStorage(delegationToken, requestId);
         }
     }
 
     @Data
-    public static final class FlushedStorage implements Reply, WireCommand {
+    public static final class StorageFlushed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.FLUSHED_TO_STORAGE;
         final long requestId;
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.flushedStorage(this);
+            cp.storageFlushed(this);
         }
 
         @Override
@@ -865,7 +865,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new FlushedStorage(requestId);
+            return new StorageFlushed(requestId);
         }
     }
 

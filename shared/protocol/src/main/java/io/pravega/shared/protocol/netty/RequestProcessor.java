@@ -24,7 +24,7 @@ import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
-import io.pravega.shared.protocol.netty.WireCommands.FlushToStorage;
+import io.pravega.shared.protocol.netty.WireCommands.FlushStorage;
 import io.pravega.shared.protocol.netty.WireCommands.MergeTableSegments;
 import io.pravega.shared.protocol.netty.WireCommands.RemoveTableKeys;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateTableEntries;
@@ -48,7 +48,7 @@ public interface RequestProcessor {
 
     void readSegment(ReadSegment readSegment);
 
-    void flushToStorage(FlushToStorage flushToStorage);
+    void flushStorage(FlushStorage flushStorage);
 
     void updateSegmentAttribute(UpdateSegmentAttribute updateSegmentAttribute);
     

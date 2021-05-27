@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import io.pravega.common.LoggerHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
@@ -63,5 +64,17 @@ public class AdminRequestProcessorImpl extends PravegaRequestProcessor implement
         getConnection().send(keepAlive);
     }
 
+    @Override
+    public void flushToStorage(WireCommands.FlushStorage flushStorage) {
+        final String operation = "flushToStorage";
+        long trace = LoggerHelpers.traceEnter(log, operation);
+
+        segmentStore.flushToStorage(TIMEOUT)
+                .thenAccept(v -> {
+                    LoggerHelpers.traceLeave(log, operation, trace);
+                    connection.send(new WireCommands.StorageFlushed(flushStorage.getRequestId()));
+                })
+                .exceptionally(ex -> handleException(flushStorage.getRequestId(), null, operation, ex));
+    }
     //endregion
 }

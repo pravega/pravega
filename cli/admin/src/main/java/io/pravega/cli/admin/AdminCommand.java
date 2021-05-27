@@ -50,6 +50,7 @@ import io.pravega.cli.admin.segmentstore.GetSegmentInfoCommand;
 import io.pravega.cli.admin.segmentstore.ReadSegmentRangeCommand;
 import io.pravega.cli.admin.segmentstore.UpdateSegmentAttributeCommand;
 import io.pravega.cli.admin.utils.CLIControllerConfig;
+import io.pravega.cli.admin.utils.CommandSender;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
@@ -398,5 +399,21 @@ public abstract class AdminCommand {
         return new SegmentHelper(pool, hostStore, pool.getInternalExecutor());
     }
 
+    @VisibleForTesting
+    public CommandSender instantiateCommandSender(CuratorFramework zkClient) {
+        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
+                .hostMonitorEnabled(true)
+                .hostMonitorMinRebalanceInterval(Config.CLUSTER_MIN_REBALANCE_INTERVAL)
+                .containerCount(getServiceConfig().getContainerCount())
+                .build();
+        HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, StoreClientFactory.createZKStoreClient(zkClient));
+        ClientConfig clientConfig = ClientConfig.builder()
+                .controllerURI(URI.create(getCLIControllerConfig().getControllerGrpcURI()))
+                .validateHostName(getCLIControllerConfig().isAuthEnabled())
+                .credentials(new DefaultCredentials(getCLIControllerConfig().getPassword(), getCLIControllerConfig().getUserName()))
+                .build();
+        ConnectionPool pool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        return new CommandSender(pool, hostStore, pool.getInternalExecutor());
+    }
     //endregion
 }

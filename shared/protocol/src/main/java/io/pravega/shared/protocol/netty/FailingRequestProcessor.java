@@ -56,7 +56,7 @@ public class FailingRequestProcessor implements RequestProcessor {
     }
 
     @Override
-    public void flushToStorage(WireCommands.FlushToStorage flushToStorage) {
+    public void flushStorage(WireCommands.FlushStorage flushStorage) {
         throw new IllegalStateException("Unexpected operation");
     }
 

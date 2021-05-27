@@ -609,8 +609,8 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection);
 
         // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
-        processor.flushToStorage(new WireCommands.FlushToStorage("", 1));
-        order.verify(connection).send(new WireCommands.FlushedStorage(1));
+        processor.flushStorage(new WireCommands.FlushStorage("", 1));
+        order.verify(connection).send(new WireCommands.StorageFlushed(1));
     }
 
     @Test(timeout = 20000)
@@ -1390,7 +1390,7 @@ public class PravegaRequestProcessorTest {
                 PravegaRequestProcessor.TIMEOUT));
     }
 
-    private static ServiceBuilderConfig getBuilderConfig() {
+    static ServiceBuilderConfig getBuilderConfig() {
         return ServiceBuilderConfig
                 .builder()
                 .include(ServiceConfig.builder()
@@ -1411,7 +1411,7 @@ public class PravegaRequestProcessorTest {
                 .build();
     }
 
-    private static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
+    static ServiceBuilder newInlineExecutionInMemoryBuilder(ServiceBuilderConfig config) {
         return ServiceBuilder.newInMemoryBuilder(config, (size, name, threadPriority) -> new InlineExecutor())
                 .withStreamSegmentStore(setup -> new SynchronousStreamSegmentStore(new StreamSegmentService(
                         setup.getContainerRegistry(), setup.getSegmentToContainerMapper())));
