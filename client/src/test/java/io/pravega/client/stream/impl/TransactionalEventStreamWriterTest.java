@@ -135,7 +135,7 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         //Create a new transactional eventWriter
         @Cleanup
         TransactionalEventStreamWriter<String> writer1 = new TransactionalEventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
-                                                                                                  EventWriterConfig.builder().transactionTimeoutTime(10000).build(),
+                                                                                                  config,
                                                                                                   executorService());
         Transaction<String> txn = writer1.getTxn(txnId);
         txn.writeEvent("Foo");
@@ -146,7 +146,7 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         assertTrue(bad.unacked.isEmpty());
         assertTrue(outputStream.unacked.isEmpty());
         // verify pings was invoked for the transaction with the specified transactionTimeout.
-        verify(controller, atLeastOnce()).pingTransaction(eq(stream), eq(txnId), eq(10000L));
+        verify(controller, atLeastOnce()).pingTransaction(eq(stream), eq(txnId), eq(config.getTransactionTimeoutTime()));
     }
 
     @Test(expected = TxnFailedException.class)
