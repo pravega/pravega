@@ -16,9 +16,12 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.DynamicAttributeUpdate;
 import io.pravega.segmentstore.contracts.DynamicAttributeValue;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -26,7 +29,7 @@ import io.pravega.segmentstore.server.DirectSegmentAccess;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.val;
@@ -35,11 +38,14 @@ import lombok.val;
  * {@link TableCompactor} for {@link FixedKeyLengthTableSegmentLayout} implementations.
  */
 class FixedKeyLengthTableCompactor extends TableCompactor {
+    private static final Retry.RetryAndThrowBase<Exception> RETRY_POLICY = Retry.withExpBackoff(1, 5, 5)
+            .retryingOn(BadAttributeUpdateException.class)
+            .throwingOn(Exception.class);
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
 
     //region Constructor
 
-    FixedKeyLengthTableCompactor(@NonNull DirectSegmentAccess segment, @NonNull Config config, @NonNull Executor executor) {
+    FixedKeyLengthTableCompactor(@NonNull DirectSegmentAccess segment, @NonNull Config config, @NonNull ScheduledExecutorService executor) {
         super(segment, config, executor);
     }
 
@@ -70,7 +76,8 @@ class FixedKeyLengthTableCompactor extends TableCompactor {
         val entryIterator = candidatesByAttributeId.entrySet().iterator();
         while (entryIterator.hasNext()) {
             val e = entryIterator.next();
-            if (!indexValues.containsKey(e.getKey())) {
+            val exists = indexValues.getOrDefault(e.getKey(), Attributes.NULL_ATTRIBUTE_VALUE) != Attributes.NULL_ATTRIBUTE_VALUE;
+            if (!exists) {
                 args.remove(e.getValue());
                 entryIterator.remove();
             }
@@ -79,9 +86,18 @@ class FixedKeyLengthTableCompactor extends TableCompactor {
         // For all those Keys that still exist, figure out if our candidates are still eligible for compaction. They are
         // not eligible if the same Key currently exists in the index but with a higher offset.
         for (val e : indexValues.entrySet()) {
-            val existingKey = TableKey.versioned(e.getKey().toBuffer(), e.getValue());
-            args.handleExistingKey(existingKey, e.getValue());
+            if (e.getValue() != Attributes.NULL_ATTRIBUTE_VALUE) {
+                val existingKey = TableKey.versioned(e.getKey().toBuffer(), e.getValue());
+                args.handleExistingKey(existingKey, e.getValue());
+            }
         }
+    }
+
+    @Override
+    protected int calculateTotalEntryDelta(CompactionArgs candidates) {
+        int delta = candidates.getCount() - candidates.getCopyCandidateCount();
+        assert delta >= 0 : "compaction cannot increase total entry count";
+        return -delta;
     }
 
     @Override
@@ -96,6 +112,11 @@ class FixedKeyLengthTableCompactor extends TableCompactor {
                 DynamicAttributeValue.segmentLength(batchOffset),
                 c.segmentOffset);
         indexUpdates.add(au);
+    }
+
+    @Override
+    protected Retry.RetryAndThrowBase<Exception> getRetryPolicy() {
+        return RETRY_POLICY;
     }
 
     //endregion

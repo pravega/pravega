@@ -30,7 +30,6 @@ import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -104,26 +103,5 @@ public class FixedKeyLengthTableSegmentLayoutTests extends TableSegmentLayoutTes
         AssertExtensions.assertSuppliedFutureThrows("Not expecting mustBeEmpty to be supported.",
                 () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
                 ex -> ex instanceof UnsupportedOperationException);
-    }
-
-    @Override
-    @Test
-    @Ignore
-    public void testCompaction() {
-
-    }
-
-    @Override
-    @Test
-    @Ignore
-    public void testCompactionWithConditionalUpdates() {
-
-    }
-
-    @Override
-    @Test
-    @Ignore
-    public void testCompactionWithIterators() {
-
     }
 }

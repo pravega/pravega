@@ -40,6 +40,7 @@ import io.pravega.segmentstore.contracts.DynamicAttributeUpdate;
 import io.pravega.segmentstore.contracts.DynamicAttributeValue;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -88,6 +89,7 @@ import lombok.val;
 @Slf4j
 class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
     private final DelayedProcessor<CompactionCandidate> compactionService;
+    private final TableCompactor.Config tableCompactorConfig;
 
     //region Constructor
 
@@ -95,6 +97,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         super(connector, config, executor);
         this.compactionService = new DelayedProcessor<>(this::compactIfNeeded, config.getCompactionFrequency(), executor,
                 String.format("TableCompactor[%s]", connector.getContainerId()));
+        this.tableCompactorConfig = new TableCompactor.Config(config.getMaxCompactionSize());
     }
 
     //endregion
@@ -214,23 +217,43 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
         }).collect(Collectors.toList());
 
         logRequest("get", segmentInfo.getName(), keys.size());
+        return getByAttributes(segment, attributes, timer);
+    }
+
+    private CompletableFuture<List<TableEntry>> getByAttributes(DirectSegmentAccess segment, List<AttributeId> attributes, TimeoutTimer timer) {
         return segment.getAttributes(attributes, false, timer.getRemaining())
                 .thenComposeAsync(attributeValues -> {
                     val result = new ArrayList<CompletableFuture<TableEntry>>(attributes.size());
                     for (val attributeId : attributes) {
                         val segmentOffset = attributeValues.getOrDefault(attributeId, NO_OFFSET);
-                        if (segmentOffset < 0) {
-                            result.add(CompletableFuture.completedFuture(null));
-                        } else {
-                            // TODO: whenever we do compaction, account for StreamSegmentTruncatedException.
-                            val entryReader = AsyncTableEntryReader.readEntry(attributeId.toBuffer(), segmentOffset, this.serializer, timer);
-                            val readResult = segment.read(segmentOffset, EntrySerializer.MAX_SERIALIZATION_LENGTH, timer.getRemaining());
-                            AsyncReadResultProcessor.process(readResult, entryReader, this.executor);
-                            result.add(entryReader.getResult());
-                        }
+                        result.add(getEntryWithSingleRetry(segment, attributeId, segmentOffset, timer));
                     }
                     return Futures.allOfWithResults(result);
                 }, this.executor);
+    }
+
+    private CompletableFuture<TableEntry> getEntryWithSingleRetry(DirectSegmentAccess segment, AttributeId attributeId,
+                                                                  long segmentOffset, TimeoutTimer timer) {
+        return Futures.exceptionallyComposeExpecting(
+                getEntry(segment, attributeId, segmentOffset, timer),
+                ex -> ex instanceof StreamSegmentTruncatedException,
+                () -> {
+                    log.debug("{}: Offset {} truncated while reading key '{}'. Retrying once.", this.traceObjectId, segmentOffset, attributeId);
+                    return segment.getAttributes(Collections.singletonList(attributeId), false, timer.getRemaining())
+                            .thenComposeAsync(attributeValues ->
+                                    getEntry(segment, attributeId, attributeValues.getOrDefault(attributeId, NO_OFFSET), timer));
+                });
+    }
+
+    private CompletableFuture<TableEntry> getEntry(@NonNull DirectSegmentAccess segment, AttributeId attributeId,
+                                                   long segmentOffset, TimeoutTimer timer) {
+        if (segmentOffset < 0) {
+            return CompletableFuture.completedFuture(null);
+        }
+        val entryReader = AsyncTableEntryReader.readEntry(attributeId.toBuffer(), segmentOffset, this.serializer, timer);
+        val readResult = segment.read(segmentOffset, EntrySerializer.MAX_SERIALIZATION_LENGTH, timer.getRemaining());
+        AsyncReadResultProcessor.process(readResult, entryReader, this.executor);
+        return entryReader.getResult();
     }
 
     @Override
@@ -285,7 +308,32 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
     }
 
     private CompletableFuture<Void> compactIfNeeded(CompactionCandidate candidate) {
-        return CompletableFuture.completedFuture(null);
+        val compactor = new FixedKeyLengthTableCompactor(candidate.getSegment(), this.tableCompactorConfig, this.executor);
+        val timer = new TimeoutTimer(this.config.getRecoveryTimeout());
+        return compactor.isCompactionRequired()
+                .thenComposeAsync(isRequired -> {
+                    if (isRequired) {
+                        return compact(candidate.getSegment(), compactor, timer);
+                    } else {
+                        log.debug("{}: No compaction required at this time.", this.traceObjectId);
+                        return CompletableFuture.completedFuture(null);
+                    }
+                }, this.executor);
+    }
+
+    private CompletableFuture<Void> compact(DirectSegmentAccess segment, FixedKeyLengthTableCompactor compactor, TimeoutTimer timer) {
+        return compactor.compact(timer)
+                .thenComposeAsync(v -> {
+                    val metadata = segment.getInfo();
+                    val truncateOffset = compactor.calculateTruncationOffset(-1L);
+                    if (truncateOffset > metadata.getStartOffset()) {
+                        log.debug("{}: Truncating segment at offset {}.", this.traceObjectId, truncateOffset);
+                        return segment.truncate(truncateOffset, timer.getRemaining());
+                    } else {
+                        log.debug("{}: No segment truncation possible now.", this.traceObjectId);
+                        return CompletableFuture.completedFuture(null);
+                    }
+                }, this.executor);
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull DirectSegmentAccess segment,
@@ -380,7 +428,6 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
                             result = this.getItems.apply(this.segment, attributePairs, this.timer);
                         }
 
-                        // TODO: truncated segment (if compaction)
                         return result.thenApply(items -> new IteratorItemImpl<>(stateBuilder.build().serialize(), items));
                     });
         }

@@ -20,6 +20,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -38,7 +39,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Data;
 import lombok.Getter;
@@ -74,14 +75,14 @@ abstract class TableCompactor {
     protected final DirectSegmentAccess segment;
     protected final SegmentMetadata metadata;
     protected final Config config;
-    protected final Executor executor;
+    protected final ScheduledExecutorService executor;
     protected final String traceLogId;
 
     //endregion
 
     //region Constructor
 
-    TableCompactor(@NonNull DirectSegmentAccess segment, @NonNull Config config, @NonNull Executor executor) {
+    TableCompactor(@NonNull DirectSegmentAccess segment, @NonNull Config config, @NonNull ScheduledExecutorService executor) {
         this.segment = segment;
         this.config = config;
         this.executor = executor;
@@ -213,12 +214,13 @@ abstract class TableCompactor {
         }
 
         // Read the Table Entries beginning at the specified offset, without exceeding the given maximum length.
-        return readCandidates(startOffset, maxLength, timer)
-                .thenComposeAsync(candidates -> excludeObsolete(candidates, timer)
-                                .thenComposeAsync(v -> copyCandidates(candidates, timer), this.executor),
-                        this.executor);
+        return getRetryPolicy().runAsync(
+                () -> readCandidates(startOffset, maxLength, timer)
+                        .thenComposeAsync(candidates -> excludeObsolete(candidates, timer)
+                                        .thenComposeAsync(v -> copyCandidates(candidates, timer), this.executor),
+                                this.executor),
+                this.executor);
     }
-
 
     /**
      * Reads a set of compaction candidates from the Segment and generates a {@link CompactionArgs} with them grouped
@@ -328,14 +330,32 @@ abstract class TableCompactor {
      * @param candidates The Candidates for compaction.
      * @return The result.
      */
-    protected AttributeUpdateCollection generateAttributeUpdates(CompactionArgs candidates) {
+    private AttributeUpdateCollection generateAttributeUpdates(CompactionArgs candidates) {
         return AttributeUpdateCollection.from(
                 new AttributeUpdate(TableAttributes.COMPACTION_OFFSET, AttributeUpdateType.ReplaceIfEquals, candidates.getEndOffset(), candidates.getStartOffset()),
-                new AttributeUpdate(TableAttributes.TOTAL_ENTRY_COUNT, AttributeUpdateType.Accumulate, -candidates.getCount()));
+                new AttributeUpdate(TableAttributes.TOTAL_ENTRY_COUNT, AttributeUpdateType.Accumulate, calculateTotalEntryDelta(candidates)));
     }
+
+    /**
+     * When implemented in a derived class, calculates a delta (positive, zero or negative) which indicates by how much
+     * should the {@link TableAttributes#TOTAL_ENTRY_COUNT} be adjusted if the compaction is successful.
+     *
+     * @param candidates The Candidates for compaction.
+     * @return The {@link TableAttributes#TOTAL_ENTRY_COUNT} delta as a result of compaction.
+     */
+    protected abstract int calculateTotalEntryDelta(CompactionArgs candidates);
 
     protected void generateIndexUpdates(Candidate c, int batchOffset, AttributeUpdateCollection indexUpdates) {
         // Default implementation intentionally left blank. Derived classes may override this.
+    }
+
+    /**
+     * Gets the retry policy to use for compaction.
+     *
+     * @return The Retry Policy to use.
+     */
+    protected Retry.RetryAndThrowBase<Exception> getRetryPolicy() {
+        return Retry.NO_RETRY;
     }
 
     /**
@@ -432,6 +452,10 @@ abstract class TableCompactor {
          */
         Collection<Candidate> getAll() {
             return this.candidatesByKey.values();
+        }
+
+        int getCopyCandidateCount() {
+            return this.candidatesByKey.size();
         }
 
         @Override

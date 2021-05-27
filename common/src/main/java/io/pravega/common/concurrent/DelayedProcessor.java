@@ -186,7 +186,6 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> implements AutoCl
     }
 
     private CompletableFuture<Void> delay() {
-        assert this.currentIterationDelayTask == null;
         val delay = calculateDelay();
         log.debug("{}: Iteration delay = {} ms. Queue size = {}.", this.traceObjectId, delay.toMillis(), this.queue.size());
         val result = createDelayedFuture(delay)

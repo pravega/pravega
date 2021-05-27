@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeId;
@@ -30,6 +31,7 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -364,6 +366,7 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
     protected void testTableSegmentCompacted(KeyHasher keyHasher, CheckTable checkTable) {
         val config = TableExtensionConfig.builder()
                 .maxCompactionSize((MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * BATCH_SIZE)
+                .compactionFrequency(Duration.ofMillis(1))
                 .build();
         @Cleanup
         val context = new TableContext(config, keyHasher, executorService());
@@ -406,7 +409,7 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
             keyVersions.keySet().removeAll(current.toRemove);
 
             if (processor != null) {
-                // Flush the processor.
+                // Background indexer Table Segment - flush the processor.
                 Assert.assertTrue("Unexpected result from WriterTableProcessor.mustFlush().", processor.mustFlush());
                 processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
@@ -416,15 +419,15 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
             last = current;
         }
 
-        // Verify we have had at least one compaction during this test.
-        val ir = new IndexReader(executorService());
-        AssertExtensions.assertGreaterThan("No compaction occurred.", 0, IndexReader.getCompactionOffset(context.segment().getInfo()));
+        // Verify we have had at least one compaction during this test. This may happen in the background, so give it
+        // some time to execute.
+        TestUtils.await(() -> 0 < IndexReader.getCompactionOffset(context.segment().getInfo()), 10, TIMEOUT.toMillis());
         AssertExtensions.assertGreaterThan("No truncation occurred", 0, context.segment().getInfo().getStartOffset());
 
         // Finally, remove all data and delete the segment.
         val finalRemoval = last.expectedEntries.keySet().stream()
-                                               .map(k -> toUnconditionalKey(k, 1))
-                                               .collect(Collectors.toList());
+                .map(k -> toUnconditionalKey(k, 1))
+                .collect(Collectors.toList());
         context.ext.remove(SEGMENT_NAME, finalRemoval, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         removedKeys.addAll(last.expectedEntries.keySet());
         deleteSegment(Collections.emptyList(), supportsDeleteIfEmpty(), context.ext);
@@ -636,19 +639,25 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
         val entryIterator = ext.entryIterator(SEGMENT_NAME, iteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualEntries = collectIteratorItems(entryIterator);
 
+        // When we check Entry Iterator, we order by Version and verify that versions match. Entry Iterators also return
+        // versions so it's important that we check those.
         actualEntries.sort(Comparator.comparingLong(e -> e.getKey().getVersion()));
 
         // Get the existing keys. We will use this to check Key Versions.
         val existingEntries = ext.get(SEGMENT_NAME, new ArrayList<>(expectedEntries.keySet()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         existingEntries.sort(Comparator.comparingLong(e -> e.getKey().getVersion()));
-        val existingKeys = existingEntries.stream().map(TableEntry::getKey).collect(Collectors.toList());
         AssertExtensions.assertListEquals("Unexpected Table Entries from entryIterator().", existingEntries, actualEntries, TableEntry::equals);
 
-        // Collect and verify all Table Keys.
+        // Collect and verify all Table Keys. We now need to sort by Key, as Key Iterators do not return Version.
+        val c = BufferViewComparator.create();
+        val existingKeys = existingEntries.stream()
+                .sorted((e1, e2) -> c.compare(e1.getKey().getKey(), e2.getKey().getKey()))
+                .map(TableEntry::getKey).collect(Collectors.toList());
         val keyIterator = ext.keyIterator(SEGMENT_NAME, iteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualKeys = collectIteratorItems(keyIterator);
-        actualKeys.sort(Comparator.comparingLong(TableKey::getVersion));
-        AssertExtensions.assertListEquals("Unexpected Table Keys from keyIterator().", existingKeys, actualKeys, TableKey::equals);
+        actualKeys.sort((e1, e2) -> c.compare(e1.getKey(), e2.getKey()));
+        AssertExtensions.assertListEquals("Unexpected Table Keys from keyIterator().", existingKeys, actualKeys,
+                (k1, k2) -> k1.getKey().equals(k2.getKey()));
     }
 
     private <T> List<T> collectIteratorItems(AsyncIterator<IteratorItem<T>> iterator) throws Exception {

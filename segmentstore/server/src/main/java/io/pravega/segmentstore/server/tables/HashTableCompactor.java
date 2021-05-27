@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.val;
@@ -41,7 +41,7 @@ class HashTableCompactor extends TableCompactor {
 
     //region Constructor
 
-    HashTableCompactor(DirectSegmentAccess segment, Config config, @NonNull IndexReader indexReader, @NonNull KeyHasher hasher, Executor executor) {
+    HashTableCompactor(DirectSegmentAccess segment, Config config, @NonNull IndexReader indexReader, @NonNull KeyHasher hasher, ScheduledExecutorService executor) {
         super(segment, config, executor);
         this.hasher = hasher;
         this.indexReader = indexReader;
@@ -111,6 +111,11 @@ class HashTableCompactor extends TableCompactor {
                     return br.findAll(bucketOffset, args::handleExistingKey, timer);
                 },
                 this.executor);
+    }
+
+    @Override
+    protected int calculateTotalEntryDelta(CompactionArgs candidates) {
+        return -candidates.getCount();
     }
 
     //endregion

@@ -51,6 +51,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
 
@@ -67,6 +68,8 @@ class SegmentMock implements DirectSegmentAccess {
     @GuardedBy("this")
     private final ByteBufferOutputStream contents = new ByteBufferOutputStream();
     private final ScheduledExecutorService executor;
+    @Setter
+    private volatile Runnable beforeAppendCallback;
     @GuardedBy("this")
     private BiConsumer<Long, Integer> appendCallback;
 
@@ -108,29 +111,33 @@ class SegmentMock implements DirectSegmentAccess {
     @Override
     public CompletableFuture<Long> append(BufferView data, AttributeUpdateCollection attributeUpdates, long tableSegmentOffset, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> {
-            // Note that this append is not atomic (data & attributes) - but for testing purposes it does not matter as
-            // this method should only be used for constructing the test data.
+            val beforeAppendCallback = this.beforeAppendCallback;
+            if (beforeAppendCallback != null) {
+                beforeAppendCallback.run();
+            }
             long offset;
-            BiConsumer<Long, Integer> appendCallback;
+            BiConsumer<Long, Integer> afterAppendCallback;
             synchronized (this) {
                 offset = this.contents.size();
-                try {
-                    data.copyTo(this.contents);
-                } catch (IOException ex) {
-                    throw new CompletionException(ex);
-                }
                 if (attributeUpdates != null) {
                     val updatedValues = new HashMap<AttributeId, Long>();
                     attributeUpdates.forEach(update -> collectAttributeValue(update, updatedValues));
                     this.metadata.updateAttributes(updatedValues);
                 }
 
+                // Only append data after we have processed attributes - as we may reject the append due to bad attributes.
+                try {
+                    data.copyTo(this.contents);
+                } catch (IOException ex) {
+                    throw new CompletionException(ex);
+                }
+
                 this.metadata.setLength(this.contents.size());
-                appendCallback = this.appendCallback;
+                afterAppendCallback = this.appendCallback;
             }
 
-            if (appendCallback != null) {
-                appendCallback.accept(offset, data.getLength());
+            if (afterAppendCallback != null) {
+                afterAppendCallback.accept(offset, data.getLength());
             }
 
             return offset;

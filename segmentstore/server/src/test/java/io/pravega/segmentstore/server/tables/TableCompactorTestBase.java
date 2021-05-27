@@ -50,13 +50,13 @@ import org.junit.Test;
  * Unit test base for any class implementing {@link TableCompactor}.
  */
 abstract class TableCompactorTestBase extends ThreadPooledTestSuite {
+    protected static final int KEY_COUNT = 100; // Number of distinct keys in the tests, numbered 0 to KEY_COUNT-1.
+    protected static final int KEY_LENGTH = 32;
+    protected static final int VALUE_LENGTH = 64;
+    protected static final int UPDATE_ENTRY_LENGTH = KEY_LENGTH + VALUE_LENGTH + EntrySerializer.HEADER_LENGTH;
     protected static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private static final int KEY_COUNT = 100; // Number of distinct keys in the tests, numbered 0 to KEY_COUNT-1.
     private static final int SKIP_COUNT = 5; // At each iteration i, we update all keys K>=i*SKIP_COUNT+DELETE_COUNT.
     private static final int DELETE_COUNT = 1; // At each iteration i, we remove keys K>=i*SKIP_COUNT to K<i*SKIP_COUNT+DELETE_COUNT
-    private static final int KEY_LENGTH = 32;
-    private static final int VALUE_LENGTH = 64;
-    private static final int UPDATE_ENTRY_LENGTH = KEY_LENGTH + VALUE_LENGTH + EntrySerializer.HEADER_LENGTH;
     private static final String SEGMENT_NAME = "TableSegment";
 
     @Override
@@ -238,8 +238,11 @@ abstract class TableCompactorTestBase extends ThreadPooledTestSuite {
             long newCompactionOffset = IndexReader.getCompactionOffset(context.segmentMetadata);
             Assert.assertEquals("Expected COMPACTION_OFFSET to have advanced.", expectedCompactionOffset, newCompactionOffset);
             long newTotalEntryCount = IndexReader.getTotalEntryCount(context.segmentMetadata);
-            Assert.assertEquals("Expected TOTAL_ENTRY_COUNT to have decreased.",
-                    totalEntryCount - candidates.size(), newTotalEntryCount);
+            val expectedTotalEntryCount = context.hasDelayedIndexing()
+                    ? totalEntryCount - candidates.size()
+                    : totalEntryCount - candidates.size() + candidates.stream().filter(c -> c.isActive).count();
+            Assert.assertEquals("Unexpected TOTAL_ENTRY_COUNT after partial compaction.",
+                    expectedTotalEntryCount, newTotalEntryCount);
 
             // Check that these attributes have NOT changed (as applicable).
             if (context.hasDelayedIndexing()) {
@@ -277,11 +280,16 @@ abstract class TableCompactorTestBase extends ThreadPooledTestSuite {
 
         Assert.assertFalse("Not expecting any more entries to be compacted.", sortedEntries.hasNext());
 
-        // TOTAL_ENTRY_COUNT should have been reduced to 0 at the end - we have moved all entries out of the index.
-        // In the real world, the IndexWriter will readjust this number as appropriate when reindexing these values.
-        Assert.assertEquals("Expecting TOTAL_ENTRY_COUNT to be 0 after a full compaction.",
-                0, IndexReader.getTotalEntryCount(context.segmentMetadata));
-
+        if (context.hasDelayedIndexing()) {
+            // TOTAL_ENTRY_COUNT should have been reduced to 0 at the end - we have moved all entries out of the index.
+            // In the real world, the IndexWriter will readjust this number as appropriate when reindexing these values.
+            Assert.assertEquals("Expecting TOTAL_ENTRY_COUNT to be 0 after a full compaction.",
+                    0, IndexReader.getTotalEntryCount(context.segmentMetadata));
+        } else {
+            // For Fixed-Key-Length Table Segments, the entries are instantly indexed so these attributes should match.
+            Assert.assertEquals("Expecting TOTAL_ENTRY_COUNT to match UNIQUE_ENTRY_COUNT after a full compaction.",
+                    (long) context.getCompactor().getUniqueEntryCount().join(), IndexReader.getTotalEntryCount(context.segmentMetadata));
+        }
     }
 
     /**
@@ -456,7 +464,6 @@ abstract class TableCompactorTestBase extends ThreadPooledTestSuite {
             return String.format("%s: %s (%s)", this.key.hashCode(), this.offset, this.isActive ? "active" : "obsolete");
         }
     }
-
 
     @RequiredArgsConstructor
     private static class KeyData {
