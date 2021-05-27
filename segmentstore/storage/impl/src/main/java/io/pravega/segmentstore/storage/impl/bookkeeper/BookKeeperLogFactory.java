@@ -285,7 +285,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
          */
         boolean isBookkeeperClientResetNeeded() {
             return timer.get().getElapsed().compareTo(config.getInspectionTimeToResetClient()) < 0
-                    && counter.get() >= config.getContainerRestartsToResetClient();
+                    && counter.get() >= config.getBkLogExceptionsToResetClient();
         }
 
         /**

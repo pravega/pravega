@@ -55,7 +55,7 @@ public class BookKeeperConfigTest {
         Assert.assertEquals(2, cfg.getMinNumRacksPerWriteQuorum());
         Assert.assertEquals("/opt/pravega/scripts/sample-bookkeeper-topology.sh", cfg.getNetworkTopologyFileName());
         Assert.assertEquals(DigestType.CRC32C, cfg.getDigestType());
-        Assert.assertEquals(2, cfg.getContainerRestartsToResetClient());
+        Assert.assertEquals(2, cfg.getBkLogExceptionsToResetClient());
         Assert.assertEquals(Duration.ofSeconds(60), cfg.getInspectionTimeToResetClient());
     }
 
@@ -78,13 +78,13 @@ public class BookKeeperConfigTest {
                 ex -> ex instanceof InvalidPropertyValueException);
 
         AssertExtensions.assertThrows(
-                    BookKeeperConfig.CONTAINER_RESTARTS_TO_RESET_BK_CLIENT.toString(),
-                () -> BookKeeperConfig.builder().with(BookKeeperConfig.CONTAINER_RESTARTS_TO_RESET_BK_CLIENT, -1).build(),
+                    BookKeeperConfig.BK_LOG_EXCEPTIONS_TO_RESET_BK_CLIENT.toString(),
+                () -> BookKeeperConfig.builder().with(BookKeeperConfig.BK_LOG_EXCEPTIONS_TO_RESET_BK_CLIENT, -1).build(),
                 ex -> ex instanceof InvalidPropertyValueException);
 
         AssertExtensions.assertThrows(
-                BookKeeperConfig.TIME_INTERVAL_TO_RESET_BK_CLIENT.toString(),
-                () -> BookKeeperConfig.builder().with(BookKeeperConfig.TIME_INTERVAL_TO_RESET_BK_CLIENT, -1).build(),
+                BookKeeperConfig.BK_INSPECTION_TIME_TO_RESET_BK_CLIENT.toString(),
+                () -> BookKeeperConfig.builder().with(BookKeeperConfig.BK_INSPECTION_TIME_TO_RESET_BK_CLIENT, -1).build(),
                 ex -> ex instanceof InvalidPropertyValueException);
     }
 

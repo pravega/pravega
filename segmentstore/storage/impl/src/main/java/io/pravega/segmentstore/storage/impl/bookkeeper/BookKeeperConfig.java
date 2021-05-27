@@ -56,8 +56,8 @@ public class BookKeeperConfig {
     public static final Property<String> BK_NETWORK_TOPOLOGY_SCRIPT_FILE_NAME = Property.named("networkTopology.script.location",
             "/opt/pravega/scripts/sample-bookkeeper-topology.sh", "networkTopologyScriptFileName");
     public static final Property<String> BK_DIGEST_TYPE = Property.named("digest.type.name", DigestType.CRC32C.name(), "digestType");
-    public static final Property<Integer> CONTAINER_RESTARTS_TO_RESET_BK_CLIENT = Property.named("client.reset.after.container.restarts.num", 2);
-    public static final Property<Integer> TIME_INTERVAL_TO_RESET_BK_CLIENT = Property.named("client.reset.inspection.time.seconds", 60);
+    public static final Property<Integer> BK_LOG_EXCEPTIONS_TO_RESET_BK_CLIENT = Property.named("client.reset.after.exception.num", 2);
+    public static final Property<Integer> BK_INSPECTION_TIME_TO_RESET_BK_CLIENT = Property.named("client.reset.inspection.time.seconds", 60);
 
     public static final String COMPONENT_CODE = "bookkeeper";
     /**
@@ -186,14 +186,14 @@ public class BookKeeperConfig {
     private final DigestType digestType;
 
     /**
-     * Maximum number of restarts a given container before considering resetting the BookKeeper client.
+     * Maximum number of critical exceptions for a given Bookkeeper log before considering resetting the BookKeeper
+     * client.
      */
     @Getter
-    private final int containerRestartsToResetClient;
+    private final int bkLogExceptionsToResetClient;
 
     /**
-     * Period of inspection to meet the maximum number of container restarts (i.e., log re-creations) to reset the
-     * BookKeeper client.
+     * Period of inspection to meet the maximum number of critical exceptions to reset the BookKeeper client.
      */
     @Getter
     private final Duration inspectionTimeToResetClient;
@@ -249,16 +249,16 @@ public class BookKeeperConfig {
 
         this.digestType = getDigestType(properties.get(BK_DIGEST_TYPE));
 
-        this.containerRestartsToResetClient = properties.getInt(CONTAINER_RESTARTS_TO_RESET_BK_CLIENT);
-        if (this.containerRestartsToResetClient < 1) {
+        this.bkLogExceptionsToResetClient = properties.getInt(BK_LOG_EXCEPTIONS_TO_RESET_BK_CLIENT);
+        if (this.bkLogExceptionsToResetClient < 1) {
             throw new InvalidPropertyValueException(String.format("Property %s (%d) must be a positive integer.",
-                    CONTAINER_RESTARTS_TO_RESET_BK_CLIENT, this.containerRestartsToResetClient));
+                    BK_LOG_EXCEPTIONS_TO_RESET_BK_CLIENT, this.bkLogExceptionsToResetClient));
         }
-        if (properties.getInt(TIME_INTERVAL_TO_RESET_BK_CLIENT) < 1) {
+        if (properties.getInt(BK_INSPECTION_TIME_TO_RESET_BK_CLIENT) < 1) {
             throw new InvalidPropertyValueException(String.format("Property %s (%d) must be a positive integer.",
-                    TIME_INTERVAL_TO_RESET_BK_CLIENT, properties.getInt(TIME_INTERVAL_TO_RESET_BK_CLIENT)));
+                    BK_INSPECTION_TIME_TO_RESET_BK_CLIENT, properties.getInt(BK_INSPECTION_TIME_TO_RESET_BK_CLIENT)));
         }
-        this.inspectionTimeToResetClient = Duration.ofSeconds(properties.getInt(TIME_INTERVAL_TO_RESET_BK_CLIENT));
+        this.inspectionTimeToResetClient = Duration.ofSeconds(properties.getInt(BK_INSPECTION_TIME_TO_RESET_BK_CLIENT));
     }
 
     /**
