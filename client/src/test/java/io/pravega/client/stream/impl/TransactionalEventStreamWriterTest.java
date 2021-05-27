@@ -47,8 +47,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
@@ -135,7 +135,7 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         //Create a new transactional eventWriter
         @Cleanup
         TransactionalEventStreamWriter<String> writer1 = new TransactionalEventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
-                                                                                                  config,
+                                                                                                  EventWriterConfig.builder().transactionTimeoutTime(10000).build(),
                                                                                                   executorService());
         Transaction<String> txn = writer1.getTxn(txnId);
         txn.writeEvent("Foo");
@@ -146,7 +146,7 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         assertTrue(bad.unacked.isEmpty());
         assertTrue(outputStream.unacked.isEmpty());
         // verify pings was invoked for the transaction with the specified transactionTimeout.
-        verify(controller, atLeastOnce()).pingTransaction(eq(stream), eq(txnId), eq(config.getTransactionTimeoutTime()));
+        verify(controller, timeout(10_000).atLeastOnce()).pingTransaction(eq(stream), eq(txnId), eq(10000L));
     }
 
     @Test(expected = TxnFailedException.class)
