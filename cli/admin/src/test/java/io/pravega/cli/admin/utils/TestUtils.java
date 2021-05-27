@@ -42,6 +42,7 @@ import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.integration.demo.ClusterWrapper;
 import lombok.Cleanup;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -67,6 +68,7 @@ import java.util.Set;
 @Slf4j
 public final class TestUtils {
 
+    @Getter
     private static final int NUM_EVENTS = 10;
     private static final String EVENT = "12345";
     private static final Duration READ_TIMEOUT = Duration.ofMillis(1000);

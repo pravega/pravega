@@ -252,7 +252,7 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         @Cleanup
         PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
 
-        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName);
+        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
         try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
             // Write events to the streams.
             TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
@@ -285,8 +285,8 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         // Check if the file has segments listed in it
         Path path = Paths.get(this.logsDir.getAbsolutePath() + "/segmentContent.txt");
         long lines = Files.lines(path).count();
-        Assert.assertEquals("Number of events found and written should match.", NUM_EVENTS, lines);
-        Assert.assertTrue(commandResult.contains("Number of events found = " + NUM_EVENTS));
+        Assert.assertEquals("Number of events found and written should match.", TestUtils.getNUM_EVENTS(), lines);
+        Assert.assertTrue(commandResult.contains("Number of events found = " + TestUtils.getNUM_EVENTS()));
         Assert.assertNotNull(StorageListSegmentsCommand.descriptor());
     }
 
