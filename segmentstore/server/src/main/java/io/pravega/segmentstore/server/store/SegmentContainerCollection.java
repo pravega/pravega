@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -94,6 +95,7 @@ public abstract class SegmentContainerCollection {
      * @return Either the result of flushToStorage or a CompletableFuture completed exceptionally with a ContainerNotFoundException
      * in case the SegmentContainer that the Segment maps to does not exist in this StreamSegmentService.
      */
+    @VisibleForTesting
     protected CompletableFuture<Void> invokeFlush(Duration timeout) {
         int containerCount = this.segmentContainerRegistry.getContainerCount();
         SegmentContainer container;

@@ -509,12 +509,7 @@ public class RestoreBackUpDataRecoveryTest extends ThreadPooledTestSuite {
     }
 
     private void flushToStorage(ServiceBuilder serviceBuilder) throws Exception {
-        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(serviceBuilder);
-        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-        for (int containerId = 0; containerId < componentSetup.getContainerRegistry().getContainerCount(); containerId++) {
-            futures.add(componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT));
-        }
-        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        serviceBuilder.createStreamSegmentService().flushToStorage(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private void createBookKeeperLogFactory() throws DurableDataLogException {

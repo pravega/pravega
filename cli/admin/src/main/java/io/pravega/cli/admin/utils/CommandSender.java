@@ -15,15 +15,11 @@
  */
 package io.pravega.cli.admin.utils;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
-import io.pravega.client.stream.impl.ConnectionClosedException;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.WireCommandFailedException;
@@ -43,9 +39,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -78,10 +72,6 @@ public class CommandSender implements AutoCloseable {
         this.timeout = new AtomicReference<>(Duration.ofSeconds(Config.REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE));
     }
 
-    @VisibleForTesting
-    void setTimeout(Duration duration) {
-        timeout.set(duration);
-    }
 
     public CompletableFuture<WireCommands.StorageFlushed> flushToStorage(PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
@@ -117,32 +107,7 @@ public class CommandSender implements AutoCloseable {
 
         CompletableFuture<Reply> future = Futures.futureWithTimeout(() -> connection.sendRequest(request.getRequestId(), request),
                 timeout.get(), "request", executorService);
-        return future.exceptionally(e -> {
-            processAndRethrowException(clientRequestId, request, e);
-            return null;
-        });
-    }
-
-    @VisibleForTesting
-    <T extends Request & WireCommand> void processAndRethrowException(long callerRequestId, T request, Throwable e) {
-        Throwable unwrap = Exceptions.unwrap(e);
-        WireCommandFailedException ex = null;
-        if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
-            log.warn(callerRequestId, "Connection dropped {}", request.getRequestId());
-            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
-        } else if (unwrap instanceof AuthenticationException) {
-            log.warn(callerRequestId, "Authentication Exception {}", request.getRequestId());
-            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
-        } else if (unwrap instanceof TokenExpiredException) {
-            log.warn(callerRequestId, "Token expired {}", request.getRequestId());
-            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
-        } else if (unwrap instanceof TimeoutException) {
-            log.warn(callerRequestId, "Request timed out. {}", request.getRequestId());
-            throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
-        } else {
-            log.error(callerRequestId, "Request failed {}", request.getRequestId(), e);
-            throw new CompletionException(e);
-        }
+        return future;
     }
 
     /**

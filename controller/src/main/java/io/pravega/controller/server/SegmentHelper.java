@@ -77,7 +77,7 @@ import static io.pravega.shared.NameUtils.getTransactionNameFromId;
  */
 public class SegmentHelper implements AutoCloseable {
 
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SegmentHelper.class));
+    protected static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SegmentHelper.class));
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_SUCCESS_REPLIES =
             ImmutableMap.<Class<? extends Request>, Set<Class<? extends Reply>>>builder()
@@ -124,10 +124,10 @@ public class SegmentHelper implements AutoCloseable {
             .put(WireCommands.ReadTableEntries.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .build();
 
+    protected final ConnectionPool connectionPool;
+    protected final ScheduledExecutorService executorService;
+    protected final AtomicReference<Duration> timeout;
     private final HostControllerStore hostStore;
-    private final ConnectionPool connectionPool;
-    private final ScheduledExecutorService executorService;
-    private final AtomicReference<Duration> timeout;
 
     public SegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore, 
                          ScheduledExecutorService executorService) {
@@ -736,8 +736,8 @@ public class SegmentHelper implements AutoCloseable {
         }
     }
 
-    private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long clientRequestId, 
-                                                                                   T request) {
+    protected <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long clientRequestId,
+                                                                                     T request) {
         log.trace(clientRequestId, "Sending request to segment store with: flowId: {}: request: {}",
                 request.getRequestId(), request);
 
@@ -750,7 +750,7 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     @VisibleForTesting
-    <T extends Request & WireCommand> void processAndRethrowException(long callerRequestId, T request, Throwable e) {
+    protected <T extends Request & WireCommand> void processAndRethrowException(long callerRequestId, T request, Throwable e) {
         Throwable unwrap = Exceptions.unwrap(e);
         WireCommandFailedException ex = null;
         if (unwrap instanceof ConnectionFailedException || unwrap instanceof ConnectionClosedException) {
@@ -783,12 +783,12 @@ public class SegmentHelper implements AutoCloseable {
      * @return true if reply is in the expected reply set for the given requestType or throw exception.
      */
     @SneakyThrows(ConnectionFailedException.class)
-    private void handleReply(long callerRequestId,
-                             Reply reply,
-                             RawClient client,
-                             String qualifiedStreamSegmentName,
-                             Class<? extends Request> requestType,
-                             WireCommandType type) {
+    protected void handleReply(long callerRequestId,
+                               Reply reply,
+                               RawClient client,
+                               String qualifiedStreamSegmentName,
+                               Class<? extends Request> requestType,
+                               WireCommandType type) {
         closeConnection(reply, client, callerRequestId);
         Set<Class<? extends Reply>> expectedReplies = EXPECTED_SUCCESS_REPLIES.get(requestType);
         Set<Class<? extends Reply>> expectedFailingReplies = EXPECTED_FAILING_REPLIES.get(requestType);
