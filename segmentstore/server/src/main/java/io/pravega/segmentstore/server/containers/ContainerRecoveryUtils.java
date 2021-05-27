@@ -422,7 +422,7 @@ public class ContainerRecoveryUtils {
                                                     .thenAcceptAsync(r -> {
                                                         bytesToRead.addAndGet(-size);
                                                         offset.addAndGet(size);
-                                                        }, executor) : null;
+                                                        }, executor) : CompletableFuture.<Void>completedFuture(null);
                                             }, executor);
                                 }, executor);
                     }, executor);
