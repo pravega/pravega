@@ -251,7 +251,7 @@ public class ContainerRecoveryUtils {
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
         return deleteSegmentFromStorage(storage, metadataSegmentName, timeout)
-                .thenAccept(x -> deleteSegmentFromStorage(storage, attributeSegmentName, timeout));
+                .thenCompose(x -> deleteSegmentFromStorage(storage, attributeSegmentName, timeout));
     }
 
     /**
@@ -292,7 +292,7 @@ public class ContainerRecoveryUtils {
         String metadataSegmentName = NameUtils.getMetadataSegmentName(containerId);
         String attributeSegmentName = NameUtils.getAttributeSegmentName(metadataSegmentName);
         return copySegment(storage, metadataSegmentName, backUpMetadataSegmentName, executorService, timeout)
-                .thenAcceptAsync(x -> copySegment(storage, attributeSegmentName, backUpAttributeSegmentName,
+                .thenComposeAsync(x -> copySegment(storage, attributeSegmentName, backUpAttributeSegmentName,
                         executorService, timeout));
     }
 
@@ -315,7 +315,7 @@ public class ContainerRecoveryUtils {
                                             Duration timeout) throws InterruptedException, ExecutionException,
             TimeoutException {
         Preconditions.checkState(backUpMetadataSegments.size() == containersMap.size(), "The number of " +
-                "back-up metadata segments and containers should match.");
+                "back-up metadata segments (%s) and containers (%s) should match.", backUpMetadataSegments.size(), containersMap.size());
 
         val args = IteratorArgs.builder().fetchTimeout(timeout).build();
         SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containersMap.size());
@@ -337,22 +337,19 @@ public class ContainerRecoveryUtils {
             // Get the container for segments inside back up metadata segment
             val container = containersMap.get(backUpMetadataSegmentEntry.getKey());
 
-            // Get the iterator to iterate through all segments in the back up metadata segment
-            val tableExtension = containerForBackUpMetadataSegment.getExtension(ContainerTableExtension.class);
-
-            val bmsInfo = container.getStreamSegmentInfo(backUpMetadataSegment, timeout)
+            // Make sure the backup segment is registered as a table segment.
+            val bmsInfo = containerForBackUpMetadataSegment.getStreamSegmentInfo(backUpMetadataSegment, timeout)
                     .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             if (bmsInfo.getAttributes().getOrDefault(TableAttributes.INDEX_OFFSET, Attributes.NULL_ATTRIBUTE_VALUE) == Attributes.NULL_ATTRIBUTE_VALUE) {
-                log.info("Back up container metadata segment name: {} does not have INDEX_OFFSET set; setting to segment length.", backUpMetadataSegment);
-                container.updateAttributes(backUpMetadataSegment,
-                        AttributeUpdateCollection.from(new AttributeUpdate(TableAttributes.INDEX_OFFSET, AttributeUpdateType.Replace, bmsInfo.getLength())), timeout)
+                log.info("Back up container metadata segment name: {} does not have INDEX_OFFSET set; setting to 0 (forcing reindexing).", backUpMetadataSegment);
+                containerForBackUpMetadataSegment.forSegment(backUpMetadataSegment, timeout)
+                        .thenCompose(s -> s.updateAttributes(AttributeUpdateCollection.from(new AttributeUpdate(TableAttributes.INDEX_OFFSET, AttributeUpdateType.Replace, 0)), timeout))
                         .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-                val bmsMetadata = container.getMetadata().getStreamSegmentMetadata(container.getMetadata().getStreamSegmentId(backUpMetadataSegment, false));
-                if (bmsMetadata != null) {
-                    bmsMetadata.refreshDerivedProperties();
-                }
+                refreshDerivedProperties(backUpMetadataSegment, containerForBackUpMetadataSegment);
             }
 
+            // Get the iterator to iterate through all segments in the back up metadata segment
+            val tableExtension = containerForBackUpMetadataSegment.getExtension(ContainerTableExtension.class);
             val entryIterator = tableExtension.entryIterator(backUpMetadataSegment, args)
                     .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
@@ -378,7 +375,8 @@ public class ContainerRecoveryUtils {
 
                     // Update attributes for the current segment
                     futures.add(Futures.exceptionallyExpecting(
-                            container.updateAttributes(properties.getName(), attributeUpdates, timeout),
+                            container.updateAttributes(properties.getName(), attributeUpdates, timeout)
+                                    .thenRun(() -> refreshDerivedProperties(properties.getName(), container)),
                             ex -> ex instanceof StreamSegmentNotExistsException, null));
                 }
             }, executorService).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
@@ -388,14 +386,23 @@ public class ContainerRecoveryUtils {
         }
     }
 
+    private static void refreshDerivedProperties(String segmentName, DebugStreamSegmentContainer container) {
+        val m = container.getMetadata().getStreamSegmentMetadata(
+                container.getMetadata().getStreamSegmentId(segmentName, false));
+        if (m != null) {
+            m.refreshDerivedProperties();
+        }
+    }
+
     /**
      * Creates a target segment with the given name and copies the contents of the source segment to the target segment.
-     * @param storage                   A storage instance to create the segment.
-     * @param sourceSegment             The name of the source segment to copy the contents from.
-     * @param targetSegment             The name of the segment to write the contents to.
-     * @param executor                  A thread pool for execution.
-     * @param timeout                   Timeout for the operation.
-     * @return                          A CompletableFuture that, when completed normally, will indicate the operation
+     *
+     * @param storage       A storage instance to create the segment.
+     * @param sourceSegment The name of the source segment to copy the contents from.
+     * @param targetSegment The name of the segment to write the contents to.
+     * @param executor      A thread pool for execution.
+     * @param timeout       Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate the operation
      * completed. If the operation failed, the future will be failed with the causing exception.
      */
     protected static CompletableFuture<Void> copySegment(Storage storage, String sourceSegment, String targetSegment, ExecutorService executor,
@@ -455,7 +462,7 @@ public class ContainerRecoveryUtils {
             futures.add(Futures.exceptionallyExpecting(
                     ContainerRecoveryUtils.backUpMetadataAndAttributeSegments(storage, containerId,
                             backUpMetadataSegment, backUpAttributeSegment, executorService, timeout)
-                            .thenAccept(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout)
+                            .thenCompose(x -> ContainerRecoveryUtils.deleteMetadataAndAttributeSegments(storage, finalContainerId, timeout)
                                     .thenAccept(z -> backUpMetadataSegments.put(finalContainerId, backUpMetadataSegment))
                             ), ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException, null));
         }
