@@ -12,7 +12,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 
 public class AdminRequestProcessorImplTest extends PravegaRequestProcessorTest {
-    @Test(timeout = 20000)
+    @Test(timeout = 200000)
     public void testFlush() throws Exception {
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());

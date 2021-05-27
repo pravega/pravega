@@ -246,7 +246,7 @@ public class SegmentStoreConnectionManagerTest {
             }
 
             @Override
-            public void flushedStorage(WireCommands.FlushedStorage flushedStorage) {
+            public void storageFlushed(WireCommands.StorageFlushed storageFlushed) {
 
             }
 

@@ -107,7 +107,6 @@ public class SegmentHelper implements AutoCloseable {
             .put(WireCommands.ReadTable.class, ImmutableSet.of(WireCommands.TableRead.class))
             .put(WireCommands.ReadTableKeys.class, ImmutableSet.of(WireCommands.TableKeysRead.class))
             .put(WireCommands.ReadTableEntries.class, ImmutableSet.of(WireCommands.TableEntriesRead.class))
-            .put(WireCommands.FlushToStorage.class, ImmutableSet.of(WireCommands.FlushedStorage.class))
             .build();
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_FAILING_REPLIES =

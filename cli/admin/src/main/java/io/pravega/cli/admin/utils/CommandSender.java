@@ -43,7 +43,7 @@ public class CommandSender implements AutoCloseable {
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_SUCCESS_REPLIES =
             ImmutableMap.<Class<? extends Request>, Set<Class<? extends Reply>>>builder()
-                    .put(WireCommands.FlushToStorage.class, ImmutableSet.of(WireCommands.FlushedStorage.class))
+                    .put(WireCommands.FlushStorage.class, ImmutableSet.of(WireCommands.StorageFlushed.class))
                     .build();
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_FAILING_REPLIES =
@@ -68,18 +68,18 @@ public class CommandSender implements AutoCloseable {
         timeout.set(duration);
     }
 
-    public CompletableFuture<WireCommands.FlushedStorage> flushToStorage(PravegaNodeUri uri, String delegationToken) {
+    public CompletableFuture<WireCommands.StorageFlushed> flushToStorage(PravegaNodeUri uri, String delegationToken) {
         final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        WireCommands.FlushToStorage request = new WireCommands.FlushToStorage(delegationToken,
+        WireCommands.FlushStorage request = new WireCommands.FlushStorage(delegationToken,
                 requestId);
         return sendRequest(connection, requestId, request)
                 .thenApply(r -> {
-                    handleReply(requestId, r, connection, null, WireCommands.FlushToStorage.class, type);
-                    assert r instanceof WireCommands.FlushedStorage;
-                    return (WireCommands.FlushedStorage) r;
+                    handleReply(requestId, r, connection, null, WireCommands.FlushStorage.class, type);
+                    assert r instanceof WireCommands.StorageFlushed;
+                    return (WireCommands.StorageFlushed) r;
                 });
     }
 
