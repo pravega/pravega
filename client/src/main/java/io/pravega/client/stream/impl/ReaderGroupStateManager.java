@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -187,16 +193,23 @@ public class ReaderGroupStateManager {
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         boolean result = sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
+                log.error("Reader " + readerId + " is offline according to the state but is attempting to update it.");
                 reinitRequired.set(true);
-            } else {
-                log.debug("Marking segment {} as completed in reader group. CurrentState is: {}", segmentCompleted, state);
-                reinitRequired.set(false);
-                //This check guards against another checkpoint having started.
-                if (state.getCheckpointForReader(readerId) == null) {
-                    updates.add(new SegmentCompleted(readerId, segmentCompleted, segmentToPredecessor));
-                    return true;
-                }
+                return false;
+            } 
+            if (!state.getSegments(readerId).contains(segmentCompleted.getSegment())) {
+                log.error("Reader " + readerId + " is does not own the segment " + segmentCompleted + "but is attempting to release it.");
+                reinitRequired.set(true);
+                return false;
             }
+            
+            log.debug("Marking segment {} as completed in reader group. CurrentState is: {}", segmentCompleted, state);
+            reinitRequired.set(false);
+            //This check guards against another checkpoint having started.
+            if (state.getCheckpointForReader(readerId) == null) {
+                updates.add(new SegmentCompleted(readerId, segmentCompleted, segmentToPredecessor));
+                return true;
+            } 
             return false;
         });
         if (reinitRequired.get()) {
@@ -490,7 +503,12 @@ public class ReaderGroupStateManager {
                 reinitRequired.set(true);
             } else {
                 reinitRequired.set(false);
-                updates.add(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
+                String cpName = state.getCheckpointForReader(readerId);
+                if (checkpointName.equals(cpName)) {
+                    updates.add(new CheckpointReader(checkpointName, readerId, lastPosition.getOwnedSegmentsWithOffsets()));
+                } else {
+                    log.warn("{} was asked to checkpoint for {} but the state says its next checkpoint should be {}", readerId, checkpointName, cpName);
+                }
             }
         });
         if (reinitRequired.get()) {

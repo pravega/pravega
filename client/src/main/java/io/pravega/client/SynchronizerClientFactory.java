@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client;
 
@@ -36,9 +42,15 @@ public interface SynchronizerClientFactory extends AutoCloseable {
      * @return Instance of ClientFactory implementation.
      */
     static SynchronizerClientFactory withScope(String scope, ClientConfig config) {
-        val connectionFactory = new SocketConnectionFactoryImpl(config);
-        return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
-                connectionFactory.getInternalExecutor()), connectionFactory);
+        // Change the max number of number of allowed connections to the segment store to 1.
+        val updatedConfig = config.toBuilder()
+                .maxConnectionsPerSegmentStore(1)
+                .enableTlsToSegmentStore(config.isEnableTlsToSegmentStore())
+                .enableTlsToController(config.isEnableTlsToController())
+                .build();
+        val connectionFactory = new SocketConnectionFactoryImpl(updatedConfig, 1);
+        return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(updatedConfig).build(),
+                connectionFactory.getInternalExecutor()), updatedConfig, connectionFactory);
     }
 
     /**

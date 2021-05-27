@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.metadata;
 
@@ -54,42 +60,42 @@ public class SegmentMetadata extends StorageMetadata {
     /**
      * Length of the segment.
      */
-    private long length;
+    private volatile long length;
 
     /**
      * Number of chunks.
      */
-    private int chunkCount;
+    private volatile int chunkCount;
 
     /**
      * Start offset of the segment. This is offset of the first byte available for read.
      */
-    private long startOffset;
+    private volatile long startOffset;
 
     /**
      * Status bit flags.
      */
-    private int status;
+    private volatile int status;
 
     /**
      * Maximum Rolling length of the segment.
      */
-    private long maxRollinglength;
+    private volatile long maxRollinglength;
 
     /**
      * Name of the first chunk.
      */
-    private String firstChunk;
+    private volatile String firstChunk;
 
     /**
      * Name of the last chunk.
      */
-    private String lastChunk;
+    private volatile String lastChunk;
 
     /**
      * Last modified time.
      */
-    private long lastModified;
+    private volatile long lastModified;
 
     /**
      * Offset of the first byte of the first chunk.
@@ -97,17 +103,17 @@ public class SegmentMetadata extends StorageMetadata {
      * With arbitrary truncates the effective start offset might be in the middle of the first chunk.
      *
      */
-    private long firstChunkStartOffset;
+    private volatile long firstChunkStartOffset;
 
     /**
      * Offset of the first byte of the last chunk.
      */
-    private long lastChunkStartOffset;
+    private volatile long lastChunkStartOffset;
 
     /**
      * Epoch of the container that last owned it.
      */
-    private long ownerEpoch;
+    private volatile long ownerEpoch;
 
     /**
      * Retrieves the key associated with the metadata, which is the name of the segment.
@@ -202,43 +208,28 @@ public class SegmentMetadata extends StorageMetadata {
      * Checks the invariants that must be held for a segment.
      */
     public void checkInvariants() {
-        // Please do not use any string formatting in this method.
-        // All messages should be just plain strings. This avoids unnecessarily wasting time on formating the error messages when the expecation is that check never fails.
-        Preconditions.checkState(length >= 0, "length should be non-negative.");
-        Preconditions.checkState(startOffset >= 0, "startOffset should be non-negative.");
-        Preconditions.checkState(firstChunkStartOffset >= 0, "firstChunkStartOffset should be non-negative.");
-        Preconditions.checkState(lastChunkStartOffset >= 0, "lastChunkStartOffset should be non-negative.");
-        Preconditions.checkState(firstChunkStartOffset <= startOffset, "startOffset should not be smaller than firstChunkStartOffset.");
-        Preconditions.checkState(length >= lastChunkStartOffset, "lastChunkStartOffset should not be greater than length.");
-        Preconditions.checkState(firstChunkStartOffset <= lastChunkStartOffset, "lastChunkStartOffset should not be greater than firstChunkStartOffset.");
-        Preconditions.checkState(chunkCount >= 0, "chunkCount should be non-negative.");
+        Preconditions.checkState(length >= 0, "length should be non-negative. %s", this);
+        Preconditions.checkState(startOffset >= 0, "startOffset should be non-negative. %s", this);
+        Preconditions.checkState(firstChunkStartOffset >= 0, "firstChunkStartOffset should be non-negative. %s", this);
+        Preconditions.checkState(lastChunkStartOffset >= 0, "lastChunkStartOffset should be non-negative. %s", this);
+        Preconditions.checkState(firstChunkStartOffset <= startOffset, "startOffset must not be smaller than firstChunkStartOffset. %s", this);
+        Preconditions.checkState(length >= lastChunkStartOffset, "lastChunkStartOffset must not be greater than length. %s", this);
+        Preconditions.checkState(firstChunkStartOffset <= lastChunkStartOffset, "lastChunkStartOffset must not be greater than firstChunkStartOffset. %s", this);
+        Preconditions.checkState(chunkCount >= 0, "chunkCount should be non-negative. %s", this);
+        Preconditions.checkState(length >= startOffset, "length must be greater or equal to startOffset. %s", this);
         if (null == firstChunk) {
-            Preconditions.checkState(null == lastChunk, "lastChunk must be null when firstChunk is null.");
-            Preconditions.checkState(firstChunkStartOffset == startOffset, "firstChunkStartOffset must equal startOffset when firstChunk is null.");
-            Preconditions.checkState(firstChunkStartOffset == lastChunkStartOffset, "firstChunkStartOffset must equal lastChunkStartOffset when firstChunk is null.");
-            Preconditions.checkState(length == startOffset, "length must equal startOffset when firstChunk is null.");
-            Preconditions.checkState(chunkCount == 0, "chunkCount should be 0.");
+            Preconditions.checkState(null == lastChunk, "lastChunk must be null when firstChunk is null. %s", this);
+            Preconditions.checkState(firstChunkStartOffset == startOffset, "firstChunkStartOffset must equal startOffset when firstChunk is null. %s", this);
+            Preconditions.checkState(firstChunkStartOffset == lastChunkStartOffset, "firstChunkStartOffset must equal lastChunkStartOffset when firstChunk is null. %s", this);
+            Preconditions.checkState(length == startOffset, "length must equal startOffset when firstChunk is null. %s", this);
+            Preconditions.checkState(chunkCount == 0, "chunkCount should be 0. %s", this);
 
         } else if (firstChunk.equals(lastChunk)) {
-            Preconditions.checkState(firstChunkStartOffset == lastChunkStartOffset, "firstChunkStartOffset must equal lastChunkStartOffset when there is only one chunk.");
-            Preconditions.checkState(chunkCount == 1, "chunkCount should be 1.");
+            Preconditions.checkState(firstChunkStartOffset == lastChunkStartOffset, "firstChunkStartOffset must equal lastChunkStartOffset when there is only one chunk. %s", this);
+            Preconditions.checkState(chunkCount == 1, "chunkCount should be 1. %s", this);
+        } else {
+            Preconditions.checkState(chunkCount >= 2, "chunkCount should be 2 or more. %s", this);
         }
-    }
-
-    /**
-     * Increment chunk count.
-     */
-    public void incrementChunkCount() {
-        chunkCount++;
-        Preconditions.checkState(chunkCount >= 0, "chunkCount should be non-negative.");
-    }
-
-    /**
-     * Decrement chunk count.
-     */
-    public void decrementChunkCount() {
-        chunkCount--;
-        Preconditions.checkState(chunkCount >= 0, "chunkCount should be non-negative.");
     }
 
     /**

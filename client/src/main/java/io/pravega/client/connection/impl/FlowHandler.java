@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.connection.impl;
 
@@ -79,7 +85,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkState(!disableFlow.get(), "Ensure flows are enabled.");
         final int flowID = flow.getFlowId();
-        log.info("Creating Flow {} for endpoint {}. ", flow.getFlowId(), location);
+        log.debug("Creating Flow {} for endpoint {}. ", flow.getFlowId(), location);
         if (flowIdReplyProcessorMap.put(flowID, rp) != null) {
             throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flowID);
         }
@@ -95,7 +101,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
     public ClientConnection createConnectionWithFlowDisabled(final ReplyProcessor rp) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkState(!disableFlow.getAndSet(true), "Flows are disabled, incorrect usage pattern.");
-        log.info("Creating a new connection with flow disabled for endpoint {}.", location);
+        log.debug("Creating a new connection with flow disabled for endpoint {}.", location);
         flowIdReplyProcessorMap.put(FLOW_DISABLED, rp);
         return new FlowClientConnection(location.toString(), channel, FLOW_DISABLED, this);
     }
@@ -106,7 +112,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
      */
     void closeFlow(FlowClientConnection clientConnection) {
         int flow = clientConnection.getFlowId();
-        log.info("Closing Flow {} for endpoint {}", flow, clientConnection.getConnectionName());
+        log.debug("Closing Flow {} for endpoint {}", flow, clientConnection.getConnectionName());
         flowIdReplyProcessorMap.remove(flow);
         if (flow == FLOW_DISABLED) {
             // close the channel immediately since this connection will not be reused by other flows.
@@ -147,6 +153,12 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
             return;
         }
 
+        if (cmd instanceof WireCommands.KeepAlive) {
+            // The SegmentStore responds to a KeepAlive WireCommand, this ensures the client can detect unresponsive
+            // SegmentStores due to network glitches. No action is required for the client on receiving this WireCommand.
+            return;
+        }
+
         // Obtain ReplyProcessor and process the reply.
         ReplyProcessor processor = getReplyProcessor(cmd);
         if (processor != null) {
@@ -165,7 +177,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
 
     @Override
     public void errorMessage(WireCommands.ErrorMessage errorMessage) {
-        log.info("Received an errorMessage containing an unhandled {} on segment {}",
+        log.warn("Received an errorMessage containing an unhandled {} on segment {}",
                 errorMessage.getErrorCode().getExceptionType().getSimpleName(),
                 errorMessage.getSegment());
         processingFailure(errorMessage.getThrowableException());
@@ -199,7 +211,7 @@ public class FlowHandler extends FailingReplyProcessor implements AutoCloseable 
             if (keepAliveFuture != null) {
                 keepAliveFuture.cancel(false);
             }
-            log.info("Connection closed observed with endpoint {}", location);
+            log.debug("Connection closed observed with endpoint {}", location);
             flowIdReplyProcessorMap.forEach((flowId, rp) -> {
                 try {
                     log.debug("Connection dropped for flow id {}", flowId);

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.endtoendtest;
 
@@ -35,15 +41,13 @@ import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
-import lombok.Cleanup;
-import org.junit.Test;
-
-import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.Cleanup;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -54,22 +58,22 @@ public class EndToEndCBRTest extends AbstractEndToEndTest {
 
     private static final long CLOCK_ADVANCE_INTERVAL = 60 * 1000000000L;
 
-    @Test
+    @Test(timeout = 60000)
     public void testReaderGroupAutoRetention() throws Exception {
         String scope = "test";
-        String streamName = "test";
-        String groupName = "group";
+        String streamName = "testReaderGroupAutoRetention";
+        String groupName = "testReaderGroupAutoRetention-group";
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .retentionPolicy(RetentionPolicy.bySizeBytes(10, Long.MAX_VALUE))
                 .build();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(scope).get();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        controller.createScope(scope).get();
         controller.createStream(scope, streamName, config).get();
         Stream stream = Stream.of(scope, streamName);
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(URI.create("tcp://" + serviceHost))
+                .controllerURI(PRAVEGA.getControllerURI())
                 .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
@@ -122,29 +126,29 @@ public class EndToEndCBRTest extends AbstractEndToEndTest {
 
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(new StreamImpl(scope, streamName), 0L)
                 .join().values().stream().anyMatch(off -> off > 0), 30 * 1000L);
-
-        groupManager.createReaderGroup("group2", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(NameUtils.getScopedStreamName(scope, streamName)).build());
-        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", "group2", serializer, ReaderConfig.builder().build());
+        String group2 = groupName + "2";
+        groupManager.createReaderGroup(group2, ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(NameUtils.getScopedStreamName(scope, streamName)).build());
+        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", group2, serializer, ReaderConfig.builder().build());
         EventRead<String> eventRead2 = reader2.readNextEvent(10000);
         assertEquals("e2", eventRead2.getEvent());
     }
 
-    @Test
+    @Test(timeout = 60000)
     public void testReaderGroupManualRetention() throws Exception {
         String scope = "test";
-        String streamName = "test";
-        String groupName = "group";
+        String streamName = "testReaderGroupManualRetention";
+        String groupName = "testReaderGroupManualRetention-group";
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .retentionPolicy(RetentionPolicy.bySizeBytes(10, Long.MAX_VALUE))
                 .build();
-        LocalController controller = (LocalController) controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(scope).get();
+        LocalController controller = (LocalController) PRAVEGA.getLocalController();
+        controller.createScope(scope).get();
         controller.createStream(scope, streamName, config).get();
         Stream stream = Stream.of(scope, streamName);
         @Cleanup
         ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
-                .controllerURI(URI.create("tcp://" + serviceHost))
+                .controllerURI(PRAVEGA.getControllerURI())
                 .build());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
@@ -189,9 +193,9 @@ public class EndToEndCBRTest extends AbstractEndToEndTest {
 
         AssertExtensions.assertEventuallyEquals(true, () -> controller.getSegmentsAtTime(stream, 0L)
                 .join().values().stream().anyMatch(off -> off > 0), 30 * 1000L);
-
-        groupManager.createReaderGroup("group2", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(NameUtils.getScopedStreamName(scope, streamName)).build());
-        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", "group2", serializer, ReaderConfig.builder().build());
+        String group2 = groupName + "2";
+        groupManager.createReaderGroup(group2, ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(NameUtils.getScopedStreamName(scope, streamName)).build());
+        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", group2, serializer, ReaderConfig.builder().build());
         EventRead<String> eventRead2 = reader2.readNextEvent(10000);
         assertEquals("e2", eventRead2.getEvent());
     }

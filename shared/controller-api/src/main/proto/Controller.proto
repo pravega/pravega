@@ -1,12 +1,18 @@
 
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
  syntax = "proto3";
 package io.pravega.controller.stream.api.grpc.v1;
@@ -55,7 +61,7 @@ service ControllerService {
     rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
     rpc listSubscribers(StreamInfo) returns (SubscribersResponse);
     rpc updateSubscriberStreamCut(SubscriberStreamCut) returns (UpdateSubscriberStatus);
-    rpc createReaderGroup(ReaderGroupConfiguration) returns (CreateReaderGroupStatus);
+    rpc createReaderGroup(ReaderGroupConfiguration) returns (CreateReaderGroupResponse);
     rpc getReaderGroupConfig(ReaderGroupInfo) returns (ReaderGroupConfigResponse);
     rpc deleteReaderGroup(ReaderGroupInfo) returns (DeleteReaderGroupStatus);
     rpc updateReaderGroup(ReaderGroupConfiguration) returns (UpdateReaderGroupResponse);
@@ -103,7 +109,7 @@ message ReaderGroupInfo {
     int64 generation = 4;
 }
 
-message CreateReaderGroupStatus {
+message CreateReaderGroupResponse {
     enum Status {
         SUCCESS = 0;
         FAILURE = 1;
@@ -111,6 +117,7 @@ message CreateReaderGroupStatus {
         INVALID_RG_NAME = 3;
     }
     Status status = 1;
+    ReaderGroupConfiguration config = 2;
 }
 
 message DeleteReaderGroupStatus {

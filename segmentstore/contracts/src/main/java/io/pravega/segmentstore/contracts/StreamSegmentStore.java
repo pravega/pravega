@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.contracts;
 
@@ -39,11 +45,14 @@ public interface StreamSegmentStore {
      * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
-     * @return A CompletableFuture that, when completed normally, will indicate the append completed
-     *         successfully and contains the new length of the segment. If the operation failed, the
-     *         future will be failed with the causing exception. (NOTE: the length is not
-     *         necessarily the same as offset immediately following the data because the append may
-     *         have been batched together with others internally.)
+     * @return A CompletableFuture that, when completed normally, will indicate the append completed successfully and
+     * contains the new length of the segment. If the operation failed, the future will be failed with the causing exception.
+     * (NOTE: the length is not necessarily the same as offset immediately following the data because the append may have
+     * been batched together with others internally.) Notable exceptions:
+     * - {@link BadAttributeUpdateException} If {@code attributeUpdates} is non-null and non-empty and at least one of
+     * the {@link AttributeUpdate} instances within that collection has {@link AttributeUpdate#getUpdateType()} equal to
+     * {@link AttributeUpdateType#ReplaceIfEquals} or {@link AttributeUpdateType#ReplaceIfGreater} and the condition for
+     * this update is rejected.
      * @throws NullPointerException If any of the arguments are null, except attributeUpdates.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't
      *                                  check if the StreamSegment does not exist - that exception 
@@ -65,11 +74,17 @@ public interface StreamSegmentStore {
      * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
-     * @return A CompletableFuture that, when completed normally, will indicate the append completed
-     *         successfully and contains the new length of the segment. If the operation failed, the
-     *         future will be failed with the causing exception. (NOTE: the length is not
-     *         necessarily the same as offset immediately following the data because the append may
-     *         have been batched together with others internally.)
+     * @return A CompletableFuture that, when completed normally, will indicate the append completed successfully and
+     * contains the new length of the segment. If the operation failed, the future will be failed with the causing exception.
+     * (NOTE: the length is not necessarily the same as offset immediately following the data because the append may have
+     * been batched together with others internally.) Notable exceptions:
+     * - {@link BadAttributeUpdateException} If {@code attributeUpdates} is non-null and non-empty and at least one of
+     * the {@link AttributeUpdate} instances within that collection has {@link AttributeUpdate#getUpdateType()} equal to
+     * {@link AttributeUpdateType#ReplaceIfEquals} or {@link AttributeUpdateType#ReplaceIfGreater} and the condition for
+     * this update is rejected.
+     * - {@link BadOffsetException} if the current length of the given Segment does not match the given {@code offset}.
+     * IMPORTANT: If the append fails validation due to both {@link BadAttributeUpdateException} and {@link BadOffsetException},
+     * then {@link BadAttributeUpdateException} will take precedence.
      * @throws NullPointerException If any of the arguments are null, except attributeUpdates.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't
      *                                  check if the StreamSegment does not exist - that exception
@@ -85,7 +100,10 @@ public interface StreamSegmentStore {
      *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, when completed normally, will indicate the update completed successfully.
-     * If the operation failed, the future will be failed with the causing exception.
+     * If the operation failed, the future will be failed with the causing exception. Notable exceptions:
+     * - {@link BadAttributeUpdateException} If at least one of the {@link AttributeUpdate} instances within {@code attributeUpdates}
+     * has {@link AttributeUpdate#getUpdateType()} equal to {@link AttributeUpdateType#ReplaceIfEquals} or
+     * {@link AttributeUpdateType#ReplaceIfGreater} and the condition for this update is rejected.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).

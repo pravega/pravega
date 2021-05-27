@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.store;
 
@@ -99,6 +105,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final long DEFAULT_EPOCH = 1;
     private static final List<UUID> ATTRIBUTES = Streams.concat(Stream.of(Attributes.EVENT_COUNT), IntStream.range(0, 10).mapToObj(i -> UUID.randomUUID())).collect(Collectors.toList());
     private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
+
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
     private static final ContainerConfig DEFAULT_CONFIG = ContainerConfig
             .builder()
@@ -236,7 +243,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             ContainerRecoveryUtils.recoverAllSegments(storage, debugStreamSegmentContainerMap, executorService(), TIMEOUT);
 
             // Verify that segment details match post restoration.
-            SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(CONTAINER_COUNT);
+            SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(CONTAINER_COUNT, true);
             for (String segment : segmentNames) {
                 int containerId = segToConMapper.getContainerId(segment);
                 SegmentProperties props = debugStreamSegmentContainerMap.get(containerId).getStreamSegmentInfo(segment, TIMEOUT)
@@ -262,7 +269,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If an exception occurred.
      */
-    @Test
+    @Test(timeout = 120000)
     public void testEndToEnd() throws Exception {
         endToEndProcess(true, false);
     }
@@ -279,7 +286,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If an exception occurred.
      */
-    @Test
+    @Test(timeout = 120000)
     public void testEndToEndWithChunkedStorage() throws Exception {
         endToEndProcess(false, true);
     }
@@ -422,7 +429,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If an exception occurred.
      */
-    @Test
+    @Test(timeout = 120000)
     public void testEndToEndWithFencing() throws Exception {
         endToEndProcessWithFencing(true, false);
     }
@@ -434,7 +441,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If an exception occurred.
      */
-    @Test
+    @Test(timeout = 120000)
     public void testEndToEndWithFencingWithChunkedStorage() throws Exception {
         endToEndProcessWithFencing(true, true);
     }

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -46,6 +52,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.BlockJUnit4ClassRunner;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static java.util.Collections.singletonList;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.Assert.assertEquals;
@@ -296,6 +303,45 @@ public class ReaderGroupStateManagerTest {
         assertEquals(1, newSegments.size());
         assertTrue(newSegments.containsKey(segment));
         assertTrue(readerState.handleEndOfSegment(segment));
+    }
+    
+    @Test(timeout = 10000)
+    public void testReachEndInvalidState() throws ReaderNotInReaderGroupException {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+        
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, SynchronizerConfig.builder().build());
+        Map<SegmentWithRange, Long> segments = new HashMap<>();
+        SegmentWithRange segment = new SegmentWithRange(new Segment(scope, stream, 0), 0.0, 1.0);
+        segments.put(segment, 1L);
+        StreamCutImpl start = new StreamCutImpl(Stream.of(scope, stream), ImmutableMap.of(segment.getSegment(), 0L));
+        StreamCutImpl end = new StreamCutImpl(Stream.of(scope, stream), ImmutableMap.of(segment.getSegment(), 100L));
+        ReaderGroupConfig config = ReaderGroupConfig.builder().stream(Stream.of(scope, stream), start, end).build();
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments,
+                                                                               ReaderGroupImpl.getEndSegmentsForStreams(config), false));
+        ReaderGroupStateManager readerState = new ReaderGroupStateManager(scope, stream, "testReader",
+                stateSynchronizer,
+                controller,
+                null);
+        readerState.initializeReader(0);
+        readerState.readerShutdown(new PositionImpl(segments));
+        assertThrows(ReaderNotInReaderGroupException.class, () -> readerState.handleEndOfSegment(segment));
+
+        //restore reader without segment
+        readerState.initializeReader(0);
+        assertThrows(ReaderNotInReaderGroupException.class, () -> readerState.handleEndOfSegment(segment));
+        
+        //Test it can release if it has the segment
+        readerState.acquireNewSegmentsIfNeeded(0, new PositionImpl(segments));
+        readerState.handleEndOfSegment(segment); 
     }
     
     @Test(timeout = 10000)
@@ -764,6 +810,8 @@ public class ReaderGroupStateManagerTest {
         assertEquals("CP3", readerState.getCheckpoint());
         readerState.checkpoint("CP3", new PositionImpl(Collections.emptyMap()));
         assertNull(readerState.getCheckpoint());
+        readerState.checkpoint("CP3", new PositionImpl(Collections.emptyMap())); //Checking idempotency (state should resolved inconsistency)
+        assertNull(readerState.getCheckpoint());
     }
 
     @Test(timeout = 10000)
@@ -1044,8 +1092,8 @@ public class ReaderGroupStateManagerTest {
         String groupName = "group";
         String rgStream = NameUtils.getStreamForReaderGroup(groupName);
         ReaderGroupConfig clientConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build();
-        ReaderGroupConfig controllerConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, stream2))
-                .readerGroupId(clientConfig.getReaderGroupId()).generation(1).build();
+        ReaderGroupConfig controllerConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, stream2)).build();
+        controllerConfig = ReaderGroupConfig.cloneConfig(controllerConfig, clientConfig.getReaderGroupId(), 1L);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);

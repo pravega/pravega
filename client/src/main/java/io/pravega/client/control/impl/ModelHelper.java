@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.control.impl;
 
@@ -198,7 +204,7 @@ public final class ModelHelper {
                 result = Transaction.Status.COMMITTING;
                 break;
             case UNKNOWN:
-                throw new RuntimeException("Unknown transaction: " + logString);
+                throw new StatusRuntimeException(Status.NOT_FOUND);
             case UNRECOGNIZED:
             default:
                 throw new IllegalStateException("Unknown status: " + state);
@@ -249,7 +255,7 @@ public final class ModelHelper {
     }
 
     /**
-     * Helper method to convery stream cut to map of segment to position.
+     * Helper method to convert stream cut to map of segment to position.
      * @param streamCut Stream cut
      * @return map of segment to position
      */
@@ -263,13 +269,11 @@ public final class ModelHelper {
      * @return map of segment to position
      */
     public static ReaderGroupConfig encode(Controller.ReaderGroupConfiguration rgConfig) {
-        return ReaderGroupConfig.builder()
+        ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                 .automaticCheckpointIntervalMillis(rgConfig.getAutomaticCheckpointIntervalMillis())
                 .groupRefreshTimeMillis(rgConfig.getGroupRefreshTimeMillis())
                 .maxOutstandingCheckpointRequest(rgConfig.getMaxOutstandingCheckpointRequest())
                 .retentionType(ReaderGroupConfig.StreamDataRetention.values()[rgConfig.getRetentionType()])
-                .generation(rgConfig.getGeneration())
-                .readerGroupId(UUID.fromString(rgConfig.getReaderGroupId()))
                 .startingStreamCuts(rgConfig.getStartingStreamCutsList().stream()
                         .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream()),
                                 streamCut -> generateStreamCut(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap()))))
@@ -277,6 +281,7 @@ public final class ModelHelper {
                         .collect(Collectors.toMap(streamCut -> Stream.of(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream()),
                                 streamCut -> generateStreamCut(streamCut.getStreamInfo().getScope(), streamCut.getStreamInfo().getStream(), streamCut.getCutMap()))))
                 .build();
+        return ReaderGroupConfig.cloneConfig(cfg, UUID.fromString(rgConfig.getReaderGroupId()), rgConfig.getGeneration());
     }
 
     public static io.pravega.client.stream.StreamCut generateStreamCut(String scope, String stream, Map<Long, Long> cutMap) {
@@ -462,7 +467,14 @@ public final class ModelHelper {
     }
 
 
-    public static final Controller.ReaderGroupConfiguration decode(String scope, String groupName, final ReaderGroupConfig config) {
+    public static final Controller.ReaderGroupConfiguration decode(String scope, String groupName,
+                                                                   final ReaderGroupConfig config) {
+        return decode(scope, groupName, config, config.getReaderGroupId());
+    }
+
+    public static final Controller.ReaderGroupConfiguration decode(String scope, String groupName,
+                                                                   final ReaderGroupConfig config,
+                                                                   final UUID readerGroupId) {
         Preconditions.checkNotNull(scope, "ReaderGroup scope is null");
         Preconditions.checkNotNull(groupName, "ReaderGroup name is null");
         Preconditions.checkNotNull(config, "ReaderGroupConfig is null");
@@ -485,7 +497,7 @@ public final class ModelHelper {
                 .setMaxOutstandingCheckpointRequest(config.getMaxOutstandingCheckpointRequest())
                 .setRetentionType(config.getRetentionType().ordinal())
                 .setGeneration(config.getGeneration())
-                .setReaderGroupId(config.getReaderGroupId().toString())
+                .setReaderGroupId(readerGroupId.toString())
                 .addAllStartingStreamCuts(startStreamCuts)
                 .addAllEndingStreamCuts(endStreamCuts);
         return builder.build();

@@ -1,14 +1,21 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,17 +51,42 @@ class TableKeyBatch {
     private int length;
 
     /**
-     * Creates a new instance of the TableKeyBatch class which will insert or update keys.
+     * Indicates whether this {@link TableKeyBatch} refers to externally-supplied updates or internal ones.
      */
+    private final boolean external;
+
+    /**
+     * Creates a new instance of the TableKeyBatch class with {@link #isExternal()} set to true which will insert or update keys.
+     */
+    @VisibleForTesting
     static TableKeyBatch update() {
-        return new TableKeyBatch(false);
+        return update(true);
+    }
+
+    /**
+     * Creates a new instance of the TableKeyBatch class which will insert or update keys.
+     *
+     * @param external True if this TableKeyBatch is for an external update, false otherwise.
+     */
+    static TableKeyBatch update(boolean external) {
+        return new TableKeyBatch(false, external);
+    }
+
+    /**
+     * Creates a new instance of the TableKeyBatch class with {@link #isExternal()} set to true that will remove keys.
+     */
+    @VisibleForTesting
+    static TableKeyBatch removal() {
+        return removal(true);
     }
 
     /**
      * Creates a new instance of the TableKeyBatch class that will remove keys.
+     *
+     * @param external True if this TableKeyBatch is for an external update, false otherwise.
      */
-    static TableKeyBatch removal() {
-        return new TableKeyBatch(true);
+    static TableKeyBatch removal(boolean external) {
+        return new TableKeyBatch(true, external);
     }
 
     /**

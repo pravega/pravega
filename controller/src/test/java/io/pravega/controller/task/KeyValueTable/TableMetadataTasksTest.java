@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.task.KeyValueTable;
 
@@ -40,6 +46,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.Data;
 import lombok.Getter;
@@ -47,7 +54,9 @@ import org.apache.commons.lang3.NotImplementedException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -57,6 +66,8 @@ import static org.mockito.Mockito.spy;
 public abstract class TableMetadataTasksTest {
 
     protected static final String SCOPE = "taskscope";
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     protected StreamMetadataStore streamStore;
     protected KVTableMetadataStore kvtStore;
     protected TableMetadataTasks kvtMetadataTasks;
@@ -73,7 +84,7 @@ public abstract class TableMetadataTasksTest {
     public void setup() throws Exception {
         StreamMetrics.initialize();
         setupStores();
-        CreateScopeStatus scopeCreationStatus = this.streamStore.createScope(SCOPE).get();
+        CreateScopeStatus scopeCreationStatus = this.streamStore.createScope(SCOPE, null, executor).get();
         if (scopeCreationStatus.getStatus().equals(CreateScopeStatus.Status.SCOPE_EXISTS)
                 || scopeCreationStatus.getStatus().equals(CreateScopeStatus.Status.SUCCESS)) {
             this.isScopeCreated = true;
@@ -83,8 +94,7 @@ public abstract class TableMetadataTasksTest {
         EventHelper helper = new EventHelper(executor, "host", ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
         helper.setRequestEventWriter(requestEventWriter);
         kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
-                 "host", GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker, helper));
+                 "host", GrpcAuthHelper.getDisabledAuthHelper(), helper));
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
                                                             new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks, executor),
                                                             this.kvtStore, executor);
@@ -109,7 +119,7 @@ public abstract class TableMetadataTasksTest {
         long creationTime = System.currentTimeMillis();
         KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).build();
         CompletableFuture<Controller.CreateKeyValueTableStatus.Status> createOperationFuture
-                = kvtMetadataTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime);
+                = kvtMetadataTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime, 0L);
 
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
         assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
@@ -125,11 +135,10 @@ public abstract class TableMetadataTasksTest {
         // check retry failures...
         EventHelper mockHelper = EventHelperMock.getFailingEventHelperMock();
         TableMetadataTasks kvtFailingMetaTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker, mockHelper));
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), mockHelper));
 
         AssertExtensions.assertFutureThrows("addIndexAndSubmitTask throws exception",
-                kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime),
+                kvtFailingMetaTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime, 0L),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
     }
 
@@ -139,18 +148,18 @@ public abstract class TableMetadataTasksTest {
         long creationTime = System.currentTimeMillis();
         KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).build();
         CompletableFuture<Controller.CreateKeyValueTableStatus.Status> createOperationFuture
-                = kvtMetadataTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime);
+                = kvtMetadataTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime, 0L);
 
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
         assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
 
         // delete KVTable
-        CompletableFuture<DeleteKVTableStatus.Status> future = kvtMetadataTasks.deleteKeyValueTable(SCOPE, kvtable1);
+        CompletableFuture<DeleteKVTableStatus.Status> future = kvtMetadataTasks.deleteKeyValueTable(SCOPE, kvtable1, 0L);
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
 
         assertEquals(Controller.DeleteKVTableStatus.Status.SUCCESS, future.get());
         assertTrue(kvtMetadataTasks.isDeleted(SCOPE, kvtable1, null).join());
-        assertFalse(kvtStore.checkTableExists(SCOPE, kvtable1).join());
+        assertFalse(kvtStore.checkTableExists(SCOPE, kvtable1, null, executor).join());
     }
 
     private CompletableFuture<Void> processEvent(TableMetadataTasksTest.WriterMock requestEventWriter) throws InterruptedException {
@@ -174,7 +183,7 @@ public abstract class TableMetadataTasksTest {
         long creationTime = System.currentTimeMillis();
         KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).build();
         CompletableFuture<Controller.CreateKeyValueTableStatus.Status> createOperationFuture
-                = kvtMetadataTasks.createKeyValueTable(SCOPE, tableName, kvtConfig, creationTime);
+                = kvtMetadataTasks.createKeyValueTable(SCOPE, tableName, kvtConfig, creationTime, 0L);
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));
         assertEquals(CreateKeyValueTableStatus.Status.SUCCESS, createOperationFuture.join());
 
@@ -184,16 +193,15 @@ public abstract class TableMetadataTasksTest {
         EventStreamWriter<ControllerEvent> eventWriter = new WriterMock();
         helper.setRequestEventWriter(eventWriter);
         TableMetadataTasks kvtTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker, helper));
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), helper));
 
         AssertExtensions.assertFutureThrows("create timedout",
-                kvtTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime),
+                kvtTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime, 0L),
                 e -> Exceptions.unwrap(e) instanceof TimeoutException);
 
         //Delete KVTable times out
         AssertExtensions.assertFutureThrows("delete timedout",
-                kvtTasks.deleteKeyValueTable(SCOPE, tableName),
+                kvtTasks.deleteKeyValueTable(SCOPE, tableName, 0L),
                 e -> Exceptions.unwrap(e) instanceof TimeoutException);
     }
 

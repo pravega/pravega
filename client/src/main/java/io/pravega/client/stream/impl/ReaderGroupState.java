@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -827,17 +833,17 @@ public class ReaderGroupState implements Revisioned {
         void update(ReaderGroupState state) {
             Map<SegmentWithRange, Long> assigned = state.assignedSegments.get(readerId);
             Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
-            SegmentWithRange aquired = null;
+            SegmentWithRange acquired = null;
             for (SegmentWithRange segmentWithRange : state.unassignedSegments.keySet()) {
                 if (segmentWithRange.getSegment().equals(segment)) {
-                    aquired = segmentWithRange;
+                    acquired = segmentWithRange;
                 }
             }
-            if (aquired == null) {
+            if (acquired == null) {
                 throw new IllegalStateException("Segment: " + segment + " is not unassigned. " + state);
             }
-            Long offset = state.unassignedSegments.remove(aquired);
-            assigned.put(aquired, offset);
+            Long offset = state.unassignedSegments.remove(acquired);
+            assigned.put(acquired, offset);
         }
 
         private static class AcquireSegmentBuilder implements ObjectBuilder<AcquireSegment> {

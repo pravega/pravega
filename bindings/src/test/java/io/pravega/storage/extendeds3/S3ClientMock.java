@@ -1,13 +1,19 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-package io.pravega.segmentstore.server.host;
+package io.pravega.storage.extendeds3;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Config;
@@ -20,23 +26,24 @@ import com.emc.object.s3.bean.GetObjectResult;
 import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.PutObjectResult;
 import com.emc.object.s3.jersey.S3JerseyClient;
+import com.emc.object.s3.request.AbortMultipartUploadRequest;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
 import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.DeleteObjectsRequest;
 import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
-import io.pravega.storage.extendeds3.S3ImplBase;
 import java.io.InputStream;
+import java.util.Collections;
+import lombok.NonNull;
 import lombok.Synchronized;
 
 /**
- * Client wrapper for S3JerseyClient. It uses local filesystem to implement extended S3 JAVA client APIs.
+ * {@link S3JerseyClient} implementation that communicates with a {@link S3Mock} storage.
  */
-public class S3ClientWrapper extends S3JerseyClient {
+public class S3ClientMock extends S3JerseyClient {
+    private final S3Mock s3Impl;
 
-    private final S3ImplBase s3Impl;
-
-    public S3ClientWrapper(S3Config s3Config, S3ImplBase s3Impl) {
+    public S3ClientMock(@NonNull S3Config s3Config, @NonNull S3Mock s3Impl) {
         super(s3Config);
         this.s3Impl = s3Impl;
     }
@@ -86,6 +93,15 @@ public class S3ClientWrapper extends S3JerseyClient {
         return s3Impl.listObjects(bucketName, prefix);
     }
 
+    @Override
+    public ListObjectsResult listMoreObjects(ListObjectsResult lastResult) {
+        ListObjectsResult result = new ListObjectsResult();
+        result.setPrefix(lastResult.getPrefix());
+        result.setBucketName(lastResult.getBucketName());
+        result.setMaxKeys(lastResult.getMaxKeys());
+        result.setObjects(Collections.emptyList());
+        return result;
+    }
 
     @Override
     public S3ObjectMetadata getObjectMetadata(String bucketName, String key) {
@@ -103,8 +119,13 @@ public class S3ClientWrapper extends S3JerseyClient {
     }
 
     @Override
+    public void abortMultipartUpload(AbortMultipartUploadRequest request) {
+        s3Impl.abortMultipartUpload(request);
+    }
+
+    @Override
     public CopyPartResult copyPart(CopyPartRequest request) {
-       return s3Impl.copyPart(request);
+        return s3Impl.copyPart(request);
     }
 
     @Synchronized

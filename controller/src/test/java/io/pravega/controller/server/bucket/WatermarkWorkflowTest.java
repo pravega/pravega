@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
- * 
+ * Copyright Pravega Authors.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.bucket;
 
@@ -51,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -63,7 +70,9 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -79,6 +88,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class WatermarkWorkflowTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     TestingServer zkServer;
     CuratorFramework zkClient;
 
@@ -87,7 +98,7 @@ public class WatermarkWorkflowTest {
     StreamMetadataTasks streamMetadataTasks;
 
     ScheduledExecutorService executor;
-    
+
     @Before
     public void setUp() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -106,7 +117,7 @@ public class WatermarkWorkflowTest {
         bucketStore = StreamStoreFactory.createZKBucketStore(map, zkClient, executor);
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, TaskStoreFactory.createInMemoryStore(executor),
-                SegmentHelperMock.getSegmentHelperMock(), executor, "hostId", GrpcAuthHelper.getDisabledAuthHelper(), new RequestTracker(false));
+                SegmentHelperMock.getSegmentHelperMock(), executor, "hostId", GrpcAuthHelper.getDisabledAuthHelper());
 
     }
     
@@ -289,9 +300,11 @@ public class WatermarkWorkflowTest {
                 () -> new PeriodicWatermarking.WatermarkClient(stream, clientFactory), e -> e instanceof RuntimeException && s.equals(e.getMessage()));
         
         @Cleanup
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor);
-        streamMetadataStore.createScope(scope).join();
-        streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).timestampAggregationTimeout(10000L).build(),
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, 
+                sp -> clientFactory, executor, new RequestTracker(false));
+        streamMetadataStore.createScope(scope, null, executor).join();
+        streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(
+                ScalingPolicy.fixed(2)).timestampAggregationTimeout(10000L).build(),
                 System.currentTimeMillis(), null, executor).join();
         streamMetadataStore.createStream(scope, markStreamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
                 System.currentTimeMillis(), null, executor).join();
@@ -329,11 +342,12 @@ public class WatermarkWorkflowTest {
         }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
 
         @Cleanup
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, 
+                executor, new RequestTracker(false));
 
         String streamName = "stream";
         String scope = "scope";
-        streamMetadataStore.createScope(scope).join();
+        streamMetadataStore.createScope(scope, null, executor).join();
         streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3)).timestampAggregationTimeout(10000L).build(), 
                 System.currentTimeMillis(), null, executor).join();
 
@@ -494,9 +508,10 @@ public class WatermarkWorkflowTest {
         }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
 
         @Cleanup
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, sp -> clientFactory, executor);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, 
+                sp -> clientFactory, executor, new RequestTracker(false));
 
-        streamMetadataStore.createScope(scope).join();
+        streamMetadataStore.createScope(scope, null, executor).join();
         streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).timestampAggregationTimeout(10000L).build(), 
                 System.currentTimeMillis(), null, executor).join();
         streamMetadataStore.createStream(scope, markStreamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 
@@ -571,11 +586,12 @@ public class WatermarkWorkflowTest {
         StreamMetadataStore streamMetadataStoreSpied = spy(this.streamMetadataStore);
         BucketStore bucketStoreSpied = spy(this.bucketStore);
         @Cleanup
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStoreSpied, bucketStoreSpied, sp -> clientFactory, executor);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStoreSpied,
+                bucketStoreSpied, sp -> clientFactory, executor, new RequestTracker(false));
 
         String streamName = "stream";
         String scope = "scope";
-        streamMetadataStoreSpied.createScope(scope).join();
+        streamMetadataStoreSpied.createScope(scope, null, executor).join();
         streamMetadataStoreSpied.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3))
                                                                                .timestampAggregationTimeout(3000L).build(),
                 System.currentTimeMillis(), null, executor).join();

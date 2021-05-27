@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.containers;
 
@@ -218,7 +224,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Record details(name, container Id & sealed status) of each segment to be created.
         Set<String> sealedSegments = new HashSet<>();
         byte[] data = "data".getBytes();
-        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount);
+        SegmentToContainerMapper segToConMapper = new SegmentToContainerMapper(containerCount, true);
         Map<Integer, ArrayList<String>> segmentByContainers = new HashMap<>();
 
         // Create segments and get their container Ids, sealed status and names to verify.
@@ -365,6 +371,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
+        Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
         // 3. Instead of waiting for the Writer to move data to Storage, we invoke the flushToStorage to verify that all
         // operations have been applied to Storage.
         val forceFlush = container.flushToStorage(TIMEOUT);
@@ -507,7 +515,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
         TestContext(ScheduledExecutorService scheduledExecutorService) {
             this.storageFactory = new InMemoryStorageFactory(scheduledExecutorService);
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, scheduledExecutorService);
-            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE / 5);
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, scheduledExecutorService);
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);
             this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, scheduledExecutorService);

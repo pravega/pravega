@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -28,7 +34,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ScheduledExecutorService;
@@ -37,6 +42,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+
+import static io.pravega.shared.MetricsNames.SLTS_GC_QUEUE_SIZE;
 
 /**
  * Implements simple garbage collector for cleaning up the deleted chunks.
@@ -55,7 +62,7 @@ import java.util.function.Supplier;
  * </ol>
  */
 @Slf4j
-public class GarbageCollector extends AbstractThreadPoolService implements AutoCloseable {
+public class GarbageCollector extends AbstractThreadPoolService implements AutoCloseable, StatsReporter {
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     /**
      * Set of garbage chunks.
@@ -168,15 +175,11 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         loopFuture = Futures.loop(
                 this::canRun,
                 () -> delaySupplier.get()
-                        .thenRunAsync(() -> {
-                            log.info("{}: Iteration {} started.", traceObjectId, iterationId.get());
-                        }, executor)
                         .thenComposeAsync(v -> deleteGarbage(true, config.getGarbageCollectionMaxConcurrency()), executor)
                         .handleAsync((v, ex) -> {
                             if (null != ex) {
                                 log.error("{}: Error during doRun.", traceObjectId, ex);
                             }
-                            log.info("{}: Iteration {} ended.", traceObjectId, iterationId.getAndIncrement());
                             return null;
                         }, executor),
                 executor);
@@ -240,7 +243,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
      * @return CompletableFuture which is completed when garbage is deleted.
      */
     CompletableFuture<Boolean> deleteGarbage(boolean isBackground, int maxItems) {
-        log.debug("{}: deleteGarbage - started.", traceObjectId);
+        log.debug("{}: Iteration {} started.", traceObjectId, iterationId.get());
         // Sleep if suspended.
         if (suspended.get() && isBackground) {
             log.info("{}: deleteGarbage - suspended - sleeping for {}.", traceObjectId, config.getGarbageCollectionDelay());
@@ -250,24 +253,21 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         // Find chunks to delete.
         val chunksToDelete = new ArrayList<GarbageChunkInfo>();
         int count = 0;
-        try {
-            // Block until you have at least one item.
-            GarbageChunkInfo info = garbageChunks.take();
-            log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
-            while (null != info ) {
-                queueSize.decrementAndGet();
-                chunksToDelete.add(info);
 
-                count++;
-                if (count >= maxItems) {
-                    break;
-                }
-                // Do not block
-                info = garbageChunks.poll();
-                log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
+        // Wait until you have at least one item or timeout expires.
+        GarbageChunkInfo info = Exceptions.handleInterruptedCall(() -> garbageChunks.poll(config.getGarbageCollectionDelay().toMillis(), TimeUnit.MILLISECONDS));
+        log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
+        while (null != info ) {
+            queueSize.decrementAndGet();
+            chunksToDelete.add(info);
+
+            count++;
+            if (count >= maxItems) {
+                break;
             }
-        } catch (InterruptedException e) {
-            throw new CompletionException(e);
+            // Do not block
+            info = garbageChunks.poll();
+            log.trace("{}: deleteGarbage - retrieved {}", traceObjectId, info);
         }
 
         // Sleep if no chunks to delete.
@@ -292,8 +292,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
 
                                 // Delete chunk from storage.
                                 if (shouldDeleteChunk) {
-                                    return chunkStorage.openWrite(chunkToDelete)
-                                            .thenComposeAsync(chunkStorage::delete, storageExecutor)
+                                    return chunkStorage.delete(ChunkHandle.writeHandle(chunkToDelete))
                                             .handleAsync((v, e) -> {
                                                 if (e != null) {
                                                     val ex = Exceptions.unwrap(e);
@@ -352,7 +351,7 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
         }
         return Futures.allOf(futures)
                 .thenApplyAsync( v -> {
-                    log.debug("{}: deleteGarbage - finished.", traceObjectId);
+                    log.debug("{}: Iteration {} ended.", traceObjectId, iterationId.getAndIncrement());
                     return true;
                 }, executor);
     }
@@ -365,8 +364,14 @@ public class GarbageCollector extends AbstractThreadPoolService implements AutoC
                 loopFuture.cancel(true);
             }
             closed.set(true);
+            executor.shutdownNow();
             super.close();
         }
+    }
+
+    @Override
+    public void report() {
+        ChunkStorageMetrics.DYNAMIC_LOGGER.reportGaugeValue(SLTS_GC_QUEUE_SIZE, queueSize.get());
     }
 
     @RequiredArgsConstructor

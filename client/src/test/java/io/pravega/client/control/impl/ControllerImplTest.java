@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.control.impl;
 
@@ -81,7 +87,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteKVTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateSubscriberStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscriberStreamCut;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SubscribersResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateReaderGroupResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteReaderGroupStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ReaderGroupInfo;
@@ -351,25 +357,29 @@ public class ControllerImplTest {
 
             @Override
             public void createReaderGroup(ReaderGroupConfiguration request,
-                                          StreamObserver<CreateReaderGroupStatus> responseObserver) {
+                                          StreamObserver<CreateReaderGroupResponse> responseObserver) {
                 if (request.getReaderGroupName().equals("rg1")) {
-                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
-                            .setStatus(CreateReaderGroupStatus.Status.SUCCESS)
+                    responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
+                            .setConfig(request)
+                            .setStatus(CreateReaderGroupResponse.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg2")) {
-                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
-                            .setStatus(CreateReaderGroupStatus.Status.FAILURE)
+                    responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
+                            .setConfig(request)
+                            .setStatus(CreateReaderGroupResponse.Status.FAILURE)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg3")) {
-                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
-                            .setStatus(CreateReaderGroupStatus.Status.SCOPE_NOT_FOUND)
+                    responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
+                            .setConfig(request)
+                            .setStatus(CreateReaderGroupResponse.Status.SCOPE_NOT_FOUND)
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroupName().equals("rg4")) {
-                    responseObserver.onNext(CreateReaderGroupStatus.newBuilder()
-                            .setStatus(CreateReaderGroupStatus.Status.INVALID_RG_NAME)
+                    responseObserver.onNext(CreateReaderGroupResponse.newBuilder()
+                            .setConfig(request)
+                            .setStatus(CreateReaderGroupResponse.Status.INVALID_RG_NAME)
                             .build());
                     responseObserver.onCompleted();
                 }
@@ -438,10 +448,9 @@ public class ControllerImplTest {
                         .groupRefreshTimeMillis(20000L)
                         .maxOutstandingCheckpointRequest(2)
                         .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                        .generation(0L)
-                        .readerGroupId(UUID.randomUUID())
                         .startingStreamCuts(startSC)
                         .endingStreamCuts(endSC).build();
+                rgConfig = ReaderGroupConfig.cloneConfig(rgConfig, UUID.randomUUID(), 0L);
 
                 if (request.getReaderGroup().equals("rg1")) {
                     responseObserver.onNext(ReaderGroupConfigResponse.newBuilder()
@@ -1534,7 +1543,7 @@ public class ControllerImplTest {
 
     @Test
     public void testCreateReaderGroup() throws Exception {
-        CompletableFuture<Boolean> createRGStatus;
+        CompletableFuture<ReaderGroupConfig> createRGConfig;
         final Segment seg0 = new Segment("scope1", "stream1", 0L);
         final Segment seg1 = new Segment("scope1", "stream1", 1L);
         ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
@@ -1548,24 +1557,25 @@ public class ControllerImplTest {
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
-        createRGStatus = controllerClient.createReaderGroup("scope1", "rg1", config);
-        assertTrue(createRGStatus.get());
+        config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
 
-        createRGStatus = controllerClient.createReaderGroup("scope1", "rg2", config);
-        AssertExtensions.assertFutureThrows("Server should throw exception",
-                createRGStatus, Throwable -> true);
+        createRGConfig = controllerClient.createReaderGroup("scope1", "rg1", config);
+        assertEquals(createRGConfig.get().getReaderGroupId(), config.getReaderGroupId());
+        assertEquals(createRGConfig.get().getGeneration(), config.getGeneration());
 
-        createRGStatus = controllerClient.createReaderGroup("scope1", "rg3", config);
+        createRGConfig = controllerClient.createReaderGroup("scope1", "rg2", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                createRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+                createRGConfig, Throwable -> true);
 
-        createRGStatus = controllerClient.createReaderGroup("scope1", "rg4", config);
+        createRGConfig = controllerClient.createReaderGroup("scope1", "rg3", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                createRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+                createRGConfig, throwable -> throwable instanceof IllegalArgumentException);
+
+        createRGConfig = controllerClient.createReaderGroup("scope1", "rg4", config);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createRGConfig, throwable -> throwable instanceof IllegalArgumentException);
     }
 
     @Test
@@ -1584,10 +1594,10 @@ public class ControllerImplTest {
                 .groupRefreshTimeMillis(20000L)
                 .maxOutstandingCheckpointRequest(2)
                 .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
-                .generation(0L)
-                .readerGroupId(UUID.randomUUID())
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
+        config = ReaderGroupConfig.cloneConfig(config, UUID.randomUUID(), 0L);
+
         updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg1", config);
         assertNotNull(updateRGStatus.get());
 
@@ -1601,22 +1611,22 @@ public class ControllerImplTest {
 
         updateRGStatus = controllerClient.updateReaderGroup("scope1", "rg4", config);
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                updateRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+                updateRGStatus, throwable -> throwable instanceof ReaderGroupConfigRejectedException);
     }
 
     @Test
     public void testDeleteReaderGroup() throws Exception {
         CompletableFuture<Boolean> deleteRGStatus;
-        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg1", UUID.randomUUID(), 0L);
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg1", UUID.randomUUID());
         assertTrue(deleteRGStatus.get());
 
-        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg2", UUID.randomUUID(), 0L);
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg2", UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 deleteRGStatus, Throwable -> true);
 
-        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg3", UUID.randomUUID(), 0L);
+        deleteRGStatus = controllerClient.deleteReaderGroup("scope1", "rg3", UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Server should throw exception",
-                deleteRGStatus, throwable -> throwable instanceof IllegalArgumentException);
+                deleteRGStatus, Throwable -> true);
     }
 
     @Test
@@ -1932,7 +1942,8 @@ public class ControllerImplTest {
         assertEquals(Transaction.Status.OPEN, transaction.get());
 
         transaction = controllerClient.checkTransactionStatus(new StreamImpl("scope1", "stream2"), UUID.randomUUID());
-        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, t -> Exceptions.unwrap(t) instanceof StatusRuntimeException
+                && ((StatusRuntimeException) Exceptions.unwrap(t)).getStatus().equals(Status.NOT_FOUND));
 
         transaction = controllerClient.checkTransactionStatus(new StreamImpl("scope1", "stream3"), UUID.randomUUID());
         assertEquals(Transaction.Status.COMMITTING, transaction.get());
