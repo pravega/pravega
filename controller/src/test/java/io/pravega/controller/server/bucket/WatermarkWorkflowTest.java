@@ -31,6 +31,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.VersionedMetadata;
@@ -47,7 +48,6 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -65,13 +65,12 @@ import lombok.Cleanup;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 import lombok.Synchronized;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.test.TestingServer;
+import org.apache.curator.RetryPolicy;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.ClassRule;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
@@ -88,10 +87,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class WatermarkWorkflowTest {
+    private static final RetryPolicy RETRY_POLICY = (r, e, s) -> false;
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(10000, 1000, RETRY_POLICY);
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
-    TestingServer zkServer;
-    CuratorFramework zkClient;
 
     StreamMetadataStore streamMetadataStore;
     BucketStore bucketStore;
@@ -101,20 +101,14 @@ public class WatermarkWorkflowTest {
 
     @Before
     public void setUp() throws Exception {
-        zkServer = new TestingServerStarter().start();
-
-        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 10000, 1000,
-                (r, e, s) -> false);
-
-        zkClient.start();
 
         executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
 
         streamMetadataStore = StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor),
-                                                                          GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
+                                                                          GrpcAuthHelper.getDisabledAuthHelper(), PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
         ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 3,
                 BucketStore.ServiceType.WatermarkingService, 3);
-        bucketStore = StreamStoreFactory.createZKBucketStore(map, zkClient, executor);
+        bucketStore = StreamStoreFactory.createZKBucketStore(map, PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, TaskStoreFactory.createInMemoryStore(executor),
                 SegmentHelperMock.getSegmentHelperMock(), executor, "hostId", GrpcAuthHelper.getDisabledAuthHelper());
@@ -127,8 +121,6 @@ public class WatermarkWorkflowTest {
         ExecutorServiceHelpers.shutdown(executor);
 
         streamMetadataStore.close();
-        zkClient.close();
-        zkServer.close();
     }
     
     @Test(timeout = 10000L)
