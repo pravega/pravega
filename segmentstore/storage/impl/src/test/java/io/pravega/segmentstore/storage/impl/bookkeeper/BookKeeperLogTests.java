@@ -55,6 +55,7 @@ import lombok.Cleanup;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
+import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKLedgerClosedException;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.client.api.BookKeeper;
@@ -72,6 +73,10 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 
 /**
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
@@ -720,30 +725,47 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     @Test
-    public void testBookkeeperClientReCreation() {
+    public void testBookkeeperClientReCreation() throws DurableDataLogException {
         // Set a timer with a longer period than the inspection period to allow client re-creation.
         factory.get().setLastBookkeeperClientReset(new OldTimer());
         BookKeeper oldBookkeeperClient = factory.get().getBookKeeperClient();
         // Create a log the first time.
-        Assert.assertNull(factory.get().getLogInitializationTracker().get(0));
-        factory.get().createDebugLogWrapper(0);
+        Assert.assertNull(factory.get().getLogInitializationTracker().get(CONTAINER_ID));
+        @Cleanup
+        BookKeeperLog log = (BookKeeperLog) createDurableDataLog();
+        log.initialize(TIMEOUT);
+        log.append(new CompositeByteArraySegment(new byte[100]), TIMEOUT).join();
         // The first time we create the log the Bookkeeper client should be the same and the record for this log should
-        // be initialized.
+        // not be initialized.
         Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
-        Assert.assertNotNull(factory.get().getLogInitializationTracker().get(0));
-        // From this point onwards, the second attempt to create the same log within the inspection period should lead
-        // to a Bookkeeper client recreation.
-        factory.get().createDebugLogWrapper(0);
+        Assert.assertNull(factory.get().getLogInitializationTracker().get(CONTAINER_ID));
+        // Entries to track Bookkeeper client reset are initialized upon calls to onFailureCallback.
+        LogReader readerMock = Mockito.spy((LogReader) log.getReader());
+        // Successive exceptions like this will reset the Bookkeeper client.
+        Throwable expectedException = new DurableDataLogException(String.format("Unable to open-read ledger %d.",
+                CONTAINER_ID), new BKException.BKReadException());
+        doThrow(expectedException).when(readerMock).openNextLedger(any());
+        AssertExtensions.assertThrows(DurableDataLogException.class, readerMock::getNext);
+        // We should be tracking now the restarts for this container.
+        Assert.assertNotNull(factory.get().getLogInitializationTracker().get(CONTAINER_ID));
+        // From this point onwards, the second successive exception for the same log within the inspection period should
+        // lead to a Bookkeeper client recreation if we try to create the same log again.
         Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
-        factory.get().createDebugLogWrapper(0);
+        AssertExtensions.assertThrows(DurableDataLogException.class, readerMock::getNext);
+        AssertExtensions.assertThrows(DurableDataLogException.class, readerMock::getNext);
+        @Cleanup
+        BookKeeperLog log2 = (BookKeeperLog) this.factory.get().createDurableDataLog(CONTAINER_ID);
+        // Now the Bookkeeper client has been recreated.
         Assert.assertNotEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
         // Get a reference to the new Bookkeeper client.
         oldBookkeeperClient = factory.get().getBookKeeperClient();
         // The timer for this log should have been updated, so even if there are more initialization attempts, they should
         // not lead to a new Bookkeeper client re-creation until the inspection period expires.
-        factory.get().createDebugLogWrapper(0);
-        Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
-        factory.get().createDebugLogWrapper(0);
+        AssertExtensions.assertThrows(DurableDataLogException.class, readerMock::getNext);
+        AssertExtensions.assertThrows(DurableDataLogException.class, readerMock::getNext);
+        AssertExtensions.assertThrows(DurableDataLogException.class, readerMock::getNext);
+        @Cleanup
+        BookKeeperLog log3 = (BookKeeperLog) this.factory.get().createDurableDataLog(CONTAINER_ID);
         Assert.assertEquals(oldBookkeeperClient, factory.get().getBookKeeperClient());
     }
 
@@ -852,7 +874,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         private final AtomicInteger updateExceptionCount = new AtomicInteger();
 
         TestBookKeeperLog() {
-            super(CONTAINER_ID, zkClient.get(), factory.get().getBookKeeperClient(), config.get(), executorService());
+            super(CONTAINER_ID, zkClient.get(), factory.get().getBookKeeperClient(), config.get(), ex -> { }, executorService());
         }
 
         int getCreateExceptionCount() {

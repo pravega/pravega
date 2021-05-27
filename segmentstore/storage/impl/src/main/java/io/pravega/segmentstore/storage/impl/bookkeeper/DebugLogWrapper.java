@@ -33,6 +33,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
@@ -71,8 +72,9 @@ public class DebugLogWrapper implements AutoCloseable {
      * @param config     BookKeeperConfig to use.
      * @param executor   An Executor to use for async operations.
      */
-    DebugLogWrapper(int logId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executor) {
-        this.log = new BookKeeperLog(logId, zkClient, bookKeeper, config, ex -> {}, executor);
+    DebugLogWrapper(int logId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config,
+                    Consumer<Throwable> onFailureCallback, ScheduledExecutorService executor) {
+        this.log = new BookKeeperLog(logId, zkClient, bookKeeper, config, onFailureCallback, executor);
         this.bkClient = bookKeeper;
         this.config = config;
         this.initialized = new AtomicBoolean();
@@ -267,7 +269,7 @@ public class DebugLogWrapper implements AutoCloseable {
 
         @Override
         public CloseableIterator<ReadItem, DurableDataLogException> getReader() {
-            return new LogReader(this.logId, this.logMetadata, DebugLogWrapper.this.bkClient, DebugLogWrapper.this.config, ex -> {});
+            return new LogReader(this.logId, this.logMetadata, DebugLogWrapper.this.bkClient, DebugLogWrapper.this.config, ex -> { });
         }
 
         @Override

@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
@@ -127,7 +128,8 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         return wrapItem(this.currentLedger.reader.next(), this.currentLedger.metadata);
     }
 
-    private void openNextLedger(LedgerAddress address) throws DurableDataLogException {
+    @VisibleForTesting
+    void openNextLedger(LedgerAddress address) throws DurableDataLogException {
         if (address == null) {
             // We have reached the end.
             close();
