@@ -16,7 +16,6 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.common.tracing.TagLogger;
-import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -80,7 +79,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         log.info(scaleOpEvent.getRequestId(), "Processing scale request for stream {}/{}", scaleOpEvent.getScope(), 
                 scaleOpEvent.getStream());
         return withCompletion(scaleOperationTask, scaleOpEvent, scaleOpEvent.getScope(), scaleOpEvent.getStream(),
-                OPERATION_NOT_ALLOWED_PREDICATE.or(e -> e instanceof EpochTransitionOperationExceptions.ConflictException))
+                SCALE_EVENT_RETRY_PREDICATE)
                 .thenAccept(v -> {
                     log.info(scaleOpEvent.getRequestId(), "Processing scale request for stream {}/{} complete",
                             scaleOpEvent.getScope(), scaleOpEvent.getStream());
@@ -92,7 +91,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         log.info(updateStreamEvent.getRequestId(), "Processing update request for stream {}/{}",  
                 updateStreamEvent.getScope(), updateStreamEvent.getStream());
         return withCompletion(updateStreamTask, updateStreamEvent, updateStreamEvent.getScope(), updateStreamEvent.getStream(),
-                OPERATION_NOT_ALLOWED_PREDICATE)
+                EVENT_RETRY_PREDICATE)
                 .thenAccept(v -> {
                     log.info(updateStreamEvent.getRequestId(), "Processing update request for stream {}/{} complete", 
                             updateStreamEvent.getScope(), updateStreamEvent.getStream());
@@ -104,7 +103,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         log.info(truncateStreamEvent.getRequestId(), "Processing truncate request for stream {}/{}", 
                 truncateStreamEvent.getScope(), truncateStreamEvent.getStream());
         return withCompletion(truncateStreamTask, truncateStreamEvent, truncateStreamEvent.getScope(), truncateStreamEvent.getStream(),
-                OPERATION_NOT_ALLOWED_PREDICATE)
+                EVENT_RETRY_PREDICATE)
                 .thenAccept(v -> {
                     log.info(truncateStreamEvent.getRequestId(), "Processing truncate request for stream {}/{} complete", 
                             truncateStreamEvent.getScope(), truncateStreamEvent.getStream());
@@ -116,7 +115,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         log.info(sealStreamEvent.getRequestId(), "Processing seal request for stream {}/{}", 
                 sealStreamEvent.getScope(), sealStreamEvent.getStream());
         return withCompletion(sealStreamTask, sealStreamEvent, sealStreamEvent.getScope(), sealStreamEvent.getStream(),
-                OPERATION_NOT_ALLOWED_PREDICATE)
+                EVENT_RETRY_PREDICATE)
                 .thenAccept(v -> {
                     log.info(sealStreamEvent.getRequestId(), "Processing seal request for stream {}/{} complete", 
                             sealStreamEvent.getScope(), sealStreamEvent.getStream());
@@ -128,7 +127,7 @@ public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEve
         log.info(deleteStreamEvent.getRequestId(), "Processing delete request for stream {}/{}", 
                 deleteStreamEvent.getScope(), deleteStreamEvent.getStream());
         return withCompletion(deleteStreamTask, deleteStreamEvent, deleteStreamEvent.getScope(), deleteStreamEvent.getStream(),
-                OPERATION_NOT_ALLOWED_PREDICATE)
+                EVENT_RETRY_PREDICATE)
                 .thenAccept(v -> {
                     log.info(deleteStreamEvent.getRequestId(), "Processing delete request for stream {}/{} complete", 
                             deleteStreamEvent.getScope(), deleteStreamEvent.getStream());

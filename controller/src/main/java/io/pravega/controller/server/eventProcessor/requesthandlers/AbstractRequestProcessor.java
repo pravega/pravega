@@ -21,6 +21,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
+import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -66,8 +67,15 @@ import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.wit
 @Slf4j
 public abstract class AbstractRequestProcessor<T extends ControllerEvent> extends SerializedRequestHandler<T> 
         implements StreamRequestProcessor {
-    protected static final Predicate<Throwable> OPERATION_NOT_ALLOWED_PREDICATE = e -> Exceptions.unwrap(e) 
-            instanceof StoreException.OperationNotAllowedException;
+    protected static final Predicate<Throwable> OPERATION_NOT_ALLOWED_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException;
+    protected static final Predicate<Throwable> ILLEGAL_STATE_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException;
+    protected static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
+    protected static final Predicate<Throwable> VM_ERROR_PREDICATE = e -> Exceptions.unwrap(e) instanceof java.lang.VirtualMachineError;
+    protected static final Predicate<Throwable> SEGMENT_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException;
+    protected static final Predicate<Throwable> EVENT_RETRY_PREDICATE = OPERATION_NOT_ALLOWED_PREDICATE.or(ILLEGAL_STATE_PREDICATE).or(DATA_NOT_FOUND_PREDICATE)
+                                                                            .or(SEGMENT_NOT_FOUND_PREDICATE).or(VM_ERROR_PREDICATE).negate();
+    protected static final Predicate<Throwable> SCALE_EVENT_RETRY_PREDICATE = EVENT_RETRY_PREDICATE
+                                                                                .or(e -> e instanceof EpochTransitionOperationExceptions.ConflictException).negate();
 
     protected final StreamMetadataStore streamMetadataStore;
 
