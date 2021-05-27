@@ -116,7 +116,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
      * Tests the initialize() method.
      */
     @Test
-    public void testInitialize() {
+    public void testInitialize() throws Exception {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
@@ -131,6 +131,28 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.transactionAggregators[3].initialize(TIMEOUT).join();
         Assert.assertTrue("isDeleted() flag not set on metadata for deleted segment.", sm3.isDeleted());
         Assert.assertTrue("isDeletedInStorage() flag not set on metadata for deleted segment.", sm3.isDeletedInStorage());
+
+        // Check behavior for already-deleted segments (in Metadata) that are also deleted from Storage.
+        val sm4  = (UpdateableSegmentMetadata) context.transactionAggregators[4].getMetadata();
+        sm4.markDeleted(); // We do not mark it as deleted in Storage.
+        val ag4 = context.transactionAggregators[4];
+        ag4.initialize(TIMEOUT).join();
+        Assert.assertTrue("Expected SegmentMetadata.isDeletedInStorage to be set to true post init.", sm4.isDeletedInStorage());
+        sm4.markSealed();
+        ag4.add(generateSealAndUpdateMetadata(sm4.getId(), context));
+        Assert.assertFalse("SegmentAggregator should have ignored new operation for deleted segment.", ag4.mustFlush());
+
+        // Check behavior for already-deleted segments (in Metadata) that are still present in Storage.
+        val sm5  = (UpdateableSegmentMetadata) context.transactionAggregators[5].getMetadata();
+        context.storage.create(sm5.getName(), TIMEOUT).join();
+        sm5.markDeleted(); // We do not mark it as deleted in Storage.
+        val ag5 = context.transactionAggregators[5];
+        ag5.initialize(TIMEOUT).join();
+        Assert.assertTrue("Expected SegmentMetadata.isDeletedInStorage to be set to true post init.", sm5.isDeletedInStorage());
+        Assert.assertFalse("Expected Segment to have been deleted from Storage.", context.storage.exists(sm5.getName(), TIMEOUT).join());
+        sm5.markSealed();
+        ag5.add(generateSealAndUpdateMetadata(sm5.getId(), context));
+        Assert.assertFalse("SegmentAggregator should have ignored new operation for deleted segment.", ag5.mustFlush());
 
         // Check behavior for already-sealed segments (in storage, but not in metadata)
         context.storage.create(context.transactionAggregators[1].getMetadata().getName(), TIMEOUT).join();
