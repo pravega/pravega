@@ -73,7 +73,7 @@ public class FailingReplyProcessorTest {
         assertThrows(UnsupportedOperationException.class, () -> rp.operationUnsupported(new OperationUnsupported(0, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.segmentAlreadyExists(new SegmentAlreadyExists(1, "", "")));
         assertThrows(IllegalStateException.class, () -> rp.segmentAttribute(new SegmentAttribute(1, 3)));
-        assertThrows(IllegalStateException.class, () -> rp.flushedStorage(new WireCommands.FlushedStorage(1)));
+        assertThrows(IllegalStateException.class, () -> rp.storageFlushed(new WireCommands.StorageFlushed(1)));
         assertThrows(IllegalStateException.class, () -> rp.segmentAttributeUpdated(new SegmentAttributeUpdated(1, false)));
         assertThrows(IllegalStateException.class, () -> rp.segmentCreated(new SegmentCreated(1, "")));
         assertThrows(IllegalStateException.class, () -> rp.segmentDeleted(new SegmentDeleted(0, "")));

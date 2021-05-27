@@ -144,13 +144,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final String EMPTY_STACK_TRACE = "";
     protected final StreamSegmentStore segmentStore;
+    @Getter(AccessLevel.PROTECTED)
+    protected final TrackedConnection connection;
     private final TableStore tableStore;
     private final SegmentStatsRecorder statsRecorder;
     private final TableSegmentStatsRecorder tableStatsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
-    @Getter(AccessLevel.PROTECTED)
-    protected final TrackedConnection connection;
 
     //endregion
 

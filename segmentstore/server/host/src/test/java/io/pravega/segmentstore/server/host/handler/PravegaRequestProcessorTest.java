@@ -51,7 +51,6 @@ import io.pravega.segmentstore.server.store.StreamSegmentService;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.protocol.netty.AdminRequestProcessor;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;

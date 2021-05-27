@@ -18,7 +18,6 @@ package io.pravega.cli.admin.segmentstore;
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
 import io.pravega.cli.admin.utils.CommandSender;
-import io.pravega.controller.server.SegmentHelper;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.Cleanup;
