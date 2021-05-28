@@ -77,7 +77,7 @@ import static io.pravega.shared.NameUtils.getTransactionNameFromId;
  */
 public class SegmentHelper implements AutoCloseable {
 
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SegmentHelper.class));
+    protected static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SegmentHelper.class));
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_SUCCESS_REPLIES =
             ImmutableMap.<Class<? extends Request>, Set<Class<? extends Reply>>>builder()
@@ -125,9 +125,9 @@ public class SegmentHelper implements AutoCloseable {
             .build();
 
     private final HostControllerStore hostStore;
-    private final ConnectionPool connectionPool;
-    private final ScheduledExecutorService executorService;
-    private final AtomicReference<Duration> timeout;
+    protected final ConnectionPool connectionPool;
+    protected final ScheduledExecutorService executorService;
+    protected final AtomicReference<Duration> timeout;
 
     public SegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore, 
                          ScheduledExecutorService executorService) {
@@ -724,7 +724,7 @@ public class SegmentHelper implements AutoCloseable {
         return new ImmutablePair<>(rateType, desiredRate);
     }
 
-    private void closeConnection(Reply reply, RawClient client, long callerRequestId) {
+    protected void closeConnection(Reply reply, RawClient client, long callerRequestId) {
         log.debug(callerRequestId, "Closing connection as a result of receiving: flowId: {}: reply: {}", 
                 reply.getRequestId(), reply);
         if (client != null) {

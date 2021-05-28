@@ -22,6 +22,7 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.util.Config;
@@ -46,9 +47,7 @@ import java.util.stream.Collectors;
 /**
  * Used by the Controller for interacting with Segment Store. Think of this class as a 'SegmentStoreHelper'.
  */
-public class CommandSender implements AutoCloseable {
-
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(io.pravega.controller.server.SegmentHelper.class));
+public class CommandSender extends SegmentHelper implements AutoCloseable {
 
     private static final Map<Class<? extends Request>, Set<Class<? extends Reply>>> EXPECTED_SUCCESS_REPLIES =
             ImmutableMap.<Class<? extends Request>, Set<Class<? extends Reply>>>builder()
@@ -59,17 +58,9 @@ public class CommandSender implements AutoCloseable {
             ImmutableMap.<Class<? extends Request>, Set<Class<? extends Reply>>>builder()
                     .build();
 
-    private final HostControllerStore hostStore;
-    private final ConnectionPool connectionPool;
-    private final ScheduledExecutorService executorService;
-    private final AtomicReference<Duration> timeout;
-
     public CommandSender(final ConnectionPool connectionPool, HostControllerStore hostStore,
                          ScheduledExecutorService executorService) {
-        this.connectionPool = connectionPool;
-        this.hostStore = hostStore;
-        this.executorService = executorService;
-        this.timeout = new AtomicReference<>(Duration.ofSeconds(Config.REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE));
+        super(connectionPool, hostStore, executorService);
     }
 
 
@@ -86,28 +77,6 @@ public class CommandSender implements AutoCloseable {
                     assert r instanceof WireCommands.StorageFlushed;
                     return (WireCommands.StorageFlushed) r;
                 });
-    }
-
-    private void closeConnection(Reply reply, RawClient client, long callerRequestId) {
-        log.debug(callerRequestId, "Closing connection as a result of receiving: flowId: {}: reply: {}",
-                reply.getRequestId(), reply);
-        if (client != null) {
-            try {
-                client.close();
-            } catch (Exception e) {
-                log.warn(callerRequestId, "Exception tearing down connection: ", e);
-            }
-        }
-    }
-
-    private <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(RawClient connection, long clientRequestId,
-                                                                                   T request) {
-        log.trace(clientRequestId, "Sending request to segment store with: flowId: {}: request: {}",
-                request.getRequestId(), request);
-
-        CompletableFuture<Reply> future = Futures.futureWithTimeout(() -> connection.sendRequest(request.getRequestId(), request),
-                timeout.get(), "request", executorService);
-        return future;
     }
 
     /**
