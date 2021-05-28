@@ -170,7 +170,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new UpdateReaderGroupTask(streamMetadataTasks, streamMetadataStore, executor),
                 streamMetadataStore,
                 executor);
-        this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
+        this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, 
+                streamTransactionMetadataTasks, bucketStore, executor);
         this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, executor);
         this.kvtRequestHandler = new TableRequestHandler(new CreateTableTask(kvtMetadataStore, kvtMetadataTasks, executor),
                                                             new DeleteTableTask(kvtMetadataStore, kvtMetadataTasks, executor),
@@ -225,6 +226,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         if (this.requestEventProcessors != null) {
             futures.add(handleOrphanedReaders(this.requestEventProcessors, processes));
         }
+        if (this.kvtRequestEventProcessors != null) {
+            futures.add(handleOrphanedReaders(this.kvtRequestEventProcessors, processes));
+        }
         return Futures.allOf(futures);
     }
 
@@ -255,6 +259,15 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
             futures.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
                     requestEventProcessors.notifyProcessFailure(process);
+                } catch (CheckpointStoreException e) {
+                    throw new CompletionException(e);
+                }
+            }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
+        }
+        if (kvtRequestEventProcessors != null) {
+            futures.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
+                try {
+                    kvtRequestEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
@@ -293,14 +306,16 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
 
     private CompletableFuture<Void> createScope(final String scopeName) {
         return Futures.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
-                e -> log.warn("Error creating event processor scope {} with exception {}", scopeName, Exceptions.unwrap(e).toString()))
+                e -> log.warn("Error creating event processor scope {} with exception {}", scopeName, 
+                        Exceptions.unwrap(e).toString()))
                                    .runAsync(() -> controller.createScope(scopeName)
                         .thenAccept(x -> log.info("Created controller scope {}", scopeName)), executor));
     }
 
     private CompletableFuture<Void> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         return Futures.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
-                e -> log.warn("Error creating event processor stream {} with exception {}", streamName, Exceptions.unwrap(e).toString()))
+                e -> log.warn("Error creating event processor stream {} with exception {}", streamName, 
+                        Exceptions.unwrap(e).toString()))
                                    .runAsync(() -> controller.createStream(scope, streamName, streamConfig)
                                 .thenAccept(x ->
                                         log.info("Created stream {}/{}", scope, streamName)),
@@ -317,13 +332,17 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
 
             long delay = truncationInterval.get();
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
-                    () -> truncate(config.getRequestStreamName(), config.getRequestReaderGroupName(), streamMetadataTasks), delay, executor), executor);
+                    () -> truncate(config.getRequestStreamName(), config.getRequestReaderGroupName(), streamMetadataTasks),
+                    delay, executor), executor);
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
-                    () -> truncate(config.getCommitStreamName(), config.getCommitReaderGroupName(), streamMetadataTasks), delay, executor), executor);
+                    () -> truncate(config.getCommitStreamName(), config.getCommitReaderGroupName(), streamMetadataTasks),
+                    delay, executor), executor);
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
-                    () -> truncate(config.getAbortStreamName(), config.getAbortReaderGroupName(), streamMetadataTasks), delay, executor), executor);
+                    () -> truncate(config.getAbortStreamName(), config.getAbortReaderGroupName(), streamMetadataTasks), 
+                    delay, executor), executor);
             Futures.loop(this::isRunning, () -> Futures.delayedFuture(
-                    () -> truncate(config.getKvtStreamName(), config.getKvtReaderGroupName(), streamMetadataTasks), delay, executor), executor);
+                    () -> truncate(config.getKvtStreamName(), config.getKvtReaderGroupName(), streamMetadataTasks),
+                    delay, executor), executor);
         }, executor);
     }
 
@@ -354,29 +373,33 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                     });
             // Start a truncation job, but handle its exception cases by simply logging it. We will not fail the future
             // so that the loop can continue in the next iteration and attempt to truncate the stream. 
-            return streamMetadataTasks.startTruncation(config.getScopeName(), streamName, streamcut, null, 0L)
-                                      .handle((r, e) -> {
-                                          if (e != null) {
-                                              log.warn("Submission for truncation for stream {} failed. Will be retried in next iteration.",
-                                                      streamName);
-                                          } else if (r) {
-                                              log.debug("truncation for stream {} at streamcut {} submitted.", streamName, streamcut);
-                                          } else {
-                                              log.debug("truncation for stream {} at streamcut {} rejected.", streamName, streamcut);
-                                          }
-                                          return null;
-                                      });
+            return streamMetadataTasks.startTruncation(config.getScopeName(), streamName, streamcut, null)
+                      .handle((r, e) -> {
+                          if (e != null) {
+                              log.warn("Submission for truncation for stream {} failed. Will be retried in next iteration.",
+                                      streamName);
+                          } else if (r) {
+                              log.debug("truncation for stream {} at streamcut {} submitted.", 
+                                      streamName, streamcut);
+                          } else {
+                              log.debug("truncation for stream {} at streamcut {} rejected.",
+                                      streamName, streamcut);
+                          }
+                          return null;
+                      });
         } catch (Exception e) {
             // we will catch and log all exceptions and return a completed future so that the truncation is attempted in the
             // next iteration
             Throwable unwrap = Exceptions.unwrap(e);
-            log.warn("Encountered exception attempting to truncate stream {}. {}: {}", streamName, unwrap.getClass().getName(), unwrap.getMessage());
+            log.warn("Encountered exception attempting to truncate stream {}. {}: {}", streamName, unwrap.getClass().getName(), 
+                    unwrap.getMessage());
             return CompletableFuture.completedFuture(null);
         }
     }
 
     private Map<Long, Long> convertPosition(Map.Entry<String, Position> x) {
-        return ((PositionImpl) x.getValue().asImpl()).getOwnedSegmentsWithOffsets().entrySet().stream().collect(Collectors.toMap(y -> y.getKey().getSegmentId(), y -> y.getValue()));
+        return ((PositionImpl) x.getValue().asImpl()).getOwnedSegmentsWithOffsets().entrySet().stream()
+                                                     .collect(Collectors.toMap(y -> y.getKey().getSegmentId(), Map.Entry::getValue));
     }
 
     private CompletableFuture<Void> handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
@@ -417,8 +440,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                             try {
                                 group.notifyProcessFailure(process);
                             } catch (CheckpointStoreException e) {
-                                log.error(String.format("Error notifying failure of process=%s in event processor group %s", process,
-                                        group.toString()), e);
+                                log.error(String.format("Error notifying failure of process=%s in event processor group %s", 
+                                        process, group.toString()), e);
                                 throw new CompletionException(e);
                             }
                         }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
@@ -428,7 +451,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 });
     }
 
-    private void initialize() throws Exception {
+    private void initialize() {
 
         // region Create commit event processor
 

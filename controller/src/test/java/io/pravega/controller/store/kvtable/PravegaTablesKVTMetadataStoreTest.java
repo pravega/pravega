@@ -29,6 +29,8 @@ import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
+import java.util.UUID;
+
 /**
  * Zookeeper based stream metadata store tests.
  */
@@ -65,15 +67,15 @@ public class PravegaTablesKVTMetadataStoreTest extends KVTableMetadataStoreTest 
 
     @Override
     Controller.CreateScopeStatus createScope(String scopeName) throws Exception {
-        return streamStore.createScope(scopeName).get();
+        return streamStore.createScope(scopeName, null, executor).get();
     }
 
     @Test
     public void testInvalidOperation() throws Exception {
         // Test operation when stream is not in active state
-        streamStore.createScope(scope).get();
-        byte[] newUUID = store.newScope(scope).newId();
-        store.createEntryForKVTable(scope, kvtable1, newUUID, executor).get();
+        streamStore.createScope(scope, null, executor).get();
+        UUID id = store.newScope(scope).newId();
+        store.createEntryForKVTable(scope, kvtable1, id, null, executor).get();
         store.createKeyValueTable(scope, kvtable1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, kvtable1, KVTableState.CREATING, null, executor).get();
 

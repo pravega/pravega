@@ -1131,7 +1131,7 @@ public abstract class ControllerServiceImplTest {
 
         // try failing request
         doAnswer(x -> Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "")))
-                .when(controllerSpied).noteTimestampFromWriter(anyString(), anyString(), anyString(), anyLong(), any());
+                .when(controllerSpied).noteTimestampFromWriter(anyString(), anyString(), anyString(), anyLong(), any(), anyLong());
         request = Controller.TimestampFromWriter.newBuilder()
                                                 .setWriter(writer1)
                                                 .setTimestamp(4L)

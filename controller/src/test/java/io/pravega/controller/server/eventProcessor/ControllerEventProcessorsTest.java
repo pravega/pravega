@@ -55,9 +55,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -67,6 +70,9 @@ import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.doReturn;
 
 public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+
     @Override
     public int getThreadPoolSize() {
         return 10;
@@ -84,7 +90,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testHandleOrphaned() {
+    public void testHandleOrphaned() throws CheckpointStoreException {
         Controller localController = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
@@ -98,22 +104,24 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
         EventProcessorGroup<ControllerEvent> processor = getProcessor();
+        EventProcessorGroup<ControllerEvent> mockProcessor = spy(processor);
 
-        try {
-            when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(processor);
-        } catch (CheckpointStoreException e) {
-            e.printStackTrace();
-        }
+        doThrow(new CheckpointStoreException("host not found")).when(mockProcessor).notifyProcessFailure("host3");
+
+        when(system.createEventProcessorGroup(any(), any(), any())).thenReturn(mockProcessor);
 
         @Cleanup
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, 
                 kvtStore, kvtTasks, system, executorService());
+        //check for a case where init is not initalized so that kvtRequestProcessors don't get initialized and will be null
+        assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
         assertTrue(Futures.await(processors.handleFailedProcess("host1")));
+        AssertExtensions.assertFutureThrows("host not found", processors.handleFailedProcess("host3"), e -> e instanceof CheckpointStoreException);
         processors.shutDown();
     }
     
@@ -306,7 +314,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
                 kvtStreamTruncationFuture.complete(null);
             }
             return CompletableFuture.completedFuture(true);
-        }).when(streamMetadataTasks).startTruncation(anyString(), anyString(), any(), any(), anyLong());
+        }).when(streamMetadataTasks).startTruncation(anyString(), anyString(), any(), any());
 
         Set<String> processes = Sets.newHashSet("p1", "p2", "p3");
 
@@ -349,7 +357,7 @@ public class ControllerEventProcessorsTest extends ThreadPooledTestSuite {
         verify(processorsSpied, atLeast(4)).truncate(any(), any(), any());
         verify(checkpointStore, atLeast(4)).getProcesses();
         verify(checkpointStore, never()).getPositions(anyString(), anyString());
-        verify(streamMetadataTasks, never()).startTruncation(anyString(), anyString(), any(), any(), anyLong());
+        verify(streamMetadataTasks, never()).startTruncation(anyString(), anyString(), any(), any());
 
         signal.set(true);
 

@@ -29,7 +29,7 @@ Disruptive innovation is accelerated by open source. When Pravega was created, t
 We welcome contributions from experienced and new developers alike. Check out the code in [Github](https://github.com/pravega/pravega). More detail about how to get involved can be found [here](contributing.md).
 
 ### How do I get started?
-Read the [Getting Started](getting-started/getting-started.md) guide for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for some sample applications.   
+Read the [Getting Started](getting-started.md) guide for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for some sample applications.
 
 ### I am stuck. Where can I get help?
 Don’t hesitate to ask! Contact the developers and community on the mailing lists

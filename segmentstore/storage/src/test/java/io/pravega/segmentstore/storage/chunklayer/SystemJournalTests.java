@@ -78,7 +78,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
     private ChunkedSegmentStorageConfig.ChunkedSegmentStorageConfigBuilder getDefaultConfigBuilder(SegmentRollingPolicy policy) {
         return ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .selfCheckEnabled(true)
-                .defaultRollingPolicy(policy);
+                .storageMetadataRollingPolicy(policy);
     }
 
     protected String[] getSystemSegments(String systemSegmentName) {
@@ -108,7 +108,7 @@ public class SystemJournalTests extends ThreadPooledTestSuite {
 
         //Assert.assertEquals(epoch, journal.getEpoch());
         Assert.assertEquals(containerId, journal.getContainerId());
-        Assert.assertEquals(policy.getMaxLength(), journal.getConfig().getDefaultRollingPolicy().getMaxLength());
+        Assert.assertEquals(policy.getMaxLength(), journal.getConfig().getStorageMetadataRollingPolicy().getMaxLength());
         //Assert.assertEquals(epoch, journal.getEpoch());
         Assert.assertEquals(0, journal.getCurrentFileIndex().get());
 
