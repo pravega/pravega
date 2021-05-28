@@ -28,6 +28,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -215,7 +216,7 @@ abstract class TableSegmentLayout implements AutoCloseable {
          * A {@link BiFunction} that will return a {@link DirectSegmentAccess} for the requested Segment Name.
          */
         @NonNull
-        private final BiFunction<String, Duration, CompletableFuture<DirectSegmentAccess>> getSegment;
+        private final GetSegment getSegment;
         /**
          * A {@link BiFunction} that will delete the requested Segment.
          */
@@ -223,11 +224,20 @@ abstract class TableSegmentLayout implements AutoCloseable {
         private final BiFunction<String, Duration, CompletableFuture<Void>> deleteSegment;
 
         protected CompletableFuture<DirectSegmentAccess> getSegment(String name, Duration timeout) {
-            return this.getSegment.apply(name, timeout);
+            return getSegment(name, OperationPriority.Normal, timeout);
+        }
+
+        protected CompletableFuture<DirectSegmentAccess> getSegment(String name, OperationPriority priority, Duration timeout) {
+            return this.getSegment.apply(name, priority, timeout);
         }
 
         protected CompletableFuture<Void> deleteSegment(String name, Duration timeout) {
             return this.deleteSegment.apply(name, timeout);
+        }
+
+        @FunctionalInterface
+        public interface GetSegment {
+            CompletableFuture<DirectSegmentAccess> apply(String segmentName, OperationPriority priority, Duration timeout);
         }
     }
 

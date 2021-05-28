@@ -41,6 +41,7 @@ import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -305,7 +306,7 @@ class HashTableSegmentLayout extends TableSegmentLayout {
 
         @Override
         public CompletableFuture<DirectSegmentAccess> getSegment(Duration timeout) {
-            return HashTableSegmentLayout.this.connector.getSegment(this.metadata.getName(), timeout);
+            return HashTableSegmentLayout.this.connector.getSegment(this.metadata.getName(), OperationPriority.Critical, timeout);
         }
 
         @Override

@@ -376,8 +376,8 @@ public class MockController implements Controller {
         }
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = createReplyProcessorCreateSegment(result);
-        // All KeyValueTable Segments are Sorted.
-        WireCommands.CreateTableSegment command = new WireCommands.CreateTableSegment(idGenerator.get(), name, true, 0, "");
+
+        WireCommands.CreateTableSegment command = new WireCommands.CreateTableSegment(idGenerator.get(), name, false, 0, "");
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
