@@ -2026,7 +2026,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val s1 = container.forSegment(segmentName, OperationPriority.Critical, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val futures = new ArrayList<CompletableFuture<Void>>();
         futures.add(Futures.toVoid(s1.append(new ByteArraySegment(new byte[1]), null, TIMEOUT)));
-        futures.add(s1.updateAttributes(Collections.singletonList(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.Replace, 1)), TIMEOUT));
+        futures.add(s1.updateAttributes(AttributeUpdateCollection.from(new AttributeUpdate(AttributeId.randomUUID(), AttributeUpdateType.Replace, 1)), TIMEOUT));
         futures.add(s1.truncate(1, TIMEOUT));
         futures.add(Futures.toVoid(s1.seal(TIMEOUT)));
         Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
