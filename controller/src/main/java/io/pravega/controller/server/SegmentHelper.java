@@ -124,10 +124,10 @@ public class SegmentHelper implements AutoCloseable {
             .put(WireCommands.ReadTableEntries.class, ImmutableSet.of(WireCommands.NoSuchSegment.class))
             .build();
 
-    private final HostControllerStore hostStore;
     protected final ConnectionPool connectionPool;
     protected final ScheduledExecutorService executorService;
     protected final AtomicReference<Duration> timeout;
+    private final HostControllerStore hostStore;
 
     public SegmentHelper(final ConnectionPool connectionPool, HostControllerStore hostStore, 
                          ScheduledExecutorService executorService) {
