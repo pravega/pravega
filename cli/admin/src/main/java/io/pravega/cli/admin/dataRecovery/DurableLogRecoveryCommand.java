@@ -118,7 +118,7 @@ public class DurableLogRecoveryCommand extends DataRecoveryCommand {
         outputInfo("Starting recovery...");
         // create back up of metadata segments
         Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage,
-                this.containerCount, executorService, TIMEOUT);
+                this.containerCount, executorService, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         @Cleanup
         Context context = createContext(executorService);
