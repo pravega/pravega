@@ -276,6 +276,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<ReaderGroupConfig> createReaderGroup(String scopeName, String rgName, ReaderGroupConfig config) {
+        createRGStream(scopeName, rgName);
         createInScope(scopeName, getScopedReaderGroupName(scopeName, getStreamForReaderGroup(rgName)), config, s -> s.readerGroups,
                 this::getSegmentsForReaderGroup, Segment::getScopedName, this::createSegment);
         return CompletableFuture.completedFuture(config);
@@ -288,8 +289,9 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> deleteReaderGroup(String scope, String rgName, final UUID readerGroupId) {
-        String key = getScopedReaderGroupName(scope, getStreamForReaderGroup(rgName));
-        return deleteFromScope(scope, key, s -> s.readerGroups, this::getSegmentsForReaderGroup, Segment::getScopedName, this::deleteSegment);
+        String key = getScopedReaderGroupName(scope, rgName);
+        deleteFromScope(scope, key, s -> s.readerGroups, this::getSegmentsForReaderGroup, Segment::getScopedName, this::deleteSegment);
+        return deleteStream(scope, getStreamForReaderGroup(rgName));
     }
 
     @Override

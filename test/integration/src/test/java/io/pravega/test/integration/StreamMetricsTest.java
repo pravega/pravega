@@ -180,7 +180,7 @@ public class StreamMetricsTest {
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE).count());
         assertEquals(4, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
 
-        controllerWrapper.getControllerService().createScope(scopeName).get();
+        controllerWrapper.getControllerService().createScope(scopeName, 0L).get();
         if (!controller.createStream(scopeName, streamName, config).get()) {
             log.error("Stream {} for basic testing already existed, exiting", scopeName + "/" + streamName);
             return;
@@ -190,34 +190,36 @@ public class StreamMetricsTest {
         assertEquals(5, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_STREAM).count());
 
         // Update the Stream.
-        controllerWrapper.getControllerService().updateStream(scopeName, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build()).get();
+        controllerWrapper.getControllerService().updateStream(scopeName, streamName,
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(10)).build(), 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_STREAM)).count());
 
         final String subscriber = "subscriber1";
-        CreateReaderGroupResponse createRGStatus = controllerWrapper.getControllerService().createReaderGroup(scopeName, subscriber, rgConfig, System.currentTimeMillis()).get();
+        CreateReaderGroupResponse createRGStatus = controllerWrapper.getControllerService().createReaderGroup(
+                scopeName, subscriber, rgConfig, System.currentTimeMillis(), 0L).get();
         assertEquals(CreateReaderGroupResponse.Status.SUCCESS, createRGStatus.getStatus());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.CREATE_READER_GROUP)).count());
 
         final String subscriberScopedName = NameUtils.getScopedReaderGroupName(scopeName, subscriber);
         ImmutableMap<Long, Long> streamCut1 = ImmutableMap.of(0L, 10L);
         controllerWrapper.getControllerService().updateSubscriberStreamCut(scopeName, streamName, subscriberScopedName,
-                rgConfig.getReaderGroupId().toString(), 0L, streamCut1).get();
+                rgConfig.getReaderGroupId().toString(), 0L, streamCut1, 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_SUBSCRIBER)).count());
 
-        controllerWrapper.getControllerService().updateReaderGroup(scopeName, subscriber, rgConfig).get();
+        controllerWrapper.getControllerService().updateReaderGroup(scopeName, subscriber, rgConfig, 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.UPDATE_READER_GROUP)).count());
 
         controllerWrapper.getControllerService().deleteReaderGroup(scopeName, subscriber,
-                rgConfig.getReaderGroupId().toString()).get();
+                rgConfig.getReaderGroupId().toString(), 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.globalMetricName(MetricsNames.DELETE_READER_GROUP)).count());
 
         // Seal the Stream.
-        controllerWrapper.getControllerService().sealStream(scopeName, streamName).get();
+        controllerWrapper.getControllerService().sealStream(scopeName, streamName, 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.SEAL_STREAM).count());
 
         // Delete the Stream and Scope and check for the respective metrics.
-        controllerWrapper.getControllerService().deleteStream(scopeName, streamName).get();
-        controllerWrapper.getControllerService().deleteScope(scopeName).get();
+        controllerWrapper.getControllerService().deleteStream(scopeName, streamName, 0L).get();
+        controllerWrapper.getControllerService().deleteScope(scopeName, 0L).get();
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_STREAM).count());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE).count());
 
@@ -257,7 +259,7 @@ public class StreamMetricsTest {
         String scaleScopeName = "scaleScope";
         String scaleStreamName = "scaleStream";
 
-        controllerWrapper.getControllerService().createScope(scaleScopeName).get();
+        controllerWrapper.getControllerService().createScope(scaleScopeName, 0L).get();
         if (!controller.createStream(scaleScopeName, scaleStreamName, config).get()) {
             log.error("Stream {} for scale testing already existed, exiting", scaleScopeName + "/" + scaleStreamName);
             return;
@@ -299,7 +301,7 @@ public class StreamMetricsTest {
         String txScopeName = "scopeTx";
         String txStreamName = "streamTx";
 
-        controllerWrapper.getControllerService().createScope(txScopeName).get();
+        controllerWrapper.getControllerService().createScope(txScopeName, 0L).get();
         if (!controller.createStream(txScopeName, txStreamName, config).get()) {
             log.error("Stream {} for tx testing already existed, exiting", txScopeName + "/" + txStreamName);
             return;
@@ -338,7 +340,7 @@ public class StreamMetricsTest {
         String scaleRollingTxnScopeName = "scaleRollingTxnScope";
         String scaleRollingTxnStreamName = "scaleRollingTxnStream";
 
-        controllerWrapper.getControllerService().createScope(scaleRollingTxnScopeName).get();
+        controllerWrapper.getControllerService().createScope(scaleRollingTxnScopeName, 0L).get();
         if (!controller.createStream(scaleRollingTxnScopeName, scaleRollingTxnStreamName, config).get()) {
             fail("Stream " + scaleRollingTxnScopeName + "/" + scaleRollingTxnStreamName + " for scale testing already existed, test failed");
         }

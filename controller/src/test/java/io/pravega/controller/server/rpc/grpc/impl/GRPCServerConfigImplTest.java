@@ -16,10 +16,13 @@
 package io.pravega.controller.server.rpc.grpc.impl;
 
 import io.pravega.auth.AuthPluginConfig;
+import org.junit.Rule;
 import org.junit.Test;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl.GRPCServerConfigImplBuilder;
+import org.junit.rules.Timeout;
 
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -31,6 +34,8 @@ public class GRPCServerConfigImplTest {
 
     // Note: It might seem odd that we are unit testing the toString() method of the code under test. The reason we are
     // doing that is that the method is hand-rolled and there is a bit of logic there that isn't entirely unlikely to fail.
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
 
     @Test
     public void testToStringReturnsSuccessfullyWithAllConfigSpecified() {

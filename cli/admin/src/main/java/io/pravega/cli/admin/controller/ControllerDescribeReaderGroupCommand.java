@@ -39,8 +39,8 @@ public class ControllerDescribeReaderGroupCommand extends ControllerCommand {
         // Describe a the selected scope via REST API.
         @Cleanup
         val context = createContext();
-        String scope = getCommandArgs().getArgs().get(0);
-        String readerGroup = getCommandArgs().getArgs().get(1);
+        String scope = getArg(0);
+        String readerGroup = getArg(1);
         prettyJSONOutput(executeRESTCall(context, "/v1/scopes/" + scope + "/readergroups/" + readerGroup));
     }
 

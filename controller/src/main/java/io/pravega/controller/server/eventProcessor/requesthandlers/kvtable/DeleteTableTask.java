@@ -18,15 +18,16 @@ package io.pravega.controller.server.eventProcessor.requesthandlers.kvtable;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
-import io.pravega.controller.store.kvtable.KVTOperationContext;
 import io.pravega.controller.store.kvtable.KeyValueTable;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.kvtable.DeleteTableEvent;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -34,8 +35,8 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Request handler for executing a delete operation for a KeyValueTable.
  */
-@Slf4j
 public class DeleteTableTask implements TableTask<DeleteTableEvent> {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(DeleteTableTask.class));
 
     private final KVTableMetadataStore kvtMetadataStore;
     private final TableMetadataTasks kvtMetadataTasks;
@@ -58,14 +59,14 @@ public class DeleteTableTask implements TableTask<DeleteTableEvent> {
         String kvt = request.getKvtName();
         long requestId = request.getRequestId();
         String kvTableId = request.getTableId().toString();
+        final OperationContext context = kvtMetadataStore.createContext(scope, kvt, requestId);
 
         return RetryHelper.withRetriesAsync(() -> getKeyValueTable(scope, kvt)
-                .thenCompose(table -> table.getId()).thenCompose(id -> {
+                .thenCompose(table -> table.getId(context)).thenCompose(id -> {
             if (!id.equals(kvTableId)) {
-                log.debug("Skipped processing delete event for KeyValueTable {}/{} with Id:{} as UUIDs did not match.", scope, kvt, id);
+                log.debug(requestId, "Skipped processing delete event for KeyValueTable {}/{} with Id:{} as UUIDs did not match.", scope, kvt, id);
                 return CompletableFuture.completedFuture(null);
             } else {
-                final KVTOperationContext context = kvtMetadataStore.createContext(scope, kvt);
                 return Futures.exceptionallyExpecting(kvtMetadataStore.getAllSegmentIds(scope, kvt, context, executor)
                         .thenComposeAsync(allSegments ->
                                         kvtMetadataTasks.deleteSegments(scope, kvt, allSegments, kvtMetadataTasks.retrieveDelegationToken(), requestId), executor),

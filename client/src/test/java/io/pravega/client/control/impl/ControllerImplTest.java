@@ -1942,7 +1942,8 @@ public class ControllerImplTest {
         assertEquals(Transaction.Status.OPEN, transaction.get());
 
         transaction = controllerClient.checkTransactionStatus(new StreamImpl("scope1", "stream2"), UUID.randomUUID());
-        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, t -> Exceptions.unwrap(t) instanceof StatusRuntimeException
+                && ((StatusRuntimeException) Exceptions.unwrap(t)).getStatus().equals(Status.NOT_FOUND));
 
         transaction = controllerClient.checkTransactionStatus(new StreamImpl("scope1", "stream3"), UUID.randomUUID());
         assertEquals(Transaction.Status.COMMITTING, transaction.get());

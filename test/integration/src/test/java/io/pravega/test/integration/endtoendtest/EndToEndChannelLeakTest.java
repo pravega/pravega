@@ -116,7 +116,7 @@ public class EndToEndChannelLeakTest {
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).get();
         controller.createStream(SCOPE, STREAM_NAME, config).get();
         //Set the max number connections to verify channel creation behaviour
         final ClientConfig clientConfig = ClientConfig.builder().maxConnectionsPerSegmentStore(5).build();
@@ -197,7 +197,7 @@ public class EndToEndChannelLeakTest {
         final ClientConfig clientConfig = ClientConfig.builder().maxConnectionsPerSegmentStore(5).build();
 
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).get();
         controller.createStream(SCOPE, STREAM_NAME, config).get();
         @Cleanup
         SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig, executor);
@@ -285,7 +285,7 @@ public class EndToEndChannelLeakTest {
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).get();
         controller.createStream(SCOPE, STREAM_NAME, config).get();
         //Set the max number connections to verify channel creation behaviour
         final ClientConfig clientConfig = ClientConfig.builder().maxConnectionsPerSegmentStore(500).build();
@@ -400,7 +400,7 @@ public class EndToEndChannelLeakTest {
         //Set the max number connections to verify channel creation behaviour
         final ClientConfig clientConfig = ClientConfig.builder().maxConnectionsPerSegmentStore(500).build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).get();
         controller.createStream(SCOPE, STREAM_NAME, config).get();
         @Cleanup
         SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig, new InlineExecutor());

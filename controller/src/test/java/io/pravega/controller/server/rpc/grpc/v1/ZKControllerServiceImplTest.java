@@ -123,7 +123,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executorService, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, helperMock);
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
@@ -146,7 +146,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         EventHelper tableEventHelper = EventHelperMock.getEventHelperMock(executorService, "host",
                 ((AbstractKVTableMetadataStore) kvtStore).getHostTaskIndex());
         this.kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper, executorService, executorService,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, tableEventHelper);
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), tableEventHelper);
         this.tableRequestHandler = new TableRequestHandler(new CreateTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), new DeleteTableTask(this.kvtStore, this.kvtMetadataTasks,
                 executorService), this.kvtStore, executorService);
@@ -159,7 +159,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         latch.await();
 
         return new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
+                streamTransactionMetadataTasks, segmentHelper, executorService, cluster, requestTracker);
     }
 
     @After
