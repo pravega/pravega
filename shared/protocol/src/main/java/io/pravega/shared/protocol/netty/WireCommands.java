@@ -1969,8 +1969,11 @@ public final class WireCommands {
         @ToString.Exclude
         final String delegationToken;
         final int suggestedKeyCount;
-        final ByteBuf continuationToken; // this is used to indicate the point from which the next keys should be fetched.
-        final ByteBuf prefixFilter;      // this is used to indicate any prefix filters to apply to keys.
+        /**
+         * See {@link ReadTableEntries#fromKey}.
+         */
+        final ByteBuf fromKey;
+        final ByteBuf toKey;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1983,14 +1986,14 @@ public final class WireCommands {
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeInt(suggestedKeyCount);
-            out.writeInt(continuationToken.readableBytes()); // continuation token length.
-            if (continuationToken.readableBytes() != 0) {
-                continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
+            out.writeInt(fromKey.readableBytes()); // continuation token length.
+            if (fromKey.readableBytes() != 0) {
+                fromKey.getBytes(fromKey.readerIndex(), (OutputStream) out, fromKey.readableBytes());
             }
 
-            out.writeInt(prefixFilter.readableBytes());
-            if (prefixFilter.readableBytes() != 0) {
-                prefixFilter.getBytes(prefixFilter.readerIndex(), (OutputStream) out, prefixFilter.readableBytes());
+            out.writeInt(toKey.readableBytes());
+            if (toKey.readableBytes() != 0) {
+                toKey.getBytes(toKey.readerIndex(), (OutputStream) out, toKey.readableBytes());
             }
         }
 
@@ -2076,8 +2079,16 @@ public final class WireCommands {
         @ToString.Exclude
         final String delegationToken;
         final int suggestedEntryCount;
-        final ByteBuf continuationToken; // this is used to indicate the point from which the next entry should be fetched.
-        final ByteBuf prefixFilter;      // this is used to indicate any prefix filters to apply to keys.
+        /**
+         * Depending on Table Segment Type, {@link #fromKey} and {@link #toKey} have different meanings.
+         * - For Hash Table Segments, {@link #fromKey} is a continuation token generated on the server, while {@link #toKey} is not used.
+         * - For Fixed-Key-Length Table Segments, {@link #fromKey} and {@link #toKey} are used to indicate the bounds of the iteration.
+         *
+         * It is highly recommended to use the Client's TableSegmentImpl API which correctly encodes this in the requests
+         * it makes vs creating ad-hoc requests.
+         */
+        final ByteBuf fromKey;
+        final ByteBuf toKey;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -2090,13 +2101,13 @@ public final class WireCommands {
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeInt(suggestedEntryCount);
-            out.writeInt(continuationToken.readableBytes()); // continuation token length.
-            if (continuationToken.readableBytes() != 0) {
-                continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
+            out.writeInt(fromKey.readableBytes()); // continuation token length.
+            if (fromKey.readableBytes() != 0) {
+                fromKey.getBytes(fromKey.readerIndex(), (OutputStream) out, fromKey.readableBytes());
             }
-            out.writeInt(prefixFilter.readableBytes());
-            if (prefixFilter.readableBytes() != 0) {
-                prefixFilter.getBytes(prefixFilter.readerIndex(), (OutputStream) out, prefixFilter.readableBytes());
+            out.writeInt(toKey.readableBytes());
+            if (toKey.readableBytes() != 0) {
+                toKey.getBytes(toKey.readerIndex(), (OutputStream) out, toKey.readableBytes());
             }
         }
 

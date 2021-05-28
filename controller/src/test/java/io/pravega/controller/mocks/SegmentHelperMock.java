@@ -18,8 +18,6 @@ package io.pravega.controller.mocks;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
-import io.pravega.client.tables.impl.IteratorStateImpl;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;

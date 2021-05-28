@@ -19,8 +19,6 @@ import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.Insert;
-import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.Put;
@@ -29,7 +27,6 @@ import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.TableModification;
 import io.pravega.client.tables.Version;
-import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.LeakDetectorTestSuite;
@@ -845,11 +842,6 @@ cl
         public Long deserialize(ByteBuffer serializedValue) {
             return serializedValue.duplicate().getLong();
         }
-    }
-
-    @FunctionalInterface
-    private interface InvokeIterator<T> {
-        AsyncIterator<IteratorItem<T>> apply(KeyValueTable kvt, String keyFamily, int itemsAtOnce, IteratorState state);
     }
 
     //endregion

@@ -762,7 +762,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 readTableKeys.getSegment(), readTableKeys.getSuggestedKeyCount());
 
         final int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
-        final IteratorArgs args = getIteratorArgs(readTableKeys.getContinuationToken(), readTableKeys.getPrefixFilter());
+        final IteratorArgs args = getIteratorArgs(readTableKeys.getFromKey(), readTableKeys.getToKey());
 
         val result = new IteratorResult<WireCommands.TableKey>(segment.getBytes().length + WireCommands.TableKeysRead.HEADER_BYTES);
         val timer = new Timer();
@@ -804,7 +804,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 readTableEntries.getSegment(), readTableEntries.getSuggestedEntryCount());
 
         final int suggestedEntryCount = readTableEntries.getSuggestedEntryCount();
-        final IteratorArgs args = getIteratorArgs(readTableEntries.getContinuationToken(), readTableEntries.getPrefixFilter());
+        final IteratorArgs args = getIteratorArgs(readTableEntries.getFromKey(), readTableEntries.getToKey());
 
         val result = new IteratorResult<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>>(segment.getBytes().length + WireCommands.TableEntriesRead.HEADER_BYTES);
         val timer = new Timer();

@@ -25,7 +25,6 @@ import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.Flow;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.impl.IteratorStateImpl;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;

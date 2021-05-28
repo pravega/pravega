@@ -16,11 +16,12 @@
 package io.pravega.client.tables.impl;
 
 import io.netty.buffer.ByteBuf;
-import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
+import io.netty.buffer.Unpooled;
 import io.pravega.common.util.AsyncIterator;
+import javax.annotation.Nullable;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 
 /**
  * Arguments to {@link TableSegment#keyIterator} and {@link TableSegment#entryIterator}.
@@ -29,17 +30,58 @@ import lombok.Data;
 @Builder
 class SegmentIteratorArgs {
     /**
-     * Optional. If specified, all items returned by {@link AsyncIterator#getNext()} will have {@link TableSegmentKey}s
-     * that begin with the specified prefix.
+     * The Table Segment Key to begin iteration at (inclusive).
      */
-    private final ByteBuf keyPrefixFilter;
+    @NonNull
+    private final ByteBuf fromKey;
+    /**
+     * The Table Segment Key to end the iteration at (inclusive). NOTE that not all Keys/Entries between
+     * {@link #getFromKey()} and {@link #getToKey()} may be returned - the result size may be capped at
+     * {@link #getMaxItemsAtOnce()}.
+     */
+    @NonNull
+    private final ByteBuf toKey;
     /**
      * The maximum number of items to return with each call to {@link AsyncIterator#getNext()}.
      */
     private final int maxItemsAtOnce;
+
     /**
-     * Optional. A continuation token that can be used to resume a previously interrupted iteration. This can be obtained
-     * by invoking {@link IteratorItem#getState()}. A null value will create an iterator that lists all keys.
+     * Creates a new {@link SegmentIteratorArgs} that is identical to this instance, but has a {@link #getFromKey()}
+     * which is the immediate successor of the given {@code lastKey}.
+     *
+     * @param lastKey The last returned key from an iteration of the {@link TableSegmentIterator}.
+     * @return The next {@link SegmentIteratorArgs} to use, or null of {@code lastKey} is null or if, as a result of this
+     * method's computations, the next {@link SegmentIteratorArgs} would have {@link #getFromKey()} exceed
+     * {@link #getToKey()} (which means a subsequent call to {@link TableSegmentIterator#getNext()} cannot possibly yield
+     * any result).
      */
-    private final IteratorState state;
+    SegmentIteratorArgs next(@Nullable ByteBuf lastKey) {
+        if (lastKey == null) {
+            // End of iteration.
+            return null;
+        }
+
+        final byte[] result = lastKey.copy().array();
+        int index = result.length - 1;
+        ByteBuf resultBuf = null;
+        while (index >= 0) {
+            int v = result[index] & 0xFF;
+            if (v >= 0xFF) {
+                // Carryover.
+                result[index] = 0;
+            } else {
+                // Found one.
+                result[index] = (byte) (v + 1);
+                resultBuf = Unpooled.wrappedBuffer(result);
+                break;
+            }
+
+            index--;
+        }
+
+        return resultBuf == null || resultBuf.compareTo(this.toKey) > 0
+                ? null
+                : new SegmentIteratorArgs(resultBuf, this.toKey.copy(), this.maxItemsAtOnce);
+    }
 }

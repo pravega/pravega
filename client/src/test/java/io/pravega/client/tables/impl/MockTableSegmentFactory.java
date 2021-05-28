@@ -21,17 +21,14 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.NoSuchKeyException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.test.common.AssertExtensions;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -70,12 +67,6 @@ class MockTableSegmentFactory implements TableSegmentFactory {
         }
     }
 
-    int getOpenSegmentCount() {
-        synchronized (this.segments) {
-            return this.segments.size();
-        }
-    }
-
     private void segmentClosed(Segment s) {
         synchronized (this.segments) {
             this.segments.remove(s);
@@ -93,7 +84,7 @@ class MockTableSegmentFactory implements TableSegmentFactory {
         private final ScheduledExecutorService executorService;
         private final AtomicLong nextVersion = new AtomicLong();
         @GuardedBy("data")
-        private final SortedMap<ByteBuf, EntryValue> data = new TreeMap<>();
+        private final TreeMap<ByteBuf, EntryValue> data = new TreeMap<>();
         @GuardedBy("data")
         private boolean closed = false;
 
@@ -196,34 +187,27 @@ class MockTableSegmentFactory implements TableSegmentFactory {
         }
 
         private <T> AsyncIterator<IteratorItem<T>> getIterator(SegmentIteratorArgs args, IteratorConverter<T> converter) {
-            // The real Table Segment allows iterating while updating. Since we use HashMap, we don't have that luxury,
-            // but we can take a snapshot now and iterate through that. This doesn't necessarily break the Table Segment
-            // contract as it makes no guarantees about whether (or when) concurrent updates will make it into an ongoing
-            // iteration.
-            List<T> iteratorItems = convertEntries(converter);
-            val position = new AtomicInteger(0);
-            if (args.getState() != null) {
-                position.set(args.getState().toBytes().getInt());
-            }
+            Preconditions.checkNotNull(args.getFromKey(), "args.fromKey");
+            Preconditions.checkNotNull(args.getToKey(), "args.toKey");
+            Preconditions.checkArgument(args.getFromKey().readableBytes() == this.keyLength,
+                    "args.fromKey has incorrect length.");
+            Preconditions.checkArgument(args.getToKey().readableBytes() == this.keyLength,
+                    "args.toKey has incorrect length.");
 
             return () -> CompletableFuture.supplyAsync(() -> {
-                if (position.get() >= iteratorItems.size()) {
-                    return null;
+                // The real Table Segment allows iterating while updating. Since we use TreeMap, we don't have that luxury,
+                // but we can take a snapshot now and return that. This doesn't necessarily break the Table Segment
+                // contract as it makes no guarantees about whether (or when) concurrent updates will make it into an ongoing
+                // iteration.
+                synchronized (this.data) {
+                    val iteratorItems = this.data.subMap(args.getFromKey(), true, args.getToKey(), true)
+                            .entrySet().stream()
+                            .map(e -> converter.apply(e.getKey().copy(), e.getValue().value.copy(), e.getValue().version))
+                            .limit(args.getMaxItemsAtOnce())
+                            .collect(Collectors.toList());
+                    return new IteratorItem<>(iteratorItems);
                 }
-                int newPosition = Math.min(position.get() + args.getMaxItemsAtOnce(), iteratorItems.size());
-                val result = iteratorItems.subList(position.get(), newPosition);
-                position.set(newPosition);
-                val newState = IteratorState.fromBytes(ByteBuffer.allocate(Integer.BYTES).putInt(0, newPosition));
-                return new IteratorItem<>(newState, result);
             }, this.executorService);
-        }
-
-        private <T> List<T> convertEntries(IteratorConverter<T> converter) {
-            synchronized (this.data) {
-                return this.data.entrySet().stream()
-                        .map(e -> converter.apply(e.getKey().copy(), e.getValue().value.copy(), e.getValue().version))
-                        .collect(Collectors.toList());
-            }
         }
 
         @GuardedBy("data")
