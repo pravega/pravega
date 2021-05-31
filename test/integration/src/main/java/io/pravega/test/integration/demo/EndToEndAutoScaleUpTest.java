@@ -18,6 +18,8 @@ package io.pravega.test.integration.demo;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.control.impl.ControllerImpl;
+import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -37,6 +39,8 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestingServerStarter;
+
+import java.net.URI;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
@@ -48,21 +52,15 @@ import org.apache.curator.test.TestingServer;
 @Slf4j
 public class EndToEndAutoScaleUpTest {
     static final StreamConfiguration CONFIG = StreamConfiguration.builder()
-                                                                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 3))
-                                                                 .build();
+            .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+            .build();
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         try {
             @Cleanup
             TestingServer zkTestServer = new TestingServerStarter().start();
 
             int port = Config.SERVICE_PORT;
-            @Cleanup
-            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, false);
-            Controller controller = controllerWrapper.getController();
-
-            ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new SocketConnectionFactoryImpl(ClientConfig.builder().build()));
-
             @Cleanup("shutdownNow")
             val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
             @Cleanup
@@ -70,16 +68,26 @@ public class EndToEndAutoScaleUpTest {
             serviceBuilder.initialize();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
             TableStore tableStore = serviceBuilder.createTableStoreService();
+
+            ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, new ControllerImpl(
+                    ControllerImplConfig.builder().clientConfig(ClientConfig.builder().controllerURI(URI.create("tcp://localhost:9090")).build()).build(),
+                    executor), new SocketConnectionFactoryImpl(ClientConfig.builder().build()));
+
             @Cleanup
             AutoScaleMonitor autoScaleMonitor = new AutoScaleMonitor(store, internalCF,
                     AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
-                            .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
+                            .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                            .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
+                            .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 150).build());
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
                     autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null, true,
                     serviceBuilder.getLowPriorityExecutor());
             server.startListening();
+            @Cleanup
+            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, false);
+            Controller controller = controllerWrapper.getController();
 
             controllerWrapper.awaitRunning();
 
@@ -102,35 +110,20 @@ public class EndToEndAutoScaleUpTest {
             String str = new String(chars);
 
             CompletableFuture.runAsync(() -> {
-                while (System.currentTimeMillis() - start < Duration.ofMinutes(3).toMillis()) {
+                while (System.currentTimeMillis() - start < Duration.ofMinutes(10).toMillis()) {
                     try {
-                        test.writeEvent("0", str).get();
+                        long t = System.nanoTime();
+                        for (int i = 0; i < 160; i++) {
+                            test.writeEvent(str).get();
+                        }
+
+                        Thread.sleep(1000 - Duration.ofNanos(System.nanoTime() - t).toMillis());
                     } catch (Throwable e) {
                         System.err.println("test exception writing events " + e.getMessage());
                         break;
                     }
                 }
-            });
-
-            Retry.withExpBackoff(10, 10, 100, 10000)
-                    .retryingOn(NotDoneException.class)
-                    .throwingOn(RuntimeException.class)
-                    .runAsync(() -> controller.getCurrentSegments("test", "test")
-                            .thenAccept(streamSegments -> {
-                                if (streamSegments.getSegments().size() > 3) {
-                                    System.err.println("Success");
-                                    log.info("Success");
-                                    System.exit(0);
-                                } else {
-                                    throw new NotDoneException();
-                                }
-                            }), executor)
-                    .exceptionally(e -> {
-                        System.err.println("Failure");
-                        log.error("Failure");
-                        System.exit(1);
-                        return null;
-                    }).get();
+            }).join();
 
         } catch (Throwable e) {
             System.err.print("Test failed with exception: " + e.getMessage());

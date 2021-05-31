@@ -96,6 +96,12 @@ public class AutoScaleProcessor implements AutoCloseable {
         this.writer.complete(writer);
     }
 
+    @VisibleForTesting
+    AutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory,
+                       @NonNull ScheduledExecutorService executor) {
+        this(configuration, clientFactory, executor, null);
+    }
+
     /**
      * Creates a new instance of the {@link AutoScaleProcessor} class.
      *
@@ -105,14 +111,21 @@ public class AutoScaleProcessor implements AutoCloseable {
      */
     @VisibleForTesting
     AutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory,
-                       @NonNull ScheduledExecutorService executor) {
+                       @NonNull ScheduledExecutorService executor, SimpleCache<String,Pair<Long,Long>> simpleCache) {
         this.configuration = configuration;
         this.writer = new CompletableFuture<>();
         this.clientFactory = clientFactory;
         this.startInitWriter = new AtomicBoolean(false);
-
-        this.cache = new SimpleCache<>(MAX_CACHE_SIZE, configuration.getCacheExpiry(), (k, v) -> triggerScaleDown(k, true));
-
+        
+        if(simpleCache == null) {
+            this.cache = new SimpleCache<>(MAX_CACHE_SIZE, configuration.getCacheExpiry(), (k, v) ->
+            {
+                System.out.println("added::Scaling down segment" + k );
+                triggerScaleDown(k, true);
+            });
+        } else {
+            this.cache = simpleCache;
+        }
         // Even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
         // caches do not perform clean up if there is no activity. This is because they do not maintain their
         // own background thread.
@@ -121,6 +134,11 @@ public class AutoScaleProcessor implements AutoCloseable {
             bootstrapRequestWriters(clientFactory, executor);
         }
     }
+
+    AutoScaleProcessor(@NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor, SimpleCache<String,Pair<Long,Long>> simpleCache) {
+        this(configuration, createFactory(configuration), executor, simpleCache);
+    }
+    
 
     @Override
     public void close() {
@@ -265,13 +283,14 @@ public class AutoScaleProcessor implements AutoCloseable {
 
     void report(String streamSegmentName, long targetRate, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
         log.info("received traffic for {} with twoMinute rate = {} and targetRate = {}", streamSegmentName, twoMinuteRate, targetRate);
+        cache.get(streamSegmentName);
         // note: we are working on caller's thread. We should not do any blocking computation here and return as quickly as
         // possible.
         // So we will decide whether to scale or not and then unblock by asynchronously calling 'writeEvent'
         long currentTime = getTimeMillis();
         if (currentTime - startTime > configuration.getCooldownDuration().toMillis()) {
             log.debug("cool down period elapsed for {}", streamSegmentName);
-
+            
             // report to see if a scale operation needs to be performed.
             if ((twoMinuteRate > 5.0 * targetRate && currentTime - startTime > TWO_MINUTES) ||
                     (fiveMinuteRate > 2.0 * targetRate && currentTime - startTime > FIVE_MINUTES) ||

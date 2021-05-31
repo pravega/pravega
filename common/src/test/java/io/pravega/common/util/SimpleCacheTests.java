@@ -31,11 +31,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
+
+import lombok.NonNull;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
+
+import javax.annotation.Nullable;
 
 /**
  * Unit tests for the {@link SimpleCache} class.
@@ -316,7 +321,6 @@ public class SimpleCacheTests {
         val key1 = 1L;
         val value1 = value(key1);
         val c = new SimpleCache<>(INFINITE_SIZE, Duration.ofNanos(expirationTimeNanos), evictions::put, currentTime::get);
-
         // PutIfAbsent.
         currentTime.set(0);
         val p1 = c.putIfAbsent(key1, value1);
@@ -494,5 +498,13 @@ public class SimpleCacheTests {
         val list = inOrder(start, end);
         Collections.shuffle(list, random);
         return list;
+    }
+    
+    public static class TestSimpleCache <KeyT, ValueT> extends SimpleCache<KeyT, ValueT> {
+        public TestSimpleCache(int maxSize, @NonNull Duration expirationTime,
+                               @Nullable BiConsumer<KeyT, ValueT> onExpiration,
+                               @NonNull Supplier<Long> currentTime) {
+            super(maxSize, expirationTime, onExpiration, currentTime);
+        }
     }
 }
