@@ -75,7 +75,11 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
     protected static final Predicate<Throwable> EVENT_RETRY_PREDICATE = OPERATION_NOT_ALLOWED_PREDICATE.or(ILLEGAL_STATE_PREDICATE).or(DATA_NOT_FOUND_PREDICATE)
                                                                             .or(SEGMENT_NOT_FOUND_PREDICATE).or(VM_ERROR_PREDICATE).negate();
     protected static final Predicate<Throwable> SCALE_EVENT_RETRY_PREDICATE = EVENT_RETRY_PREDICATE
-                                                                                .or(e -> e instanceof EpochTransitionOperationExceptions.ConflictException).negate();
+                                                                                .or(e -> e instanceof EpochTransitionOperationExceptions.ConflictException)
+                                                                                .or(e -> e instanceof EpochTransitionOperationExceptions.ConditionInvalidException)
+                                                                                .or(e -> e instanceof EpochTransitionOperationExceptions.InputInvalidException)
+                                                                                .or(e -> e instanceof EpochTransitionOperationExceptions.PreConditionFailureException)
+                                                                                .negate();
 
     protected final StreamMetadataStore streamMetadataStore;
 
