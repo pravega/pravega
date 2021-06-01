@@ -17,7 +17,6 @@ package io.pravega.client.tables;
 
 import com.google.common.annotations.Beta;
 import io.pravega.client.tables.impl.TableSegment;
-import io.pravega.common.util.AsyncIterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import lombok.NonNull;
@@ -201,28 +200,12 @@ public interface KeyValueTable extends AutoCloseable {
     CompletableFuture<List<TableEntry>> getAll(@NonNull Iterable<TableKey> keys);
 
     /**
-     * Creates a new Iterator for {@link TableKey}s in this {@link KeyValueTable}. This is preferred to {@link #entryIterator}
-     * if all that is needed is the {@link TableKey}s as less I/O is involved both server-side and between the server
-     * and client.
+     * Creates a new {@link KeyValueTableIterator.Builder} that can be used to construct and execute an Iterator over
+     * the {@link TableKey}/{@link TableEntry} instances in this {@link KeyValueTable}.
      *
-     * @param maxIterationSize The maximum number of {@link TableKey}s to return with each call to
-     *                         {@link AsyncIterator#getNext()}.
-     * @param args             (Optional) An {@link IteratorArgs} instance that represents the args to pass to the iterator.
-     * @return An {@link AsyncIterator} that can be used to iterate over Keys in this {@link KeyValueTable}.
+     * @return A new instance of a {@link KeyValueTableIterator.Builder}.
      */
-    AsyncIterator<IteratorItem<TableKey>> keyIterator(int maxIterationSize, @NonNull IteratorArgs args);
-
-    /**
-     * Creates a new Iterator over {@link TableEntry} instances in this {@link KeyValueTable}. This should be used if
-     * both the Keys and their associated Values are needed and is preferred to using {@link #keyIterator} to get the Keys
-     * and then issuing {@link #get}/{@link #getAll} to retrieve the Values.
-     *
-     * @param maxIterationSize The maximum number of {@link TableEntry} instances to return with each call to
-     *                         {@link AsyncIterator#getNext()}.
-     * @param args             (Optional) An {@link IteratorArgs} instance that represents the args to pass to the iterator.
-     * @return An {@link AsyncIterator} that can be used to iterate over Entries in this {@link KeyValueTable}.
-     */
-    AsyncIterator<IteratorItem<TableEntry>> entryIterator(int maxIterationSize, @NonNull IteratorArgs args);
+    KeyValueTableIterator.Builder iterator();
 
     /**
      * Closes the {@link KeyValueTable}. No more updates, removals, retrievals or iterators may be performed using it.

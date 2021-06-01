@@ -23,20 +23,17 @@ import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.Controller;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.ConditionalTableUpdateException;
-import io.pravega.client.tables.IteratorArgs;
-import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.Put;
 import io.pravega.client.tables.Remove;
 import io.pravega.client.tables.TableEntry;
+import io.pravega.client.tables.TableEntryUpdate;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.TableModification;
-import io.pravega.client.tables.TableEntryUpdate;
 import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.AsyncIterator;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,7 +47,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -199,15 +195,9 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
     }
 
     @Override
-    public AsyncIterator<IteratorItem<TableKey>> keyIterator(int maxIterationSize, @NonNull IteratorArgs args) {
+    public KeyValueTableIteratorImpl.Builder iterator() {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public AsyncIterator<IteratorItem<TableEntry>> entryIterator(int maxIterationSize, @Nullable IteratorArgs args) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
+        return new KeyValueTableIteratorImpl.Builder(this.config);
     }
 
     //endregion

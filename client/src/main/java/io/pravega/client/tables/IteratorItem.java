@@ -20,8 +20,7 @@ import java.util.List;
 import lombok.Data;
 
 /**
- * An iteration result item returned by {@link AsyncIterator} when invoking {@link KeyValueTable#entryIterator}
- * or {@link KeyValueTable#keyIterator}.
+ * An iteration result item returned by {@link AsyncIterator} when invoking {@link KeyValueTable#iterator()}.
  *
  * @param <T> Iterator Item type.
  */
