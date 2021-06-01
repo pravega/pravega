@@ -608,8 +608,8 @@ interface Stream {
      * @param record existing versioned record.
      */
     CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
-                                                           OperationContext context, Map<String /*writerId*/, Long/*time*/> writerTimes,
-                                                           Map<String /*writerId*/, Map<Long, Long> /*writer position*/> writerIdToTxnOffsets);
+                                                           OperationContext context, Map<String, Long> writerTimes,
+                                                           Map<String, Map<Long, Long>> writerIdToTxnOffsets);
     
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.

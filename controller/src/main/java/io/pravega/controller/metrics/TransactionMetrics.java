@@ -21,35 +21,7 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.pravega.shared.MetricsNames.ABORTING_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION;
-import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION_FAILED;
-import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION_SEGMENTS_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMITTING_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_FAILED;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_SEGMENTS_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_FAILED;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_SEGMENTS_LATENCY;
-import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_GEN_ID_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_ADD_TO_INDEX_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_ADD_TIMEOUT_SVC_LATENCY;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_IN_STORE_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMITTING_TRANSACTION_ADD_TO_INDEX_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_RECORD_OFFSETS_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMITTING_TRANSACTION_REMOVE_TIMEOUT_SVC_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMITTING_TRANSACTION_SEAL_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMITTING_TRANSACTION_WRITE_EVENT_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_START_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_COMPLETE_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_ROLLOVER_LATENCY;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_BATCH_COUNT;
-import static io.pravega.shared.MetricsNames.globalMetricName;
+import static io.pravega.shared.MetricsNames.*;
 import static io.pravega.shared.MetricsTags.streamTags;
 import static io.pravega.shared.MetricsTags.transactionTags;
 
@@ -77,6 +49,9 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger commitTxnRecordOffsetsLatency;
     private final OpStatsLogger commitTxnRolloverLatency;
     private final OpStatsLogger commitTxnCompleteLatency;
+    private final OpStatsLogger commitTxnBatchCreateOrdererFetchLatency;
+    private final OpStatsLogger commitTxnBatchCreateLatency;
+    private final OpStatsLogger commitTxnOrdererBatchPurgeStaleLatency;
     private final OpStatsLogger abortTransactionLatency;
     private final OpStatsLogger abortTransactionSegmentsLatency;
     private final OpStatsLogger abortingTransactionLatency;
@@ -105,6 +80,9 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         commitTxnRecordOffsetsLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_RECORD_OFFSETS_LATENCY);
         commitTxnRolloverLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_ROLLOVER_LATENCY);
         commitTxnCompleteLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_COMPLETE_LATENCY);
+        commitTxnBatchCreateOrdererFetchLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_ORDERER_BATCH_COMMITTING_LATENCY);
+        commitTxnBatchCreateLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_BATCH_CREATE_LATENCY);
+        commitTxnOrdererBatchPurgeStaleLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_ORDERER_BATCH_PURGE_LATENCY);
     }
 
     /**
@@ -308,6 +286,18 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
      */
     public void reportCommitTransactionBatchCount(String scope, String streamName, int txnsInBatchCount) {
         DYNAMIC_LOGGER.reportGaugeValue(COMMIT_TRANSACTION_BATCH_COUNT, txnsInBatchCount, streamTags(scope, streamName));
+    }
+    
+    public void reportTransactionZkOrdererFetch(Duration latency) {
+        commitTxnBatchCreateOrdererFetchLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    public void reportTransactionBatchCreate(Duration latency) {
+        commitTxnBatchCreateLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    public void reportTransactionZkOrdererPurgeStale(Duration latency) {
+        commitTxnOrdererBatchPurgeStaleLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**

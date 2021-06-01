@@ -16,7 +16,9 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.Timer;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import com.google.common.base.Preconditions;
@@ -49,7 +51,6 @@ import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.NameUtils;
 
-import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -1698,8 +1699,8 @@ public abstract class PersistentStreamBase implements Stream {
      * transaction record for which a writer with time and position information is available. 
      */
     CompletableFuture<Void> generateMarksForTransactions(CommittingTransactionsRecord committingTransactionsRecord, 
-                                                         OperationContext context, Map<String /*writerId*/, Long/*time*/> writerTimes, 
-                                                         Map<String /*writerId*/, Map<Long, Long> /*writer position*/> writerIdToTxnOffsets) {
+                                                         OperationContext context, Map<String, Long> writerTimes, 
+                                                         Map<String, Map<Long, Long>> writerIdToTxnOffsets) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         Preconditions.checkArgument(writerTimes != null && writerIdToTxnOffsets != null && writerTimes.size() == writerIdToTxnOffsets.size());
         
@@ -1912,7 +1913,6 @@ public abstract class PersistentStreamBase implements Stream {
                                     } else {
                                         val firstEntry = list.get(0);
                                         ImmutableList.Builder<UUID> txIdList = ImmutableList.builder();
-                                        List<VersionedTransactionData> versionedTxnDataList = new ArrayList<>(list.size());
                                         list.forEach(x -> {
                                             txIdList.add(x.getId());
                                         });
@@ -1928,11 +1928,8 @@ public abstract class PersistentStreamBase implements Stream {
                                                 // now that we have included transactions from positions for commit, we
                                                 // can safely remove the position references in orderer. 
                                                 .thenCompose(version -> removeTxnsFromCommitOrder(positions, context)
-                                                        .thenApply(v -> {
-                                                            return new SimpleEntry<>(
-                                                                    new VersionedMetadata<>(record, version),
-                                                                    versionedTxnDataList);
-                                                        }));
+                                                        .thenApply(v -> new SimpleEntry<>(
+                                                                new VersionedMetadata<>(record, version), list)));
                                     }
                                 });
                     } else {
@@ -1954,8 +1951,8 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record, 
-                                                                  OperationContext context, Map<String /*writerId*/, Long/*time*/> writerTimes,
-                                                                  Map<String /*writerId*/, Map<Long, Long> /*writer position*/> writerIdToTxnOffsets) {
+                                                                  OperationContext context, Map<String, Long> writerTimes,
+                                                                  Map<String, Map<Long, Long>> writerIdToTxnOffsets) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
@@ -2140,11 +2137,14 @@ public abstract class PersistentStreamBase implements Stream {
     protected CompletableFuture<List<VersionedTransactionData>> getOrderedCommittingTxnInLowestEpochHelper(
             ZkOrderedStore txnCommitOrderer, int limit, Executor executor, OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
-
+        Timer timer = new Timer();
         // get all transactions that have been added to commit orderer.
         return Futures.exceptionallyExpecting(txnCommitOrderer.getEntitiesWithPosition(getScope(), getName()),
                 AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE, Collections.emptyMap())
                       .thenCompose(allTxns -> {
+                          TransactionMetrics.getInstance().reportTransactionZkOrdererFetch(timer.getElapsed());
+
+                          Timer timer2 = new Timer();
                           // group transactions by epoch and then iterate over it from smallest epoch to largest
                           val groupByEpoch = allTxns.entrySet().stream().collect(
                                   Collectors.groupingBy(x -> RecordHelper.getTransactionEpoch(UUID.fromString(x.getValue()))));
@@ -2168,7 +2168,12 @@ public abstract class PersistentStreamBase implements Stream {
                           return Futures.loop(() -> iterator.hasNext() && transactionsMap.isEmpty(), () -> {
                               return processTransactionsInEpoch(iterator.next(), toPurge, transactionsMap, 
                                       limit, executor, context);
-                          }, executor).thenCompose(v -> txnCommitOrderer.removeEntities(getScope(), getName(), toPurge))
+                          }, executor).thenCompose(v -> {
+                              TransactionMetrics.getInstance().reportTransactionBatchCreate(timer2.getElapsed());
+                              Timer timer3 = new Timer();
+                              return txnCommitOrderer.removeEntities(getScope(), getName(), toPurge)
+                                      .thenAccept(k -> TransactionMetrics.getInstance().reportTransactionZkOrdererPurgeStale(timer3.getElapsed()));
+                          })
                                         .thenApply(v -> transactionsMap.stream().sorted(
                                                         Comparator.comparing(VersionedTransactionData::getCommitOrder))
                                                                .collect(Collectors.toList()));

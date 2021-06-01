@@ -32,7 +32,6 @@ import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
-import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StateRecord;
@@ -214,8 +213,8 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
-                                                                  OperationContext context, Map<String /*writerId*/, Long/*time*/> writerTimes,
-                                                                  Map<String /*writerId*/, Map<Long, Long> /*writer position*/> writerIdToTxnOffsets) {
+                                                                  OperationContext context, Map<String, Long> writerTimes,
+                                                                  Map<String, Map<Long, Long>> writerIdToTxnOffsets) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         // create all transaction entries in committing txn list.
@@ -912,8 +911,8 @@ class PravegaTablesStream extends PersistentStreamBase {
                                      VersionedTransactionData vdata = new VersionedTransactionData(epoch, UUID.fromString(txnIds.get(i)), txn.getVersion(),
                                              activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
                                              activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(),
-                                             activeTxnRecord.getCommitTime(), activeTxnRecord.getCommitOrder(), activeTxnRecord.getCommitOffsets());
-
+                                             activeTxnRecord.getCommitTime(), activeTxnRecord.getCommitOrder(), 
+                                             activeTxnRecord.getCommitOffsets());
                                      list.add(vdata);
                                  }
                                  return list;

@@ -1341,13 +1341,15 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param record versioned record
      * @param context operation context
      * @param executor executor
+     * @param writerTimes writer times
+     * @param writerIdToTxnOffsets writer to offsets
      * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
      */
     CompletableFuture<Void> completeCommitTransactions(final String scope, final String stream, 
                                                        final VersionedMetadata<CommittingTransactionsRecord> record,
                                                        final OperationContext context, final ScheduledExecutorService executor, 
-                                                       Map<String /*writerId*/, Long/*time*/> writerTimes,
-                                                       Map<String /*writerId*/, Map<Long, Long> /*writer position*/> writerIdToTxnOffsets);
+                                                       Map<String, Long> writerTimes,
+                                                       Map<String, Map<Long, Long>> writerIdToTxnOffsets);
 
 
     /**

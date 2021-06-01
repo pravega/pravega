@@ -968,14 +968,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, 
                                                               VersionedMetadata<CommittingTransactionsRecord> record,
-<<<<<<< HEAD
                                                               OperationContext ctx, ScheduledExecutorService executor,
-                                                              Map<String /*writerId*/, Long/*time*/> writerTimes,
-                                                              Map<String /*writerId*/, Map<Long, Long> /*writer position*/> writerIdToTxnOffsets) {
-=======
-                                                              OperationContext ctx, ScheduledExecutorService executor) {
+                                                              Map<String, Long> writerTimes,
+                                                              Map<String, Map<Long, Long>> writerIdToTxnOffsets) {
         Timer timer = new Timer();
->>>>>>> 26e2df2ad143d7e1ae32e474c0372d7036eaa06f
         OperationContext context = getOperationContext(ctx);
         Stream streamObj = getStream(scope, stream, context);
         return Futures.completeOn(streamObj.completeCommittingTransactions(record, context, writerTimes, writerIdToTxnOffsets), executor)

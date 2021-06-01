@@ -29,12 +29,12 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
-import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.CommitEvent;
+import org.apache.curator.shaded.com.google.common.base.Strings;
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
@@ -163,6 +163,8 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                           final OperationContext context) {
         Timer timer = new Timer();
         Map<String, Long> writerTimes = new HashMap<>();
+        Map<String, UUID> writerTimesTxId = new HashMap<>();
+        Map<UUID, String> txnIdToWriterId = new HashMap<>();
         Map<String, Map<Long, Long>> writerPositions = new HashMap<>();
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenComposeAsync(state -> {
@@ -176,7 +178,14 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                     })
                             .thenComposeAsync(tuple -> {
                                 VersionedMetadata<CommittingTransactionsRecord> versionedMetadata = tuple.getKey();
-                                tuple.getValue().forEach(x -> writerTimes.put(x.getId().toString(), x.getCommitTime().orElse(Long.MIN_VALUE)));
+                                tuple.getValue().forEach(x -> {
+                                    if (!Strings.isNullOrEmpty(x.getWriterId()) && (!writerTimes.containsKey(x.getWriterId()) || 
+                                        writerTimes.get(x.getWriterId()) < x.getCommitTime())) {
+                                        writerTimes.put(x.getWriterId(), x.getCommitTime());
+                                        writerTimesTxId.put(x.getWriterId(), x.getId());
+                                    }
+                                    txnIdToWriterId.put(x.getId(), x.getWriterId());
+                                });
                                 if (versionedMetadata.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
                                     // there are no transactions found to commit.
                                     // reset state conditionally in case we were left with stale committing state from
@@ -223,7 +232,12 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                             new ArrayList<>(activeEpochRecord.getSegmentIds()), txnList, 
                                                             context)
                                                             .thenApply(x -> {
-                                                                writerPositions.putAll(x);
+                                                                x.forEach((tid, pos) -> {
+                                                                    String writerId = txnIdToWriterId.get(tid);
+                                                                    if (!Strings.isNullOrEmpty(writerId) && writerTimesTxId.get(writerId).equals(tid)) {
+                                                                        writerPositions.put(writerId, pos);
+                                                                    }
+                                                                });
                                                                 return versionedMetadata;
                                                             });
                                                 } else {
@@ -318,7 +332,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
      * This method creates duplicate segments for transaction epoch. It then merges all transactions from the list into
      * those duplicate segments.
      */
-    private CompletableFuture<Void> copyTxnEpochSegmentsAndCommitTxns(String scope, String stream, List<UUID> transactionsToCommit,
+    private CompletableFuture<Map<UUID, Map<Long, Long>>> copyTxnEpochSegmentsAndCommitTxns(String scope, String stream, List<UUID> transactionsToCommit,
                                                                       List<Long> segmentIds, OperationContext context) {
         // 1. create duplicate segments
         // 2. merge transactions in those segments
@@ -339,19 +353,19 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     // now commit transactions into these newly created segments
                     return commitTransactions(scope, stream, segmentIds, transactionsToCommit, context);
                 })
-                .thenCompose(v -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentIds, delegationToken, 
-                        context.getRequestId()));
+                .thenCompose(map -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentIds, delegationToken, 
+                        context.getRequestId()).thenApply(v -> map));
     }
 
     /**
      * This method loops over each transaction in the list, and commits them in order
      * At the end of this method's execution, all transactions in the list would have committed into given list of segments.
      */
-    private CompletableFuture<Map<String, Map<Long, Long>>> commitTransactions(String scope, String stream, List<Long> segments,
+    private CompletableFuture<Map<UUID, Map<Long, Long>>> commitTransactions(String scope, String stream, List<Long> segments,
                                                        List<UUID> transactionsToCommit, OperationContext context) {
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // if honoured and is based on the order in the list.
-        Map<String, Map<Long, Long>> txnOffsets = new HashMap<>();
+        Map<UUID, Map<Long, Long>> txnOffsets = new HashMap<>();
         CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
         for (UUID txnId : transactionsToCommit) {
             log.info(context.getRequestId(), "Committing transaction {} on stream {}/{}", txnId, scope, stream);
@@ -367,7 +381,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     // so this will not update/modify it. 
                     .thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId, context.getRequestId()))
                     .thenAccept(x -> {
-                        txnOffsets.put(txnId.toString(), x);  
+                        txnOffsets.put(txnId, x);  
                     });
         }
 
