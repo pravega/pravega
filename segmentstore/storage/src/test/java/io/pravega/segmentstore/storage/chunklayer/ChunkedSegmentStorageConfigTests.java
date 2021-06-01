@@ -59,7 +59,7 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMaxIndexedSegments(), 4);
         Assert.assertEquals(config.getMaxIndexedChunks(), 5);
         Assert.assertEquals(config.getMaxIndexedChunksPerSegment(), 6);
-        Assert.assertEquals(config.getDefaultRollingPolicy().getMaxLength(), 7);
+        Assert.assertEquals(config.getStorageMetadataRollingPolicy().getMaxLength(), 7);
         Assert.assertEquals(config.getLateWarningThresholdInMillis(), 8);
         Assert.assertEquals(config.getGarbageCollectionDelay().toSeconds(), 9);
         Assert.assertEquals(config.getGarbageCollectionMaxQueueSize(), 10);
@@ -90,7 +90,7 @@ public class ChunkedSegmentStorageConfigTests {
         Assert.assertEquals(config.getMaxIndexedSegments(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxIndexedSegments());
         Assert.assertEquals(config.getMaxIndexedChunks(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxIndexedChunks());
         Assert.assertEquals(config.getMaxIndexedChunksPerSegment(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getMaxIndexedChunksPerSegment());
-        Assert.assertEquals(config.getDefaultRollingPolicy().getMaxLength(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getDefaultRollingPolicy().getMaxLength());
+        Assert.assertEquals(config.getStorageMetadataRollingPolicy().getMaxLength(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getStorageMetadataRollingPolicy().getMaxLength());
         Assert.assertEquals(config.getLateWarningThresholdInMillis(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getLateWarningThresholdInMillis());
         Assert.assertEquals(config.getGarbageCollectionDelay(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionDelay());
         Assert.assertEquals(config.getGarbageCollectionMaxConcurrency(), ChunkedSegmentStorageConfig.DEFAULT_CONFIG.getGarbageCollectionMaxConcurrency());

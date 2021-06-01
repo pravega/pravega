@@ -296,11 +296,25 @@ public final class MetricsNames {
     public static final String CREATE_TRANSACTION = PREFIX + "controller.transactions.created";                                         // Counter and Per-stream Counter
     public static final String CREATE_TRANSACTION_LATENCY = PREFIX + "controller.transactions.created_latency_ms";                      // Histogram
     public static final String CREATE_TRANSACTION_SEGMENTS_LATENCY = PREFIX + "controller.transactions.created_segments_latency_ms";    // Histogram
+    public static final String CREATE_TRANSACTION_GEN_ID_LATENCY = PREFIX + "controller.transactions.create_genid_latency_ms";                      // Histogram
+    public static final String CREATE_TRANSACTION_ADD_TO_INDEX_LATENCY = PREFIX + "controller.transactions.create_add_index_latency_ms";    // Histogram
+    public static final String CREATE_TRANSACTION_IN_STORE_LATENCY = PREFIX + "controller.transactions.create_in_store_latency_ms";    // Histogram
+    public static final String CREATE_TRANSACTION_ADD_TIMEOUT_SVC_LATENCY = PREFIX + "controller.transactions.create_add_timeout_service_latency_ms";    // Histogram
     public static final String CREATE_TRANSACTION_FAILED = PREFIX + "controller.transactions.create_failed";                            // Counter and Per-stream Counter
     public static final String COMMITTING_TRANSACTION_LATENCY = PREFIX + "controller.transactions.committing_latency_ms";               // Histogram
     public static final String COMMIT_TRANSACTION = PREFIX + "controller.transactions.committed";                                       // Counter and Per-stream Counter
     public static final String COMMIT_TRANSACTION_LATENCY = PREFIX + "controller.transactions.committed_latency_ms";                    // Histogram
     public static final String COMMIT_TRANSACTION_SEGMENTS_LATENCY = PREFIX + "controller.transactions.committed_segments_latency_ms";  // Histogram
+    public static final String COMMITTING_TRANSACTION_ADD_TO_INDEX_LATENCY = PREFIX + "controller.transactions.commit_add_index_latency_ms";                    // Histogram
+    public static final String COMMITTING_TRANSACTION_SEAL_LATENCY = PREFIX + "controller.transactions.committed_seal_latency_ms";  // Histogram
+    public static final String COMMITTING_TRANSACTION_WRITE_EVENT_LATENCY = PREFIX + "controller.transactions.committed_write_event_latency_ms";                    // Histogram
+    public static final String COMMITTING_TRANSACTION_REMOVE_TIMEOUT_SVC_LATENCY = PREFIX + "controller.transactions.committed_remove_timeout_svc_latency_ms";  // Histogram
+    public static final String COMMIT_TRANSACTION_START_LATENCY = PREFIX + "controller.transactions.committed_start_latency_ms";                                       // Counter and Per-stream Counter
+    public static final String COMMIT_TRANSACTION_RECORD_OFFSETS_LATENCY = PREFIX + "controller.transactions.committed_record_offsets_latency_ms";                    // Histogram
+    public static final String COMMIT_TRANSACTION_ROLLOVER_LATENCY = PREFIX + "controller.transactions.committed_rollover_latency_ms";                                       // Counter and Per-stream Counter
+    public static final String COMMIT_TRANSACTION_COMPLETE_LATENCY = PREFIX + "controller.transactions.committed_complete_latency_ms";                                       // Counter and Per-stream Counter
+    public static final String COMMIT_TRANSACTION_BATCH_COUNT = PREFIX + "controller.transactions.committed_batch_count";                                       // Counter and Per-stream Counter
+
     public static final String COMMIT_TRANSACTION_FAILED = PREFIX + "controller.transactions.commit_failed";                            // Counter, Per-stream Counter, Per-transaction Counter
     public static final String ABORTING_TRANSACTION_LATENCY = PREFIX + "controller.transactions.aborting_latency_ms";                   // Histogram
     public static final String ABORT_TRANSACTION = PREFIX + "controller.transactions.aborted";                                          // Counter and Per-stream Counter

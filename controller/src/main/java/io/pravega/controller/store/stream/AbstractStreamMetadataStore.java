@@ -18,6 +18,7 @@ package io.pravega.controller.store.stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.common.Timer;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
@@ -743,13 +744,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<UUID> generateTransactionId(final String scopeName, final String streamName,
                                                              final OperationContext ctx,
                                                              final Executor executor) {
+        Timer timer = new Timer();
         OperationContext context = getOperationContext(ctx);
         Stream stream = getStream(scopeName, streamName, context);
 
         // This can throw write conflict exception
         CompletableFuture<Int96> nextFuture = getNextCounter();
-        return Futures.completeOn(nextFuture.thenCompose(next -> stream.generateNewTxnId(next.getMsb(), next.getLsb(), 
-                context)), executor);
+        return Futures.completeOn(nextFuture.thenCompose(next -> stream.generateNewTxnId(next.getMsb(), next.getLsb(),
+                context)).thenApply( result -> {
+                    TransactionMetrics.getInstance().createTransactionGenId(timer.getElapsed());
+                    return result;
+        }), executor);
     }
 
     @Override
@@ -760,9 +765,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                          final long maxExecutionTime,
                                                                          final OperationContext ctx,
                                                                          final Executor executor) {
+        Timer timer = new Timer();
         OperationContext context = getOperationContext(ctx);
         Stream stream = getStream(scopeName, streamName, context);
-        return Futures.completeOn(stream.createTransaction(txnId, lease, maxExecutionTime, context), executor);
+        return Futures.completeOn(stream.createTransaction(txnId, lease, maxExecutionTime, context)
+                .thenApply(result -> {
+                        TransactionMetrics.getInstance().createTransactionInStore(timer.getElapsed());
+                        return result; }), executor);
     }
 
     @Override
@@ -943,7 +952,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(
+    public CompletableFuture<Map.Entry<VersionedMetadata<CommittingTransactionsRecord>, List<VersionedTransactionData>>> startCommitTransactions(
             String scope, String stream, int limit, OperationContext ctx, ScheduledExecutorService executor) {
         OperationContext context = getOperationContext(ctx);
         return Futures.completeOn(getStream(scope, stream, context).startCommittingTransactions(limit, context), executor);
@@ -957,23 +966,23 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> recordCommitOffsets(String scope, String stream, UUID txnId, Map<Long, Long> commitOffsets, 
-                                                       OperationContext ctx, ScheduledExecutorService executor) {
-        OperationContext context = getOperationContext(ctx);
-        return Futures.completeOn(getStream(scope, stream, context).recordCommitOffsets(txnId, commitOffsets, context), 
-                executor);
-    }
-
-    @Override
     public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, 
                                                               VersionedMetadata<CommittingTransactionsRecord> record,
+<<<<<<< HEAD
+                                                              OperationContext ctx, ScheduledExecutorService executor,
+                                                              Map<String /*writerId*/, Long/*time*/> writerTimes,
+                                                              Map<String /*writerId*/, Map<Long, Long> /*writer position*/> writerIdToTxnOffsets) {
+=======
                                                               OperationContext ctx, ScheduledExecutorService executor) {
+        Timer timer = new Timer();
+>>>>>>> 26e2df2ad143d7e1ae32e474c0372d7036eaa06f
         OperationContext context = getOperationContext(ctx);
         Stream streamObj = getStream(scope, stream, context);
-        return Futures.completeOn(streamObj.completeCommittingTransactions(record, context), executor)
+        return Futures.completeOn(streamObj.completeCommittingTransactions(record, context, writerTimes, writerIdToTxnOffsets), executor)
                 .thenAcceptAsync(result -> {
                     streamObj.getNumberOfOngoingTransactions(context).thenAccept(count ->
                             TransactionMetrics.reportOpenTransactions(scope, stream, count));
+                    TransactionMetrics.getInstance().commitTransactionComplete(timer.getElapsed());
                 }, executor);
     }
 
