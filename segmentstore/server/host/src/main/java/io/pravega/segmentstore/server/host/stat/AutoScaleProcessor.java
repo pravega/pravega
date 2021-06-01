@@ -135,6 +135,7 @@ public class AutoScaleProcessor implements AutoCloseable {
         }
     }
 
+    @VisibleForTesting
     AutoScaleProcessor(@NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor, SimpleCache<String,Pair<Long,Long>> simpleCache) {
         this(configuration, createFactory(configuration), executor, simpleCache);
     }

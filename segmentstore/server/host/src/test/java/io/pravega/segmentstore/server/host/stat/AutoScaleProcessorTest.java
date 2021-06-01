@@ -1,12 +1,12 @@
 /**
  * Copyright Pravega Authors.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,28 +21,12 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.SimpleCache;
 import io.pravega.common.util.SimpleCacheTests;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.ThreadPooledTestSuite;
-
-import java.net.URI;
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
-
 import lombok.NonNull;
 import lombok.val;
 import org.apache.commons.lang3.NotImplementedException;
@@ -50,10 +34,30 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
 
-import javax.annotation.Nullable;
+import java.net.URI;
+import java.time.Duration;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
@@ -69,7 +73,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         return 1;
     }
 
-    @Test(timeout = 10000)
+    @Test (timeout = 10000)
     public void writerCreationTest() throws Exception {
         EventStreamClientFactory clientFactory = mock(EventStreamClientFactory.class);
         CompletableFuture<Void> createWriterLatch = new CompletableFuture<>();
@@ -87,15 +91,14 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         assertFalse(failingWriterProcessor.isInitializeStarted());
         AtomicReference<EventStreamWriter<AutoScaleEvent>> w = new AtomicReference<>();
 
-        AssertExtensions.assertThrows("Bootstrap should not be initiated until isInitializeStarted is true",
+        AssertExtensions.assertThrows("Bootstrap should not be initiated until isInitializeStarted is true", 
                 () -> failingWriterProcessor.bootstrapOnce(clientFactory, w),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
-        // report but since the cooldown time hasnt elapsed, no scale event should be attempted. So no writer should 
-        // be initialized yet. 
+        // report but since the cooldown time hasnt elapsed, no scale event should be attempted. So no writer should be initialized yet. 
         failingWriterProcessor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
         assertFalse(failingWriterProcessor.isInitializeStarted());
-
+        
         failingWriterProcessor.setTimeMillis(20 * 60000L);
         failingWriterProcessor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
         // the above should initiate the bootstrap.
@@ -119,7 +122,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         doAnswer(x -> writerMock).when(clientFactory).createEventWriter(any(), any(), any());
 
         processor.notifyCreated(segmentStreamName);
-
+        
         // report a low rate to trigger a scale down 
         processor.setTimeMillis(21 * 60000L);
         processor.report(segmentStreamName, 10, 0L, 1.0, 1.0, 1.0, 1.0);
@@ -128,18 +131,17 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         AssertExtensions.assertEventuallyEquals(writerMock, () -> processor.getWriterFuture().join(), 10000L);
         AutoScaleEvent event = queue.take();
         assertEquals(event.getDirection(), AutoScaleEvent.DOWN);
-
+        
         processor.close();
-
+        
         // create third writer, this time supply the writer directly
-        EventStreamWriter<AutoScaleEvent> writer = spy(createWriter(e -> {
-        }));
-
+        EventStreamWriter<AutoScaleEvent> writer = spy(createWriter(e -> { }));
+        
         // verify that when writer is set, we are able to get the processor initialized
         TestAutoScaleProcessor processor2 = new TestAutoScaleProcessor(writer,
                 AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
                 executorService());
-
+        
         processor2.notifyCreated(segmentStreamName);
         assertFalse(processor2.isInitializeStarted());
         processor2.setTimeMillis(20 * 60000L);
@@ -151,8 +153,8 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         processor2.close();
         verify(writer, times(1)).close();
     }
-
-    @Test(timeout = 10000)
+    
+    @Test (timeout = 10000)
     public void scaleTest() {
         CompletableFuture<Void> result = new CompletableFuture<>();
         CompletableFuture<Void> result2 = new CompletableFuture<>();
@@ -350,13 +352,12 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
             @Override
             public void noteTime(long timestamp) {
-
+                
             }
         };
     }
 
     private static class TestAutoScaleProcessor extends AutoScaleProcessor {
-        private AutoScalerConfig configuration;
         private AtomicLong timeMillis = new AtomicLong();
 
         TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor,
@@ -412,10 +413,10 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         currentTime.set(0L);
         monitor.notifyCreated(streamSegmentName1);
         monitor.put(streamSegmentName1, new ImmutablePair<>(5L, 5L));
-        monitor.setTimeMillis(30L);
+        monitor.setTimeMillis(30*1000L);
         currentTime.set(30L);
         monitor.report(streamSegmentName1, 10L, 0L, 10D, 10D, 10D, 10D);
-        monitor.setTimeMillis(80L);
+        monitor.setTimeMillis(80*1000L);
         currentTime.set(80L);
         testSimpleCache.cleanUp();
         assertNotNull(monitor.get(streamSegmentName1));
