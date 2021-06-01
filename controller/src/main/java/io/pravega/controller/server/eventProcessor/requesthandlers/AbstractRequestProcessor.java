@@ -19,7 +19,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
-import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
@@ -71,7 +70,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
     protected static final Predicate<Throwable> ILLEGAL_STATE_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException;
     protected static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
     protected static final Predicate<Throwable> SEGMENT_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException;
-    protected static final Predicate<Throwable> EVENT_RETRY_PREDICATE = (ILLEGAL_STATE_PREDICATE).or(DATA_NOT_FOUND_PREDICATE)
+    protected static final Predicate<Throwable> EVENT_RETRY_PREDICATE = ILLEGAL_STATE_PREDICATE.or(DATA_NOT_FOUND_PREDICATE)
                                                                             .or(SEGMENT_NOT_FOUND_PREDICATE)
                                                                             .or(e -> Exceptions.unwrap(e) instanceof IllegalArgumentException)
                                                                             .or(e -> Exceptions.unwrap(e) instanceof NullPointerException)

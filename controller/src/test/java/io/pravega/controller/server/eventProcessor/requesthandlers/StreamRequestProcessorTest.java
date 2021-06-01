@@ -115,7 +115,7 @@ public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
         }
 
         public CompletableFuture<Void> testProcess(TestEvent1 event) {
-            return withCompletion(this, event, event.scope, event.stream, OPERATION_NOT_ALLOWED_PREDICATE);
+            return withCompletion(this, event, event.scope, event.stream, EVENT_RETRY_PREDICATE);
         }
 
         @Override
@@ -144,7 +144,7 @@ public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
         }
 
         public CompletableFuture<Void> testProcess(TestEvent2 event) {
-            return withCompletion(this, event, event.scope, event.stream, OPERATION_NOT_ALLOWED_PREDICATE);
+            return withCompletion(this, event, event.scope, event.stream, EVENT_RETRY_PREDICATE);
         }
 
         @Override
