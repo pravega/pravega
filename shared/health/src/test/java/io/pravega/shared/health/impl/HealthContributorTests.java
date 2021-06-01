@@ -39,7 +39,7 @@ public class HealthContributorTests {
         HealthyContributor contributor = new HealthyContributor();
         Health health = contributor.getHealthSnapshot();
         Assert.assertEquals("Should exactly one detail entry.", 1, health.getDetails().size());
-        Assert.assertEquals("HealthIndicator should report an 'UP' Status.", Status.UP, health.getStatus());
+        Assert.assertEquals("HealthContributor should report an 'UP' Status.", Status.UP, health.getStatus());
     }
 
     /**
@@ -51,8 +51,8 @@ public class HealthContributorTests {
         @Cleanup
         ThrowingContributor contributor = new ThrowingContributor();
         Health health = contributor.getHealthSnapshot();
-        Assert.assertEquals("HealthIndicator should have a 'DOWN' Status.", Status.DOWN, health.getStatus());
-        Assert.assertTrue("HealthIndicator should be not be marked ready OR alive.", !health.isAlive() && !health.isReady());
+        Assert.assertEquals("HealthContributor should have a 'DOWN' Status.", Status.DOWN, health.getStatus());
+        Assert.assertTrue("HealthContributor should be not be marked ready OR alive.", !health.isAlive() && !health.isReady());
     }
 
     /**

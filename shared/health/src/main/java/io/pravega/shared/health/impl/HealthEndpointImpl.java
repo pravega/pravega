@@ -19,11 +19,13 @@ import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.Status;
+import io.pravega.shared.health.HealthServiceUpdater;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -33,6 +35,9 @@ public class HealthEndpointImpl implements HealthEndpoint {
 
     @NonNull
     private final HealthContributor root;
+
+    @NonNull
+    private final HealthServiceUpdater updater;
 
     /**
      * Provides the name of the root {@link HealthContributor}.
@@ -53,11 +58,12 @@ public class HealthEndpointImpl implements HealthEndpoint {
     @NonNull
     @Override
     public Health getHealth(String id) {
-        Health health = search(id, root.getHealthSnapshot());
-        if (health == null) {
-            throw new ContributorNotFoundException();
+        if (id == null || id == root.getName()) {
+            return updater.getLatestHealth();
+        } else {
+            List<String> path = Arrays.asList(id.split("/"));
+            return search(path, updater.getLatestHealth());
         }
-        return health;
     }
 
     @Override
@@ -109,27 +115,18 @@ public class HealthEndpointImpl implements HealthEndpoint {
         return getHealth(id).getDetails();
     }
 
-    // Perform a basic DFS over the all health nodes reachable from the root.
-    Health search(String id, Health current) {
-        if (id.equals(current.getName())) {
-            return current;
-        }
-
-        for (val child : current.getChildren()) {
-            Health health = search(id, child);
-            if (health != null)  {
-                return health;
+    // Performs a linear search over the Health tree.
+    Health search(List<String> path, Health current) {
+        Health child = current;
+        for (String id : path) {
+            child = current.getChildren().get(id);
+            if (child != null)  {
+                current = child;
+            } else {
+                return null;
             }
         }
-
-        return null;
-    }
-
-    /**
-     * Exception thrown when the {@link HealthEndpoint} is called given some {@link HealthContributor} name and
-     * no such {@link HealthContributor} could be found.
-     */
-    public class ContributorNotFoundException extends RuntimeException {
+        return child;
     }
 }
 

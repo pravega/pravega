@@ -20,10 +20,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
-import com.google.common.collect.ImmutableList;
 
 import javax.annotation.concurrent.ThreadSafe;
-import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -54,7 +52,7 @@ public class Health {
      */
     @Getter
     @Builder.Default
-    private final Collection<Health> children = ImmutableList.of();
+    private final Map<String, Health> children = ImmutableMap.of();
 
     /**
      * Used to perform readiness checks. It determines if the {@link Health} object holds a {@link Status} that is considered 'ready'.

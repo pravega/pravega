@@ -44,13 +44,6 @@ public interface HealthService extends AutoCloseable {
      */
     HealthContributor getRoot();
 
-    /**
-     * Provides the name assigned to this {@link HealthService}.
-     *
-     * @return The name of the service.
-     */
-    String getName();
-
     @Override
     void close();
 }

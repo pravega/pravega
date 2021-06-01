@@ -15,10 +15,8 @@
  */
 package io.pravega.shared.health;
 
-import io.pravega.shared.health.impl.HealthEndpointImpl;
-import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestUtils;
 import lombok.Cleanup;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
@@ -26,7 +24,9 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.rules.Timeout;
 
@@ -39,9 +39,6 @@ import io.pravega.shared.health.TestHealthContributors.HealthyContributor;
 @Slf4j
 public class HealthServiceTests {
 
-
-    private static final String ROOT_NAME = "root";
-
     @Rule
     public final Timeout timeout = new Timeout(60, TimeUnit.SECONDS);
 
@@ -50,16 +47,19 @@ public class HealthServiceTests {
     HealthServiceFactory factory;
 
     @Before
-    @SneakyThrows
     public void before() {
         factory = new HealthServiceFactory();
-        service = factory.createHealthService(ROOT_NAME);
+        service = factory.createHealthService(Duration.ofSeconds(1));
+        service.getHealthServiceUpdater().startAsync();
+        service.getHealthServiceUpdater().awaitRunning();
     }
 
     @After
     public void after() {
-        service.close();
+        service.getHealthServiceUpdater().stopAsync();
+        service.getHealthServiceUpdater().awaitTerminated();
         factory.close();
+        service.close();
     }
 
     /**
@@ -67,16 +67,16 @@ public class HealthServiceTests {
      * and the service itself ({@link HealthService}.
      */
     @Test
-    public void testHealth() {
+    public void testHealth() throws Exception {
         @Cleanup
         HealthyContributor contributor = new HealthyContributor();
         service.getRoot().register(contributor);
 
-        Health health = service.getEndpoint().getHealth(contributor.getName());
-        Assert.assertTrue("Status of the default/root component is expected to be 'UP'", health.getStatus() == Status.UP);
-
-        health = service.getEndpoint().getHealth();
-        Assert.assertEquals("There should be exactly one child (SimpleIndicator)", health.getChildren().size(), 1);
+        awaitHealthContributor(service, contributor.getName());
+        Assert.assertNotNull(service.getEndpoint().getHealth(contributor.getName()));
+        Assert.assertNotNull(service.getEndpoint().getHealth());
+        Assert.assertEquals("Status of the default/root component is expected to be 'UP'", Status.UP, service.getEndpoint().getStatus());
+        Assert.assertEquals("There should be exactly one child (SimpleIndicator)", 1, service.getEndpoint().getHealth().getChildren().size());
     }
 
     /**
@@ -84,9 +84,8 @@ public class HealthServiceTests {
      */
     @Test
     public void testHealthInvalidName() {
-        AssertExtensions.assertThrows("An exception should be thrown given an unregisterd contributor.",
-                () -> service.getEndpoint().getHealth("unknown-contributor-name"),
-                ex -> ex instanceof HealthEndpointImpl.ContributorNotFoundException);
+        Assert.assertNull("An exception should be thrown given an unregistered contributor.",
+                service.getEndpoint().getHealth("unknown-contributor-name"));
     }
 
     /**
@@ -95,16 +94,18 @@ public class HealthServiceTests {
      *
      */
     @Test
-    public void testDetailsEndpoints() {
+    public void testDetailsEndpoints() throws TimeoutException {
         @Cleanup
         HealthyContributor contributor = new HealthyContributor("contributor");
         service.getRoot().register(contributor);
 
+        // Wait for the health result to be picked up by the HealthServiceUpdater.
+        awaitHealthContributor(service, contributor.getName());
         Health health = service.getEndpoint().getHealth();
         Assert.assertEquals("There should be at least one child contributor", 1, health.getChildren().size());
 
         // Tests that the Details object(s) are reachable via the 'service level' endpoint.
-        Health sample = health.getChildren().stream().findFirst().get();
+        Health sample = health.getChildren().entrySet().stream().findFirst().get().getValue();
         Assert.assertEquals("There should be one details entry provided by the SimpleIndicator.", 1, sample.getDetails().size());
         Assert.assertEquals(String.format("Key should equal \"%s\"", HealthyContributor.DETAILS_KEY),
                 HealthyContributor.DETAILS_KEY,
@@ -128,46 +129,55 @@ public class HealthServiceTests {
      * information.
      */
     @Test
-    public void testStatusEndpoints() {
+    public void testStatusEndpoints() throws Exception {
         @Cleanup
         HealthyContributor contributor = new HealthyContributor("contributor");
         service.getRoot().register(contributor);
 
-        Status status = service.getEndpoint().getStatus();
+        awaitHealthContributor(service, contributor.getName());
         // Test the 'service level' endpoint.
-        Assert.assertEquals("Status should be UP.", Status.UP, status);
-        // Test the Contributor level endpoint.
-        status = service.getEndpoint().getStatus(contributor.getName());
-        Assert.assertEquals("Status should be UP.", Status.UP, status);
+        Assert.assertEquals("Status should be UP", Status.UP, service.getEndpoint().getStatus());
+        // Test the contributor level endpoint.
+        Assert.assertEquals("Status should be UP", Status.UP, service.getEndpoint().getStatus(contributor.getName()));
     }
 
     /**
      * Test that both the {@link HealthService} and a {@link HealthContributor} can be queried for its liveness information.
      */
     @Test
-    public void testLivenessEndpoints() {
+    public void testLivenessEndpoints() throws Exception {
         @Cleanup
         HealthyContributor contributor = new HealthyContributor("contributor");
         service.getRoot().register(contributor);
 
-        boolean alive = service.getEndpoint().isAlive();
-        Assert.assertEquals("The HealthService should produce an 'alive' result.", true, alive);
-        alive = service.getEndpoint().isAlive(contributor.getName());
-        Assert.assertEquals("The HealthIndicator should produce an 'alive' result.", true, alive);
+        awaitHealthContributor(service, contributor.getName());
+        Assert.assertEquals("The HealthService should produce an 'alive' result.",
+                true, service.getEndpoint().isAlive());
+
+        Assert.assertEquals("The HealthContributor with id should produce an 'alive' result.",
+                true, service.getEndpoint().isAlive(contributor.getName()));
     }
 
     /**
      * Test that both the {@link HealthService} and a {@link HealthContributor} can be queried for its readiness information.
      */
     @Test
-    public void testReadinessEndpoints() {
+    public void testReadinessEndpoints() throws TimeoutException {
         @Cleanup
         HealthyContributor contributor = new HealthyContributor("contributor");
         service.getRoot().register(contributor);
+        // Wait for the HealthServiceUpdater to update the Health state.
+        awaitHealthContributor(service, contributor.getName());
 
         boolean ready = service.getEndpoint().isReady();
         Assert.assertEquals("The HealthService should produce a 'ready' result.", true, ready);
         ready = service.getEndpoint().isReady(contributor.getName());
         Assert.assertEquals("The SampleIndicator should produce a 'ready' result.", true, ready);
+    }
+
+    public static void awaitHealthContributor(HealthService service, String id) throws TimeoutException {
+        TestUtils.await(() -> service.getEndpoint().getHealth(id) != null,
+                (int) service.getHealthServiceUpdater().getInterval().toMillis(),
+                service.getHealthServiceUpdater().getInterval().toMillis() * 3);
     }
 }

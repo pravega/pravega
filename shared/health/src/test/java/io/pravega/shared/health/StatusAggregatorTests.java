@@ -15,7 +15,6 @@
  */
 package io.pravega.shared.health;
 
-import io.pravega.shared.health.impl.StatusAggregatorImpl;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,16 +33,16 @@ public class StatusAggregatorTests {
      */
     @Test
     public void testMajorityRule() {
-        StatusAggregator aggregator = StatusAggregatorImpl.MAJORITY;
+        StatusAggregator aggregator = StatusAggregator.MAJORITY;
         Assert.assertEquals("The aggregator should return an UP status.",
                 Status.UP,
-                aggregator.aggregate(STATUSES));
+                StatusAggregator.aggregate(aggregator, STATUSES));
         // Ensure it must be strictly greater than half.
         List<Status> list = new ArrayList<>(Arrays.asList(Status.DOWN));
         list.addAll(STATUSES);
         Assert.assertEquals("The aggregation should fail and return a DOWN status.",
                 Status.DOWN,
-                aggregator.aggregate(list));
+                StatusAggregator.aggregate(aggregator, list));
     }
 
     /**
@@ -51,9 +50,9 @@ public class StatusAggregatorTests {
      */
     @Test
     public void testUnanimousRule() {
-        StatusAggregator aggregator = StatusAggregatorImpl.UNANIMOUS;
+        StatusAggregator aggregator = StatusAggregator.UNANIMOUS;
         Assert.assertEquals("The aggregator should return a DOWN status.",
-                aggregator.aggregate(STATUSES),
+                StatusAggregator.aggregate(aggregator, STATUSES),
                 Status.DOWN);
     }
 
@@ -62,9 +61,9 @@ public class StatusAggregatorTests {
      */
     @Test
     public void testAnyRule() {
-        StatusAggregator aggregator = StatusAggregatorImpl.ANY;
+        StatusAggregator aggregator = StatusAggregator.ANY;
         Assert.assertEquals("The aggregator should return an UP status.",
-                aggregator.aggregate(STATUSES),
+                StatusAggregator.aggregate(aggregator, STATUSES),
                 Status.UP);
     }
 

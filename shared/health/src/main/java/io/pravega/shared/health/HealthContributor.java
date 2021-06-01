@@ -19,7 +19,7 @@ package io.pravega.shared.health;
  * A {@link HealthContributor} is an interface that is able to provide or *contribute* health information relating to
  * an arbitrary component, process, object, etc.
  */
-public interface HealthContributor {
+public interface HealthContributor extends AutoCloseable {
 
     /**
      * From an abstract view, a {@link HealthContributor} is anything that has an impact on the health of the system.

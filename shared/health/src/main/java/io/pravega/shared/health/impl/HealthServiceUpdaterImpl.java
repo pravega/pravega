@@ -20,11 +20,11 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.shared.health.Health;
+import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthServiceUpdater;
 import io.pravega.shared.health.HealthService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -48,19 +48,18 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
     /**
      * The {@link HealthService} associated with this {@link HealthServiceUpdater}.
      */
-    private final HealthService service;
-
-    /**
-     * The underlying {@link ScheduledExecutorService} used to executor the recurring service-level {@link Health} check.
-     */
-    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "health-service-updater", Thread.MIN_PRIORITY);
+    private final HealthContributor root;
 
     /**
      * The interval at which to run the health check.
      */
     @Getter
-    @Setter
-    private Duration interval = DEFAULT_INTERVAL_SECONDS;
+    private final Duration interval;
+
+    /**
+     * The underlying {@link ScheduledExecutorService} used to executor the recurring service-level {@link Health} check.
+     */
+    private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "health-service-updater", Thread.MIN_PRIORITY);
 
     /**
      * Provides the latest {@link Health} result of the recurring {@link io.pravega.shared.health.HealthEndpoint#getHealth()} calls.
@@ -77,7 +76,7 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
 
     @Override
     protected void runOneIteration() {
-        latest.set(service.getEndpoint().getHealth());
+        latest.set(root.getHealthSnapshot());
     }
 
     @Override

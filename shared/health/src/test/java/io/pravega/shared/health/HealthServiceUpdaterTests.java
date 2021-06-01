@@ -38,7 +38,7 @@ public class HealthServiceUpdaterTests {
     @Before
     public void before() {
         factory = new HealthServiceFactory();
-        service = factory.createHealthService("health-service");
+        service = factory.createHealthService();
         service.getHealthServiceUpdater().startAsync();
         healthServiceUpdater = service.getHealthServiceUpdater();
         healthServiceUpdater.awaitRunning();

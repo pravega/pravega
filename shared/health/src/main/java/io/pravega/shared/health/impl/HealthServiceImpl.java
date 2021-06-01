@@ -21,9 +21,11 @@ import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthServiceUpdater;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.HealthService;
+import io.pravega.shared.health.StatusAggregator;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
@@ -47,16 +49,12 @@ public class HealthServiceImpl implements HealthService {
 
     private final HealthEndpoint endpoint;
 
-    @Getter
-    private final String name;
-
-    public HealthServiceImpl(String name) {
-        this.name = name;
+    public HealthServiceImpl(Duration interval) {
         this.root = new RootHealthContributor();
-        this.endpoint = new HealthEndpointImpl(this.root);
         // Initializes the ContributorRegistry into the expected starting state.
         this.closed = new AtomicBoolean();
-        this.updater = new HealthServiceUpdaterImpl(this);
+        this.updater = new HealthServiceUpdaterImpl(this.root, interval);
+        this.endpoint = new HealthEndpointImpl(this.root, this.updater);
     }
 
     @Override
@@ -80,7 +78,7 @@ public class HealthServiceImpl implements HealthService {
     private class RootHealthContributor extends HealthContributorImpl {
 
         RootHealthContributor() {
-            super(name, StatusAggregatorImpl.UNANIMOUS);
+            super("", StatusAggregator.UNANIMOUS);
         }
 
         @Override

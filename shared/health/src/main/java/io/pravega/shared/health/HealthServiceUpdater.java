@@ -28,10 +28,6 @@ import java.time.Duration;
 public interface HealthServiceUpdater extends Service, AutoCloseable {
 
     /**
-     * The interval at which to perform the service level health check.
-     */
-    Duration DEFAULT_INTERVAL_SECONDS = Duration.ofSeconds(10);
-    /**
      * Supplies the most recent {@link Health} check result.
      *
      * @return The {@link Health} of the last health check.
@@ -40,7 +36,7 @@ public interface HealthServiceUpdater extends Service, AutoCloseable {
 
     /**
      * The interval (in seconds) at which the {@link HealthServiceUpdater} performs the health checks in.
-     * @return The interval in which the executor will call {@link HealthEndpoint#getHealth(boolean)}.
+     * @return The interval in which the executor will call {@link HealthEndpoint#getHealth()}.
      */
     Duration getInterval();
 

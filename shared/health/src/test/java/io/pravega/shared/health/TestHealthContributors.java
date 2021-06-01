@@ -16,7 +16,6 @@
 package io.pravega.shared.health;
 
 import io.pravega.shared.health.impl.HealthContributorImpl;
-import io.pravega.shared.health.impl.StatusAggregatorImpl;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -33,11 +32,11 @@ public class TestHealthContributors {
         public static final String DETAILS_VAL = "sample-indicator-details-value";
 
         public HealthyContributor() {
-            super("healthy", StatusAggregatorImpl.UNANIMOUS);
+            super("healthy", StatusAggregator.UNANIMOUS);
         }
 
         public HealthyContributor(String name) {
-            super(name, StatusAggregatorImpl.UNANIMOUS);
+            super(name, StatusAggregator.UNANIMOUS);
         }
 
         public Status doHealthCheck(Health.HealthBuilder builder) {
@@ -54,7 +53,7 @@ public class TestHealthContributors {
      */
     public static class FailingContributor extends HealthContributorImpl {
         public FailingContributor(String name) {
-            super(name, StatusAggregatorImpl.UNANIMOUS);
+            super(name, StatusAggregator.UNANIMOUS);
         }
 
         public FailingContributor() {

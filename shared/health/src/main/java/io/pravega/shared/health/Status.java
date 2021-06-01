@@ -44,34 +44,36 @@ public enum Status {
     UNKNOWN(0),
 
     /**
-     * Describes a {@link Status} that is considered in an unhealthy and non-operational state.
+     * Describes a {@link Status} that is in a down and non-operational state.
      */
-    DOWN(-1);
+    DOWN(-1),
+
+    /**
+     * Describes a {@link Status} that is unhealthy and has unexpectedly failed.
+     */
+    FAILED(-2);
 
     @Getter
     private final int code;
 
+    private Status(int code) {
+        this.code = code;
+    }
 
     /**
      * A {@link Status} represents an *alive* component if it is neither {@link Status#DOWN} nor {@link Status#UNKNOWN}.
-     * @param status The reference {@link Status} object.
      * @return Whether this {@link Status} represents an 'alive' state.
      */
-    @Getter
-    private final boolean alive;
+    public boolean isAlive() {
+        return this.code >= NEW.getCode();
+    }
 
     /**
      * A {@link Status} can be considered 'ready' if it is {@link Status#UP}.
-     * @param status The reference {@link Status} object.
      * @return Whether this {@link Status} represents a 'ready' state.
      */
-    @Getter
-    private final boolean ready;
-
-    private Status(int code) {
-        this.code = code;
-        this.alive = code >= 1;
-        this.ready = code >= 3;
+    public boolean isReady() {
+        return this.code >= UP.getCode();
     }
 
     public static Status min(Status one, Status two) {

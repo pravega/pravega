@@ -21,6 +21,7 @@ import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.StatusAggregator;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.NonNull;
 import lombok.val;
@@ -28,6 +29,7 @@ import lombok.val;
 import javax.annotation.concurrent.ThreadSafe;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -59,6 +61,14 @@ public abstract class HealthContributorImpl implements HealthContributor {
     private final String name;
 
     /**
+     * The most recent reported status, either by the {@link #doHealthCheck(Health.HealthBuilder)} or an explicit mutation.
+     * Useful when there is a sudden failure and can provide a distinction between an expected closure/shutdown
+     * and an abrupt 'failing' closure.
+     */
+    @Getter
+    @Setter
+    private Status status;
+    /**
      * Flag indicating this contributor and all its children are no longer accessible.
      */
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -69,7 +79,7 @@ public abstract class HealthContributorImpl implements HealthContributor {
     private final Map<String, HealthContributor> contributors = new ConcurrentHashMap<>();
 
     public HealthContributorImpl(@NonNull String name) {
-        this(name, StatusAggregatorImpl.UNANIMOUS);
+        this(name, StatusAggregator.UNANIMOUS);
     }
 
     public HealthContributorImpl(@NonNull String name, @NonNull StatusAggregator aggregator) {
@@ -83,17 +93,17 @@ public abstract class HealthContributorImpl implements HealthContributor {
      * @return The {@link Health} result of the {@link HealthContributor}.
      */
     @Override
-    synchronized public Health getHealthSnapshot() {
+    synchronized final public Health getHealthSnapshot() {
         Exceptions.checkNotClosed(isClosed(), this);
 
         Health.HealthBuilder builder = Health.builder().name(getName());
         Collection<Status> statuses = new ArrayList<>();
-        Collection<Health> children = new ArrayList<>();
+        Map<String, Health> children = new HashMap<>();
 
         for (val  contributor : contributors.entrySet()) {
             if (!contributor.getValue().isClosed()) {
                 Health health =  contributor.getValue().getHealthSnapshot();
-                children.add(health);
+                children.put(contributor.getKey(), health);
                 statuses.add(health.getStatus());
             } else {
                 contributors.remove(name);
@@ -106,17 +116,18 @@ public abstract class HealthContributorImpl implements HealthContributor {
             status = doHealthCheck(builder);
         } catch (Exception ex) {
             log.warn("HealthCheck for {} has failed.", this.name, ex);
-            builder.status(Status.DOWN);
+            builder.status(Status.FAILED);
         }
         // If there are no child statuses, return the Status from its own health check, else
         // return the least 'healthy' status between the child aggregate and its own.
-        status = statuses.isEmpty() ? status : Status.min(aggregator.aggregate(statuses), status);
+        status = statuses.isEmpty() ? status : Status.min(StatusAggregator.aggregate(aggregator, statuses), status);
+        this.status = status;
 
         return builder.name(name).status(status).children(children).build();
     }
 
     @Override
-    synchronized public void register(HealthContributor... children) {
+    synchronized final public void register(HealthContributor... children) {
         Exceptions.checkNotClosed(isClosed(), this);
         for (HealthContributor child : children) {
             contributors.put(child.getName(), child);
@@ -124,7 +135,7 @@ public abstract class HealthContributorImpl implements HealthContributor {
     }
 
     @Override
-    public void close() {
+    public final void close() {
         if (!closed.getAndSet(true)) {
             for (val contributor : contributors.entrySet()) {
                 contributor.getValue().close();
@@ -134,7 +145,7 @@ public abstract class HealthContributorImpl implements HealthContributor {
     }
 
     @Override
-    public boolean isClosed() {
+    public final boolean isClosed() {
         return closed.get();
     }
 
