@@ -19,10 +19,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
-import io.pravega.common.concurrent.AbstractThreadPoolService;
-import io.pravega.common.concurrent.CancellationToken;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
@@ -41,7 +40,10 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -50,7 +52,7 @@ import static io.pravega.shared.NameUtils.getEventProcessorSegmentName;
 
 /**
  * Implementation for {@link ContainerEventProcessor}. This class stores a map of {@link ContainerEventProcessor.EventProcessor}
- * identified by name. Once this service is started, it will instantiate new {@link ContainerEventProcessor.EventProcessor}
+ * identified by name. Once this component is created, it will instantiate new {@link ContainerEventProcessor.EventProcessor}
  * objects and report metrics for the existing ones. The actual processing is performed in batches (every
  * iterationDelay ms) by {@link ContainerEventProcessor.EventProcessor}s. Each of such processors is in charge of
  * tailing their respective internal Segments and (safely) invoking their handler functions on a list of read events
@@ -62,44 +64,43 @@ import static io.pravega.shared.NameUtils.getEventProcessorSegmentName;
  * as they should be idempotent and tolerate re-processing.
  */
 @Slf4j
-class ContainerEventProcessorImpl extends AbstractThreadPoolService implements ContainerEventProcessor {
+class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
-    private final static Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(1);
+    // Ensure that an Event Processor's Segment does not get throttled by making it system-critical.
+    private final static SegmentType systemCriticalSegment = SegmentType.builder().system().internal().critical().build();
 
     private final int containerId;
     private final Map<String, EventProcessorImpl> eventProcessorMap = new ConcurrentHashMap<>();
     private final Function<String, CompletableFuture<DirectSegmentAccess>> segmentSupplier;
     private final Duration iterationDelay;
     private final Duration containerOperationTimeout;
-    private final CancellationToken stopToken;
     private final AtomicBoolean closed;
+    private final String traceObjectId;
+    private final ScheduledFuture<?> eventProcessorMetricsReporting;
+    private final ScheduledExecutorService executor;
 
     //region Constructor
 
     ContainerEventProcessorImpl(@NonNull SegmentContainer container, @NonNull Duration iterationDelay,
                                 @NonNull Duration containerOperationTimeout, @NonNull ScheduledExecutorService executor) {
-        super(String.format("ContainerEventProcessor[%d]", container.getId()), executor);
-
-        this.containerId = container.getId();
-        this.segmentSupplier = getOrCreateContainerProcessorSegment(container, containerOperationTimeout);
-        this.iterationDelay = iterationDelay;
-        this.containerOperationTimeout = containerOperationTimeout;
-        this.stopToken = new CancellationToken();
-        this.closed = new AtomicBoolean(false);
+        this(container.getId(), getOrCreateInternalSegment(container, containerOperationTimeout), iterationDelay,
+                containerOperationTimeout, executor);
     }
 
     @VisibleForTesting
     ContainerEventProcessorImpl(int containerId, @NonNull Function<String, CompletableFuture<DirectSegmentAccess>> segmentSupplier,
                                 @NonNull Duration iterationDelay, @NonNull Duration containerOperationTimeout,
                                 @NonNull ScheduledExecutorService executor) {
-        super(String.format("ContainerEventProcessor[%d]", containerId), executor);
-
         this.containerId = containerId;
+        this.traceObjectId = String.format("ContainerEventProcessor[%d]", containerId);
         this.segmentSupplier = segmentSupplier;
         this.iterationDelay = iterationDelay;
         this.containerOperationTimeout = containerOperationTimeout;
-        this.stopToken = new CancellationToken();
         this.closed = new AtomicBoolean(false);
+        this.executor = executor;
+        // This class just reports the metrics for all the registered EventProcessor objects.
+        this.eventProcessorMetricsReporting = executor.scheduleAtFixedRate(this::reportMetrics, iterationDelay.toMillis(),
+                iterationDelay.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -112,50 +113,39 @@ class ContainerEventProcessorImpl extends AbstractThreadPoolService implements C
      * @return A future that, when completed, contains reference to the Segment to be used by a given
      * {@link ContainerEventProcessor.EventProcessor} based on its name.
      */
-    private Function<String, CompletableFuture<DirectSegmentAccess>> getOrCreateContainerProcessorSegment(SegmentContainer container,
-                                                                                                          Duration timeout) {
-        // Make sure that this Segment does not get throttled by making it a system-critical one.
-        final SegmentType systemCritical = SegmentType.builder().system().internal().critical().build();
+    private static Function<String, CompletableFuture<DirectSegmentAccess>> getOrCreateInternalSegment(SegmentContainer container,
+                                                                                                       Duration timeout) {
         return s -> Futures.exceptionallyComposeExpecting(
                 container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout),
                 e -> e instanceof StreamSegmentNotExistsException,
-                () -> container.createStreamSegment(getEventProcessorSegmentName(container.getId(), s), systemCritical, null, timeout)
+                () -> container.createStreamSegment(getEventProcessorSegmentName(container.getId(), s), systemCriticalSegment, null, timeout)
                         .thenCompose(v -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout)));
+    }
+
+    /**
+     * Reports the metrics periodically for each EventProcessor.
+     */
+    private void reportMetrics() {
+        for (EventProcessorImpl ep : eventProcessorMap.values()) {
+            SegmentStoreMetrics.outstandingEventProcessorBytes(ep.getName(), containerId, ep.outstandingBytes.get());
+            // Only report the last iteration processing latency if it has been successful.
+            if (!ep.failedIteration.get()) {
+                ep.metrics.batchProcessingLatency(ep.lastIterationLatency.get());
+            }
+        }
     }
 
     //endregion
 
-    //region AbstractThreadPoolService Implementation
-
-    @Override
-    protected Duration getShutdownTimeout() {
-        return SHUTDOWN_TIMEOUT;
-    }
+    //region AutoCloseable Implementation
 
     @Override
     public void close() {
-        log.info("{}: Closing ContainerEventProcessor service.", this.traceObjectId);
-        this.closed.set(true);
-        closeProcessors();
-        super.close();
-    }
-
-    @Override
-    protected CompletableFuture<Void> doRun() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        log.info("{}: Starting ContainerEventProcessor service.", this.traceObjectId);
-        return Futures.loop(
-                () -> !this.stopToken.isCancellationRequested(),
-                () -> Futures.delayedFuture(this.iterationDelay, this.executor)
-                             .thenRunAsync(this::reportMetrics, this.executor),
-                executor);
-    }
-
-    @Override
-    protected void doStop() {
-        log.info("{}: Stopping ContainerEventProcessor service.", this.traceObjectId);
-        this.stopToken.requestCancellation();
-        super.doStop();
+        if (!closed.getAndSet(true)) {
+            log.info("{}: Closing ContainerEventProcessor service.", this.traceObjectId);
+            closeProcessors();
+            eventProcessorMetricsReporting.cancel(true);
+        }
     }
 
     private void closeProcessors() {
@@ -171,20 +161,7 @@ class ContainerEventProcessorImpl extends AbstractThreadPoolService implements C
                 }
             });
             eventProcessorMap.clear();
-            log.info("{}: Shut down of ContainerEventProcessor service complete.", this.traceObjectId);
-        }
-    }
-
-    /**
-     * Reports the metrics periodically for each EventProcessor.
-     */
-    private void reportMetrics() {
-        for (EventProcessorImpl ep : eventProcessorMap.values()) {
-            SegmentStoreMetrics.outstandingEventProcessorBytes(ep.getName(), containerId, ep.outstandingBytes.get());
-            // Only report the last iteration processing latency if it has been successful.
-            if (ep.lastIterationLatency.get() >= 0) {
-                ep.metrics.batchProcessingLatency(ep.lastIterationLatency.get());
-            }
+            log.debug("{}: Shut down of ContainerEventProcessor service complete.", this.traceObjectId);
         }
     }
 
@@ -207,10 +184,12 @@ class ContainerEventProcessorImpl extends AbstractThreadPoolService implements C
             // Instantiate the EventProcessor and put it into the map. If the EventProcessor is closed, auto-unregister.
             Runnable onClose = () -> eventProcessorMap.remove(name);
             return segmentSupplier.apply(name)
-                    .thenApply(segment -> eventProcessorMap.put(name, new EventProcessorImpl(name, segment, handler, config, onClose)))
-                    .thenApply(v -> {
-                        eventProcessorMap.get(name).run(); // Start the processing for this EventProcessor and return it.
-                        return eventProcessorMap.get(name);
+                    .thenApply(segment -> {
+                        Exceptions.checkNotClosed(this.closed.get(), this);
+                        EventProcessorImpl eventProcessor = new EventProcessorImpl(name, segment, handler, config, onClose);
+                        eventProcessorMap.put(name, eventProcessor);
+                        eventProcessor.run(); // Start the processing for this EventProcessor and return it.
+                        return eventProcessor;
                     });
         }
     }
@@ -222,17 +201,42 @@ class ContainerEventProcessorImpl extends AbstractThreadPoolService implements C
         private final AtomicLong lastIterationLatency;
         private final SegmentStoreMetrics.EventProcessor metrics;
         private final AtomicBoolean closed;
+        private final AtomicBoolean failedIteration;
+        private final String traceObjectId;
+
+        //region Constructor
 
         public EventProcessorImpl(@NonNull String name, @NonNull DirectSegmentAccess segment,
                                   @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
                                   @NonNull EventProcessorConfig config, @NonNull Runnable onClose) {
             super(name, handler, config, onClose);
+            this.traceObjectId = String.format("EventProcessor[%d-%s]", containerId, name);
             this.segment = segment;
-            this.outstandingBytes = new AtomicLong(0);
+            this.outstandingBytes = new AtomicLong(getInitialOutstandingBytes(segment)); // Initialize with current outstanding data.
             this.lastIterationLatency = new AtomicLong(0);
             this.metrics = new SegmentStoreMetrics.EventProcessor(name, containerId);
             this.closed = new AtomicBoolean(false);
+            this.failedIteration = new AtomicBoolean(false);
         }
+
+        /**
+         * Upon recovery, set the actual number of outstanding bytes in the EventProcessor.
+         *
+         * @param segment Internal Segment for this EventProcessor.
+         * @return Number of outstanding bytes for this EventProcessor (i.e., Segment length).
+         */
+        private long getInitialOutstandingBytes(DirectSegmentAccess segment) {
+            try {
+                return segment.getInfo().getLength();
+            } catch (Exception ex) {
+                log.warn("{}: Unable to get initial outstanding bytes from internal Segment.", this.traceObjectId, ex);
+            }
+            return 0;
+        }
+
+        //endregion
+
+        //region EventProcessor implementation
 
         @Override
         public CompletableFuture<Long> add(@NonNull BufferView event, Duration timeout) {
@@ -247,12 +251,22 @@ class ContainerEventProcessorImpl extends AbstractThreadPoolService implements C
                           .thenApply(offset -> outstandingBytes.addAndGet(event.getLength() + ProcessorEventSerializer.HEADER_LENGTH));
         }
 
+        //endregion
+
+        //region AutoCloseable implementation
+
         @Override
         public void close() throws Exception {
-            super.close();
-            metrics.close();
-            closed.set(true);
+            if (!closed.getAndSet(true)) {
+                log.info("{}: Closing EventProcessor.", this.traceObjectId);
+                super.close();
+                metrics.close();
+            }
         }
+
+        //endregion
+
+        //region Runnable implementation
 
         @Override
         public void run() {
@@ -265,16 +279,27 @@ class ContainerEventProcessorImpl extends AbstractThreadPoolService implements C
             // according to the last successfully processed event offset. If an error occurs, throw and re-try.
             Exceptions.checkNotClosed(this.closed.get(), this);
             Futures.loop(
-                   () -> !closed.get(),
-                   () -> Futures.delayedFuture(iterationDelay, executor)
-                                .thenComposeAsync(v -> processEvents(), executor),
+                       () -> !closed.get(),
+                       () -> getDelayedFutureIfNeeded().thenComposeAsync(v -> processEvents(), executor),
                    executor)
                        .handle((r, ex) -> {
                            if (ex != null) {
-                               log.warn("Terminated EventProcessor {} due to unexpected exception.", getName(), ex);
+                               log.warn("{}: Terminated due to unexpected exception.", this.traceObjectId, ex);
                            }
                            return null;
                        });
+        }
+
+        /**
+         * Gets a delayed future when either i) an error has been experienced in the last iteration, or ii) if there is
+         * no outstanding data to process. Otherwise, we do not delay the next iteration and return a completed future.
+         *
+         * @return A future that may delay the next processing iteration if there has been an error in the last
+         * processing iteration or there is no outstanding data to process.
+         */
+        private CompletableFuture<Void> getDelayedFutureIfNeeded() {
+            return failedIteration.get() || outstandingBytes.get() == 0 ? Futures.delayedFuture(iterationDelay, executor) :
+                    Futures.delayedFuture(Duration.ZERO, executor);
         }
 
         /**
@@ -285,25 +310,33 @@ class ContainerEventProcessorImpl extends AbstractThreadPoolService implements C
         private CompletableFuture<Void> processEvents() {
             final Timer iterationTime = new Timer();
             return readEvents()
-                    .thenComposeAsync(this::applyProcessorHandler, executor)
-                    .thenApplyAsync(readResult -> truncateInternalSegment(readResult, iterationTime), executor)
+                    .thenApplyAsync(this::applyProcessorHandler, executor)
+                    .thenComposeAsync(readResult -> truncateInternalSegment(readResult, iterationTime), executor)
                     .handleAsync((r, ex) -> {
                         // If we got an exception different from NoDataAvailableException, report it as something is off.
                         if (ex != null && !(ex instanceof NoDataAvailableException)) {
-                            log.warn("Processing iteration failed for EventProcessor {}, retrying.", getName(), ex);
-                            lastIterationLatency.set(-1); // Do not report latency, as there has been a failure.
+                            log.warn("{}: Processing iteration failed, retrying.", this.traceObjectId, ex);
+                            lastIterationLatency.set(-1);
+                            failedIteration.set(true);
+                        } else {
+                            failedIteration.set(false);
                         }
                         return null;
                     });
         }
 
         private CompletableFuture<EventsReadAndTruncationPoints> readEvents() {
-            // Need to get the start and end offsets to properly create async read request.
-            long startOffset = segment.getInfo().getStartOffset();
-            int readLength = (int) Math.min(segment.getInfo().getLength() - startOffset, ProcessorEventSerializer.MAX_TOTAL_EVENT_SIZE);
-            return CompletableFuture.supplyAsync(() -> segment.read(startOffset, readLength, containerOperationTimeout), executor)
-                                    .thenComposeAsync(rr -> AsyncReadResultProcessor.processAll(rr, executor, containerOperationTimeout))
-                                    .thenApply(inputData -> deserializeEvents(inputData, startOffset, readLength));
+            AtomicLong startOffset = new AtomicLong(0L);
+            AtomicInteger readLength = new AtomicInteger(0);
+            return CompletableFuture.supplyAsync(() -> {
+                                        // Need to get the start and end offsets to properly create async read request.
+                                        startOffset.set(segment.getInfo().getStartOffset());
+                                        readLength.set((int) Math.min(segment.getInfo().getLength() - startOffset.get(),
+                                                ProcessorEventSerializer.MAX_TOTAL_EVENT_SIZE));
+                                        return segment.read(startOffset.get(), readLength.get(), containerOperationTimeout);
+                                    }, executor)
+                                    .thenComposeAsync(rr -> AsyncReadResultProcessor.processAll(rr, executor, containerOperationTimeout), executor)
+                                    .thenApply(inputData -> deserializeEvents(inputData, startOffset.get(), readLength.get()));
         }
 
         private EventsReadAndTruncationPoints deserializeEvents(BufferView inputData, long startOffset, int maxLength) {
@@ -321,23 +354,24 @@ class ContainerEventProcessorImpl extends AbstractThreadPoolService implements C
             } catch (BufferView.Reader.OutOfBoundsException ex) {
                 // Events are of arbitrary size, so it is quite possible we stopped reading in the middle of an event.
                 // Only if we have already read some data, we do not throw.
-                if (events.isEmpty()) {
-                    throw new NoDataAvailableException();
-                }
             }
 
+            if (events.isEmpty()) {
+                throw new NoDataAvailableException();
+            }
             return new EventsReadAndTruncationPoints(events);
         }
 
-        private CompletableFuture<EventsReadAndTruncationPoints> applyProcessorHandler(EventsReadAndTruncationPoints readResult) {
-            return CompletableFuture.supplyAsync(() -> getHandler().apply(readResult.getProcessorEventsData()), executor)
-                                                                   .thenApply(v -> readResult);
+        private EventsReadAndTruncationPoints applyProcessorHandler(EventsReadAndTruncationPoints readResult) {
+            getHandler().apply(readResult.getProcessorEventsData());
+            return readResult;
         }
 
         private CompletableFuture<Void> truncateInternalSegment(EventsReadAndTruncationPoints readResult, Timer iterationTime) {
             long truncationOffset = this.segment.getInfo().getStartOffset() + readResult.getReadBytes();
             return this.segment.truncate(truncationOffset, containerOperationTimeout)
                     .thenAccept(v -> {
+                        //System.err.println(traceObjectId + " TRUNCATED SEGMENT AT " + truncationOffset);
                         // Decrement outstanding bytes and publish the last latency value after successful truncation.
                         this.outstandingBytes.addAndGet(-readResult.getReadBytes());
                         this.lastIterationLatency.set(iterationTime.getElapsedMillis());
@@ -359,6 +393,39 @@ class ContainerEventProcessorImpl extends AbstractThreadPoolService implements C
     }
 
     private static class NoDataAvailableException extends RuntimeException {
+    }
+
+    /**
+     * Helper class to serialize/deserialize {@link ProcessorEventData} objects.
+     */
+    static class ProcessorEventSerializer {
+
+        // Serialization Version (1 byte), Entry Length (4 bytes)
+        public static final int HEADER_LENGTH = Byte.BYTES + Integer.BYTES;
+
+        // Set a maximum length to individual events to be processed by EventProcessor (1MB).
+        public static final int MAX_TOTAL_EVENT_SIZE = 1024 * 1024;
+
+        private static final byte CURRENT_SERIALIZATION_VERSION = 0;
+        private static final int VERSION_POSITION = 0;
+        private static final int EVENT_LENGTH_POSITION = VERSION_POSITION + 1;
+
+        static BufferView serializeHeader(int eventLength) {
+            ByteArraySegment data = new ByteArraySegment(new byte[HEADER_LENGTH]);
+            data.set(VERSION_POSITION, CURRENT_SERIALIZATION_VERSION);
+            data.setInt(EVENT_LENGTH_POSITION, eventLength);
+            return data;
+        }
+
+        static BufferView serializeEvent(BufferView eventData) {
+            return BufferView.builder().add(serializeHeader(eventData.getLength())).add(eventData).build();
+        }
+
+        static ProcessorEventData deserializeEvent(BufferView.Reader inputData) {
+            byte version = inputData.readByte();
+            int length = inputData.readInt();
+            return new ProcessorEventData(version, length, inputData.readSlice(length));
+        }
     }
 
     //endregion

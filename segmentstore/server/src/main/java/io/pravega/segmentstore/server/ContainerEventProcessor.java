@@ -15,9 +15,7 @@
  */
 package io.pravega.segmentstore.server;
 
-import com.google.common.util.concurrent.Service;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
 import lombok.Data;
 import lombok.NonNull;
 
@@ -27,19 +25,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 /**
- * The {@link ContainerEventProcessor} is a sub-service running in a Segment Container that aims at providing a durable,
- * FIFO-like queue abstraction over an internal, system-critical Segment. The {@link ContainerEventProcessor} service
- * can manage one or more {@link EventProcessor}s, which are the ones that append events to the queue and handle events
- * read. The {@link ContainerEventProcessor} tails the internal Segments related to each {@link EventProcessor}. When
- * it has at least 1 event to read on an {@link EventProcessor}'s Segment, it invokes its handler. If there are multiple
- * events available, up to {@link EventProcessorConfig#getMaxItemsAtOnce()} should be used as input for the handler.
- *
- * If the handler completes normally, the items will be removed from the queue (i.e., the {@link EventProcessor}'s
- * Segment will be truncated up to that offset). If the handler completes with an exception, the items will not be
- * removed; we will retry indefinitely. It is up to the consumer to handle any exceptions; any exceptions that bubble up
- * to us will be considered re-triable (except {@link DataCorruptionException}, etc.).
+ * The {@link ContainerEventProcessor} is a sub-component in a Segment Container that aims at providing a durable,
+ * FIFO-like queue abstraction over an internal, system-critical Segment. The {@link ContainerEventProcessor} can manage
+ * one or more {@link EventProcessor}s, which are the ones that append events to the queue and handle events read. The
+ * also {@link ContainerEventProcessor} reports metrics for all the registered {@link EventProcessor}s.
  */
-public interface ContainerEventProcessor extends AutoCloseable, Service {
+public interface ContainerEventProcessor extends AutoCloseable {
 
     /**
      * Instantiates a new {@link EventProcessor}. If the internal Segment exists, the {@link EventProcessor} will re-use
@@ -57,11 +48,15 @@ public interface ContainerEventProcessor extends AutoCloseable, Service {
                                                   @NonNull EventProcessorConfig config);
 
     /**
-     * An {@link EventProcessor} object allows to durably append events to the {@link ContainerEventProcessor} service.
      * Each {@link EventProcessor} instance has associated an internal Segment and is uniquely identified by its name
-     * within a Segment Container. In addition, it also allows to compute the events stored upon a successful read via
-     * the handler function. The {@link ContainerEventProcessor} is in charge to invoke the handler function for one or
-     * multiple events in FIFO order.
+     * within a Segment Container. An {@link EventProcessor} tails its internal Segment looking for new events. When it
+     * has at least 1 event to read on its Segment, it invokes its handler. If there are multiple events available, up
+     * to {@link EventProcessorConfig#getMaxItemsAtOnce()} should be used as input for the handler.
+     *
+     * If the handler completes normally, the items will be removed from the queue (i.e., the {@link EventProcessor}'s
+     * Segment will be truncated up to that offset). If the handler completes with an exception, the items will not be
+     * removed; we will retry indefinitely. It is up to the consumer to handle any exceptions; any exceptions that
+     * bubble up to us will be considered re-triable (except {@link DataCorruptionException}, etc.).
      */
     @Data
     abstract class EventProcessor implements AutoCloseable {
@@ -124,38 +119,5 @@ public interface ContainerEventProcessor extends AutoCloseable, Service {
         private final byte version;
         private final int length;
         private final BufferView data;
-    }
-
-    /**
-     * Helper class to serialize/deserialize {@link ProcessorEventData} objects.
-     */
-    class ProcessorEventSerializer {
-
-        // Serialization Version (1 byte), Entry Length (4 bytes)
-        public static final int HEADER_LENGTH = Byte.BYTES + Integer.BYTES;
-
-        // Set a maximum length to individual events to be processed by EventProcessor (1MB).
-        public static final int MAX_TOTAL_EVENT_SIZE = 1024 * 1024;
-
-        private static final byte CURRENT_SERIALIZATION_VERSION = 0;
-        private static final int VERSION_POSITION = 0;
-        private static final int EVENT_LENGTH_POSITION = VERSION_POSITION + 1;
-
-        static BufferView serializeHeader(int eventLength) {
-            ByteArraySegment data = new ByteArraySegment(new byte[HEADER_LENGTH]);
-            data.set(VERSION_POSITION, CURRENT_SERIALIZATION_VERSION);
-            data.setInt(EVENT_LENGTH_POSITION, eventLength);
-            return data;
-        }
-
-        public static BufferView serializeEvent(BufferView eventData) {
-            return BufferView.builder().add(serializeHeader(eventData.getLength())).add(eventData).build();
-        }
-
-        public static ProcessorEventData deserializeEvent(BufferView.Reader inputData) {
-            byte version = inputData.readByte();
-            int length = inputData.readInt();
-            return new ProcessorEventData(version, length, inputData.readSlice(length));
-        }
     }
 }

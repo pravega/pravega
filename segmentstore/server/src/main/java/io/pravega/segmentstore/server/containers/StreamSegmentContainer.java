@@ -178,7 +178,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
         this.containerEventProcessor = new ContainerEventProcessorImpl(this, config.getEventProcessorIterationDelay(),
                 config.getEventProcessorOperationTimeout(), this.executor);
-        shutdownWhenStopped(this.containerEventProcessor, "ContainerEventProcessor");
         this.closed = new AtomicBoolean();
     }
 
@@ -340,8 +339,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<Void> startSecondaryServicesAsync() {
         return CompletableFuture.allOf(
                 Services.startAsync(this.metadataCleaner, this.executor),
-                Services.startAsync(this.writer, this.executor),
-                Services.startAsync(this.containerEventProcessor, this.executor));
+                Services.startAsync(this.writer, this.executor));
     }
 
     @Override
@@ -364,7 +362,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         CompletableFuture.allOf(
                 Services.stopAsync(this.metadataCleaner, this.executor),
                 Services.stopAsync(this.writer, this.executor),
-                Services.stopAsync(this.containerEventProcessor, this.executor),
                 Services.stopAsync(this.durableLog, this.executor))
                 .whenCompleteAsync((r, ex) -> {
                     Throwable failureCause = getFailureCause(this.durableLog, this.writer, this.metadataCleaner);

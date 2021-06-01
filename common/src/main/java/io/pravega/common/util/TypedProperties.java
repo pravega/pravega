@@ -19,6 +19,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
+import java.time.temporal.TemporalUnit;
 import java.util.Properties;
 import java.util.function.Function;
 
@@ -142,6 +144,18 @@ public class TypedProperties {
      */
     public boolean getBoolean(Property<Boolean> property) throws ConfigurationException {
         return tryGet(property, this::parseBoolean);
+    }
+
+    public int getPositivePropertyValue(Property<Integer> property) {
+        int value = getInt(property);
+        if (value <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", property));
+        }
+        return value;
+    }
+
+    public Duration getDuration(Property<Integer> property, TemporalUnit unit) {
+        return Duration.of(getPositivePropertyValue(property), unit);
     }
 
     private <T> T tryGet(Property<T> property, Function<String, T> converter) {

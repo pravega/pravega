@@ -525,6 +525,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         } else {
             log.debug("{}: Iteration[{}].{} ({}).", this.traceObjectId, this.state.getIterationId(), stageName, result);
         }
+        //System.out.println(String.format("%s: Iteration[%s].%s (%s).", this.traceObjectId, this.state.getIterationId(), stageName, result));
     }
 
     private void logError(Throwable ex, boolean critical) {
@@ -534,11 +535,13 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         } else {
             log.error("{}: Iteration[{}].Error.", this.traceObjectId, this.state.getIterationId(), ex);
         }
+        //System.out.println(String.format("%s: Iteration[%s].Error. %s", this.traceObjectId, this.state.getIterationId(), ex));
     }
 
     private void logErrorHandled(Throwable ex) {
         ex = Exceptions.unwrap(ex);
         log.warn("{}: Iteration[{}].HandledError {}", this.traceObjectId, this.state.getIterationId(), ex.toString());
+        //        System.out.println(String.format("%s: Iteration[%s].Warn. %s", this.traceObjectId, this.state.getIterationId(), ex));
     }
 
     private void checkRunning() {
