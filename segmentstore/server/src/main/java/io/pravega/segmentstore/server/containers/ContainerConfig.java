@@ -110,7 +110,7 @@ public class ContainerConfig {
         this.storageSnapshotTimeout = properties.getDuration(STORAGE_SNAPSHOT_TIMEOUT_SECONDS, ChronoUnit.SECONDS);
         this.maxActiveSegmentCount = properties.getPositivePropertyValue(MAX_ACTIVE_SEGMENT_COUNT);
         this.maxConcurrentSegmentEvictionCount = properties.getPositivePropertyValue(MAX_CONCURRENT_SEGMENT_EVICTION_COUNT);
-        this.maxCachedExtendedAttributeCount =properties.getPositivePropertyValue(MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT);
+        this.maxCachedExtendedAttributeCount = properties.getPositivePropertyValue(MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT);
         this.eventProcessorIterationDelay = properties.getDuration(EVENT_PROCESSOR_ITERATION_DELAY_MS, ChronoUnit.MILLIS);
         this.eventProcessorOperationTimeout = properties.getDuration(EVENT_PROCESSOR_OPERATION_TIMEOUT_MS, ChronoUnit.MILLIS);
     }

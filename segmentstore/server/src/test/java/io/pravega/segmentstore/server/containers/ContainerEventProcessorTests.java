@@ -54,7 +54,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     private static final int TIMEOUT_SUITE_MILLIS = 100000;
     private static final Duration TIMEOUT_FUTURE = Duration.ofSeconds(10);
     private static final Duration ITERATION_DELAY = Duration.ofMillis(100);
-    private static final Duration CONTAINER_OPERATION_TIMEOUT = Duration.ofMillis(20);
+    private static final Duration CONTAINER_OPERATION_TIMEOUT = Duration.ofMillis(1000);
 
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT_SUITE_MILLIS, TimeUnit.MILLISECONDS);

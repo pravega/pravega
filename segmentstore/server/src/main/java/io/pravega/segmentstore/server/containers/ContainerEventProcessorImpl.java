@@ -67,7 +67,7 @@ import static io.pravega.shared.NameUtils.getEventProcessorSegmentName;
 class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
     // Ensure that an Event Processor's Segment does not get throttled by making it system-critical.
-    private final static SegmentType systemCriticalSegment = SegmentType.builder().system().internal().critical().build();
+    private final static SegmentType SYSTEM_CRITICAL_SEGMENT = SegmentType.builder().system().internal().critical().build();
 
     private final int containerId;
     private final Map<String, EventProcessorImpl> eventProcessorMap = new ConcurrentHashMap<>();
@@ -118,7 +118,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         return s -> Futures.exceptionallyComposeExpecting(
                 container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout),
                 e -> e instanceof StreamSegmentNotExistsException,
-                () -> container.createStreamSegment(getEventProcessorSegmentName(container.getId(), s), systemCriticalSegment, null, timeout)
+                () -> container.createStreamSegment(getEventProcessorSegmentName(container.getId(), s), SYSTEM_CRITICAL_SEGMENT, null, timeout)
                         .thenCompose(v -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout)));
     }
 
@@ -161,7 +161,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 }
             });
             eventProcessorMap.clear();
-            log.debug("{}: Shut down of ContainerEventProcessor service complete.", this.traceObjectId);
+            log.debug("{}: Closing EventProcessors complete.", this.traceObjectId);
         }
     }
 
@@ -371,7 +371,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             long truncationOffset = this.segment.getInfo().getStartOffset() + readResult.getReadBytes();
             return this.segment.truncate(truncationOffset, containerOperationTimeout)
                     .thenAccept(v -> {
-                        //System.err.println(traceObjectId + " TRUNCATED SEGMENT AT " + truncationOffset);
                         // Decrement outstanding bytes and publish the last latency value after successful truncation.
                         this.outstandingBytes.addAndGet(-readResult.getReadBytes());
                         this.lastIterationLatency.set(iterationTime.getElapsedMillis());
