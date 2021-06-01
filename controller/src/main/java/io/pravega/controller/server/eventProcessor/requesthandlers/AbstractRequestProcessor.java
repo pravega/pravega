@@ -70,10 +70,9 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
         implements StreamRequestProcessor {
     protected static final Predicate<Throwable> ILLEGAL_STATE_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException;
     protected static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
-    protected static final Predicate<Throwable> VM_ERROR_PREDICATE = e -> Exceptions.unwrap(e) instanceof java.lang.VirtualMachineError;
     protected static final Predicate<Throwable> SEGMENT_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException;
     protected static final Predicate<Throwable> EVENT_RETRY_PREDICATE = (ILLEGAL_STATE_PREDICATE).or(DATA_NOT_FOUND_PREDICATE)
-                                                                            .or(SEGMENT_NOT_FOUND_PREDICATE).or(VM_ERROR_PREDICATE)
+                                                                            .or(SEGMENT_NOT_FOUND_PREDICATE)
                                                                             .or(e -> Exceptions.unwrap(e) instanceof IllegalArgumentException)
                                                                             .or(e -> Exceptions.unwrap(e) instanceof NullPointerException)
                                                                             .negate();
