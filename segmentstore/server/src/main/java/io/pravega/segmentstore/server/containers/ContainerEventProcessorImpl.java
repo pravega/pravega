@@ -286,6 +286,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                        .handle((r, ex) -> {
                            if (ex != null) {
                                log.warn("{}: Terminated due to unexpected exception.", this.traceObjectId, ex);
+                           } else {
+                               log.info("{}: Terminated.", this.traceObjectId);
                            }
                            return null;
                        });
