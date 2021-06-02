@@ -166,6 +166,7 @@ public class TypedProperties {
      * Gets a Duration from an Integer property only if it is greater than 0.
      *
      * @param property The Property to get.
+     * @param unit Temporal unit related to the value associated to this property (i.e, seconds, millis).
      * @return The property value or default value, if no such is defined in the base Properties.
      * @throws ConfigurationException When the given property name does not exist within the current component and the property
      *                                does not have a default value set, or when the property cannot be parsed as a positive Integer.
