@@ -170,6 +170,8 @@ import org.junit.rules.Timeout;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for StreamSegmentContainer class.
@@ -2233,6 +2235,44 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         AssertExtensions.assertEventuallyEquals(true, () -> processorResults1.get() == allEventsToProcess, 10000);
         AssertExtensions.assertEventuallyEquals(true, () -> processorResults2.get() == allEventsToProcess, 10000);
         AssertExtensions.assertEventuallyEquals(true, () -> processorResults3.get() == 0, 10000);
+    }
+
+    /**
+     * Test the situation in which an EventProcessor gets BufferView.Reader.OutOfBoundsException during deserialization
+     * of events.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testEventProcessorWithSerializationError() throws Exception {
+        @Cleanup
+        TestContext context = createContext();
+        val container = (StreamSegmentContainer) context.container;
+        container.startAsync().awaitRunning();
+
+        AtomicLong readEvents = new AtomicLong(0);
+        Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
+            readEvents.addAndGet(l.size());
+            return null;
+        };
+        @Cleanup
+        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container,
+                TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
+        ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
+                spy(new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES));
+        @Cleanup
+        ContainerEventProcessor.EventProcessor processor = containerEventProcessor.forConsumer("testConsumer", handler, eventProcessorConfig)
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
+
+        // Simulate an BufferView.Reader.OutOfBoundsException within the deserializeEvents() method and then behave normally.
+        when(eventProcessorConfig.getMaxItemsAtOnce()).thenThrow(new BufferView.Reader.OutOfBoundsException()).thenCallRealMethod();
+
+        // Write an event and wait for the event to be processed.
+        BufferView event = new ByteArraySegment("event".getBytes());
+        processor.add(event, TIMEOUT_FUTURE).join();
+
+        // Wait until the processor perform 10 retries of the same event.
+        AssertExtensions.assertEventuallyEquals(true, () -> readEvents.get() == 1, 10000);
     }
 
     /**

@@ -317,9 +317,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                     .thenComposeAsync(readResult -> truncateInternalSegment(readResult, iterationTime), executor)
                     .handleAsync((r, ex) -> {
                         // If we got an exception different from NoDataAvailableException, report it as something is off.
-                        if (ex != null && !(ex instanceof NoDataAvailableException)) {
+                        if (ex != null && !(Exceptions.unwrap(ex) instanceof NoDataAvailableException)) {
                             log.warn("{}: Processing iteration failed, retrying.", this.traceObjectId, ex);
-                            lastIterationLatency.set(-1);
                             failedIteration.set(true);
                         } else {
                             failedIteration.set(false);
