@@ -500,7 +500,7 @@ public class SimpleCacheTests {
         return list;
     }
     
-    public static class TestSimpleCache <KeyT, ValueT> extends SimpleCache<KeyT, ValueT> {
+    public static class TestSimpleCache<KeyT, ValueT> extends SimpleCache<KeyT, ValueT> {
         public TestSimpleCache(int maxSize, @NonNull Duration expirationTime,
                                @Nullable BiConsumer<KeyT, ValueT> onExpiration,
                                @NonNull Supplier<Long> currentTime) {
