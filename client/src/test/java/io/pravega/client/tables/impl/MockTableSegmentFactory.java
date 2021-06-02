@@ -35,6 +35,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -178,36 +179,40 @@ class MockTableSegmentFactory implements TableSegmentFactory {
 
         @Override
         public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(SegmentIteratorArgs args) {
-            return getIterator(args, (key, value, ver) -> TableSegmentKey.versioned(key, ver));
+            return getIterator(args, (key, value, ver) -> TableSegmentKey.versioned(key, ver), TableSegmentKey::getKey);
         }
 
         @Override
         public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(SegmentIteratorArgs args) {
-            return getIterator(args, TableSegmentEntry::versioned);
+            return getIterator(args, TableSegmentEntry::versioned, e -> e.getKey().getKey());
         }
 
-        private <T> AsyncIterator<IteratorItem<T>> getIterator(SegmentIteratorArgs args, IteratorConverter<T> converter) {
-            Preconditions.checkNotNull(args.getFromKey(), "args.fromKey");
-            Preconditions.checkNotNull(args.getToKey(), "args.toKey");
-            Preconditions.checkArgument(args.getFromKey().readableBytes() == this.keyLength,
+        private <T> AsyncIterator<IteratorItem<T>> getIterator(SegmentIteratorArgs initialArgs, IteratorConverter<T> converter,
+                                                               Function<T, ByteBuf> getKey) {
+            Preconditions.checkNotNull(initialArgs.getFromKey(), "initialArgs.fromKey");
+            Preconditions.checkNotNull(initialArgs.getToKey(), "initialArgs.toKey");
+            Preconditions.checkArgument(initialArgs.getFromKey().readableBytes() == this.keyLength,
                     "args.fromKey has incorrect length.");
-            Preconditions.checkArgument(args.getToKey().readableBytes() == this.keyLength,
+            Preconditions.checkArgument(initialArgs.getToKey().readableBytes() == this.keyLength,
                     "args.toKey has incorrect length.");
 
-            return () -> CompletableFuture.supplyAsync(() -> {
-                // The real Table Segment allows iterating while updating. Since we use TreeMap, we don't have that luxury,
-                // but we can take a snapshot now and return that. This doesn't necessarily break the Table Segment
-                // contract as it makes no guarantees about whether (or when) concurrent updates will make it into an ongoing
-                // iteration.
-                synchronized (this.data) {
-                    val iteratorItems = this.data.subMap(args.getFromKey(), true, args.getToKey(), true)
-                            .entrySet().stream()
-                            .map(e -> converter.apply(e.getKey().copy(), e.getValue().value.copy(), e.getValue().version))
-                            .limit(args.getMaxItemsAtOnce())
-                            .collect(Collectors.toList());
-                    return new IteratorItem<>(iteratorItems);
-                }
-            }, this.executorService);
+            return new TableSegmentIterator<T>(
+                    args -> CompletableFuture.supplyAsync(() -> {
+                        // The real Table Segment allows iterating while updating. Since we use TreeMap, we don't have
+                        // that luxury, but we can take a snapshot now and return that. This doesn't necessarily break
+                        // the Table Segment contract as it makes no guarantees about whether (or when) concurrent updates
+                        // will make it into an ongoing iteration.
+                        synchronized (this.data) {
+                            val iteratorItems = this.data.subMap(args.getFromKey(), true, args.getToKey(), true)
+                                    .entrySet().stream()
+                                    .map(e -> converter.apply(e.getKey().copy(), e.getValue().value.copy(), e.getValue().version))
+                                    .limit(args.getMaxItemsAtOnce())
+                                    .collect(Collectors.toList());
+                            return new IteratorItem<>(iteratorItems);
+                        }
+                    }, this.executorService),
+                    getKey,
+                    initialArgs);
         }
 
         @GuardedBy("data")

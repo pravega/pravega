@@ -24,6 +24,7 @@ import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.common.util.AsyncIterator;
 import java.nio.ByteBuffer;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import lombok.Getter;
 import lombok.NonNull;
@@ -46,8 +47,9 @@ class KeyValueTableIteratorImpl implements KeyValueTableIterator {
     private final ByteBuffer toPrimaryKey;
     @NonNull
     private final ByteBuffer toSecondaryKey;
-    @Getter
     private final int maxIterationSize;
+    @NonNull
+    private final TableEntryHelper entryConverter;
 
     //endregion
 
@@ -65,25 +67,57 @@ class KeyValueTableIteratorImpl implements KeyValueTableIterator {
 
     @Override
     public AsyncIterator<IteratorItem<TableKey>> keys() {
-        throw new UnsupportedOperationException();
+        Preconditions.checkArgument(isSingleSegment(), "Only single-partition iterators supported at this time.");
+        val ts = this.entryConverter.getSelector().getTableSegment(this.fromPrimaryKey);
+        val args = getIteratorArgs();
+        return ts.keyIterator(args)
+                .thenApply(si -> {
+                    val keys = si.getItems().stream()
+                            .map(this.entryConverter::fromTableSegmentKey)
+                            .collect(Collectors.toList());
+                    return new IteratorItem<>(keys);
+                });
     }
 
     @Override
     public AsyncIterator<IteratorItem<TableEntry>> entries() {
-        throw new UnsupportedOperationException();
+        Preconditions.checkArgument(isSingleSegment(), "Only single-partition iterators supported at this time.");
+        val ts = this.entryConverter.getSelector().getTableSegment(this.fromPrimaryKey);
+        val args = getIteratorArgs();
+        return ts.entryIterator(args)
+                .thenApply(si -> {
+                    val entries = si.getItems().stream()
+                            .map(e -> this.entryConverter.fromTableSegmentEntry(ts, e))
+                            .collect(Collectors.toList());
+                    return new IteratorItem<>(entries);
+                });
+    }
+
+    private SegmentIteratorArgs getIteratorArgs() {
+        return SegmentIteratorArgs.builder()
+                .maxItemsAtOnce(this.maxIterationSize)
+                .fromKey(this.entryConverter.serializeKey(this.fromPrimaryKey, this.fromSecondaryKey))
+                .toKey(this.entryConverter.serializeKey(this.toPrimaryKey, this.toSecondaryKey))
+                .build();
     }
 
     //endregion
 
     //region Builder
 
+    /**
+     * Builder for {@link KeyValueTableIteratorImpl} instances.
+     */
     @RequiredArgsConstructor
     static class Builder implements KeyValueTableIterator.Builder {
         @VisibleForTesting
         static final byte MIN_BYTE = (byte) 0;
         @VisibleForTesting
         static final byte MAX_BYTE = (byte) 0xFF;
+        @NonNull
         private final KeyValueTableConfiguration kvtConfig;
+        @NonNull
+        private final TableEntryHelper entryConverter;
         private int maxIterationSize = 10;
 
         @Override
@@ -107,7 +141,7 @@ class KeyValueTableIteratorImpl implements KeyValueTableIterator {
             // If these are null, pad() will replace them with appropriately sized buffers.
             fromSecondaryKey = pad(fromSecondaryKey, MIN_BYTE, this.kvtConfig.getSecondaryKeyLength());
             toSecondaryKey = pad(toSecondaryKey, MAX_BYTE, this.kvtConfig.getSecondaryKeyLength());
-            return new KeyValueTableIteratorImpl(primaryKey, fromSecondaryKey, primaryKey, toSecondaryKey, this.maxIterationSize);
+            return new KeyValueTableIteratorImpl(primaryKey, fromSecondaryKey, primaryKey, toSecondaryKey, this.maxIterationSize, this.entryConverter);
         }
 
         @Override
@@ -118,7 +152,7 @@ class KeyValueTableIteratorImpl implements KeyValueTableIterator {
             // If secondaryKeyPrefix is null, pad() will replace it with the effective Min/Max values, as needed.
             val fromSecondaryKey = pad(secondaryKeyPrefix, (byte) 0, this.kvtConfig.getSecondaryKeyLength());
             val toSecondaryKey = pad(secondaryKeyPrefix, (byte) 0xFF, this.kvtConfig.getSecondaryKeyLength());
-            return new KeyValueTableIteratorImpl(primaryKey, fromSecondaryKey, primaryKey, toSecondaryKey, this.maxIterationSize);
+            return new KeyValueTableIteratorImpl(primaryKey, fromSecondaryKey, primaryKey, toSecondaryKey, this.maxIterationSize, this.entryConverter);
         }
 
         @Override
@@ -133,7 +167,7 @@ class KeyValueTableIteratorImpl implements KeyValueTableIterator {
             // SecondaryKeys must be the full range in this case, otherwise the resulting iterator will have non-contiguous ranges.
             val fromSecondaryKey = pad(null, MIN_BYTE, this.kvtConfig.getSecondaryKeyLength());
             val toSecondaryKey = pad(null, MAX_BYTE, this.kvtConfig.getSecondaryKeyLength());
-            return new KeyValueTableIteratorImpl(fromPrimaryKey, fromSecondaryKey, toPrimaryKey, toSecondaryKey, this.maxIterationSize);
+            return new KeyValueTableIteratorImpl(fromPrimaryKey, fromSecondaryKey, toPrimaryKey, toSecondaryKey, this.maxIterationSize, this.entryConverter);
         }
 
         @Override
@@ -146,7 +180,7 @@ class KeyValueTableIteratorImpl implements KeyValueTableIterator {
             // SecondaryKeys must be the full range in this case, otherwise the resulting iterator will have non-contiguous ranges.
             val fromSecondaryKey = pad(null, MIN_BYTE, this.kvtConfig.getSecondaryKeyLength());
             val toSecondaryKey = pad(null, MAX_BYTE, this.kvtConfig.getSecondaryKeyLength());
-            return new KeyValueTableIteratorImpl(fromPrimaryKey, fromSecondaryKey, toPrimaryKey, toSecondaryKey, this.maxIterationSize);
+            return new KeyValueTableIteratorImpl(fromPrimaryKey, fromSecondaryKey, toPrimaryKey, toSecondaryKey, this.maxIterationSize, this.entryConverter);
         }
 
         @Override

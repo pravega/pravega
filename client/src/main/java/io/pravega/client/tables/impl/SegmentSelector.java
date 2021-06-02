@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.NonNull;
 
 /**
@@ -34,6 +35,8 @@ import lombok.NonNull;
 class SegmentSelector implements AutoCloseable {
     //region Members
 
+    @Getter
+    private final KeyValueTableInfo kvt;
     private final TableSegmentFactory tableSegmentFactory;
     private final KeyValueTableSegments segmentsByRange;
     @GuardedBy("segments")
@@ -52,6 +55,7 @@ class SegmentSelector implements AutoCloseable {
      * @param tableSegmentFactory A {@link TableSegmentFactory} to create {@link TableSegment} instances.
      */
     SegmentSelector(@NonNull KeyValueTableInfo kvt, @NonNull Controller controller, @NonNull TableSegmentFactory tableSegmentFactory) {
+        this.kvt = kvt;
         this.tableSegmentFactory = tableSegmentFactory;
         this.segmentsByRange = initializeSegments(kvt, controller);
         assert this.segmentsByRange != null;

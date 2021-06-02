@@ -59,7 +59,7 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
         super.setup();
         this.connectionFactory = new MockConnectionFactoryImpl();
         this.controller = new MockController("localhost", 0, this.connectionFactory, false);
-        boolean isScopeCreated = this.controller.createScope(KVT.getScope()).get().booleanValue();
+        boolean isScopeCreated = this.controller.createScope(KVT.getScope()).get();
         Assert.assertTrue(isScopeCreated);
         this.defaultConfig = KeyValueTableConfiguration.builder()
                 .partitionCount(getSegmentCount())

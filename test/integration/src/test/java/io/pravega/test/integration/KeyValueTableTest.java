@@ -213,8 +213,8 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
     @Test
     @Ignore("Reenable/Redesign with https://github.com/pravega/pravega/issues/5941") // TODO Do not merge to master before fixing this.
     @Override
-    public void testIterators() {
-        super.testIterators();
+    public void testPrimaryKeyIterators() {
+        super.testPrimaryKeyIterators();
     }
 
     @Override
