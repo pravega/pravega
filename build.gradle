@@ -1029,14 +1029,19 @@ project('test:system') {
     }
 
     task runFluentBitInstall(type: Exec) {
-        environment 'FLUENT_BIT_STORAGE_CLASS', System.getProperty("logStorageClass", "")
-        environment 'FLUENT_BIT_HOST_LOGS_PATH', System.getProperty("k8HostLogPath", "")
-        commandLine './kubernetes/fluentBitSetup.sh', 'install'
+        if (System.getProperty("skipFluentInstall", "false") == "false") {
+            environment 'FLUENT_BIT_STORAGE_CLASS', System.getProperty("logStorageClass", "")
+            environment 'FLUENT_BIT_HOST_LOGS_PATH', System.getProperty("k8HostLogPath", "")
+            environment 'ALPINE_IMAGE', System.getProperty("alpineImage", "alpine:latest")
+            commandLine './kubernetes/fluentBitSetup.sh', 'install'
+        } else {
+            commandLine 'echo', 'Skipping Fluent-Bit installation.'
+        }
     }
 
     task fetchSystemTestLogs(type: Exec) {
         environment 'FLUENT_BIT_EXPORT_PATH', "logs"
-        commandLine './kubernetes/fluentBitSetup.sh', 'fetch-logs'
+        commandLine './kubernetes/fluentBitSetup.sh', 'fetch-namespace-logs'
         commandLine './kubernetes/fluentBitSetup.sh', 'fetch-system-test-logs'
     }
 
