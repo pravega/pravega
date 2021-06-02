@@ -146,7 +146,15 @@ public class TypedProperties {
         return tryGet(property, this::parseBoolean);
     }
 
-    public int getPositivePropertyValue(Property<Integer> property) {
+    /**
+     * Gets the value of an Integer property only if it is greater than 0.
+     *
+     * @param property The Property to get.
+     * @return The property value or default value, if no such is defined in the base Properties.
+     * @throws ConfigurationException When the given property name does not exist within the current component and the property
+     *                                does not have a default value set, or when the property cannot be parsed as a positive Integer.
+     */
+    public int getPositiveInt(Property<Integer> property) {
         int value = getInt(property);
         if (value <= 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", property));
@@ -154,8 +162,16 @@ public class TypedProperties {
         return value;
     }
 
+    /**
+     * Gets a Duration from an Integer property only if it is greater than 0.
+     *
+     * @param property The Property to get.
+     * @return The property value or default value, if no such is defined in the base Properties.
+     * @throws ConfigurationException When the given property name does not exist within the current component and the property
+     *                                does not have a default value set, or when the property cannot be parsed as a positive Integer.
+     */
     public Duration getDuration(Property<Integer> property, TemporalUnit unit) {
-        return Duration.of(getPositivePropertyValue(property), unit);
+        return Duration.of(getPositiveInt(property), unit);
     }
 
     private <T> T tryGet(Property<T> property, Function<String, T> converter) {

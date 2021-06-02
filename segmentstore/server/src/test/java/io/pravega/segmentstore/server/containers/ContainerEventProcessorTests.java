@@ -42,6 +42,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import static io.pravega.segmentstore.server.ContainerEventProcessor.ProcessorEventData.HEADER_LENGTH;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyLong;
@@ -96,7 +97,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         for (int i = 0; i < allEventsToProcess; i++) {
             BufferView event = new ByteArraySegment(("" + i).getBytes());
             // The offset of the internal processor Segment has an integer header.
-            expectedInternalProcessorOffset += event.getLength() + ContainerEventProcessorImpl.ProcessorEventSerializer.HEADER_LENGTH;
+            expectedInternalProcessorOffset += event.getLength() + HEADER_LENGTH;
             Assert.assertEquals(expectedInternalProcessorOffset, processor.add(event, TIMEOUT_FUTURE).join().intValue());
         }
 
@@ -106,8 +107,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         Assert.assertFalse(failedAssertion.get());
         // Ensure that the outstanding bytes metric has been set to 0.
         BufferView event = new ByteArraySegment("event".getBytes());
-        Assert.assertEquals(event.getLength() + ContainerEventProcessorImpl.ProcessorEventSerializer.HEADER_LENGTH,
-                processor.add(event, TIMEOUT_FUTURE).join().intValue());
+        Assert.assertEquals(event.getLength() + HEADER_LENGTH, processor.add(event, TIMEOUT_FUTURE).join().intValue());
     }
 
     /**

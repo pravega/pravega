@@ -116,6 +116,13 @@ public interface ContainerEventProcessor extends AutoCloseable {
      */
     @Data
     class ProcessorEventData {
+
+        // Serialization Version (1 byte), Entry Length (4 bytes)
+        public static final int HEADER_LENGTH = Byte.BYTES + Integer.BYTES;
+
+        // Set a maximum length to individual events to be processed by EventProcessor (1MB).
+        public static final int MAX_TOTAL_EVENT_SIZE = 1024 * 1024;
+
         private final byte version;
         private final int length;
         private final BufferView data;

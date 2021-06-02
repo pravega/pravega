@@ -48,6 +48,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static io.pravega.segmentstore.server.ContainerEventProcessor.ProcessorEventData.HEADER_LENGTH;
+import static io.pravega.segmentstore.server.ContainerEventProcessor.ProcessorEventData.MAX_TOTAL_EVENT_SIZE;
 import static io.pravega.shared.NameUtils.getEventProcessorSegmentName;
 
 /**
@@ -241,14 +243,13 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         @Override
         public CompletableFuture<Long> add(@NonNull BufferView event, Duration timeout) {
             Preconditions.checkArgument(event.getLength() > 0);
-            Preconditions.checkArgument(event.getLength() +
-                    ProcessorEventSerializer.HEADER_LENGTH < ProcessorEventSerializer.MAX_TOTAL_EVENT_SIZE);
+            Preconditions.checkArgument(event.getLength() + HEADER_LENGTH < MAX_TOTAL_EVENT_SIZE);
             Exceptions.checkNotClosed(this.closed.get(), this);
             Preconditions.checkState(outstandingBytes.get() < getConfig().getMaxProcessorOutstandingBytes(),
                     "Too many outstanding events for {}.", this.getName());
 
             return segment.append(ProcessorEventSerializer.serializeEvent(event), null, timeout)
-                          .thenApply(offset -> outstandingBytes.addAndGet(event.getLength() + ProcessorEventSerializer.HEADER_LENGTH));
+                          .thenApply(offset -> outstandingBytes.addAndGet(event.getLength() + HEADER_LENGTH));
         }
 
         //endregion
@@ -331,8 +332,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             return CompletableFuture.supplyAsync(() -> {
                                         // Need to get the start and end offsets to properly create async read request.
                                         startOffset.set(segment.getInfo().getStartOffset());
-                                        readLength.set((int) Math.min(segment.getInfo().getLength() - startOffset.get(),
-                                                ProcessorEventSerializer.MAX_TOTAL_EVENT_SIZE));
+                                        readLength.set((int) Math.min(segment.getInfo().getLength() - startOffset.get(), MAX_TOTAL_EVENT_SIZE));
                                         return segment.read(startOffset.get(), readLength.get(), containerOperationTimeout);
                                     }, executor)
                                     .thenComposeAsync(rr -> AsyncReadResultProcessor.processAll(rr, executor, containerOperationTimeout), executor)
@@ -349,7 +349,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                     ProcessorEventData event = ProcessorEventSerializer.deserializeEvent(input);
                     events.add(event);
                     // Update the offset to the beginning of the next event.
-                    nextOffset += ProcessorEventSerializer.HEADER_LENGTH + event.getLength();
+                    nextOffset += HEADER_LENGTH + event.getLength();
                 }
             } catch (BufferView.Reader.OutOfBoundsException ex) {
                 // Events are of arbitrary size, so it is quite possible we stopped reading in the middle of an event.
@@ -383,7 +383,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         private final List<ProcessorEventData> eventsRead;
 
         public long getReadBytes() {
-            return eventsRead.stream().map(d -> d.getLength() + ProcessorEventSerializer.HEADER_LENGTH).reduce(0, Integer::sum);
+            return eventsRead.stream().map(d -> d.getLength() + HEADER_LENGTH).reduce(0, Integer::sum);
         }
 
         public List<BufferView> getProcessorEventsData() {
@@ -398,12 +398,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
      * Helper class to serialize/deserialize {@link ProcessorEventData} objects.
      */
     static class ProcessorEventSerializer {
-
-        // Serialization Version (1 byte), Entry Length (4 bytes)
-        public static final int HEADER_LENGTH = Byte.BYTES + Integer.BYTES;
-
-        // Set a maximum length to individual events to be processed by EventProcessor (1MB).
-        public static final int MAX_TOTAL_EVENT_SIZE = 1024 * 1024;
 
         private static final byte CURRENT_SERIALIZATION_VERSION = 0;
         private static final int VERSION_POSITION = 0;
