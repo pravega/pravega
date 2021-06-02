@@ -393,12 +393,12 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
     @Test
     public void testCacheGetOnReport() {
-        final int INFINITE_SIZE = Integer.MAX_VALUE;
+        final int infinite_SIZE = Integer.MAX_VALUE;
         final AtomicLong currentTime = new AtomicLong();
         val evictions = new ArrayList<Map.Entry<Long, Long>>();
         io.pravega.common.util.SimpleCacheTests.TestSimpleCache<String, Pair<Long, Long>> testSimpleCache =
                 new SimpleCacheTests.TestSimpleCache(
-                        INFINITE_SIZE,
+                        infinite_SIZE,
                         Duration.ofSeconds(60), (k, v) -> evictions.add(new AbstractMap.SimpleImmutableEntry(k, v)),
                         currentTime::get);
         TestAutoScaleProcessor monitor = new TestAutoScaleProcessor(
@@ -413,10 +413,10 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         currentTime.set(0L);
         monitor.notifyCreated(streamSegmentName1);
         monitor.put(streamSegmentName1, new ImmutablePair<>(5L, 5L));
-        monitor.setTimeMillis(30*1000L);
+        monitor.setTimeMillis(30 * 1000L);
         currentTime.set(30L);
         monitor.report(streamSegmentName1, 10L, 0L, 10D, 10D, 10D, 10D);
-        monitor.setTimeMillis(80*1000L);
+        monitor.setTimeMillis(80 * 1000L);
         currentTime.set(80L);
         testSimpleCache.cleanUp();
         assertNotNull(monitor.get(streamSegmentName1));
