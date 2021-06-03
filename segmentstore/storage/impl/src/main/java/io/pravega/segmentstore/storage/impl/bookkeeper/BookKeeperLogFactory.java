@@ -235,13 +235,19 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     synchronized void incrementAttemptsForBKClientReset(int logId, Throwable ex) {
         // Having successive BKException.BKReadException has been detected as a symptom of DNS entries cached by
         // the Bookkeeper client permanently. This can be alleviated by re-creating the Bookkeeper client.
+        log.info("Called incrementAttemptsForBKClientReset for {} with exception:", logId, ex);
         if (mayRequireBKClientReset(ex)) {
+            log.info("Entered in block increment restart count for {}", logId);
             LogInitializationRecord record = logInitializationTracker.get(logId);
             if (record != null) {
                 // Account for a restart of the Bookkeeper log.
                 record.incrementLogCreations();
+                log.info("Record existed for {}, increasing failures to {} with elapsed millis {}",
+                        logId, record.counter, record.timer.get().getElapsedMillis());
             } else {
                 logInitializationTracker.put(logId, new LogInitializationRecord());
+                log.info("New Record for {}, increasing failures to {} with elapsed millis {}",
+                        logId, logInitializationTracker.get(logId).counter, logInitializationTracker.get(logId).timer.get().getElapsedMillis());
             }
         }
     }
@@ -250,12 +256,14 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
      * This method covers the types of exceptions from {@link BookKeeperLog} and {@link LogReader} that may require to
      * reset the Bookkeeper client. At the moment, we consider:
      * - BKException.BKReadException (see https://github.com/apache/bookkeeper/issues/2482)
+     * - BKException.BKNotEnoughBookiesException
      *
      * @param ex Exception consumed by the onFailureCallback.
      * @return Whether the exception may be related to a problem that can be mitigated via a Bookkeeper client reset.
      */
     private boolean mayRequireBKClientReset(Throwable ex) {
-        return ex instanceof DurableDataLogException && ex.getCause() instanceof BKException.BKReadException;
+        return ex instanceof DurableDataLogException && ex.getCause() instanceof BKException.BKReadException
+                || ex instanceof BKException.BKNotEnoughBookiesException;
     }
 
     @VisibleForTesting
