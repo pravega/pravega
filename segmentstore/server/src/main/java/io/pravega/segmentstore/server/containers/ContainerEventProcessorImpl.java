@@ -313,7 +313,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         private CompletableFuture<Void> processEvents() {
             final Timer iterationTime = new Timer();
             return readEvents()
-                    .thenApplyAsync(this::applyProcessorHandler, executor)
+                    .thenComposeAsync(this::applyProcessorHandler, executor)
                     .thenComposeAsync(readResult -> truncateInternalSegment(readResult, iterationTime), executor)
                     .handleAsync((r, ex) -> {
                         // If we got an exception different from NoDataAvailableException, report it as something is off.
@@ -363,9 +363,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             return new EventsReadAndTruncationPoints(events);
         }
 
-        private EventsReadAndTruncationPoints applyProcessorHandler(EventsReadAndTruncationPoints readResult) {
-            getHandler().apply(readResult.getProcessorEventsData());
-            return readResult;
+        private CompletableFuture<EventsReadAndTruncationPoints> applyProcessorHandler(EventsReadAndTruncationPoints readResult) {
+            return getHandler().apply(readResult.getProcessorEventsData()).thenApply(v -> readResult);
         }
 
         private CompletableFuture<Void> truncateInternalSegment(EventsReadAndTruncationPoints readResult, Timer iterationTime) {

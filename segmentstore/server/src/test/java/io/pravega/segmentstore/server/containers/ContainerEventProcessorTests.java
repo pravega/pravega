@@ -161,19 +161,19 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         AtomicLong processorResults1 = new AtomicLong(0);
         Function<List<BufferView>, CompletableFuture<Void>> handler1 = l -> {
             processorResults1.addAndGet(l.size());
-            return null;
+            return CompletableFuture.completedFuture(null);
         };
         AtomicLong processorResults2 = new AtomicLong(0);
         Function<List<BufferView>, CompletableFuture<Void>> handler2 = l -> {
             processorResults2.addAndGet(l.size());
-            return null;
+            return CompletableFuture.completedFuture(null);
         };
         AtomicLong processorResults3 = new AtomicLong(0);
         Function<List<BufferView>, CompletableFuture<Void>> handler3 = l -> {
             Object o = null;
             o.toString(); // We should expect NPE here, so the results counter would not be incremented.
             processorResults3.addAndGet(1);
-            return null;
+            return CompletableFuture.completedFuture(null);
         };
         ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
                 maxOutstandingBytes);
@@ -219,7 +219,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
             Exceptions.handleInterrupted(latch::await);
             processorResults.addAndGet(l.size());
-            return null;
+            return CompletableFuture.completedFuture(null);
         };
         @Cleanup
         ContainerEventProcessor.EventProcessor processor = eventProcessorService.forConsumer("testSegmentMax", handler, config)
@@ -283,7 +283,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         ReusableLatch latch = new ReusableLatch();
         Function<List<BufferView>, CompletableFuture<Void>> doNothing = l -> {
             latch.release();
-            return null;
+            return CompletableFuture.completedFuture(null);
         };
         @Cleanup
         ContainerEventProcessor.EventProcessor processor = eventProcessorService.forConsumer("testSegmentMax", doNothing, config)
@@ -311,7 +311,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         AtomicLong processorResults = new AtomicLong(0);
         Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
             processorResults.addAndGet(l.size());
-            return null;
+            return CompletableFuture.completedFuture(null);
         };
         @Cleanup
         ContainerEventProcessor.EventProcessor processor = eventProcessorService.forConsumer("testClose", handler, config)
@@ -381,7 +381,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
                 }
                 readEvents.add(event);
             });
-            return null;
+            return CompletableFuture.completedFuture(null);
         };
         ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
                 maxOutstandingBytes);

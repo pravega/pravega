@@ -2194,19 +2194,19 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         AtomicLong processorResults1 = new AtomicLong(0);
         Function<List<BufferView>, CompletableFuture<Void>> handler1 = l -> {
             processorResults1.addAndGet(l.size());
-            return null;
+            return CompletableFuture.completedFuture(null);
         };
         AtomicLong processorResults2 = new AtomicLong(0);
         Function<List<BufferView>, CompletableFuture<Void>> handler2 = l -> {
             processorResults2.addAndGet(l.size());
-            return null;
+            return CompletableFuture.completedFuture(null);
         };
         AtomicLong processorResults3 = new AtomicLong(0);
         Function<List<BufferView>, CompletableFuture<Void>> handler3 = l -> {
             Object o = null;
             o.toString(); // We should expect NPE here, so the results counter would not be incremented.
             processorResults3.addAndGet(1);
-            return null;
+            return CompletableFuture.completedFuture(null);
         };
         ContainerEventProcessor.EventProcessorConfig config =
                 new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
@@ -2253,7 +2253,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         AtomicLong readEvents = new AtomicLong(0);
         Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
             readEvents.addAndGet(l.size());
-            return null;
+            return CompletableFuture.completedFuture(null);
         };
         @Cleanup
         ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container,
