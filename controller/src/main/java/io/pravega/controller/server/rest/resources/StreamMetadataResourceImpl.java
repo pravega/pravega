@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.server.rest.resources;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -334,10 +335,21 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this.localController, this.clientConfig);
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, this.localController, clientFactory);
+        processGetReaderGroup(scopeName, readerGroupName, requestId, readerGroupManager).thenAccept(response -> {
+            asyncResponse.resume(response);
+            readerGroupManager.close();
+            clientFactory.close();
+            LoggerHelpers.traceLeave(log, "getReaderGroup", traceId);
+        });
+    }
+
+    @VisibleForTesting
+    public CompletableFuture<Response> processGetReaderGroup(String scopeName, String readerGroupName,
+                                                             long requestId, ReaderGroupManager readerGroupManager) {
         ReaderGroupProperty readerGroupProperty = new ReaderGroupProperty();
         readerGroupProperty.setScopeName(scopeName);
         readerGroupProperty.setReaderGroupName(readerGroupName);
-        CompletableFuture.supplyAsync(() -> {
+        return CompletableFuture.supplyAsync(() -> {
             ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupName);
             readerGroupProperty.setOnlineReaderIds(
                     new ArrayList<>(readerGroup.getOnlineReaders()));
@@ -351,11 +363,6 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             } else {
                 return Response.status(Status.INTERNAL_SERVER_ERROR).build();
             }
-        }).thenAccept(response -> {
-            asyncResponse.resume(response);
-            readerGroupManager.close();
-            clientFactory.close();
-            LoggerHelpers.traceLeave(log, "getReaderGroup", traceId);
         });
     }
 

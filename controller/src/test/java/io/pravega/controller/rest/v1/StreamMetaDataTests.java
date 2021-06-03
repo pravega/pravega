@@ -17,11 +17,20 @@ package io.pravega.controller.rest.v1;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.state.StateSynchronizer;
+import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
@@ -39,6 +48,7 @@ import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
+import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.Segment;
@@ -56,8 +66,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -78,7 +90,10 @@ import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1003,6 +1018,41 @@ public class StreamMetaDataTests {
         final ReaderGroupsList readerGroupsList = response.readEntity(ReaderGroupsList.class);
         assertEquals("List count", 50000, readerGroupsList.getReaderGroups().size());
         response.close();
+    }
+
+    @Test
+    public void testGetReaderGroup() {
+        String scope = "scope";
+        String readerGroupName = "readerGroup";
+
+        LocalController controller = new LocalController(mockControllerService, false, "");
+        StreamMetadataResourceImpl streamMetadataResource = new StreamMetadataResourceImpl(controller, this.mockControllerService,
+                authManager, connectionFactory, ClientConfig.builder().build());
+        when(mockControllerService.getExecutor()).thenReturn(connectionFactory.getInternalExecutor());
+
+        StateSynchronizer<ReaderGroupState> synchronizer = mock(StateSynchronizer.class);
+
+        ClientFactoryImpl clientFactory = mock(ClientFactoryImpl.class);
+        when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
+                any(SynchronizerConfig.class))).thenReturn(synchronizer);
+
+        ReaderGroup readerGroup = mock(ReaderGroup.class);
+        Set<String> readers = new HashSet<>(Arrays.asList("reader1", "reader2"));
+        Set<String> streamNames = new HashSet<>(Arrays.asList("stream1", "stream2"));
+        when(readerGroup.getOnlineReaders()).thenReturn(readers);
+        when(readerGroup.getStreamNames()).thenReturn(streamNames);
+
+        ReaderGroupManager readerGroupManager = mock(ReaderGroupManagerImpl.class);
+        when(readerGroupManager.getReaderGroup(readerGroupName)).thenReturn(readerGroup);
+
+        // Test for getReaderGroup success.
+        Response response = streamMetadataResource.processGetReaderGroup(scope, readerGroupName, 0, readerGroupManager).join();
+        assertEquals("Get Reader Group response code", 200, response.getStatus());
+
+        // Test for getReaderGroup failure.
+        when(readerGroupManager.getReaderGroup(readerGroupName)).thenThrow(new ReaderGroupNotFoundException("rg not found."));
+        Response failedResponse = streamMetadataResource.processGetReaderGroup(scope, readerGroupName, 0, readerGroupManager).join();
+        assertEquals("Get Reader Group response code", 404, failedResponse.getStatus());
     }
 
     private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {
