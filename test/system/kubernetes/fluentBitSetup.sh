@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#
+################################################################################
 # Copyright Pravega Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+################################################################################
+
+BASE=$(dirname $(readlink -f $BASH_SOURCE))
 
 set -euo pipefail
 
@@ -27,11 +29,14 @@ KEEP_PVC=false
 NAMESPACE=${NAMESPACE:-"default"}
 NAME=${NAME:-"pravega-fluent-bit"}
 TAR_NAME="pravega-logs-export.tar"
+SKIP_FORCE_ROTATE=${SKIP_FORCE_ROTATE:-"false"}
+ALPINE_IMAGE=${ALPINE_IMAGE:-"alpine:latest"}
+RETRIES=3
 
 # Configurable flag parameters.
-FLUENT_BIT_DEPLOYMENT=${FLUENT_BIT_DEPLOYMENT:-"pravega-logs"}
+FLUENT_BIT_DEPLOYMENT=${FLUENT_BIT_DEPLOYMENT:-"$NAME"}
 FLUENT_IMAGE_REPO=${FLUENT_IMAGE_REPO:-"fluent/fluent-bit"}
-FLUENT_BIT_IMAGE_TAG=${FLUENT_BIT_IMAGE_TAG:-"latest"}
+FLUENT_BIT_IMAGE_TAG=${FLUENT_BIT_IMAGE_TAG:-"1.7.1"}
 FLUENT_BIT_STORAGE_CLASS=${FLUENT_BIT_STORAGE_CLASS:-"standard"}
 FLUENT_BIT_PVC_CAPACITY=${FLUENT_BIT_PVC_CAPACITY:-50}
 FLUENT_BIT_RECLAIM_TARGET_PERCENT=${FLUENT_BIT_RECLAIM_TARGET_PERCENT:-75}
@@ -39,10 +44,11 @@ FLUENT_BIT_RECLAIM_TRIGGER_PERCENT=${FLUENT_BIT_RECLAIM_TRIGGER_PERCENT:-95}
 FLUENT_BIT_ROTATE_INTERVAL_SECONDS=${LOG_ROTATE_INTERVAL:-10}
 FLUENT_BIT_HOST_LOGS_PATH=${FLUENT_BIT_HOST_LOGS_PATH:-""}
 FLUENT_BIT_ROTATE_THRESHOLD_BYTES=${FLUENT_BIT_ROTATE_THRESHOLD_BYTES:-10000000}
-FLUENT_BIT_EXPORT_PATH=${FLUENT_BIT_EXPORT_PATH:-"/tmp/pravega.logs"}
+FLUENT_BIT_EXPORT_PATH=${FLUENT_BIT_EXPORT_PATH:-"archive"}
 LOG_ROTATE_CONF_PATH=${LOG_ROTATE_CONF_PATH:-$CONFIG_MAP_DATA/"logrotate.conf"}
 LOG_EXT="gz"
 
+logs_fetched=1
 ###################################
 ### Flags/Args Parsing
 ###################################
@@ -83,12 +89,30 @@ for i in "$@"; do
     -m | --mount)
         FLUENT_BIT_EXPORT_MOUNT="true"
         ;;
+    -f | --skip-force-rotate)
+        SKIP_FORCE_ROTATE="true"
+        ;;
 esac
 done
 
 kilobyte=1024
 megabyte=$((kilobyte*1024))
 gigabyte=$((megabyte*1024))
+
+yellow() {
+    local msg="$*"
+    local yellow="\033[38;2;242;218;75m"
+    local nocolor='\033[0m'
+    echo -ne "${yellow}$msg${nocolor}"
+}
+
+green() {
+    local msg="$*"
+    local green="\033[38;2;191;216;95m"
+    local nocolor='\033[0m'
+    echo -ne "${green}$msg${nocolor}"
+}
+
 ######################################
 # Calculates the current utilization as a percentage of the fluent-bit PVC.
 # Globals:
@@ -102,7 +126,7 @@ gigabyte=$((megabyte*1024))
 #   Writes the utilization to STDOUT
 ######################################
 utilization() {
-    local log_pod=$1
+    local log_pod="$1"
     local size_kilo=$(kubectl exec -n=$NAMESPACE $log_pod -- du -s $MOUNT_PATH)
     local total=$(kubectl get pvc -n=$NAMESPACE $PVC_NAME -o custom-columns=:.status.capacity.storage --no-headers)
     total=${total%Gi}
@@ -112,58 +136,129 @@ utilization() {
     echo "$MOUNT_PATH has a utilization of $percent% (${size_gi} Gi/${total} Gi)."
 }
 
+force_rotate() {
+    if [ "$SKIP_FORCE_ROTATE" != "true" ]; then
+        # Prematurely rotate the logs to receive the most up to date log set.
+        kubectl exec "$pravega_log_pod" -n=$NAMESPACE -- /etc/config/watch.sh force
+    fi
+}
+
+kubectl_cp() {
+    local file=$1
+    local output_file=$2
+    if ! kubectl cp "$pravega_log_pod:$MOUNT_PATH/$file" "$output_file" > /dev/null 2>&1; then
+        return 1
+    fi
+
+    return 0
+}
+
 ################################
-# Given the log pod and a log name, fetches said log and adds it to
-# the tar export file.
+# Performs a copy of a single file from a pod with a retry mechanism.
 # Globals:
 #   TAR_NAME
-#   MOUNT_PATH
-#   NAMESPACE
 # Arguments:
 #   The pod name of the pravega-log pod
 #   The log name to copy
 ######################################
-logs_fetched=1
 cp_log() {
     local log_pod=$1
     local file=$2
     file=${file#./}
     # The leading ./ must be parsed out in the src file as well as the ':' from the dest.
     local output_file="$(echo $file | sed 's/:/-/g')"
+    local tries=0
+    printf "%.80s (%s/%s)\n" "$output_file" "$(yellow $logs_fetched)" "$(green $total)"
     # If we needed to create a directory for this collection, make sure to clean it up.
-    kubectl cp "$pravega_log_pod:$MOUNT_PATH/$file" "$output_file" -n=$NAMESPACE > /dev/null
-    printf "%.64s (%s/%s)\n" "$file" "$logs_fetched" "$total"
-    tar -rf "$TAR_NAME" "$output_file" 2> /dev/null
-    rm "$output_file"
+    while ! kubectl_cp "$file" "$output_file"; do
+        : $((tries+=1))
+        if [ "$tries" -ge "$RETRIES" ]; then
+            echo "Failed downloading log $output_file." >> "$FLUENT_BIT_EXPORT_PATH/debug.log"
+            break
+        fi
+    done
 }
 
 ######################################
-# Fetches the gathered logs from the $FLUENT_BIT_DEPLOYMENT pod.
+# Fetches a list of filenames from a remote pod.
 # Globals:
-#   MOUNT_PATH
-#   NAMESPACE
+#   TAR_NAME
 # Arguments:
-#   The list of pod names to gather the logs from.
+#   The output directory.
+#   A space delimited list file paths that exist on the remote log pod.
 # Outputs:
 #   Set of log files downloaded to $FLUENT_BIT_EXPORT_PATH.
-# Note:
-# 'fetch_logs' requires the log files are named according to the
-# '<namespace>.<pod-name>.<container-name>-<container-id>.log' convention, which is done by default
-# via the tag expansion in the [INPUT] stanza.
 ######################################
-fetch_fluent_logs() {
+cp_remote_logs() {
     local output=$1; shift
-    local total=0
+    local remote_log_files=$@
+    if [ -z "$remote_log_files" ]; then
+        echo "No remote files given to collect."
+    fi
+    remote_log_files=($remote_log_files)
+
+    # Clean any previous instances of collected logs.
+    rm -rf "$TAR_NAME"{.gz,}
+    # Temporary directory to hold the log files.
+    local logs_dir=${TAR_NAME%.tar}
+    mkdir "$logs_dir" && cd "$logs_dir"
+
+    local total=${#remote_log_files[@]}
+    for file in "${remote_log_files[@]}"; do
+        cp_log "$pravega_log_pod" "$file" &
+        ((logs_fetched+=1))
+        if [ $((logs_fetched % 10)) = '0' ]; then
+            wait
+        fi
+    done
+    wait
+    # Return from $logs_dir.
+    cd ../
+
+    # Validate log collection -- compare number of fetched logs to number of given logs.
+    local actual_logs="$(find $logs_dir -type f)"
+    local actual_log_count="$(echo "$actual_logs" | wc -l)"
+    local expected_log_count="$total"
+    if [ "$expected_log_count" != "$actual_log_count" ]; then
+        echo -e "\nFound mismatch between expected # of logs ($expected_log_count) and actual ($actual_log_count)."
+        for log in "${remote_log_files[@]}"; do
+            log="$(echo $log | sed -e 's/:/-/g' -e 's/\.\///g')"
+            if ! echo "$actual_logs" | grep "$log" > /dev/null; then
+                echo -e "Missing '$log'."
+            fi
+        done
+    else
+        echo ""
+        echo "Successfully downloaded a total of $actual_log_count log files."
+    fi
+    tar --remove-files -zcf "$TAR_NAME.gz" "$logs_dir"
+    rm -rf "$logs_dir"
+
+    logs_fetched=1
+}
+
+######################################
+# Fetches the set of logs belonging to a list of *active* pods.
+# Globals:
+#   SKIP_FORCE_ROTATE
+# Arguments:
+#   The output path to store the logs.
+#   A space delimited list of pairs (namespace pod) used to gather the logs from.
+# Outputs:
+#   Set of log files downloaded.
+######################################
+fetch_active_logs() {
+    local output=$1; shift
     if [ ! -d "$output" ]; then
         echo "$output directory does not exist!"
         exit 1
     fi
-    local pravega_log_pod=$(kubectl get pods -n=$NAMESPACE -l "app=$FLUENT_BIT_DEPLOYMENT" -o custom-columns=:.metadata.name --no-headers)
-    # Prematurely rotate the logs to receive the most up to date log set.
-    kubectl exec "$pravega_log_pod" -n=$NAMESPACE -- /etc/config/watch.sh force
+
+    pravega_log_pod=$(kubectl get pods -n=$NAMESPACE -l "app=$FLUENT_BIT_DEPLOYMENT" -o custom-columns=:.metadata.name --no-headers)
+    force_rotate
 
     log_files=()
-    local pods=$@
+    local pods=${@:-""}
     local logs=$(kubectl exec $pravega_log_pod -- find . -mindepth 2 -name '*.gz')
     # For all logs that exist on the PVC, find the logs belonging to the inputted pods.
     while read -r namespace pod; do
@@ -172,25 +267,43 @@ fetch_fluent_logs() {
             matches=$(echo "$logs" | grep "$namespace/${pod%-$tag}/$tag")
             for match in $matches; do
                 log_files+=("$match")
-                ((total+=1))
             done;
         fi
     done <<< $pods
-
-    echo "Found $total logs to fetch."
     pushd "$output" > /dev/null 2>&1
-    # Query logs from pravega-log-pod and archive them.
-    rm -rf "$TAR_NAME"{.gz,}
-    tar -cf "$TAR_NAME" --files-from=/dev/null
-    for file in "${log_files[@]}"; do
-        cp_log "$pravega_log_pod" "$file" &
-        ((logs_fetched+=1))
-    done
-    wait
+    cp_remote_logs "$output" "${log_files[@]}"
+    popd > /dev/null 2>&1
+}
 
-    rm -rf "$NAMESPACE"
-    gzip "$TAR_NAME"
-    logs_fetched=1
+######################################
+# Unlike 'fetch_active_logs', this function pulls all persisted logs from the provided
+# namespace. If not namespace it provided, it will fetch all logs from all namespaces.
+# Globals:
+#   SKIP_FORCE_ROTATE
+# Arguments:
+#   The output path to store the logs.
+# Outputs:
+#   Set of log files downloaded.
+######################################
+fetch_stored_logs() {
+    local output=$1; shift
+    local namespace=${1:-''}
+    if [ ! -d "$output" ]; then
+        echo "$output directory does not exist!"
+        exit 1
+    fi
+    pravega_log_pod=$(kubectl get pods -n=$NAMESPACE -l "app=$FLUENT_BIT_DEPLOYMENT" -o custom-columns=:.metadata.name --no-headers)
+    force_rotate
+
+    local logs=''
+    if [ -z "$namespace" ]; then
+        logs=$(kubectl exec $pravega_log_pod -- find . -mindepth 2 -name '*.gz' -type f)
+    else 
+        logs=$(kubectl exec $pravega_log_pod -- find "$namespace" -mindepth 1 -name '*.gz' -type f)
+    fi
+
+    pushd "$output" > /dev/null 2>&1
+    cp_remote_logs "$output" $logs
     popd > /dev/null 2>&1
 }
 
@@ -232,12 +345,6 @@ FLUENT_BIT_FILTERS=$(cat << EOF
     Match            kube.*
     Kube_URL         https://kubernetes.default.svc:443
     Merge_Log        On
-
-[FILTER]
-    Name          rewrite_tag
-    Match         kube.*
-    Rule          \$log .* \$kubernetes['namespace_name'].\$kubernetes['pod_name'].\$kubernetes['container_name'].\$kubernetes['docker_id'].log false
-    Emitter_Name  re_emitted
 
 [FILTER]
     Name record_modifier
@@ -282,10 +389,11 @@ EOF
 # See logrotate manpage for more information.
 LOG_ROTATE_CONF=$(cat << EOF
 $MOUNT_PATH/*.log {
+    su root root
     compress
     copytruncate
     size $FLUENT_BIT_ROTATE_THRESHOLD_BYTES
-    rotate 1000
+    rotate -1
     dateext
     dateformat -%s
 }
@@ -310,207 +418,12 @@ EOF
 # Note:
 #   Escape all the non-configurable variables to avoid unintended command substitutions or variables expansions.
 ######################################
-LOG_ROTATE_WATCH=$(cat << EOF
-#!/usr/bin/env bash
-
-set -e
-
-kilobyte=1024
-megabyte=$((1024**2))
-gigabyte=$((1024**3))
-
-used_kib() {
-    du -s $MOUNT_PATH | cut -f 1
-}
-
-# Brings down the current PVC utilization to FLUENT_BIT_RECLAIM_TARGET_PERCENT by deleting the oldest compressed log files.
-# Makes the assumption that rate of deletion will be never be lower than rate of accumulation.
-reclaim() {
-    # This must be a list of file paths in sorted order.
-    total_kib=\$(($FLUENT_BIT_PVC_CAPACITY * megabyte))
-    threshold_kib=\$(((total_kib * $FLUENT_BIT_RECLAIM_TRIGGER_PERCENT)/100))
-    if [ "\$(used_kib)" -lt "\$threshold_kib" ]; then
-        return 0
-    fi
-    target_kib=\$(((total_kib * $FLUENT_BIT_RECLAIM_TARGET_PERCENT)/100))
-    # Search all log folders recursively and return results from oldest to youngest.
-    local compressed=\$(find . -mindepth 2 -regextype posix-extended -regex '.*/*.$LOG_EXT\$' -printf "%T@ %P\n")
-    compressed="\$(echo "\$compressed" | sort -n | grep -oE '[^ ]*$')"
-
-    local reclaimed=0
-    for file in \$compressed; do
-        if [ "\$(used_kib)" -gt "\$target_kib" ]; then
-            echo "Removing - \$file"
-            bytes=\$(stat "\$file" -c=%s | sed 's/=//g')
-            ((reclaimed+=bytes))
-            rm "\$file"
-        else
-            break
-        fi
-    done
-    end_kib=\$(used_kib)
-    if [ "\$reclaimed" -gt 0 ]; then
-        utilization=\$(((end_kib * 100)/total_kib))
-        echo "Reclaimed a total of \$((reclaimed/gigabyte))GiB (\$((reclaimed/megabyte))MiB). Total(MiB): \$((total_kib/kilobyte)) , Used: \$((end_kib/kilobyte)) (\${utilization}%)"
-    fi
-}
-
-# This function assumes the '-%s' dateformat will be applied. It transforms any files in the '$MOUNT_PATH'
-# directory in the '<logname>.log-<epoch>.gz' format to '<logname>-<utc>.log.gz'.
-# Furthermore the logrotate epoch is also transformed to a last modified epoch.
-epoch_to_utc() {
-  suffix=".log"
-  name=\$1
-  match=\$(echo "\$name" | grep -oE "\-[0-9]+\.$LOG_EXT\$")
-  if [ \$? -eq 0 ]; then
-    epoch="\$(stat \$name -c %Y)"
-    utc=\$(date --utc +%FT%TZ -d "@\$epoch")
-    original=\${name%\$match}
-    dest="\${original%\$suffix}-\$utc\$suffix.$LOG_EXT"
-    mv "\$name" "\$dest"
-  fi
-}
-
-# Catch any 'orphans' -- those .log files that are from an old/restarted container and no longer
-# will receive any new appends. This does not work for restarted pods in a deployment because
-# instead of just the container tag changing, a five character string is also appended to the pod name.
-# So even if the container id is different and the log file is older, we can't differentiate between
-# a restarted pod and simply a longer lived pod.
-orphans() {
-    count=0
-    for file in \$@; do
-        # File may have been moved.
-        if [ ! -f "\$file" ]; then
-            continue
-        fi
-        local prefix=\${file%.*.log}
-        # Files with a shared prefix. Redirect errors in case no files exist.
-        local shared=\$(stat "\$prefix"*.log -t -c="%Y,%n" || echo '')
-        shared=\$(echo \$shared | sed 's/=//g' | sort -n)
-        local previous=''
-        # shared will contain a list of files with the same prefix sorted (by time) in ascending order.
-        # The most recent file with said prefix is not compressed, in case it is actively being written to.
-        for current in \$shared; do
-            if [ -n "\$previous" ]; then
-                : \$((count+=1))
-                local epoch=\${previous%%,*}
-                local name=\${previous#*,}
-                # Compress and redirect to file as if it was compressed by logrotate.
-                echo "Compressing \$name -> \$name-\$epoch.gz"
-                gzip -c \$name > "\$name-\$epoch.gz"
-                rm \$name
-            fi
-            previous="\$current"
-        done
-    done
-    if [ \$count -gt 0 ]; then
-        echo "Found \$count inactive logs -- compressing."
-    fi
-}
-
-# Will move files in the format produced by logrotate (and 'orphans') (<logname>.log-<epoch>.gz) and arranges a log file
-# (where <logname> can be expanded into <namespace>.<pod_name-tag>.<container_name>.<container_id>)
-# in this structure:
-#
-#   namespace/
-#   └── pod_name/
-#       └── <tag-container_name>-<substr(container_id, 0, 7)>.log-<epoch>.gz
-#
-# Todo: Return list of files moved to use for 'epoch_to_utc'.
-redirect() {
-    for src in \$@; do
-        local path=\${src%.log*}
-        local ext=\${src#\$path.}
-        local split=\$(echo \$path | sed 's/\./ /g')
-        read namespace pod container id <<< "\$split"
-        local tag=\${pod##*-}
-        local pod=\${pod%-\$tag}
-        local dest="\$namespace/\$pod/\$tag-\$container-\$(printf "%.8s" "\$id").\$ext"
-        mkdir -p "\$(dirname "\$dest")"
-        mv "\$src" "\$dest"
-    done
-}
-
-rotate() {
-    (
-        flock 200 || exit 1
-        if [  "$PWD" != "$MOUNT_PATH" ]; then
-            cd "$MOUNT_PATH"
-        fi
-        opts=\$1
-        start_time=\$(date +%s%3N)
-        if [ "\$opts" = "--force" ]; then
-            echo "Received --force logrotate option."
-        fi
-        logrotate $LOG_ROTATE_CONF_PATH \$opts
-        local files=\$(find . -maxdepth 1 -regextype posix-extended -regex '.*/*.log\$' -printf "%T@ %P\n" | sort -n | grep -oE '[^ ]*$')
-        orphans "\${files[@]}"
-        # Orphans can create newly compressed files, so we must update state.
-        files=\$(find . -maxdepth 1 -regextype posix-extended -regex '.*/*.$LOG_EXT\$' -printf "%T@ %P\n")
-        files=\$(echo "\$files" | sort -n | grep -oE '[^ ]*$')
-        redirect "\${files[@]}"
-        ## Rotated but not renamed (i.e. the files that were *just* rotated).
-        rotated=\$(find . -mindepth 2 -regextype posix-extended -regex '.*/*[0-9]{10}.$LOG_EXT\$' -printf "%p\n")
-        for name in \$rotated; do
-            epoch_to_utc "\$name"
-        done;
-        # Attempt to reclaim any old log files that have been 'redirected' (those not just rotated).
-        reclaim
-        end_time=\$(date +%s%3N)
-        if [ -n "\$rotated" ]; then
-            echo "Rotation cycle completed in \$((end_time-start_time)) milliseconds."
-        fi
-    ) 200> /var/lock/rotate.lock
-}
-
-watch() {
-    # Permissions of containing directory changed to please logrotate.
-    chmod o-wx .
-    mkdir -p $MOUNT_PATH
-
-    while true; do
-        rotate
-        sleep $FLUENT_BIT_ROTATE_INTERVAL_SECONDS
-    done
-}
-
-cmd=\$1
-case \$cmd in
-    nop)
-        :
-        ;;
-    force)
-        rotate '--force'
-        ;;
-    rotate)
-        rotate
-        ;;
-    *)
-        watch
-        ;;
-esac
-
-EOF
-)
-
-# Writes the variable to a file and executes a NOP, ensuring that its syntax is valid before
-# deploying it to a Kubernetes cluster.
-validate_watcher() {
-    tmp="/tmp/watcher.sh"
-    echo "$LOG_ROTATE_WATCH" > $tmp
-    chmod +x $tmp
-    cat $tmp
-    if ! $tmp nop; then
-        echo "Error validating the fluent-bit-watcher."
-    else
-        rm $tmp
-    fi
-}
 
 apply_logrotate_configmap() {
     tab='    '
+    local log_rotate_watch=$(cat $BASE/fluentBitRotater.sh)
     # Apply required indentation by prepending two tabs.
-    log_rotate_watch=$(echo "$LOG_ROTATE_WATCH" | sed "s/^/$tab$tab/")
+    log_rotate_watch=$(echo "$log_rotate_watch" | sed "s/^/$tab$tab/")
     log_rotate_conf=$(echo "$LOG_ROTATE_CONF" | sed "s/^/$tab$tab/")
     cat << EOF | kubectl apply -n=$NAMESPACE --wait -f -
 apiVersion: v1
@@ -547,8 +460,8 @@ spec:
         app: $FLUENT_BIT_DEPLOYMENT
     spec:
       containers:
-      - name: alpine
-        image: alpine
+      - name: rotate
+        image: $ALPINE_IMAGE
         workingDir: $MOUNT_PATH
         command: [ '/bin/ash', '-c' ]
         args:
@@ -601,7 +514,7 @@ install() {
         echo "Detected existing installation. Exiting."
         exit 0
     fi
-    helm repo add fluent https://fluent.github.io/helm-charts
+    helm repo add fluent https://fluent.github.io/helm-charts > /dev/null
     # The claim used to persist the logs. Required for all installations.
     cat << EOF | kubectl apply --wait -n=$NAMESPACE -f -
 kind: PersistentVolumeClaim
@@ -656,6 +569,7 @@ uninstall() {
         echo $response
         exit 1
     fi
+    kubectl delete pod -l app=$FLUENT_BIT_DEPLOYMENT -n=$NAMESPACE --ignore-not-found --wait
     kubectl delete deployment $FLUENT_BIT_DEPLOYMENT -n=$NAMESPACE --ignore-not-found --wait
     kubectl delete configmap $CONFIG_MAP_NAME -n=$NAMESPACE --ignore-not-found --wait
     if [ "$KEEP_PVC" = false ]; then
@@ -681,8 +595,10 @@ info() {
     echo -e ""
     echo -e "uninstall: Removes any existing Pravega fluent-bit deployment."
     echo -e ""
-    echo -e "fetch-logs: Copies log files produced by the PravegaCluster (on a given namespace) to a local directory."
-    echo -e "fetch-system-test-logs: Copies log files from *all* system test pods in a given namespace."
+    echo -e "fetch-all-logs: Copies all logs currently persisted in the PVC."
+    echo -e "fetch-namespace-logs Copies all logs emitted by pods in the specified namespace currently persisted in the PVC."
+    echo -e "fetch-system-test-logs: Copies log files from all system test pods in a given namespace."
+    echo -e "fetch-pod-logs: Copies log from active pods currently running in the given namespac."
     echo -e "\t-n=*|--namespace=*:          The namespace of the PravegaCluster/Pods. default: default"
     echo -e "\t-p=*|--export-path=*:        The path to save the logs to. default: /tmp/pravega-logs"
     echo -e ""
@@ -696,18 +612,24 @@ case $CMD in
     uninstall)
         uninstall
         ;;
-    fetch-logs)
+    fetch-namespace-logs)
+        dest="$FLUENT_BIT_EXPORT_PATH"
+        namespace="${1:-$NAMESPACE}"
+        fetch_stored_logs "$dest" "$namespace"
+        ;;
+    fetch-all-logs)
+        dest="$FLUENT_BIT_EXPORT_PATH"
+        fetch_stored_logs "$dest"
+        ;;
+    fetch-pod-logs)
         dest="$FLUENT_BIT_EXPORT_PATH"
         pods=$(kubectl get pods -n=$NAMESPACE -o custom-columns=:.metadata.namespace,:.metadata.name --no-headers)
-        fetch_fluent_logs "$dest" "$pods"
+        fetch_active_logs "$dest" "$pods"
         ;;
     fetch-system-test-logs)
         dest="$FLUENT_BIT_EXPORT_PATH"
         pods=$(kubectl get pods -l 'app=pravega-system-tests' -n=$NAMESPACE -o custom-columns=:.metadata.namespace,:.metadata.name --no-headers)
-        fetch_fluent_logs "$dest" "$pods"
-        ;;
-    validate)
-        validate_watcher
+        fetch_active_logs "$dest" "$pods"
         ;;
     help|--help)
         info
