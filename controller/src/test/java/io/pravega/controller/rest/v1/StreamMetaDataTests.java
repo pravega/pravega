@@ -1011,7 +1011,7 @@ public class StreamMetaDataTests {
     }
 
     @Test
-    public void testGetReaderGroups() {
+    public void testGetReaderGroup() {
         final String resourceURI = getURI() + "v1/scopes/scope1/readergroups/readergroup1";
 
         when(mockControllerService.getExecutor()).thenReturn(connectionFactory.getInternalExecutor());
