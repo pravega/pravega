@@ -29,8 +29,12 @@ import io.pravega.test.common.LeakDetectorTestSuite;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.val;
@@ -60,6 +64,9 @@ public class KeyValueTableIteratorImplTests extends LeakDetectorTestSuite {
     private static final TableEntryHelper DEFAULT_ENTRY_HELPER = new TableEntryHelper(mock(SegmentSelector.class), DEFAULT_CONFIG);
     private final Random random = new Random(0);
 
+    /**
+     * Tests the iterator when there is a single segment involved.
+     */
     @Test
     public void testIteratorSingleSegment() {
         val pk = newBuffer(DEFAULT_CONFIG.getPrimaryKeyLength());
@@ -102,7 +109,8 @@ public class KeyValueTableIteratorImplTests extends LeakDetectorTestSuite {
                     return mockSegment;
                 });
         val entryHelper = new TableEntryHelper(selector, DEFAULT_CONFIG);
-        val b = new KeyValueTableIteratorImpl.Builder(DEFAULT_CONFIG, entryHelper).maxIterationSize(maxIterationSize);
+        val b = new KeyValueTableIteratorImpl.Builder(DEFAULT_CONFIG, entryHelper, executorService())
+                .maxIterationSize(maxIterationSize);
 
         // Everything up until here has been verified in the Builder unit tests (no need to do it again).
         // Create a Primary Key range iterator.
@@ -142,6 +150,131 @@ public class KeyValueTableIteratorImplTests extends LeakDetectorTestSuite {
         Assert.assertEquals(pk, toPK);
         Assert.assertEquals(sk1, fromSK);
         Assert.assertEquals(sk2, toSK);
+    }
+
+    /**
+     * Tests the {@link KeyValueTableIteratorImpl.MergeAsyncIterator} class.
+     */
+    @Test
+    public void testMergeAsyncIterator() {
+        val segmentCount = 5;
+        val minItemsPerSegment = 11;
+        val maxItemsPerSegment = 101;
+        val iterationSize = 3;
+
+        // Generate test data.
+        val c = new KeyValueTableIteratorImpl.TableKeyComparator();
+        val segmentIterators = new ArrayList<AsyncIterator<IteratorItem<TableKey>>>(); // Sorted.
+        val expectedData = new ArrayList<TableKey>(); // Sorted.
+        for (int i = 0; i < segmentCount; i++) {
+            val count = minItemsPerSegment + random.nextInt(maxItemsPerSegment - minItemsPerSegment);
+            val segmentBatches = new ArrayList<List<TableKey>>();
+
+            // Generate segment contents.
+            val segmentSortedContents = IntStream.range(0, count)
+                    .mapToObj(x -> new TableKey(newBuffer(DEFAULT_CONFIG.getPrimaryKeyLength()), newBuffer(DEFAULT_CONFIG.getSecondaryKeyLength())))
+                    .sorted(c)
+                    .collect(Collectors.toList());
+
+            // Break it down into batches and create a "segment iterator" from them.
+            int index = 0;
+            while (index < count) {
+                int batchCount = Math.min(iterationSize, count - index);
+                segmentBatches.add(segmentSortedContents.subList(index, index + batchCount));
+                index += batchCount;
+            }
+            segmentIterators.add(createAsyncIterator(segmentBatches));
+            expectedData.addAll(segmentSortedContents);
+        }
+
+        expectedData.sort(c);
+
+        // Create a merge iterator and collect its contents.
+        val mergeIterator = new KeyValueTableIteratorImpl.MergeAsyncIterator<>(segmentIterators.iterator(), k -> k, iterationSize, executorService());
+        val actualData = new ArrayList<TableKey>();
+        mergeIterator.collectRemaining(ii -> {
+            val expected = Math.min(iterationSize, expectedData.size() - actualData.size());
+            Assert.assertEquals(expected, ii.getItems().size());
+            return actualData.addAll(ii.getItems());
+        });
+
+        // Verify it returns the correct items.
+        AssertExtensions.assertListEquals("", expectedData, actualData, TableKey::equals);
+    }
+
+    /**
+     * Tests the {@link KeyValueTableIteratorImpl.PeekingIterator} class.
+     */
+    @Test
+    public void testPeekingIterator() {
+        val items = Arrays.asList(
+                IntStream.range(0, 10).boxed().collect(Collectors.toList()),
+                IntStream.range(10, 11).boxed().collect(Collectors.toList()),
+                IntStream.range(11, 20).boxed().collect(Collectors.toList()));
+        val sourceIterator = createAsyncIterator(items);
+
+        Function<Integer, TableKey> toKey = i -> new TableKey(ByteBuffer.allocate(Integer.BYTES).putInt(0, i));
+
+        // Collect items via the flattened iterator.
+        val fi = new KeyValueTableIteratorImpl.PeekingIterator<>(sourceIterator, toKey);
+        val actualItems = new ArrayList<Integer>();
+        fi.advance().join();
+        while (fi.hasNext()) {
+            actualItems.add(fi.getCurrent());
+            val expectedKey = toKey.apply(fi.getCurrent());
+            Assert.assertEquals(expectedKey, fi.getCurrentKey());
+            fi.advance().join();
+        }
+
+        Assert.assertNull(fi.getCurrent());
+        Assert.assertNull(fi.getCurrentKey());
+
+        // Compare against expected items (which we get by flattening the provided input ourselves).
+        val expectedItems = items.stream().flatMap(List::stream).collect(Collectors.toList());
+        AssertExtensions.assertListEquals("", expectedItems, actualItems, Integer::equals);
+    }
+
+    private <T> AsyncIterator<IteratorItem<T>> createAsyncIterator(List<List<T>> batchItems) {
+        val itemsIterator = batchItems.iterator();
+        return () -> {
+            IteratorItem<T> result = itemsIterator.hasNext() ? new IteratorItem<>(itemsIterator.next()) : null;
+            return CompletableFuture.completedFuture(result);
+        };
+    }
+
+    /**
+     * Tests the {@link KeyValueTableIteratorImpl.TableKeyComparator} class.
+     */
+    @Test
+    public void testTableKeyComparator() {
+        val c = new KeyValueTableIteratorImpl.TableKeyComparator();
+        val buffers = IntStream.range(0, 256).mapToObj(i -> ByteBuffer.wrap(new byte[]{(byte) i})).collect(Collectors.toList());
+        for (int i = 0; i < buffers.size(); i++) {
+            for (int j = 0; j < buffers.size(); j++) {
+                int expected = (int) Math.signum(j - i);
+                int actual = (int) Math.signum(c.compare(buffers.get(j), buffers.get(i)));
+                Assert.assertEquals("Unexpected comparison for " + i + " vs " + j, expected, actual);
+            }
+        }
+
+        // Test individual keys.
+        val key1 = new TableKey(buffers.get(0), buffers.get(1));
+        val key2 = new TableKey(buffers.get(0), buffers.get(2));
+        val key3 = new TableKey(buffers.get(1), buffers.get(1));
+        Assert.assertEquals(0, c.compare(key1, key1));
+        AssertExtensions.assertLessThan("", 0, c.compare(key1, key2));
+        AssertExtensions.assertLessThan("", 0, c.compare(key1, key3));
+        AssertExtensions.assertLessThan("", 0, c.compare(key2, key3));
+        AssertExtensions.assertGreaterThan("", 0, c.compare(key2, key1));
+        AssertExtensions.assertGreaterThan("", 0, c.compare(key3, key1));
+        AssertExtensions.assertGreaterThan("", 0, c.compare(key3, key2));
+
+        // Keys with no secondary keys.
+        val key4 = new TableKey(buffers.get(0));
+        val key5 = new TableKey(buffers.get(1));
+        Assert.assertEquals(0, c.compare(key4, key4));
+        AssertExtensions.assertLessThan("", 0, c.compare(key4, key5));
+        AssertExtensions.assertGreaterThan("", 0, c.compare(key5, key4));
     }
 
     @Test
@@ -398,6 +531,7 @@ public class KeyValueTableIteratorImplTests extends LeakDetectorTestSuite {
     }
 
     private KeyValueTableIteratorImpl.Builder builder(KeyValueTableConfiguration config) {
-        return (KeyValueTableIteratorImpl.Builder) new KeyValueTableIteratorImpl.Builder(config, DEFAULT_ENTRY_HELPER).maxIterationSize(10);
+        return (KeyValueTableIteratorImpl.Builder) new KeyValueTableIteratorImpl.Builder(config, DEFAULT_ENTRY_HELPER, executorService())
+                .maxIterationSize(10);
     }
 }

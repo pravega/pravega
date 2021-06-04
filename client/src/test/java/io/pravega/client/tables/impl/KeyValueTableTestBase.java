@@ -33,7 +33,6 @@ import io.pravega.test.common.LeakDetectorTestSuite;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +63,7 @@ import org.junit.rules.Timeout;
 public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
     private static final Serializer<Long> PK_SERIALIZER = new LongSerializer();
     private static final Serializer<Integer> SK_SERIALIZER = new IntegerSerializer();
+    private static final KeyValueTableIteratorImpl.TableKeyComparator KEY_COMPARATOR = new KeyValueTableIteratorImpl.TableKeyComparator();
     private static final int DEFAULT_SEGMENT_COUNT = 4;
     private static final int DEFAULT_PRIMARY_KEY_COUNT = 100;
     private static final int DEFAULT_SECONDARY_KEY_COUNT = 10; // Per Primary Key
@@ -597,7 +597,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
     }
 
     @Test
-    public void testPrimaryKeyIterators() {
+    public void testIterators() {
         @Cleanup
         val kvt = createKeyValueTable();
         val iteration = new AtomicInteger(0);
@@ -614,8 +614,11 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
             }
         });
 
-        // Check the key iterator. Keys are returned without versions.
+        // Check the Primary Key iterator.
         checkPrimaryKeyIterator(kvt, versions, iteration.get());
+
+        // Check the Global iterators.
+        checkGlobalIterator(kvt, versions, iteration.get());
     }
 
     private void checkPrimaryKeyIterator(KeyValueTable keyValueTable, Versions versions, int iteration) {
@@ -625,7 +628,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
             // Get all Table Keys and sort them.
             val allKeys = secondaryKeys.stream()
                     .map(sk -> new TableKey(pk, sk))
-                    .sorted(Comparator.comparing(TableKey::getSecondaryKey))
+                    .sorted(KEY_COMPARATOR)
                     .collect(Collectors.toList());
             val allEntries = allKeys.stream()
                     .map(k -> new TableEntry(k, versions.get(getUniqueKeyId(k.getPrimaryKey(), k.getSecondaryKey())), getValue(k.getPrimaryKey(), k.getSecondaryKey(), iteration)))
@@ -651,6 +654,61 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
                         expectedEntries, iteratorEntries, (e1, e2) -> areEqual(e1, e2) && e1.getVersion().equals(e2.getVersion()));
             }
         });
+    }
+
+    private void checkGlobalIterator(KeyValueTable keyValueTable, Versions versions, int iteration) {
+        val itemsAtOnce = getSecondaryKeyCount() / 5;
+
+        // All expected Entries, indexed by Keys.
+        val allEntries = new HashMap<TableKey, TableEntry>();
+        forEveryKey((pk, sk) -> {
+            val k = new TableKey(pk, sk);
+            val e = new TableEntry(k, versions.get(getUniqueKeyId(k.getPrimaryKey(), k.getSecondaryKey())), getValue(pk, sk, iteration));
+            allEntries.put(k, e);
+        });
+
+        // All Keys, sorted.
+        val allKeys = allEntries.keySet().stream()
+                .sorted(KEY_COMPARATOR)
+                .collect(Collectors.toList());
+
+        // All unique Primary Keys.
+        val allPrimaryKeys = allKeys.stream().map(TableKey::getPrimaryKey).distinct().sorted(KEY_COMPARATOR::compare).collect(Collectors.toList());
+
+        // Issue various iterators (range) and verify against expected values.
+        for (int startIndex = 0; startIndex < allPrimaryKeys.size() / 2; startIndex++) {
+            val endIndex = allPrimaryKeys.size() - startIndex - 1;
+            val firstPK = allPrimaryKeys.get(startIndex);
+            val lastPK = allPrimaryKeys.get(endIndex);
+            val expectedKeys = allKeys.stream()
+                    .filter(k -> KEY_COMPARATOR.compare(k.getPrimaryKey(), firstPK) >= 0 && KEY_COMPARATOR.compare(k.getPrimaryKey(), lastPK) <= 0)
+                    .collect(Collectors.toList());
+
+            val iterator = keyValueTable.iterator()
+                    .maxIterationSize(itemsAtOnce)
+                    .forRange(firstPK, lastPK);
+
+            val iteratorKeys = new ArrayList<TableKey>();
+            iterator.keys().collectRemaining(ii -> iteratorKeys.addAll(ii.getItems())).join();
+            AssertExtensions.assertListEquals("Unexpected keys returned from iterator.keys()",
+                    expectedKeys, iteratorKeys, this::areEqual);
+
+            val expectedEntries = expectedKeys.stream().map(allEntries::get).collect(Collectors.toList());
+            val iteratorEntries = new ArrayList<TableEntry>();
+            iterator.entries().collectRemaining(ii -> iteratorEntries.addAll(ii.getItems())).join();
+            AssertExtensions.assertListEquals("Unexpected entries returned from iterator.entries()",
+                    expectedEntries, iteratorEntries, (e1, e2) -> areEqual(e1, e2) && e1.getVersion().equals(e2.getVersion()));
+        }
+
+        // Check all() iterator.
+        val allIterator = keyValueTable.iterator()
+                .maxIterationSize(itemsAtOnce)
+                .all();
+        val expectedAllEntries = allKeys.stream().map(allEntries::get).collect(Collectors.toList());
+        val allIteratorEntries = new ArrayList<TableEntry>();
+        allIterator.entries().collectRemaining(ii -> allIteratorEntries.addAll(ii.getItems())).join();
+        AssertExtensions.assertListEquals("Unexpected entries returned from allIterator.entries()",
+                expectedAllEntries, allIteratorEntries, (e1, e2) -> areEqual(e1, e2) && e1.getVersion().equals(e2.getVersion()));
     }
 
     //endregion

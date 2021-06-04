@@ -40,6 +40,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -61,6 +62,7 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
     private final AtomicBoolean closed;
     private final KeyValueTableConfiguration config;
     private final TableEntryHelper entryHelper;
+    private final Executor executor;
 
     //endregion
 
@@ -73,10 +75,12 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
      * @param config              A {@link KeyValueTableConfiguration} representing the config for the Key-Value Table.
      * @param tableSegmentFactory Factory to create {@link TableSegment} instances.
      * @param controller          Controller client.
+     * @param executor            An Executor for async operations.
      */
     KeyValueTableImpl(@NonNull KeyValueTableInfo kvt, @NonNull KeyValueTableConfiguration config,
-                      @NonNull TableSegmentFactory tableSegmentFactory, @NonNull Controller controller) {
+                      @NonNull TableSegmentFactory tableSegmentFactory, @NonNull Controller controller, @NonNull Executor executor) {
         this.config = config;
+        this.executor = executor;
         this.selector = new SegmentSelector(kvt, controller, tableSegmentFactory);
         this.entryHelper = new TableEntryHelper(this.selector, this.config);
         this.logTraceId = String.format("KeyValueTable[%s]", kvt.getScopedName());
@@ -194,7 +198,7 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
     @Override
     public KeyValueTableIteratorImpl.Builder iterator() {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return new KeyValueTableIteratorImpl.Builder(this.config, this.entryHelper);
+        return new KeyValueTableIteratorImpl.Builder(this.config, this.entryHelper, this.executor);
     }
 
     //endregion

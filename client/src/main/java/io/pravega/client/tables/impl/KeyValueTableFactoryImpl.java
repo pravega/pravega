@@ -46,7 +46,7 @@ public class KeyValueTableFactoryImpl implements KeyValueTableFactory {
         val provider = DelegationTokenProviderFactory.create(this.controller, kvt.getScope(), kvt.getKeyValueTableName(), AccessOperation.READ_WRITE);
         val tsf = new TableSegmentFactoryImpl(this.controller, this.connectionPool, clientConfiguration, provider);
         val defaultConfig = KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(0).secondaryKeyLength(0).build(); // TODO: remove this once supported in the Controller
-        return new KeyValueTableImpl(kvt, defaultConfig, tsf, this.controller);
+        return new KeyValueTableImpl(kvt, defaultConfig, tsf, this.controller, this.connectionPool.getInternalExecutor());
     }
 
     @Override
