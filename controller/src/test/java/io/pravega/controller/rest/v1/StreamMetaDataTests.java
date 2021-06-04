@@ -85,6 +85,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 /**
  * Tests for Stream metadata REST APIs.
@@ -1006,6 +1008,20 @@ public class StreamMetaDataTests {
         final ReaderGroupsList readerGroupsList = response.readEntity(ReaderGroupsList.class);
         assertEquals("List count", 50000, readerGroupsList.getReaderGroups().size());
         response.close();
+    }
+
+    @Test
+    public void testGetReaderGroups() {
+        final String resourceURI = getURI() + "v1/scopes/scope1/readergroups/readergroup1";
+
+        when(mockControllerService.getExecutor()).thenReturn(connectionFactory.getInternalExecutor());
+        when(mockControllerService.getCurrentSegments(anyString(), anyString(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        // Verify that a ReaderGroupNotFoundException is generated as the segments are null.
+        Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        assertEquals("List Reader Groups response code", 404, response.getStatus());
+        verify(mockControllerService, times(1)).getCurrentSegments(anyString(), anyString(), anyLong());
     }
 
     private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {
