@@ -44,16 +44,19 @@ import lombok.val;
  * {@link KeyValueTableIterator} implementation.
  */
 @RequiredArgsConstructor
-@Getter
 class KeyValueTableIteratorImpl implements KeyValueTableIterator {
     //region Members
 
+    @Getter
     @NonNull
     private final ByteBuffer fromPrimaryKey;
+    @Getter
     @NonNull
     private final ByteBuffer fromSecondaryKey;
+    @Getter
     @NonNull
     private final ByteBuffer toPrimaryKey;
+    @Getter
     @NonNull
     private final ByteBuffer toSecondaryKey;
     private final int maxIterationSize;
@@ -159,7 +162,6 @@ class KeyValueTableIteratorImpl implements KeyValueTableIterator {
      *
      * @param <T> Resulting item type.
      */
-    @RequiredArgsConstructor
     @VisibleForTesting
     static class MergeAsyncIterator<T> implements AsyncIterator<IteratorItem<T>> {
         private static final TableKeyComparator COMPARATOR = new TableKeyComparator();

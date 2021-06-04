@@ -28,13 +28,6 @@ import lombok.NonNull;
  */
 public interface KeyValueTableIterator {
     /**
-     * Gets a value representing the maximum number of items to return with each call to {@link AsyncIterator#getNext()}.
-     *
-     * @return The maximum number of items to return with each call to {@link AsyncIterator#getNext()}.
-     */
-    int getMaxIterationSize();
-
-    /**
      * Creates a new Iterator for {@link TableKey}s in the associated {@link KeyValueTable}. This is preferred to
      * {@link #entries()} if all that is needed is the {@link TableKey}s as less I/O is involved both server-side and
      * between the server and client.

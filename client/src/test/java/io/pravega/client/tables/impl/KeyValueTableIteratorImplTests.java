@@ -138,6 +138,73 @@ public class KeyValueTableIteratorImplTests extends LeakDetectorTestSuite {
         Assert.assertEquals("Only expecting 1 segment to be requested.", 1, segmentRequests.size());
     }
 
+    @Test
+    public void testGlobalIterators() {
+        val pk1 = newBuffer(DEFAULT_CONFIG.getPrimaryKeyLength());
+        val pk2 = newBuffer(DEFAULT_CONFIG.getPrimaryKeyLength());
+        val maxIterationSize = 10;
+
+        val c = new KeyValueTableIteratorImpl.TableKeyComparator();
+        val allEntries = IntStream.range(0, maxIterationSize)
+                .mapToObj(i -> new AbstractMap.SimpleImmutableEntry<>(newBuffer(TOTAL_KEY_LENGTH), newBuffer(5)))
+                .sorted((e1, e2) -> c.compare(e1.getKey(), e2.getKey()))
+                .collect(Collectors.toList());
+
+        val mockSegment = mock(TableSegment.class);
+        when(mockSegment.keyIterator(any()))
+                .thenAnswer(arg -> {
+                    val iteratorArgs = (SegmentIteratorArgs) arg.getArgument(0);
+                    checkSegmentIteratorArgs(iteratorArgs, pk1, pk2, maxIterationSize);
+                    val keys = allEntries.stream()
+                            .map(e -> new TableSegmentKey(Unpooled.wrappedBuffer(e.getKey()), TableSegmentKeyVersion.NO_VERSION))
+                            .collect(Collectors.toList());
+                    return AsyncIterator.singleton(new IteratorItem<>(keys));
+                });
+        when(mockSegment.entryIterator(any()))
+                .thenAnswer(arg -> {
+                    val iteratorArgs = (SegmentIteratorArgs) arg.getArgument(0);
+                    checkSegmentIteratorArgs(iteratorArgs, pk1, pk2, maxIterationSize);
+                    val entries = allEntries.stream()
+                            .map(e -> new TableSegmentEntry(new TableSegmentKey(Unpooled.wrappedBuffer(e.getKey()), TableSegmentKeyVersion.NO_VERSION),
+                                    Unpooled.wrappedBuffer(e.getValue())))
+                            .collect(Collectors.toList());
+                    return AsyncIterator.singleton(new IteratorItem<>(entries));
+                });
+        val selector = mock(SegmentSelector.class);
+        when(selector.getKvt()).thenReturn(KVT);
+        when(selector.getSegmentCount()).thenReturn(DEFAULT_CONFIG.getPartitionCount());
+        when(selector.getAllTableSegments())
+                .thenAnswer(arg -> IntStream.range(0, DEFAULT_CONFIG.getPartitionCount()).mapToObj(i -> mockSegment).collect(Collectors.toList()));
+        val entryHelper = new TableEntryHelper(selector, DEFAULT_CONFIG);
+        val b = new KeyValueTableIteratorImpl.Builder(DEFAULT_CONFIG, entryHelper, executorService())
+                .maxIterationSize(maxIterationSize);
+
+        // Everything up until here has been verified in the Builder unit tests (no need to do it again).
+        // Create a Primary Key range iterator.
+        val iterator = b.forRange(pk1, pk2);
+
+        // Issue a Key iterator and then an Entry iterator, then collect all the results.
+        val iteratorKeys = new ArrayList<TableKey>();
+        iterator.keys().collectRemaining(ii -> iteratorKeys.addAll(ii.getItems())).join();
+        val iteratorEntries = new ArrayList<TableEntry>();
+        iterator.entries().collectRemaining(ii -> iteratorEntries.addAll(ii.getItems())).join();
+
+        // Validate the results are as expected.
+        Assert.assertEquals(allEntries.size() * DEFAULT_CONFIG.getPartitionCount(), iteratorKeys.size());
+        Assert.assertEquals(allEntries.size() * DEFAULT_CONFIG.getPartitionCount(), iteratorEntries.size());
+        for (int i = 0; i < allEntries.size(); i++) {
+            val expected = allEntries.get(i);
+            for (int p = 0; p < DEFAULT_CONFIG.getPartitionCount(); p++) {
+                val actualKey = iteratorKeys.get(i * DEFAULT_CONFIG.getPartitionCount() + p);
+                val actualEntry = iteratorEntries.get(i * DEFAULT_CONFIG.getPartitionCount() + p);
+
+                Assert.assertEquals(Unpooled.wrappedBuffer(expected.getKey()), entryHelper.serializeKey(actualKey.getPrimaryKey(), actualKey.getSecondaryKey()));
+                Assert.assertEquals(actualKey, actualEntry.getKey());
+                Assert.assertEquals(expected.getValue(), actualEntry.getValue());
+            }
+        }
+    }
+
     private void checkSegmentIteratorArgs(SegmentIteratorArgs iteratorArgs, ByteBuffer pk, ByteBuffer sk1, ByteBuffer sk2, int maxIterationSize) {
         Assert.assertEquals(maxIterationSize, iteratorArgs.getMaxItemsAtOnce());
         Assert.assertEquals(TOTAL_KEY_LENGTH, iteratorArgs.getFromKey().readableBytes());
@@ -150,6 +217,23 @@ public class KeyValueTableIteratorImplTests extends LeakDetectorTestSuite {
         Assert.assertEquals(pk, toPK);
         Assert.assertEquals(sk1, fromSK);
         Assert.assertEquals(sk2, toSK);
+    }
+
+    private void checkSegmentIteratorArgs(SegmentIteratorArgs iteratorArgs, ByteBuffer pk1, ByteBuffer pk2, int maxIterationSize) {
+        Assert.assertEquals(maxIterationSize, iteratorArgs.getMaxItemsAtOnce());
+        Assert.assertEquals(TOTAL_KEY_LENGTH, iteratorArgs.getFromKey().readableBytes());
+        Assert.assertEquals(TOTAL_KEY_LENGTH, iteratorArgs.getToKey().readableBytes());
+        val fromPK = iteratorArgs.getFromKey().slice(0, DEFAULT_CONFIG.getPrimaryKeyLength()).nioBuffer();
+        val fromSK = iteratorArgs.getFromKey().slice(DEFAULT_CONFIG.getPrimaryKeyLength(), DEFAULT_CONFIG.getSecondaryKeyLength()).nioBuffer();
+        val toPK = iteratorArgs.getToKey().slice(0, DEFAULT_CONFIG.getPrimaryKeyLength()).nioBuffer();
+        val toSK = iteratorArgs.getToKey().slice(DEFAULT_CONFIG.getPrimaryKeyLength(), DEFAULT_CONFIG.getSecondaryKeyLength()).nioBuffer();
+        Assert.assertEquals(pk1, fromPK);
+        Assert.assertEquals(pk2, toPK);
+
+        for (int i = 0; i < DEFAULT_CONFIG.getSecondaryKeyLength(); i++) {
+            Assert.assertEquals(0, fromSK.get(i));
+            Assert.assertEquals(0xFF, (int) toSK.get(i) & 0xFF);
+        }
     }
 
     /**
