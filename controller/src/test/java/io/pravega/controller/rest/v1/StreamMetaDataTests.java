@@ -78,10 +78,15 @@ import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 /**
  * Tests for Stream metadata REST APIs.
@@ -196,7 +201,7 @@ public class StreamMetaDataTests {
                                                                         .controllerURI(URI.create("tcp://localhost"))
                                                                         .build());
         restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,
-                connectionFactory);
+                connectionFactory, ClientConfig.builder().build());
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();
@@ -1003,6 +1008,20 @@ public class StreamMetaDataTests {
         final ReaderGroupsList readerGroupsList = response.readEntity(ReaderGroupsList.class);
         assertEquals("List count", 50000, readerGroupsList.getReaderGroups().size());
         response.close();
+    }
+
+    @Test
+    public void testGetReaderGroup() {
+        final String resourceURI = getURI() + "v1/scopes/scope1/readergroups/readergroup1";
+
+        when(mockControllerService.getExecutor()).thenReturn(connectionFactory.getInternalExecutor());
+        when(mockControllerService.getCurrentSegments(anyString(), anyString(), anyLong()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
+        // Verify that a ReaderGroupNotFoundException is generated as the segments are null.
+        Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        assertEquals("List Reader Groups response code", 404, response.getStatus());
+        verify(mockControllerService, times(1)).getCurrentSegments(anyString(), anyString(), anyLong());
     }
 
     private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {
