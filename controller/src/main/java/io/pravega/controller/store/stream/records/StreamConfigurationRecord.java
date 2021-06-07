@@ -27,16 +27,17 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
+import lombok.Singular;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Set;
 
 @Data
 @Builder
 @Slf4j
-@AllArgsConstructor
 public class StreamConfigurationRecord {
 
     public static final ConfigurationRecordSerializer SERIALIZER = new ConfigurationRecordSerializer();
@@ -48,15 +49,17 @@ public class StreamConfigurationRecord {
     private final StreamConfiguration streamConfiguration;
     private final boolean updating;
     private final boolean tagOnlyUpdate; // new entry into the StreamConfigurationRecord to indicate that only tags are updated.
+    @Singular
+    private final Set<String> removeTags;
 
-    public static StreamConfigurationRecord update(String scope, String streamName, StreamConfiguration streamConfig) {
+    public static StreamConfigurationRecord update(String scope, String streamName, StreamConfiguration streamConfig, Set<String> tagsToBeRemoved) {
         return StreamConfigurationRecord.builder().scope(scope).streamName(streamName).streamConfiguration(streamConfig)
-                                        .updating(true).tagOnlyUpdate(false).build();
+                                        .updating(true).tagOnlyUpdate(false).removeTags(tagsToBeRemoved).build();
     }
 
-    public static StreamConfigurationRecord updateTag(String scope, String streamName, StreamConfiguration streamConfig) {
+    public static StreamConfigurationRecord updateTag(String scope, String streamName, StreamConfiguration streamConfig, Set<String> tagsToBeRemoved) {
         return StreamConfigurationRecord.builder().scope(scope).streamName(streamName).streamConfiguration(streamConfig)
-                                        .updating(true).tagOnlyUpdate(true).build();
+                                        .updating(true).tagOnlyUpdate(true).removeTags(tagsToBeRemoved).build();
     }
 
     public static StreamConfigurationRecord complete(String scope, String streamName, StreamConfiguration streamConfig) {
@@ -287,6 +290,7 @@ public class StreamConfigurationRecord {
                                       .tags(revisionDataInput.readCollection(stringDeserializer, HashSet::new));
             configurationRecordBuilder.streamConfiguration(streamConfigurationBuilder.build());
             configurationRecordBuilder.tagOnlyUpdate(revisionDataInput.readBoolean());
+            configurationRecordBuilder.removeTags(revisionDataInput.readCollection(stringDeserializer, HashSet::new));
         }
 
         private void write02(StreamConfigurationRecord streamConfigurationRecord, RevisionDataOutput revisionDataOutput)
@@ -294,6 +298,7 @@ public class StreamConfigurationRecord {
             RevisionDataOutput.ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
             revisionDataOutput.writeCollection(streamConfigurationRecord.streamConfiguration.getTags(), stringSerializer);
             revisionDataOutput.writeBoolean(streamConfigurationRecord.isTagOnlyUpdate());
+            revisionDataOutput.writeCollection(streamConfigurationRecord.removeTags, stringSerializer);
         }
 
         @Override

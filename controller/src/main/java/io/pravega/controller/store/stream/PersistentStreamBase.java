@@ -431,12 +431,17 @@ public abstract class PersistentStreamBase implements Stream {
                 .thenCompose(configRecord -> {
                     Preconditions.checkArgument(!configRecord.getObject().isUpdating());
                     StreamConfiguration oldCfg = configRecord.getObject().getStreamConfiguration();
+                    // Check for tags that needs to be removed.
+                    Set<String> currentTags = new HashSet<>(oldCfg.getTags());
+                    currentTags.removeAll(newConfiguration.getTags());
+                    // Create a StreamConfigurationRecord with the newer Configuration.
                     StreamConfigurationRecord update;
                     if (StreamConfiguration.isTagOnlyChange(oldCfg, newConfiguration)) {
-                        update = StreamConfigurationRecord.updateTag(scope, name, newConfiguration);
+                        update = StreamConfigurationRecord.updateTag(scope, name, newConfiguration, currentTags);
                     } else {
-                        update = StreamConfigurationRecord.update(scope, name, newConfiguration);
+                        update = StreamConfigurationRecord.update(scope, name, newConfiguration, currentTags);
                     }
+                    // Update this in the metadata Stoe.
                     return Futures.toVoid(setConfigurationData(new VersionedMetadata<>(update, configRecord.getVersion()), context));
                 });
     }

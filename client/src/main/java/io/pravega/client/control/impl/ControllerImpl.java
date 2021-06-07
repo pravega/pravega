@@ -473,7 +473,7 @@ public class ControllerImpl implements Controller {
                                                                                            .setContinuationToken(token)
                                                                                            .setTag(tag).build();
                         new ControllerClientTagger(client, timeoutMillis).withTag(requestId,
-                                                                                  LIST_STREAMS_IN_SCOPE, scopeName)
+                                                                                  LIST_STREAMS_IN_SCOPE_FOR_TAG, scopeName)
                                                                          .listStreamsInScopeForTag(request, callback);
                         return callback.getFuture()
                                        .thenApplyAsync(x -> {

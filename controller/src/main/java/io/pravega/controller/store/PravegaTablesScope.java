@@ -17,6 +17,7 @@ package io.pravega.controller.store;
 
 import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
+import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.HashHelper;
@@ -29,6 +30,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -120,7 +122,7 @@ public class PravegaTablesScope implements Scope {
                                                                                                       throw new CompletionException(e);
                                                                                                   }
                                                                                               })),
-                                               getStreamTagsInScopeTableName(context)
+                                               getAllStreamTagsInScopeTableNames(context)
                                                        .thenCompose(tagTableNames -> {
                                                            List<CompletableFuture<Void>> futures = new ArrayList<>();
                                                            for (String tableName : tagTableNames) {
@@ -167,12 +169,14 @@ public class PravegaTablesScope implements Scope {
                                                 getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(KVTABLES_IN_SCOPE_TABLE_FORMAT, id.toString())));
     }
 
-    public CompletableFuture<String> getStreamTagsInScopeTableName(String stream, OperationContext context) {
-        return getId(context).thenApply(id ->
-                                                getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(STREAM_TAGS_IN_SCOPE, id.toString(), HASH.hashToBucket(stream, 25))));
+    public CompletableFuture<String> getAllStreamTagsInScopeTableNames(String stream, OperationContext context) {
+        return getId(context)
+                .thenApply(id -> getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName,
+                                                       String.format(STREAM_TAGS_IN_SCOPE, id.toString(),
+                                                                     HASH.hashToBucket(stream, 25))));
     }
 
-    public CompletableFuture<List<String>> getStreamTagsInScopeTableName(OperationContext context) {
+    public CompletableFuture<List<String>> getAllStreamTagsInScopeTableNames(OperationContext context) {
         return getId(context).thenApply(id -> IntStream.range(0, MAX_STREAM_TAG_CHUNKS).boxed()
                                                        .map(chunkId -> getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(STREAM_TAGS_IN_SCOPE, id.toString(), chunkId)))
                                                        .collect(Collectors.toList()));
@@ -213,7 +217,7 @@ public class PravegaTablesScope implements Scope {
         CompletableFuture<String> streamsInScopeTableNameFuture = getStreamsInScopeTableName(true, context);
         CompletableFuture<String> rgsInScopeTableNameFuture = getReaderGroupsInScopeTableName(context);
         CompletableFuture<String> kvtsInScopeTableNameFuture = getKVTablesInScopeTableName(context);
-        CompletableFuture<List<String>> streamTagsInScopeTableNameFuture = getStreamTagsInScopeTableName(context);
+        CompletableFuture<List<String>> streamTagsInScopeTableNameFuture = getAllStreamTagsInScopeTableNames(context);
         return CompletableFuture.allOf(streamsInScopeTableNameFuture, rgsInScopeTableNameFuture, kvtsInScopeTableNameFuture, streamTagsInScopeTableNameFuture)
                                 .thenCompose(x -> {
                                     String streamsInScopeTableName = streamsInScopeTableNameFuture.join();
@@ -247,7 +251,7 @@ public class PravegaTablesScope implements Scope {
 
         Preconditions.checkNotNull(context, "Operation context cannot be null");
 
-        return getNextTableSegment(tag, continuationToken, context).thenCompose(pair -> {
+        return getStreamsFromNextTagChunk(tag, continuationToken, context).thenCompose(pair -> {
             if (pair.getLeft().isEmpty() && !pair.getRight().contains(LAST_TAG_CHUNK)) {
                 return listStreamsForTag(tag, pair.getRight(), executor, context);
             } else {
@@ -256,14 +260,18 @@ public class PravegaTablesScope implements Scope {
         });
     }
 
-    CompletableFuture<Pair<List<String>, String>> getNextTableSegment(String tag, String ct, OperationContext context) {
-        return getStreamTagsInScopeTableName(context).thenApply(
+    /*
+        Fetch the Streams from the next available Tag Chunk table.
+     */
+    CompletableFuture<Pair<List<String>, String>> getStreamsFromNextTagChunk(String tag, String token, OperationContext context) {
+        return getAllStreamTagsInScopeTableNames(context).thenApply(
                 strings -> {
-                    if (ct.isEmpty()) {
+                    if (token.isEmpty()) {
+                        // token is empty, try reading from the first tag table.
                         return strings.get(0);
                     } else {
                         // return next index
-                        return strings.get(strings.indexOf(ct) + 1);
+                        return strings.get(strings.indexOf(token) + 1);
                     }
                 }
         ).thenCompose(table -> storeHelper.expectingDataNotFound(
@@ -297,17 +305,61 @@ public class PravegaTablesScope implements Scope {
     }
 
     public CompletableFuture<Void> addTagsUnderScope(String stream, Set<String> tags, OperationContext context) {
-        if (tags.isEmpty()) {
-            return CompletableFuture.completedFuture(null);
-        } else {
-            return getStreamTagsInScopeTableName(stream, context)
-                    .thenCompose(table -> Futures.toVoid(storeHelper.appendValues(table, tags, stream, context.getRequestId())));
-        }
+        return getAllStreamTagsInScopeTableNames(stream, context)
+                .thenCompose(table -> Futures.toVoid(storeHelper.appendValues(table, tags, stream, this::appendValueToEntries,
+                                                                              context.getRequestId())));
+    }
+
+    private List<TableSegmentEntry> appendValueToEntries(String appendValue, List<TableSegmentEntry> currentEntries) {
+        return currentEntries.stream()
+                             .map(entry -> {
+                                 String k = entry.getKey().getKey().toString(StandardCharsets.UTF_8);
+                                 byte[] array = storeHelper.getArray(entry.getValue());
+                                 byte[] updatedBytes;
+                                 if (array.length == 0) {
+                                     updatedBytes = TagRecord.builder().tagName(k).stream(appendValue).build().toBytes();
+                                 } else {
+                                     TagRecord record = TagRecord.fromBytes(array);
+                                     updatedBytes = record.toBuilder().stream(appendValue).build().toBytes();
+                                 }
+                                 return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
+                                                                    updatedBytes,
+                                                                    entry.getKey().getVersion().getSegmentVersion());
+                             })
+                             .collect(Collectors.toList());
     }
 
     public CompletableFuture<Void> removeTagsUnderScope(String stream, Set<String> tags, OperationContext context) {
-        return getStreamTagsInScopeTableName(stream, context)
-                .thenCompose(table -> Futures.toVoid(storeHelper.removeValues(table, tags, stream, context.getRequestId())));
+        return getAllStreamTagsInScopeTableNames(stream, context)
+                .thenCompose(table -> storeHelper.removeValues(table, tags, stream, this::removeValueFromEntries,
+                                                               context.getRequestId()));
+    }
+
+    private Pair<List<TableSegmentEntry>, List<Integer>> removeValueFromEntries(String removeValue, List<TableSegmentEntry> currentEntries) {
+        List<Integer> deleteIndex = new ArrayList<>();
+        List<TableSegmentEntry> updatedEntries = IntStream.range(0, currentEntries.size())
+                                                          .mapToObj(index -> {
+                                                              TableSegmentEntry entry = currentEntries.get(index);
+                                                              String k = entry.getKey().getKey().toString(StandardCharsets.UTF_8);
+                                                              byte[] array = storeHelper.getArray(entry.getValue());
+                                                              byte[] updatedBytes;
+                                                              if (array.length == 0) {
+                                                                  updatedBytes = TagRecord.builder().tagName(k).build().toBytes();
+                                                              } else {
+                                                                  TagRecord record = TagRecord.fromBytes(array);
+                                                                  //Remove stream from TagRecord.
+                                                                  TagRecord updatedRecord = record.toBuilder().removeStream(removeValue).build();
+                                                                  // If the TagRecord is empty mark it to be deleted.
+                                                                  if (updatedRecord.getStreams().isEmpty()) {
+                                                                      deleteIndex.add(index);
+                                                                  }
+                                                                  updatedBytes = updatedRecord.toBytes();
+                                                              }
+                                                              return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
+                                                                                                 updatedBytes,
+                                                                                                 entry.getKey().getVersion().getSegmentVersion());
+                                                          }).collect(Collectors.toList());
+        return new ImmutablePair<>(updatedEntries, deleteIndex);
     }
 
     public CompletableFuture<Void> removeStreamFromScope(String stream, OperationContext context) {

@@ -106,6 +106,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                                 requestId))
                         .thenCompose(x -> handleSegmentCountUpdates(scope, stream, configProperty, etr, context, executor,
                                                                     requestId))
+                        .thenCompose(x -> streamMetadataStore.removeTagsFromIndex(scope, stream, configProperty.getRemoveTags(), context, executor))
                         .thenCompose(x -> streamMetadataStore.addStreamTagsToIndex(scope, stream, configProperty.getStreamConfiguration(), context, executor))
                         .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context,
                                 executor))

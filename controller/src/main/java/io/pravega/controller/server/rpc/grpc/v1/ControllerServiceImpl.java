@@ -1034,7 +1034,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         final AuthContext ctx = this.grpcAuthHelper.isAuthEnabled() ? AuthContext.current() : null;
         Function<String, CompletableFuture<Controller.StreamsInScopeResponse>> streamsFn = delegationToken ->
                 listWithFilter(request.getContinuationToken().getToken(), pageLimit,
-                        (x, y) -> controllerService.listStreams(scopeName, x, y, requestTag.getRequestId()),
+                        (x, y) -> controllerService.listStreamsForTag(scopeName, x, y, requestTag.getRequestId()),
                         x -> grpcAuthHelper.isAuthorized(authorizationResource.ofStreamInScope(scopeName, x), 
                                 AuthHandler.Permissions.READ, ctx),
                         x -> StreamInfo.newBuilder().setScope(scopeName).setStream(x).build(), requestTag.getRequestId())
@@ -1080,7 +1080,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         final AuthContext ctx = this.grpcAuthHelper.isAuthEnabled() ? AuthContext.current() : null;
         Function<String, CompletableFuture<Controller.StreamsInScopeResponse>> streamsFn = delegationToken ->
                 listWithFilter(request.getContinuationToken().getToken(), pageLimit,
-                               (x, y) -> controllerService.listStreams(scopeName, tag, x, requestTag.getRequestId()),
+                               (x, y) -> controllerService.listStreamsForTag(scopeName, tag, x, requestTag.getRequestId()),
                                x -> grpcAuthHelper.isAuthorized(authorizationResource.ofStreamInScope(scopeName, x),
                                                                 AuthHandler.Permissions.READ, ctx),
                                x -> StreamInfo.newBuilder().setScope(scopeName).setStream(x).build(), requestTag.getRequestId())

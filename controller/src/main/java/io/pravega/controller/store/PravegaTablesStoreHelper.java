@@ -39,10 +39,8 @@ import io.pravega.controller.store.host.HostStoreException;
 import io.pravega.controller.store.stream.Cache;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.store.stream.records.TagRecord;
 import io.pravega.controller.util.RetryHelper;
 
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -61,6 +59,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.shaded.com.google.common.base.Charsets;
 import org.slf4j.LoggerFactory;
 
@@ -249,87 +248,99 @@ public class PravegaTablesStoreHelper {
                 .whenComplete((r, ex) -> releaseEntries(entries));
     }
 
-    public CompletableFuture<List<Version>> removeValues(final String tableName, Set<String> tableKeys, final String appendValue, long requestId) {
+    /**
+     * Remove value of every entry for the provided keys.
+     *
+     * @param tableName      Table name.
+     * @param tableKeys      List of keys whose value needs to be updated.
+     * @param removeValue    Value to be removed from all the keys.
+     * @param updateFunction Update function which is used to compute the updated entries. This returns the list of
+     *                       updated entries along with the index of entries which are empty and can be deleted.
+     * @param requestId      Request id.
+     * @return Future which completes when the operation is complete.
+     */
+    public CompletableFuture<Void> removeValues(final String tableName, Set<String> tableKeys, final String removeValue,
+                                                BiFunction<String, List<TableSegmentEntry>, Pair<List<TableSegmentEntry>, List<Integer>>> updateFunction,
+                                                long requestId) {
         Supplier<String> errorMessage = () -> String.format("remove values: on table: %s", tableName);
 
-        // read values and add values
-        return withRetries(() -> removeValuesTables(tableName, appendValue, tableKeys, requestId)
-                .thenApplyAsync(x -> {
-                    log.trace("appendValues {} updated to table {} with version {}", appendValue, tableName, x);
-                    return x.stream().map(v -> (Version) new Version.LongVersion(v.getSegmentVersion())).collect(Collectors.toList());
-                }), errorMessage, true, requestId);
+        // read values and remove values
+        return withRetries(() -> {
+            // Get un-versioned keys.
+            final List<TableSegmentKey> keys = tableKeys.stream()
+                                                        .map(k -> TableSegmentKey.unversioned(k.getBytes(StandardCharsets.UTF_8)))
+                                                        .collect(Collectors.toList());
+            // read entries from table.
+            return segmentHelper.readTable(tableName, keys, authToken.get(), requestId) // read the latest version of keys.
+                                .whenComplete((v, t) -> releaseKeys(keys))
+                                .thenCompose(currentEntries -> {
+                                    // Compute the updated values.
+                                    Pair<List<TableSegmentEntry>, List<Integer>> result = updateFunction.apply(removeValue, currentEntries);
+
+                                    return segmentHelper.updateTableEntries(tableName, result.getLeft(), authToken.get(), requestId)
+                                                        // Delete TagRecords with empty streams.
+                                                        .thenCompose(keyVersions -> deleteEmptyTagRecords(tableName, requestId, result.getRight(), result.getLeft(), keyVersions))
+                                                        .whenComplete((v, ex) -> {
+                                                            releaseEntries(result.getLeft());
+                                                        });
+                                });
+        }, errorMessage, true, requestId);
     }
 
+    private CompletableFuture<Void> deleteEmptyTagRecords(String tableName, long requestId, List<Integer> deleteIndex,
+                                                          List<TableSegmentEntry> updatedEntryList,
+                                                          List<TableSegmentKeyVersion> keyVersions) {
+        if (deleteIndex.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        // Compute the list of keys to be deleted.
+        List<TableSegmentKey> conditionalDeleteKeys = deleteIndex.stream()
+                                                                 .map(index -> {
+                                                                     ByteBuf keyBuf = updatedEntryList.get(index).getKey().getKey();
+                                                                     TableSegmentKeyVersion version = keyVersions.get(index);
+                                                                     return TableSegmentKey.versioned(keyBuf, version.getSegmentVersion());
+                                                                 }).collect(Collectors.toList());
+        Supplier<String> errorMessage = () -> String.format("cleanTagEntries: table: %s", tableName);
+        // attempt to do a conditional delete of the keys.
+        return withRetries(() -> segmentHelper.removeTableKeys(tableName, conditionalDeleteKeys, authToken.get(), requestId), errorMessage, requestId)
+                .exceptionally(t -> {
+                    log.info(requestId, "Clean Tag Entries failed, ignoring this exception {}", t.getMessage());
+                    return null;
+                }).whenComplete((v, t) -> releaseKeys(conditionalDeleteKeys));
+    }
 
-    public CompletableFuture<List<Version>> appendValues(final String tableName, Set<String> tableKeys, final String appendValue, long requestId) {
+    /**
+     * Append value to every entry corresponding to the provided keys.
+     *
+     * @param tableName      Table name.
+     * @param tableKeys      List of keys whose value needs to be updated.
+     * @param appendValue    Value to be appended to all the keys.
+     * @param updateFunction Update function which is used to compute the updated entries.
+     * @param requestId      Request id.
+     * @return Future which completes when the operation is complete.
+     */
+    public CompletableFuture<List<Version>> appendValues(final String tableName, Set<String> tableKeys, final String appendValue,
+                                                         BiFunction<String, List<TableSegmentEntry>, List<TableSegmentEntry>> updateFunction,
+                                                         long requestId) {
         Supplier<String> errorMessage = () -> String.format("append values: on table: %s", tableName);
-
         // read values and add values
-        return withRetries(() -> appendValuesTable(tableName, appendValue, tableKeys, requestId)
-                .thenApplyAsync(x -> {
-                    log.trace("appendValues {} updated to table {} with version {}", appendValue, tableName, x);
-                    return x.stream().map(v -> (Version) new Version.LongVersion(v.getSegmentVersion())).collect(Collectors.toList());
-                }), errorMessage, true, requestId);
-    }
-
-    private CompletableFuture<List<TableSegmentKeyVersion>> removeValuesTables(String tableName, String removeValue, Set<String> tableKeys, long requestId) {
-        // Get unversioned keys.
-        final List<TableSegmentKey> keys = tableKeys.stream()
-                                                    .map(k -> TableSegmentKey.unversioned(k.getBytes(StandardCharsets.UTF_8)))
-                                                    .collect(Collectors.toList());
-
-        CompletableFuture<List<TableSegmentEntry>> f1 = segmentHelper.readTable(tableName, keys, authToken.get(), requestId) // read the latest version of keys.
-                                                                     .whenComplete((v, ex) -> releaseKeys(keys));
-        f1.thenCompose(currentEntries -> {
-            List<TableSegmentEntry> updatedList = currentEntries.stream().map(entry -> {
-                String k = entry.getKey().getKey().toString(Charset.defaultCharset());
-                byte[] array = getArray(entry.getValue());
-                byte[] updatedBytes;
-                if (array.length == 0) {
-                    updatedBytes = TagRecord.builder().tagName(k).build().toBytes();
-                } else {
-                    TagRecord record = TagRecord.fromBytes(array);
-                    TagRecord tep = record.toBuilder().removeStream(removeValue).build();
-                    updatedBytes = tep.toBytes();
-                }
-                return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
-                                                   updatedBytes,
-                                                   entry.getKey().getVersion().getSegmentVersion());
-
-            }).collect(Collectors.toList());
-            return segmentHelper.updateTableEntries(tableName, updatedList, authToken.get(), requestId)
-                                .whenComplete((v, ex) -> releaseEntries(updatedList));
-        });
-        return CompletableFuture.completedFuture(Collections.emptyList());
-    }
-
-    private CompletableFuture<List<TableSegmentKeyVersion>> appendValuesTable(String tableName, String appendValue, Set<String> tableKeys, long requestId) {
-        // Get unversioned keys.
-        final List<TableSegmentKey> keys = tableKeys.stream()
-                                                    .map(k -> TableSegmentKey.unversioned(k.getBytes(StandardCharsets.UTF_8)))
-                                                    .collect(Collectors.toList());
-        return segmentHelper.readTable(tableName, keys, authToken.get(), requestId) // read the latest version of keys.
-                            .whenComplete((v, ex) -> releaseKeys(keys))
-                            .thenCompose(currentEntries -> {
-
-                                List<TableSegmentEntry> updatedList = currentEntries.stream().map(entry -> {
-                                    String k = entry.getKey().getKey().toString(StandardCharsets.UTF_8);
-                                    byte[] array = getArray(entry.getValue());
-                                    byte[] updatedBytes;
-                                    if (array.length == 0) {
-                                        updatedBytes = TagRecord.builder().tagName(k).stream(appendValue).build().toBytes();
-                                    } else {
-                                        TagRecord record = TagRecord.fromBytes(array);
-                                        updatedBytes = record.toBuilder().stream(appendValue).build().toBytes();
-                                    }
-                                    return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
-                                                                       updatedBytes,
-                                                                       entry.getKey().getVersion().getSegmentVersion());
-
-                                }).collect(Collectors.toList());
-                                return segmentHelper.updateTableEntries(tableName, updatedList, authToken.get(), requestId)
-                                                    .whenComplete((v, ex) -> releaseEntries(updatedList));
-                            });
+        return withRetries(() -> {
+            // Get un-versioned keys.
+            final List<TableSegmentKey> keys = tableKeys.stream()
+                                                        .map(k -> TableSegmentKey.unversioned(k.getBytes(StandardCharsets.UTF_8)))
+                                                        .collect(Collectors.toList());
+            return segmentHelper.readTable(tableName, keys, authToken.get(), requestId) // read the latest version of keys.
+                                .whenComplete((v, ex) -> releaseKeys(keys))
+                                .thenCompose(currentEntries -> {
+                                    List<TableSegmentEntry> updatedList = updateFunction.apply(appendValue, currentEntries);
+                                    return segmentHelper.updateTableEntries(tableName, updatedList, authToken.get(), requestId)
+                                                        .whenComplete((v, ex) -> releaseEntries(updatedList));
+                                })
+                                .thenApplyAsync(x -> {
+                                    log.trace("appendValues {} updated to table {} with version {}", appendValue, tableName, x);
+                                    return x.stream().map(v -> (Version) new Version.LongVersion(v.getSegmentVersion())).collect(Collectors.toList());
+                                });
+        }, errorMessage, true, requestId);
     }
 
     /**
@@ -836,7 +847,7 @@ public class PravegaTablesStoreHelper {
                 });
     }
 
-    private byte[] getArray(ByteBuf buf) {
+    byte[] getArray(ByteBuf buf) {
         final byte[] bytes = new byte[buf.readableBytes()];
         final int readerIndex = buf.readerIndex();
         buf.getBytes(readerIndex, bytes);

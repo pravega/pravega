@@ -100,7 +100,6 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -761,18 +760,15 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(configProperty -> {
                     // 2. post event to start update workflow
                     if (!configProperty.getObject().isUpdating()) {
-                        Set<String> currentTags = new HashSet<>(configProperty.getObject().getStreamConfiguration().getTags());
-                        currentTags.removeAll(newConfig.getTags());
-                        return removeTagIndexEntries(scope, stream, currentTags, context ).thenCompose(v ->
-                            eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(
-                                    new UpdateStreamEvent(scope, stream, requestId),
-                                    // 3. update new configuration in the store with updating flag = true
-                                    // if attempt to update fails, we bail out with no harm done
-                                    () -> streamMetadataStore.startUpdateConfiguration(scope, stream, newConfig,
-                                            context, executor))
-                                    // 4. wait for update to complete
-                                    .thenCompose(x -> eventHelper.checkDone(() -> isUpdated(scope, stream, newConfig, context))
-                                            .thenApply(y -> UpdateStreamStatus.Status.SUCCESS))));
+                        return eventHelperFuture.thenCompose(eventHelper -> eventHelper.addIndexAndSubmitTask(
+                                new UpdateStreamEvent(scope, stream, requestId),
+                                // 3. update new configuration in the store with updating flag = true
+                                // if attempt to update fails, we bail out with no harm done
+                                () -> streamMetadataStore.startUpdateConfiguration(scope, stream, newConfig,
+                                        context, executor))
+                                // 4. wait for update to complete
+                                .thenCompose(x -> eventHelper.checkDone(() -> isUpdated(scope, stream, newConfig, context))
+                                        .thenApply(y -> UpdateStreamStatus.Status.SUCCESS)));
                     } else {
                         log.error(requestId, "Another update in progress for {}/{}",
                                 scope, stream);
@@ -783,14 +779,6 @@ public class StreamMetadataTasks extends TaskBase {
                     final String message = "Exception updating stream configuration {}";
                     return handleUpdateStreamError(ex, requestId, message, NameUtils.getScopedStreamName(scope, stream));
                 });
-    }
-
-    private CompletableFuture<Void> removeTagIndexEntries(String scope, String stream, Set<String> removeTags, OperationContext context) {
-        if (!removeTags.isEmpty()) {
-            return streamMetadataStore.removeTagsFromIndex(scope, stream, removeTags, context, executor);
-        } else {
-            return CompletableFuture.completedFuture(null);
-        }
     }
 
     @VisibleForTesting

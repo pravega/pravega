@@ -290,7 +290,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     public CompletableFuture<Void> addStreamTagsToIndex(String scope, String streamName, StreamConfiguration config,
                                                         OperationContext ctx, Executor executor) {
         OperationContext context = getOperationContext(ctx);
-        if (streamName.startsWith(NameUtils.INTERNAL_NAME_PREFIX)) {
+        if (streamName.startsWith(NameUtils.INTERNAL_NAME_PREFIX) || config.getTags().isEmpty()) {
             // Tags are not allowed on internal streams.
             return CompletableFuture.completedFuture(null);
         } else {
@@ -303,7 +303,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     public CompletableFuture<Void> removeTagsFromIndex(String scope, String streamName, Set<String> tagsRemoved,
                                                        OperationContext ctx, Executor executor) {
         OperationContext context = getOperationContext(ctx);
-        if (streamName.startsWith(NameUtils.INTERNAL_NAME_PREFIX)) {
+        if (streamName.startsWith(NameUtils.INTERNAL_NAME_PREFIX) || tagsRemoved.isEmpty()) {
             // Tags are not allowed on internal streams.
             return CompletableFuture.completedFuture(null);
         } else {

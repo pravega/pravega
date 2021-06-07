@@ -111,9 +111,7 @@ public class ControllerServiceTest {
         final String scope = "sc";
         final String stream = "st";
         final String stream2 = "st2";
-        StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                                                                     .scalingPolicy(ScalingPolicy.fixed(1))
-                                                                     .build();
+
         Controller controller = controllerWrapper.getController();
         controller.createScope(scope).join();
         System.out.println("scope created");
@@ -135,6 +133,17 @@ public class ControllerServiceTest {
 
         // List Streams with tag t2. two stream should be listed
         assertEquals(Arrays.asList(stream2, stream), listStreamsForTag(scope, controller, "t2"));
+
+        controller.sealStream(scope, stream2).join();
+        controller.deleteStream(scope, stream2).join();
+
+        // List Streams with tag t2. two stream should be listed
+        assertEquals(Arrays.asList(stream), listStreamsForTag(scope, controller, "t2"));
+        assertEquals(strCfgNew, controller.getStreamConfiguration(scope, stream).join());
+
+        controller.sealStream(scope, stream).join();
+        controller.deleteStream(scope, stream).join();
+        assertEquals(Collections.emptyList(), listStreamsForTag(scope, controller, "t2"));
 
     }
 
