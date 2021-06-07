@@ -20,7 +20,6 @@ import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.KeyValueTableManagerImpl;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -48,7 +47,6 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -127,7 +125,7 @@ public class ScopeTest {
         // fetch tags of a non-existent stream.
         AssertExtensions.assertThrows("Non-existent Stream",
                                       () -> manager.getStreamTags(scope, stream1),
-                                      t -> t instanceof StatusRuntimeException  && (((StatusRuntimeException)t).getStatus().getCode().equals(Status.Code.NOT_FOUND)));
+                                      t -> t instanceof StatusRuntimeException && (((StatusRuntimeException) t).getStatus().getCode().equals(Status.Code.NOT_FOUND)));
 
         manager.createStream(scope, stream1, cfg.toBuilder().tags(tagSet1).build());
         manager.createStream(scope, stream2, cfg.toBuilder().tags(tagSet2).build());
