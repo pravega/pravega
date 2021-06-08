@@ -86,13 +86,15 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     private final ConnectionFactory connectionFactory;
     private final AuthorizationResource authorizationResource = new AuthorizationResourceImpl();
     private final Random requestIdGenerator = new Random();
+    private final ClientConfig clientConfig;
 
     public StreamMetadataResourceImpl(LocalController localController, ControllerService controllerService, 
-                                      AuthHandlerManager pravegaAuthManager, ConnectionFactory connectionFactory) {
+                                      AuthHandlerManager pravegaAuthManager, ConnectionFactory connectionFactory, ClientConfig clientConfig) {
         this.localController = localController;
         this.controllerService = controllerService;
         this.restAuthHelper = new RESTAuthHelper(pravegaAuthManager);
         this.connectionFactory = connectionFactory;
+        this.clientConfig = clientConfig;
     }
 
     /**
@@ -330,7 +332,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             return;
         }
 
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this.localController, ClientConfig.builder().build());
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scopeName, this.localController, this.clientConfig);
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, this.localController, clientFactory);
         ReaderGroupProperty readerGroupProperty = new ReaderGroupProperty();
         readerGroupProperty.setScopeName(scopeName);
