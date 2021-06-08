@@ -308,10 +308,10 @@ public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
         assertEquals(taken2, event2);
 
         // 3. Fail processing on processor 1 
-        waitForIt1.completeExceptionally(new RuntimeException());
+        waitForIt1.completeExceptionally(new IllegalArgumentException());
 
         // processing11 should complete successfully.
-        AssertExtensions.assertFutureThrows("", processing11, e -> Exceptions.unwrap(e) instanceof RuntimeException); 
+        AssertExtensions.assertFutureThrows("", processing11, e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
 
         // set ignore started to true
         requestProcessor1.ignoreStarted = true;
