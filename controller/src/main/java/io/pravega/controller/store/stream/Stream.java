@@ -586,7 +586,7 @@ interface Stream {
      * @param limit maximum number of transactions to include in a commit batch 
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions(int limit, 
+    CompletableFuture<Map.Entry<VersionedMetadata<CommittingTransactionsRecord>, List<VersionedTransactionData>>> startCommittingTransactions(int limit, 
                                                                                                    OperationContext context);
 
     /**
@@ -608,16 +608,8 @@ interface Stream {
      * @param record existing versioned record.
      */
     CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
-                                                           OperationContext context);
-
-    /**
-     * Method to record commit offset for a transaction. This method stores the commit offset in ActiveTransaction record. 
-     * Its behaviour is idempotent and if a transaction already has commitOffsets set earlier, they are not overwritten. 
-     * @param txnId transaction id
-     * @param commitOffsets segment to offset position where transaction was committed
-     * @return A completableFuture which, when completed, will have transaction commit offset recorded successfully.
-     */
-    CompletableFuture<Void> recordCommitOffsets(UUID txnId, Map<Long, Long> commitOffsets, OperationContext context);
+                                                           OperationContext context, Map<String, Long> writerTimes,
+                                                           Map<String, Map<Long, Long>> writerIdToTxnOffsets);
     
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.

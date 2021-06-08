@@ -387,7 +387,7 @@ public abstract class ControllerEventProcessorTest {
         assertEquals(expectedStatus, txnStatus);
     }
 
-    @Test(timeout = 10000)
+    @Test//(timeout = 10000)
     public void testMarkOnCommit() {
         UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000,

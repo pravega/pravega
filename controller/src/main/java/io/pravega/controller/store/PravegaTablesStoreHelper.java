@@ -357,7 +357,7 @@ public class PravegaTablesStoreHelper {
      */
     public <T> CompletableFuture<VersionedMetadata<T>> getEntry(String tableName, String key, Function<byte[], T> fromBytes,
                                                                 long requestId) {
-        log.trace(requestId, "get entry called for : {} key : {}", tableName, key);
+        log.info(requestId, "get entry called for : {} key : {}", tableName, key);
         List<TableSegmentKey> keys = Collections.singletonList(TableSegmentKey.unversioned(key.getBytes(Charsets.UTF_8)));
         CompletableFuture<VersionedMetadata<T>> result = new CompletableFuture<>();
         String message = "get entry: key: %s table: %s";

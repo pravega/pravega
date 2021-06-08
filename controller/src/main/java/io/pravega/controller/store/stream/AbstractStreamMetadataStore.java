@@ -952,7 +952,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(
+    public CompletableFuture<Map.Entry<VersionedMetadata<CommittingTransactionsRecord>, List<VersionedTransactionData>>> startCommitTransactions(
             String scope, String stream, int limit, OperationContext ctx, ScheduledExecutorService executor) {
         OperationContext context = getOperationContext(ctx);
         return Futures.completeOn(getStream(scope, stream, context).startCommittingTransactions(limit, context), executor);
@@ -966,21 +966,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> recordCommitOffsets(String scope, String stream, UUID txnId, Map<Long, Long> commitOffsets, 
-                                                       OperationContext ctx, ScheduledExecutorService executor) {
-        OperationContext context = getOperationContext(ctx);
-        return Futures.completeOn(getStream(scope, stream, context).recordCommitOffsets(txnId, commitOffsets, context), 
-                executor);
-    }
-
-    @Override
     public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, 
                                                               VersionedMetadata<CommittingTransactionsRecord> record,
-                                                              OperationContext ctx, ScheduledExecutorService executor) {
+                                                              OperationContext ctx, ScheduledExecutorService executor,
+                                                              Map<String, Long> writerTimes,
+                                                              Map<String, Map<Long, Long>> writerIdToTxnOffsets) {
         Timer timer = new Timer();
         OperationContext context = getOperationContext(ctx);
         Stream streamObj = getStream(scope, stream, context);
-        return Futures.completeOn(streamObj.completeCommittingTransactions(record, context), executor)
+        return Futures.completeOn(streamObj.completeCommittingTransactions(record, context, writerTimes, writerIdToTxnOffsets), executor)
                 .thenAcceptAsync(result -> {
                     streamObj.getNumberOfOngoingTransactions(context).thenAccept(count ->
                             TransactionMetrics.reportOpenTransactions(scope, stream, count));
