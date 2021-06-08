@@ -63,6 +63,14 @@ public interface Scope {
     CompletableFuture<Pair<List<String>, String>> listStreams(final int limit, final String continuationToken, Executor executor,
                                                               OperationContext context);
 
+    /**
+     * A paginated api on the scope to get streams with the specified tag starting from the continuation token.
+     * @param tag Stream Tag.
+     * @param continuationToken Continuation token from where to start.
+     * @param executor executor.
+     * @param context operation context.
+     * @return A fture, when upon completion, will hold a pair of list of stream names and a new continuation token.
+     */
     CompletableFuture<Pair<List<String>, String>> listStreamsForTag(final String tag, final String continuationToken, Executor executor,
                                                               OperationContext context);
 

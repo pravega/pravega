@@ -143,7 +143,7 @@ public class InMemoryScope implements Scope {
 
     @Override
     public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(String tag, String continuationToken, Executor executor, OperationContext context) {
-        throw new UnsupportedOperationException("Not Implemented");
+        return Futures.failedFuture(new UnsupportedOperationException("Not implmemented"));
     }
 
     @Synchronized

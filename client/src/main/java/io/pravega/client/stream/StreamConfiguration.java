@@ -35,7 +35,13 @@ import lombok.Singular;
 public class StreamConfiguration implements Serializable {
 
     private static final long serialVersionUID = 1L;
+    /*
+       Maximum number of Tags per Stream is 128.
+     */
     private static final int MAX_TAG_COUNT = 128;
+    /*
+       Maximum length of each Tag is 256 characters.
+     */
     private static final int MAX_TAG_LENGTH = 256;
 
     /**

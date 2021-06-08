@@ -42,6 +42,9 @@ import java.util.Set;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
 
+/**
+ * Data class for Tag Record.
+ */
 @Data
 @Builder(toBuilder = true)
 public class TagRecord {
