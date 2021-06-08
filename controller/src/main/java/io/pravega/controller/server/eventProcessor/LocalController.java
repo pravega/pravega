@@ -650,6 +650,12 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<KeyValueTableConfiguration> getKeyValueTableConfiguration(String scope, String kvtName) {
+        return this.controller.getKeyValueTableConfiguration(scope, kvtName, requestIdGenerator.nextLong())
+                .thenApply(ModelHelper::encode);
+    }
+
+    @Override
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
         return this.controller.deleteKeyValueTable(scope, kvtName, requestIdGenerator.nextLong()).thenApply(x -> {
             switch (x.getStatus()) {

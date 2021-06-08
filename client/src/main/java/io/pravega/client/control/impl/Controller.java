@@ -478,6 +478,16 @@ public interface Controller extends AutoCloseable {
     AsyncIterator<KeyValueTableInfo> listKeyValueTables(final String scopeName);
 
     /**
+     * API to get the {@link KeyValueTableConfiguration}.
+     *
+     * @param scope   Scope
+     * @param kvtName KeyValueTable name
+     * @return A future which will throw if the operation fails, otherwise returning the KeyValueTableConfiguration of
+     * the corresponding KeyValueTable name.
+     */
+    CompletableFuture<KeyValueTableConfiguration> getKeyValueTableConfiguration(final String scope, final String kvtName);
+
+    /**
      * API to delete a KeyValueTable. Only a sealed KeyValueTable can be deleted.
      *
      * @param scope   Scope name.

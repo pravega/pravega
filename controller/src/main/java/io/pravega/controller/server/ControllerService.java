@@ -32,6 +32,7 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.SegmentRecord;
+import io.pravega.controller.store.kvtable.KeyValueTable;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
@@ -127,6 +128,8 @@ public class ControllerService {
         Preconditions.checkNotNull(kvtConfig, "kvTableConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
         Preconditions.checkArgument(kvtConfig.getPartitionCount() > 0);
+        Preconditions.checkArgument(kvtConfig.getPrimaryKeyLength() > 0);
+        Preconditions.checkArgument(kvtConfig.getSecondaryKeyLength() > 0);
         Timer timer = new Timer();
         try {
             NameUtils.validateUserKeyValueTableName(kvtName);
@@ -166,6 +169,15 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         OperationContext context = streamStore.createScopeContext(scope, requestId);
         return kvtMetadataStore.listKeyValueTables(scope, token, limit, context, executor);
+    }
+
+    public CompletableFuture<Controller.KeyValueTableConfig> getKeyValueTableConfiguration(final String scope, final String kvtName,
+                                                                                                   final long requestId) {
+        Exceptions.checkNotNullOrEmpty(scope, "Scope name");
+        Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTable name.");
+        OperationContext context = kvtMetadataStore.createContext(scope, kvtName, requestId);
+        return kvtMetadataStore.getKVTable(scope, kvtName, context)
+                .getConfiguration(context).thenApplyAsync(conf -> ModelHelper.decode(scope, kvtName, conf));
     }
 
     /**

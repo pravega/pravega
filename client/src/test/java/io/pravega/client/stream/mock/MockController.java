@@ -785,6 +785,12 @@ public class MockController implements Controller {
 
     @Override
     @Synchronized
+    public CompletableFuture<KeyValueTableConfiguration> getKeyValueTableConfiguration(String scope, String kvtName) {
+        return CompletableFuture.completedFuture(getKeyValueTableConfiguration(new KeyValueTableInfo(scope, kvtName)));
+    }
+
+    @Override
+    @Synchronized
     public CompletableFuture<KeyValueTableSegments> getCurrentSegmentsForKeyValueTable(String scope, String kvtName) {
         return CompletableFuture.completedFuture(getCurrentSegments(new KeyValueTableInfo(scope, kvtName)));
     }

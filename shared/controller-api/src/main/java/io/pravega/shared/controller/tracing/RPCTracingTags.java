@@ -47,6 +47,7 @@ public final class RPCTracingTags {
     public static final String REMOVE_WRITER = "removeWriter";
     public static final String CREATE_KEY_VALUE_TABLE = "createKeyValueTable";
     public static final String LIST_KEY_VALUE_TABLES = "listKeyValueTables";
+    public static final String GET_KEY_VALUE_TABLE_CONFIGURATION = "getKeyValueTableConfiguration";
     public static final String DELETE_KEY_VALUE_TABLE = "deleteKeyValueTable";
     public static final String CREATE_READER_GROUP = "createReaderGroup";
     public static final String UPDATE_READER_GROUP = "updateReaderGroup";

@@ -138,7 +138,8 @@ public class TableMetadataTasks implements AutoCloseable {
                                            UUID id = kvtMetadataStore.newScope(scope).newId();
 
                                            CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(),
-                                                        createTimestamp, requestId, id);
+                                                   kvtConfig.getPrimaryKeyLength(), kvtConfig.getSecondaryKeyLength(),
+                                                   createTimestamp, requestId, id);
                                            //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
                                            return eventHelper.addIndexAndSubmitTask(event,
                                                    () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, id, 

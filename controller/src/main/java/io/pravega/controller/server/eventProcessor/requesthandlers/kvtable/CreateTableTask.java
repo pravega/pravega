@@ -63,13 +63,15 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
         String scope = request.getScopeName();
         String kvt = request.getKvtName();
         int partitionCount = request.getPartitionCount();
+        int primaryKeyLength = request.getPrimaryKeyLength();
+        int secondaryKeyLength = request.getSecondaryKeyLength();
         long creationTime = request.getTimestamp();
         long requestId = request.getRequestId();
         String kvTableId = request.getTableId().toString();
         KeyValueTableConfiguration config = KeyValueTableConfiguration.builder()
                                             .partitionCount(partitionCount)
-                                            .primaryKeyLength(4) // TODO fix this with https://github.com/pravega/pravega/issues/5939
-                                            .secondaryKeyLength(4) // TODO fix this with https://github.com/pravega/pravega/issues/5939
+                                            .primaryKeyLength(primaryKeyLength)
+                                            .secondaryKeyLength(secondaryKeyLength)
                                             .build();
 
         final OperationContext context = kvtMetadataStore.createContext(scope, kvt, requestId);

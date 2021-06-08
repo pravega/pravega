@@ -1255,6 +1255,24 @@ public class ControllerImplTest {
             }
 
             @Override
+            public void getKeyValueTableConfiguration(KeyValueTableInfo request,
+                                                      StreamObserver<KeyValueTableConfig> responseObserver) {
+                KeyValueTableConfiguration config = KeyValueTableConfiguration.builder()
+                        .partitionCount(Integer.BYTES)
+                        .primaryKeyLength(Integer.BYTES)
+                        .secondaryKeyLength(Integer.BYTES)
+                        .build();
+                if (request.getKvtName().equals("kvtable1")) {
+                    responseObserver.onNext(ModelHelper.decode(request.getScope(), request.getKvtName(), config));
+                    responseObserver.onCompleted();
+                } else if (request.getKvtName().equals("kvtable2")) {
+                    responseObserver.onError(Status.NOT_FOUND.asRuntimeException());
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
             public void deleteKeyValueTable(KeyValueTableInfo request,
                                      StreamObserver<DeleteKVTableStatus> responseObserver) {
                 if (request.getKvtName().equals("kvtable1")) {
@@ -2299,6 +2317,22 @@ public class ControllerImplTest {
         AssertExtensions.assertFutureThrows("failing request",
                 controllerClient.listKeyValueTables(FAILING).getNext(),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
+    }
+
+    @Test
+    public void testGetKeyValueTableConfiguration() {
+        CompletableFuture<KeyValueTableConfiguration> kvtConfig = controllerClient.getKeyValueTableConfiguration("scope1", "kvtable1");
+        assertEquals(Integer.BYTES, kvtConfig.join().getPartitionCount());
+        assertEquals(Integer.BYTES, kvtConfig.join().getPrimaryKeyLength());
+        assertEquals(Integer.BYTES, kvtConfig.join().getSecondaryKeyLength());
+
+        kvtConfig = controllerClient.getKeyValueTableConfiguration("scope1", "kvtable2");
+        AssertExtensions.assertFutureThrows("Server should throw exception", kvtConfig,
+                t -> (t instanceof StatusRuntimeException) && ((StatusRuntimeException) t).getStatus().equals(Status.NOT_FOUND));
+
+        kvtConfig = controllerClient.getKeyValueTableConfiguration("scope1", "failing request");
+        AssertExtensions.assertFutureThrows("Server should throw exception", kvtConfig,
+                t -> t instanceof RetriesExhaustedException);
     }
 
     @Test
