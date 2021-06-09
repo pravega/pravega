@@ -118,10 +118,7 @@ public class AutoScaleProcessor implements AutoCloseable {
         this.startInitWriter = new AtomicBoolean(false);
         
         if (simpleCache == null) {
-            this.cache = new SimpleCache<>(MAX_CACHE_SIZE, configuration.getCacheExpiry(), (k, v) -> {
-                System.out.println("added::Scaling down segment" + k );
-                triggerScaleDown(k, true);
-            });
+            this.cache = new SimpleCache<>(MAX_CACHE_SIZE, configuration.getCacheExpiry(), (k, v) -> triggerScaleDown(k, true));
         } else {
             this.cache = simpleCache;
         }
@@ -290,7 +287,7 @@ public class AutoScaleProcessor implements AutoCloseable {
         long currentTime = getTimeMillis();
         if (currentTime - startTime > configuration.getCooldownDuration().toMillis()) {
             log.debug("cool down period elapsed for {}", streamSegmentName);
-            
+
             // report to see if a scale operation needs to be performed.
             if ((twoMinuteRate > 5.0 * targetRate && currentTime - startTime > TWO_MINUTES) ||
                     (fiveMinuteRate > 2.0 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
