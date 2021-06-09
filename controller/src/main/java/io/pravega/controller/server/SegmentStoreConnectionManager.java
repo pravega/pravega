@@ -329,6 +329,11 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         }
 
         @Override
+        public void segmentsMergedBatch(WireCommands.SegmentsMergedBatch segmentsMerged) {
+            execute(ReplyProcessor::segmentsMergedBatch, segmentsMerged);
+        }
+
+        @Override
         public void segmentSealed(WireCommands.SegmentSealed segmentSealed) {
             execute(ReplyProcessor::segmentSealed, segmentSealed);
         }

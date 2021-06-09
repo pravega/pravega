@@ -1263,6 +1263,44 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class MergeSegmentsBatch implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.MERGE_SEGMENTS_BATCH;
+        final long requestId;
+        final String target;
+        final List<String> sources;
+        @ToString.Exclude
+        final String delegationToken;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.mergeSegmentsBatch(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(target);
+            out.writeInt(sources.size());
+            for (int i = 0; i < sources.size(); i++) {
+                out.writeUTF(sources.get(i));   
+            }
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String target = in.readUTF();
+            int sourceCount = in.readInt();
+            List<String> sources = new ArrayList<>(sourceCount);
+            for (int i = 0; i < sourceCount; i++) {
+                sources.add(in.readUTF());
+            }
+            String delegationToken = in.readUTF();
+            return new MergeSegmentsBatch(requestId, target, sources, delegationToken);
+        }
+    }
+
+    @Data
     public static final class MergeTableSegments implements Request, WireCommand {
         final WireCommandType type = WireCommandType.MERGE_TABLE_SEGMENTS;
         final long requestId;
@@ -1320,6 +1358,45 @@ public final class WireCommands {
             String source = in.readUTF();
             long newTargetWriteOffset = in.available() > 0 ? in.readLong() : -1;
             return new SegmentsMerged(requestId, target, source, newTargetWriteOffset);
+        }
+    }
+    
+    @Data
+    public static final class SegmentsMergedBatch implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENTS_MERGED_BATCH;
+        final long requestId;
+        final String target;
+        final List<String> sources;
+        final List<Long> newTargetWriteOffset;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.segmentsMergedBatch(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(target);
+            out.writeInt(sources.size());
+            for (int i = 0; i < sources.size(); i++) {
+                out.writeUTF(sources.get(i));
+                out.writeLong(newTargetWriteOffset.get(i));
+            }
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String target = in.readUTF();
+            int count = in.readInt();
+            List<String> sources = new ArrayList<>(count);
+            List<Long> offsets = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                sources.add(in.readUTF());
+                offsets.add(in.readLong());
+            }
+
+            return new SegmentsMergedBatch(requestId, target, sources, offsets);
         }
     }
 

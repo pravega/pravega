@@ -34,6 +34,7 @@ import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.CommitEvent;
+import lombok.val;
 import org.apache.curator.shaded.com.google.common.base.Strings;
 import org.slf4j.LoggerFactory;
 
@@ -366,28 +367,16 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // if honoured and is based on the order in the list.
         Map<UUID, Map<Long, Long>> txnOffsets = new HashMap<>();
-        CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
-        for (UUID txnId : transactionsToCommit) {
-            log.info(context.getRequestId(), "Committing transaction {} on stream {}/{}", txnId, scope, stream);
-            // commit transaction in segment store
-            future = future
-                    // Note, we can use the same segments and transaction id as only
-                    // primary id is taken for creation of txn-segment name and secondary part is erased and replaced with
-                    // transaction's epoch.
-                    // And we are creating duplicates of txn epoch keeping the primary same.
-                    // After committing transactions, we collect the current sizes of segments and update the offset 
-                    // at which the transaction was committed into ActiveTxnRecord in an idempotent fashion. 
-                    // Note: if its a rerun, transaction commit offsets may have been updated already in previous iteration
-                    // so this will not update/modify it. 
-                    .thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId, context.getRequestId()))
-                    .thenAccept(x -> {
-                        txnOffsets.put(txnId, x);  
-                    });
-        }
-
-        return future
-                .thenCompose(v -> bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope,
-                        stream, executor))
+        return streamMetadataTasks.notifyTxnsCommit(scope, stream, segments, transactionsToCommit, context.getRequestId())
+                .thenCompose(map -> {
+                    for (int i = 0; i < transactionsToCommit.size(); i++) {
+                        int index = i;
+                        val entry = map.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().get(index)));
+                        txnOffsets.put(transactionsToCommit.get(i), entry);
+                    }
+                    return bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope,
+                            stream, executor);
+                })
                 .thenApply(v -> {
                     TransactionMetrics.getInstance().reportCommitTransactionBatchCount(scope, stream, transactionsToCommit.size());
                     return txnOffsets;
