@@ -26,21 +26,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
-import io.pravega.controller.store.stream.records.CompletedTxnRecord;
-import io.pravega.controller.store.stream.records.EpochRecord;
-import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.HistoryTimeSeries;
-import io.pravega.controller.store.stream.records.RetentionSet;
-import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
-import io.pravega.controller.store.stream.records.StateRecord;
-import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
-import io.pravega.controller.store.stream.records.StreamCutRecord;
-import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.store.stream.records.StreamSubscriber;
-import io.pravega.controller.store.stream.records.Subscribers;
+import io.pravega.controller.store.stream.records.*;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
@@ -109,6 +95,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT = "segmentsSealedSizeMapShard-%d";
     private static final String SEGMENT_SEALED_EPOCH_KEY_FORMAT = "segmentSealedEpochPath-%d"; // segment id
     private static final String COMMITTING_TRANSACTIONS_RECORD_KEY = "committingTxns";
+    private static final String COMMITTING_TRANSACTIONS_COUNT_KEY = "committingTxnsCount";
     private static final String SEGMENT_MARKER_PATH_FORMAT = "markers-%d";
     private static final String WAITING_REQUEST_PROCESSOR_PATH = "waitingRequestProcessor";
 
@@ -1248,13 +1235,28 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateCommittingTxnRecord(VersionedMetadata<CommittingTransactionsRecord> update, 
+    CompletableFuture<Version> updateCommittingTxnRecord(VersionedMetadata<CommittingTransactionsRecord> update,
                                                          OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, COMMITTING_TRANSACTIONS_RECORD_KEY,
                         update.getObject(), CommittingTransactionsRecord::toBytes, update.getVersion(), context.getRequestId()));
+    }
+
+    @Override
+    CompletableFuture<Version> updateCommittingTxnsCount(int txnCount, OperationContext context) {
+        Preconditions.checkNotNull(context, "operation context cannot be null");
+
+        return getMetadataTable(context)
+                .thenCompose(metadataTable -> storeHelper.getCachedOrLoad(metadataTable, COMMITTING_TRANSACTIONS_COUNT_KEY,
+                        CommittingTxnsCountRecord::fromBytes, context.getOperationStartTime(), context.getRequestId())
+                .thenCompose(oldCount -> {
+                    VersionedMetadata<CommittingTxnsCountRecord> update = new VersionedMetadata<>(CommittingTxnsCountRecord.builder()
+                            .committingTransactionsCount(txnCount).build(), oldCount.getVersion());
+                    return storeHelper.updateEntry(metadataTable, COMMITTING_TRANSACTIONS_COUNT_KEY,
+                            update.getObject(), CommittingTxnsCountRecord::toBytes, update.getVersion(), context.getRequestId());
+                }));
     }
 
     @Override

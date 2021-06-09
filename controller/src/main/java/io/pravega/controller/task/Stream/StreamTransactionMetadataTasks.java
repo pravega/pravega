@@ -114,7 +114,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final GrpcAuthHelper authHelper) {
+                                          final GrpcAuthHelper authHelper,
+                                          final int openTxnsLimit) {
         this.hostId = hostId;
         this.executor = executor;
         this.eventExecutor = eventExecutor;
@@ -135,8 +136,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, executor, hostId, timeoutServiceConfig, taskCompletionQueue, authHelper);
+                                          final GrpcAuthHelper authHelper,
+                                          final int openTxnsLimit) {
+        this(streamMetadataStore, segmentHelper, executor, executor, hostId, timeoutServiceConfig, taskCompletionQueue, authHelper, openTxnsLimit);
     }
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
@@ -145,9 +147,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService eventExecutor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          final GrpcAuthHelper authHelper) {
+                                          final GrpcAuthHelper authHelper,
+                                          final int openTxnsLimit) {
         this(streamMetadataStore, segmentHelper, executor, eventExecutor, hostId, timeoutServiceConfig, 
-                null, authHelper);
+                null, authHelper, openTxnsLimit);
     }
 
     @VisibleForTesting
@@ -155,8 +158,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, executor, hostId, TimeoutServiceConfig.defaultConfig(), authHelper);
+                                          final GrpcAuthHelper authHelper,
+                                          final int openTxnsLimit) {
+        this(streamMetadataStore, segmentHelper, executor, executor, hostId, TimeoutServiceConfig.defaultConfig(), authHelper, openTxnsLimit);
     }
 
     private void setReady() {
