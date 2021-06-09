@@ -39,7 +39,9 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger createTxnCreateInStoreLatency;
     private final OpStatsLogger createTxnAddToTimeoutSvcLatency;
     private final OpStatsLogger commitTransactionLatency;
+    private final OpStatsLogger commitTransactionLatencyAvg;
     private final OpStatsLogger commitTransactionSegmentsLatency;
+    private final OpStatsLogger commitTransactionSegmentsLatencyAvg;
     private final OpStatsLogger committingTxnAddToIndexLatency;
     private final OpStatsLogger committingTxnSealLatency;
     private final OpStatsLogger committingTxnWriteEventLatency;
@@ -61,7 +63,9 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
         createTransactionSegmentsLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_SEGMENTS_LATENCY);
         commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
+        commitTransactionLatencyAvg = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY_AVG);
         commitTransactionSegmentsLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_LATENCY);
+        commitTransactionSegmentsLatencyAvg = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_LATENCY_AVG);
         committingTransactionLatency = STATS_LOGGER.createStats(COMMITTING_TRANSACTION_LATENCY);
         abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
         abortTransactionSegmentsLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_SEGMENTS_LATENCY);
@@ -233,6 +237,12 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         commitTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
+    public void commitTransactionAvg(String scope, String streamName, Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(COMMIT_TRANSACTION), 1);
+        DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION, 1, streamTags(scope, streamName));
+        commitTransactionLatencyAvg.reportSuccessValue(latency.toMillis());
+    }
+
     /**
      * This method reports the latency of managing segments for a particular commit Transaction.
      *
@@ -240,6 +250,15 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
      */
     public void commitTransactionSegments(Duration latency) {
         commitTransactionSegmentsLatency.reportSuccessValue(latency.toMillis());
+    }
+    
+    /**
+     * This method reports the latency of managing segments for a particular commit Transaction.
+     *
+     * @param latency      Time elapsed to merge the segments related to the committed transaction.
+     */
+    public void commitTransactionSegmentsAvg(Duration latency) {
+        commitTransactionSegmentsLatencyAvg.reportSuccessValue(latency.toMillis());
     }
 
     /**
