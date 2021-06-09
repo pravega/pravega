@@ -91,6 +91,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.exceptions.misusing.NullInsteadOfMockException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -843,7 +844,7 @@ public abstract class RequestHandlersTest {
                 System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
-        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+        doAnswer(x -> Futures.failedFuture(new NullPointerException()))
                 .when(segmentHelper).updatePolicy(anyString(), anyString(), any(), anyLong(), anyString(), anyLong());
         
         // 2. start process --> this should fail with a retryable exception while talking to segment store!
@@ -854,7 +855,7 @@ public abstract class RequestHandlersTest {
         
         UpdateStreamEvent event = new UpdateStreamEvent(fairness, fairness, 0L);
         AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+                e -> Exceptions.unwrap(e) instanceof NullPointerException);
 
         verify(segmentHelper, atLeastOnce()).updatePolicy(anyString(), anyString(), any(), anyLong(), anyString(), anyLong());
         
@@ -895,7 +896,8 @@ public abstract class RequestHandlersTest {
                 System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
-        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+        Exception exception = StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Some processing exception");
+        doAnswer(x -> Futures.failedFuture(exception))
                 .when(segmentHelper).truncateSegment(anyString(), anyString(), anyLong(), anyLong(), anyString(), anyLong());
         
         // 2. start process --> this should fail with a retryable exception while talking to segment store!
@@ -905,7 +907,7 @@ public abstract class RequestHandlersTest {
         
         TruncateStreamEvent event = new TruncateStreamEvent(fairness, fairness, 0L);
         AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
         verify(segmentHelper, atLeastOnce()).truncateSegment(anyString(), anyString(), anyLong(), anyLong(), anyString(), anyLong());
         
@@ -941,7 +943,8 @@ public abstract class RequestHandlersTest {
                 null, executor).join();
         
         // 1. set segment helper mock to throw exception
-        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+        Exception exception = StoreException.create(StoreException.Type.ILLEGAL_STATE, "Some processing exception");
+        doAnswer(x -> Futures.failedFuture(exception))
                 .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
                 anyString(), anyLong());
         
@@ -954,7 +957,7 @@ public abstract class RequestHandlersTest {
         
         CommitEvent event = new CommitEvent(fairness, fairness, 0);
         AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
 
         verify(segmentHelper, atLeastOnce()).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
                 anyString(), anyLong());
@@ -997,7 +1000,8 @@ public abstract class RequestHandlersTest {
                 System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
-        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+        Exception exception = StoreException.create(StoreException.Type.DATA_CONTAINER_NOT_FOUND, "Some processing exception");
+        doAnswer(x -> Futures.failedFuture(exception))
                 .when(segmentHelper).sealSegment(anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         // 2. start process --> this should fail with a retryable exception while talking to segment store!
