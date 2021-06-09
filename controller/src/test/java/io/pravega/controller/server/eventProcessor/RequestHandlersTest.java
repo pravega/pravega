@@ -91,7 +91,6 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.exceptions.misusing.NullInsteadOfMockException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
