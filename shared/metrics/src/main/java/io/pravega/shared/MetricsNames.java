@@ -319,6 +319,7 @@ public final class MetricsNames {
     public static final String COMMIT_TRANSACTION_ORDERER_BATCH_COMMITTING_LATENCY = PREFIX + "controller.transactions.orderer_batch_committing_latency_ms";                                       // Counter and Per-stream Counter
     public static final String COMMIT_TRANSACTION_BATCH_CREATE_LATENCY = PREFIX + "controller.transactions.batch_create_metadata_latency_ms";                                       // Counter and Per-stream Counter
     public static final String COMMIT_TRANSACTION_ORDERER_BATCH_PURGE_LATENCY = PREFIX + "controller.transactions.orderer_batch_purge_stale_latency_ms";                                       // Counter and Per-stream Counter
+    public static final String COMMIT_TRANSACTION_SEGMENTS_MERGE_LATENCY = PREFIX + "controller.transactions.segments_merge_latency_ms";                                       // Counter and Per-stream Counter
 
     public static final String COMMIT_TRANSACTION_FAILED = PREFIX + "controller.transactions.commit_failed";                            // Counter, Per-stream Counter, Per-transaction Counter
     public static final String ABORTING_TRANSACTION_LATENCY = PREFIX + "controller.transactions.aborting_latency_ms";                   // Histogram

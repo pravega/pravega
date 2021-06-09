@@ -51,12 +51,17 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger commitTxnRecordOffsetsLatency;
     private final OpStatsLogger commitTxnRolloverLatency;
     private final OpStatsLogger commitTxnCompleteLatency;
+
     private final OpStatsLogger commitTxnBatchCreateOrdererFetchLatency;
     private final OpStatsLogger commitTxnBatchCreateLatency;
     private final OpStatsLogger commitTxnOrdererBatchPurgeStaleLatency;
+
     private final OpStatsLogger abortTransactionLatency;
     private final OpStatsLogger abortTransactionSegmentsLatency;
     private final OpStatsLogger abortingTransactionLatency;
+    //COMMIT_TRANSACTION_SEGMENTS_MERGE_LATENCY
+    private final OpStatsLogger commitTxnSegmentsMergeLatency;
+
 
 
     private TransactionMetrics() {
@@ -84,9 +89,11 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         commitTxnRecordOffsetsLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_RECORD_OFFSETS_LATENCY);
         commitTxnRolloverLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_ROLLOVER_LATENCY);
         commitTxnCompleteLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_COMPLETE_LATENCY);
+
         commitTxnBatchCreateOrdererFetchLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_ORDERER_BATCH_COMMITTING_LATENCY);
         commitTxnBatchCreateLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_BATCH_CREATE_LATENCY);
         commitTxnOrdererBatchPurgeStaleLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_ORDERER_BATCH_PURGE_LATENCY);
+        commitTxnSegmentsMergeLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_MERGE_LATENCY);
     }
 
     /**
@@ -262,6 +269,15 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     }
 
     /**
+     * This method reports the latency for merging all segments for all Transactions handled by a Commit event.
+     *
+     * @param latency      Time elapsed to merge the segments related to the committed transaction.
+     */
+    public void commitSegmentsMerge(Duration latency) {
+        commitTxnSegmentsMergeLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
      * This method reports the latency for metadata change for Starting Transaction Commit as part of Commit Event processing.
      *
      * @param latency      Latency for StartTransactionCommit API
@@ -306,7 +322,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
     public void reportCommitTransactionBatchCount(String scope, String streamName, int txnsInBatchCount) {
         DYNAMIC_LOGGER.reportGaugeValue(COMMIT_TRANSACTION_BATCH_COUNT, txnsInBatchCount, streamTags(scope, streamName));
     }
-    
+
     public void reportTransactionZkOrdererFetch(Duration latency) {
         commitTxnBatchCreateOrdererFetchLatency.reportSuccessValue(latency.toMillis());
     }
