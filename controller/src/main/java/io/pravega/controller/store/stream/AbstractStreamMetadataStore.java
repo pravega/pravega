@@ -977,14 +977,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         Stream streamObj = getStream(scope, stream, context);
         return Futures.completeOn(streamObj.completeCommittingTransactions(record, context, writerTimes, writerIdToTxnOffsets), executor)
                 .thenAcceptAsync(result -> {
-                    streamObj.getAllOrderedTxns(context)
-                    .thenCompose(txns -> streamObj.updateCommittingTxnsCount(txns.size(), context)
-                    .thenAccept(v -> {
                         TransactionMetrics.getInstance().commitTransactionComplete(timer.getElapsed());
                         streamObj.getNumberOfOngoingTransactions(context)
-                                .thenAccept(count -> TransactionMetrics.reportOpenTransactions(scope, stream, txns.size()));
-                    }));
-                }, executor);
+                                .thenAccept(count -> TransactionMetrics.reportOpenTransactions(scope, stream, count));
+                    }, executor);
     }
 
     @Override

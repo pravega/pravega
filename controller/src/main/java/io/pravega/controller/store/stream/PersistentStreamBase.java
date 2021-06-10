@@ -2172,9 +2172,11 @@ public abstract class PersistentStreamBase implements Stream {
                               TransactionMetrics.getInstance().reportTransactionBatchCreate(timer2.getElapsed());
                               Timer timer3 = new Timer();
                               return txnCommitOrderer.removeEntities(getScope(), getName(), toPurge)
-                                      .thenAccept(k -> TransactionMetrics.getInstance().reportTransactionZkOrdererPurgeStale(timer3.getElapsed()));
-                          })
-                                        .thenApply(v -> transactionsMap.stream().sorted(
+                                      .thenAccept(k -> {
+                                          TransactionMetrics.getInstance().reportTransactionZkOrdererPurgeStale(timer3.getElapsed());
+                                          updateCommittingTxnsCount(allTxns.size(), context);
+                                      });
+                          }).thenApply(v -> transactionsMap.stream().sorted(
                                                         Comparator.comparing(VersionedTransactionData::getCommitOrder))
                                                                .collect(Collectors.toList()));
                       });
