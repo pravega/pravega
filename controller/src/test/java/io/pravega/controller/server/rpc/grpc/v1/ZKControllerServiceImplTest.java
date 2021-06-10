@@ -125,7 +125,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
-                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), 100);
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),

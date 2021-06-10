@@ -33,6 +33,7 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
+import io.pravega.controller.store.stream.records.CommittingTxnsCountRecord;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -739,4 +740,15 @@ interface Stream {
      * where 'Key' is number of splits and 'Value' is number of merges in the Stream till this epoch.
      */
     CompletableFuture<SimpleEntry<Long, Long>> getSplitMergeCountsTillEpoch(EpochRecord epochRecord, OperationContext context);
+
+    /**
+     * Finds the cumulative number of splits and merges in this Stream till this epoch.
+     *
+     * @param context Operation Context
+     * @return A completable future which when completed will return count of transactions in Committing State
+     * where 'Key' is number of splits and 'Value' is number of merges in the Stream till this epoch.
+     */
+    CompletableFuture<CommittingTxnsCountRecord> getCommittingTxnsCount(OperationContext context);
+
+
 }

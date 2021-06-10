@@ -39,6 +39,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
+import io.pravega.controller.store.stream.records.CommittingTxnsCountRecord;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
 
@@ -155,6 +156,11 @@ public class InMemoryStream extends PersistentStreamBase {
     @Override
     public void refresh() {
 
+    }
+
+    @Override
+    public CompletableFuture<CommittingTxnsCountRecord> getCommittingTxnsCount(OperationContext context) {
+        return null;
     }
 
     @Override
@@ -1047,6 +1053,11 @@ public class InMemoryStream extends PersistentStreamBase {
             }
         }
         return result;
+    }
+
+    @Override
+    CompletableFuture<Version> updateCommittingTxnsCount(int committingTxnsCount, OperationContext context) {
+        return null;
     }
 
     @Override

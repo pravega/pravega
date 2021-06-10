@@ -19,7 +19,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import io.pravega.controller.store.stream.State;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

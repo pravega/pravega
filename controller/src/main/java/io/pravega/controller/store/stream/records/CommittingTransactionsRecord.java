@@ -52,8 +52,6 @@ public class CommittingTransactionsRecord {
      */
     private final ImmutableList<UUID> transactionsToCommit;
 
-    private final int txnsInCommittingStateCount;
-
     /**
      * Set only for rolling transactions and identify the active epoch that is being rolled over.
      */

@@ -163,7 +163,7 @@ public abstract class ScaleRequestHandlerTest {
                 executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
-                segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
+                segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper(), 100);
 
         long createTimestamp = System.currentTimeMillis();
 

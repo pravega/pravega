@@ -2215,7 +2215,7 @@ public abstract class PersistentStreamBase implements Stream {
                 switch (txnRecord.getStatus()) {
                     case COMMITTING:
                         if (txnRecord.getCommitOrder() == order) {
-                             if(transactionsMap.size() < limit) {
+                             if (transactionsMap.size() < limit) {
                                  // if entry matches record's position then include it
                                  transactionsMap.add(txnRecord);
                              } else {
@@ -2693,6 +2693,7 @@ public abstract class PersistentStreamBase implements Stream {
                                                                   OperationContext context);
 
     abstract CompletableFuture<Version> updateCommittingTxnsCount(int committingTxnsCount, OperationContext context);
+
     // endregion
 
     // region processor

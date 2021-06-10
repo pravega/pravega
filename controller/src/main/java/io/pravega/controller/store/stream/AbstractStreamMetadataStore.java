@@ -49,6 +49,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.ReaderGroupConfigRecord;
+import io.pravega.controller.store.stream.records.CommittingTxnsCountRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -1214,6 +1215,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             final OperationContext ctx, final Executor executor) {
         OperationContext context = getOperationContext(ctx);
         return Futures.completeOn(getReaderGroup(scope, name, context).updateVersionedState(previous, state, context), executor);
+    }
+
+    @Override
+    public CompletableFuture<CommittingTxnsCountRecord> getCommittingTxnsCount(String scope, String stream,
+                                                                               OperationContext ctx,
+                                                                               Executor executor) {
+        OperationContext context = getOperationContext(ctx);
+        return Futures.completeOn(getStream(scope, stream, context).getCommittingTxnsCount(context), executor);
     }
 
     //endregion

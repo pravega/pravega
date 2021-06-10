@@ -22,6 +22,7 @@ import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
+import io.pravega.controller.store.stream.records.CommittingTxnsCountRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
@@ -1560,4 +1561,17 @@ public interface StreamMetadataStore extends AutoCloseable {
      */
     CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName, OperationContext context, 
                                              Executor executor);
+
+    /**
+     * Fetches the count of transactions in COMMITTING STate on this Stream.
+     *
+     * @param scope        stream scope
+     * @param name         stream name.
+     * @param context      operation context
+     * @param executor     callers executor
+     * @return current stream configuration.
+     */
+    CompletableFuture<CommittingTxnsCountRecord> getCommittingTxnsCount(final String scope, final String name,
+                                                                        final OperationContext context,
+                                                                        final Executor executor);
 }

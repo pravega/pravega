@@ -26,7 +26,22 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.store.stream.records.*;
+import io.pravega.controller.store.stream.records.ActiveTxnRecord;
+import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
+import io.pravega.controller.store.stream.records.CommittingTxnsCountRecord;
+import io.pravega.controller.store.stream.records.CompletedTxnRecord;
+import io.pravega.controller.store.stream.records.EpochRecord;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.RetentionSet;
+import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
+import io.pravega.controller.store.stream.records.StateRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
+import io.pravega.controller.store.stream.records.StreamCutRecord;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.stream.records.StreamSubscriber;
+import io.pravega.controller.store.stream.records.Subscribers;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
@@ -790,6 +805,16 @@ class PravegaTablesStream extends PersistentStreamBase {
         final String key = String.format(SEGMENT_MARKER_PATH_FORMAT, segmentId);
         return getMetadataTable(context)
                 .thenCompose(id -> storeHelper.removeEntry(id, key, context.getRequestId()));
+    }
+
+    @Override
+    public CompletableFuture<CommittingTxnsCountRecord> getCommittingTxnsCount(OperationContext context) {
+        Preconditions.checkNotNull(context, "operation context cannot be null");
+
+        return getMetadataTable(context)
+                .thenCompose(metadataTable -> storeHelper.getCachedOrLoad(metadataTable, COMMITTING_TRANSACTIONS_COUNT_KEY,
+                        CommittingTxnsCountRecord::fromBytes, context.getOperationStartTime(), context.getRequestId()))
+                .thenApply(VersionedMetadata::getObject);
     }
 
     @Override
