@@ -37,6 +37,7 @@ import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -52,7 +53,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.pravega.test.integration.utils.IntegerSerializer;
 import lombok.Cleanup;
+import lombok.CustomLog;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.curator.test.TestingServer;
@@ -62,139 +66,91 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 @Slf4j
 public class EndToEndAutoScaleUpWithTxnTest {
     static final StreamConfiguration CONFIG = StreamConfiguration.builder()
-                                                                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                                 .scalingPolicy(ScalingPolicy.fixed(1))//byEventRate(10, 2, 1))
                                                                  .build();
 
     public static void main(String[] args) throws Exception {
-        try {
-            @Cleanup
-            TestingServer zkTestServer = new TestingServerStarter().start();
-            int port = Config.SERVICE_PORT;
-            @Cleanup
-            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
-            Controller controller = controllerWrapper.getController();
-            controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME, 0L).get();
+        @Cleanup
+        TestingServer zkTestServer = new TestingServerStarter().start();
+        int port = Config.SERVICE_PORT;
+        @Cleanup
+        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, 12345, store, tableStore,
+                serviceBuilder.getLowPriorityExecutor());
+        server.startListening();
 
-            @Cleanup
-            ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-            @Cleanup
-            ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, connectionFactory);
+        @Cleanup
+        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME, 0L).get();
 
-            @Cleanup("shutdownNow")
-            val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, connectionFactory);
 
-            @Cleanup
-            ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-            serviceBuilder.initialize();
-            StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-            TableStore tableStore = serviceBuilder.createTableStoreService();
-            @Cleanup
-            AutoScaleMonitor autoScaleMonitor = new AutoScaleMonitor(store,
-                    internalCF,
-                    AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
-                            .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
+        @Cleanup("shutdownNow")
+        val executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "test");
 
-            @Cleanup
-            PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
-                    autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null, true,
-                    serviceBuilder.getLowPriorityExecutor());
-            server.startListening();
+        controllerWrapper.awaitRunning();
+        controllerWrapper.getControllerService().createScope("test", 0L).get();
 
-            controllerWrapper.awaitRunning();
-            controllerWrapper.getControllerService().createScope("test", 0L).get();
+        controller.createStream("test", "test", CONFIG).get();
+        @Cleanup
+        MockClientFactory clientFactory = new MockClientFactory("test", controller, internalCF.getConnectionPool());
 
-            controller.createStream("test", "test", CONFIG).get();
-            @Cleanup
-            MockClientFactory clientFactory = new MockClientFactory("test", controller, internalCF.getConnectionPool());
+        // Mocking pravega service by putting scale up and scale down requests for the stream
+        EventWriterConfig writerConfig = EventWriterConfig.builder()
+                                                          .transactionTimeoutTime(30000)
+                                                          .build();
+        TransactionalEventStreamWriter<Integer> test = clientFactory.createTransactionalEventWriter("writer", "test", new IntegerSerializer(), writerConfig);
 
-            // Mocking pravega service by putting scale up and scale down requests for the stream
-            EventWriterConfig writerConfig = EventWriterConfig.builder()
-                                                              .transactionTimeoutTime(30000)
-                                                              .build();
-            TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer", "test", new UTF8StringSerializer(), writerConfig);
+        // region Successful commit tests
+        Transaction<Integer> txn1 = null;
 
-            // region Successful commit tests
-            Transaction<String> txn1 = test.beginTxn();
-
-            txn1.writeEvent("1");
-            txn1.flush();
-
-            Map<Double, Double> map = new HashMap<>();
-            map.put(0.0, 1.0 / 3.0);
-            map.put(1.0 / 3.0, 2.0 / 3.0);
-            map.put(2.0 / 3.0, 1.0);
-            Stream stream = new StreamImpl("test", "test");
-            controller.startScale(stream, Collections.singletonList(0L), map).get();
-            Transaction<String> txn2 = test.beginTxn();
-
-            txn2.writeEvent("2");
-            txn2.flush();
-            txn2.commit();
+        
+        for (int i = 0; i < 100; i++) {
+            txn1 = test.beginTxn();
+            txn1.writeEvent(i);
             txn1.commit();
-
+        }
+        
+        while(true) {
+            if (txn1.checkStatus().equals(Transaction.Status.COMMITTED)) {
+                break;
+            } 
             Thread.sleep(1000);
-
-            @Cleanup
-            ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
-            readerGroupManager.createReaderGroup("readergrp", ReaderGroupConfig.builder().stream("test/test").build());
-
-            final EventStreamReader<String> reader = clientFactory.createReader("1",
-                    "readergrp",
-                    new JavaSerializer<>(),
-                    ReaderConfig.builder().build());
-
-            String event1 = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
-            String event2 = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
-            assert event1.equals("1");
-            assert event2.equals("2");
-            final AtomicBoolean done = new AtomicBoolean(false);
-
-            startWriter(test, done);
-
-            Retry.withExpBackoff(10, 10, 100, 10000)
-                    .retryingOn(NotDoneException.class)
-                    .throwingOn(RuntimeException.class)
-                    .runAsync(() -> controller.getCurrentSegments("test", "test")
-                            .thenAccept(streamSegments -> {
-                                if (streamSegments.getSegments().stream().anyMatch(x -> NameUtils.getEpoch(x.getSegmentId()) > 5)) {
-                                    System.err.println("Success");
-                                    log.info("Success");
-                                    System.exit(0);
-                                } else {
-                                    throw new NotDoneException();
-                                }
-                            }), executor)
-                    .exceptionally(e -> {
-                        System.err.println("Failure");
-                        log.error("Failure");
-                        System.exit(1);
-                        return null;
-                    }).get();
-        } catch (Throwable e) {
-            System.err.print("Test failed with exception: " + e.getMessage());
-            log.error("Test failed with exception: {}", e);
-            System.exit(-1);
         }
 
-        System.exit(0);
-    }
+        @Cleanup
+        ReaderGroupManagerImpl readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        readerGroupManager.createReaderGroup("readergrp",
+                ReaderGroupConfig.builder()
+                                 .disableAutomaticCheckpoints()
+                                 .groupRefreshTimeMillis(1000)
+                                 .stream("test/test")
+                                 .build());
 
-    private static void startWriter(TransactionalEventStreamWriter<String> test, AtomicBoolean done) {
-        CompletableFuture.runAsync(() -> {
-            while (!done.get()) {
-                try {
-                    Transaction<String> transaction = test.beginTxn();
+        @Cleanup
+        EventStreamReader<Integer> reader = clientFactory.createReader("1",
+                "readergrp",
+                new IntegerSerializer(),
+                ReaderConfig.builder().build());
 
-                    for (int i = 0; i < 1000; i++) {
-                        transaction.writeEvent("0", "txntest");
-                    }
-                    Thread.sleep(900);
-                    transaction.commit();
-                } catch (Throwable e) {
-                    System.err.println("test exception writing events " + e.getMessage());
-                    log.error("test exception writing events {}", e);
-                }
+        int previous = -1;
+        while(previous < 99) {
+            val event = reader.readNextEvent(1000);
+            if (event == null) continue;
+            if (event.getEvent() == previous + 1) {
+                previous = event.getEvent();
+            } else {
+                throw new RuntimeException("order order");
             }
-        });
+        }
     }
 }
+
