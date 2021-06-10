@@ -566,7 +566,6 @@ project('test:integration') {
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
         testCompile project(path:':shared:metrics', configuration:'testRuntime')
-        testCompile project(path:':shared:security', configuration:'testRuntime')
 
         // Workaround for intellij issue, since we cannot add both the compile dependency and the testRuntime
         // dependency of the client project into the compile scope of the integration tests
@@ -828,11 +827,9 @@ project('cli:user') {
         compile project(':common')
         compile project(':client')
         compile project(':shared:protocol')
-        compile project(":shared:security")
         compile project(':test:testcommon')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:integration')
-        testCompile project(":shared:security")
         testCompile group: 'junit', name: 'junit', version: '4.12'
     }
 
@@ -887,7 +884,6 @@ project('standalone') {
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         testCompile project(':test:testcommon')
-        testCompile project(":shared:security")
         testCompile project(path:':common', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
