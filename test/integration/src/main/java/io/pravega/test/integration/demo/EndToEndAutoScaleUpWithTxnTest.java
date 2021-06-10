@@ -16,7 +16,6 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
@@ -26,42 +25,25 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.util.Retry;
-import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
-import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestingServerStarter;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import io.pravega.test.integration.utils.IntegerSerializer;
 import lombok.Cleanup;
-import lombok.CustomLog;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.curator.test.TestingServer;
-
-import static java.util.concurrent.TimeUnit.SECONDS;
 
 @Slf4j
 public class EndToEndAutoScaleUpWithTxnTest {
@@ -153,4 +135,5 @@ public class EndToEndAutoScaleUpWithTxnTest {
         }
     }
 }
+
 
