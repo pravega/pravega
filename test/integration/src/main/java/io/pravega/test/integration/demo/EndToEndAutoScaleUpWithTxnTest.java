@@ -94,17 +94,16 @@ public class EndToEndAutoScaleUpWithTxnTest {
         // region Successful commit tests
         Transaction<Integer> txn1 = null;
 
-        
         for (int i = 0; i < 100; i++) {
             txn1 = test.beginTxn();
             txn1.writeEvent(i);
             txn1.commit();
         }
-        
-        while(true) {
+
+        while (true) {
             if (txn1.checkStatus().equals(Transaction.Status.COMMITTED)) {
                 break;
-            } 
+            }
             Thread.sleep(1000);
         }
 
