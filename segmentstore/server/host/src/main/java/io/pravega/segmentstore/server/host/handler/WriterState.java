@@ -66,11 +66,6 @@ class WriterState {
     @GuardedBy("this")
     private long smallestFailedEventNumber;
     /**
-     * Initial event number when SetupAppend was invoked for this {@link WriterState}.
-     */
-    @GuardedBy("this")
-    private long initialEventNumber;
-    /**
      * The {@link ErrorContext}s that have been recorded for this instance.
      */
     @GuardedBy("this")
@@ -90,7 +85,6 @@ class WriterState {
         this.smallestFailedEventNumber = NO_FAILED_EVENT_NUMBER; // Nothing failed yet.
         this.lastStoredEventNumber = initialEventNumber;
         this.lastAckedEventNumber = initialEventNumber;
-        this.initialEventNumber = initialEventNumber;
     }
 
     //endregion
@@ -190,15 +184,6 @@ class WriterState {
     }
 
     /**
-     * Gets the initial event number associated to the {@link WriterState}.
-     *
-     * @return The initial event number for this {@link WriterState}.
-     */
-    synchronized long getInitialEventNumber() {
-        return this.initialEventNumber;
-    }
-
-    /**
      * Gets a {@link DelayedErrorHandler} based on the following rules:
      * - If no call has been made to {@link #appendFailed}, this will return null.
      * - If {@link #appendFailed} has been invoked at least once, this will return a {@link DelayedErrorHandler} with
@@ -246,8 +231,7 @@ class WriterState {
 
     @Override
     public synchronized String toString() {
-        return String.format("Stored=%s, Acked=%s, InFlight=%s, InitialEvent=%s", this.lastStoredEventNumber,
-                this.lastAckedEventNumber, this.inFlightCount, this.initialEventNumber);
+        return String.format("Stored=%s, Acked=%s, InFlight=%s", this.lastStoredEventNumber, this.lastAckedEventNumber, this.inFlightCount);
     }
 
     //endregion
