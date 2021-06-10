@@ -1272,7 +1272,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Version> updateCommittingTxnsCount(int txnCount, OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
-
+        log.info("COMMITTING Transactions Count: {}", txnCount);
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> storeHelper.getCachedOrLoad(metadataTable, COMMITTING_TRANSACTIONS_COUNT_KEY,
                         CommittingTxnsCountRecord::fromBytes, context.getOperationStartTime(), context.getRequestId())
