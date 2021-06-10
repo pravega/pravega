@@ -123,9 +123,11 @@ public class EndToEndAutoScaleUpWithTxnTest {
                 ReaderConfig.builder().build());
 
         int previous = -1;
-        while(previous < 99) {
+        while (previous < 99) {
             val event = reader.readNextEvent(1000);
-            if (event == null) continue;
+            if (event == null) {
+		    continue;
+	    }
             if (event.getEvent() == previous + 1) {
                 previous = event.getEvent();
             } else {
