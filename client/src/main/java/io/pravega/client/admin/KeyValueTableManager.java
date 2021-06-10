@@ -79,15 +79,6 @@ public interface KeyValueTableManager extends AutoCloseable {
     Iterator<KeyValueTableInfo> listKeyValueTables(String scopeName);
 
     /**
-     * Gets the {@link KeyValueTableConfiguration} for the provided Key-Value Table.
-     *
-     * @param scopeName         The name of the scope of the Key-Value Table for which the configuration is queried.
-     * @param keyValueTableName The name of the Key-Value Table whose configuration is to be queried.
-     * @return The configuration of the provided Key-Value Table.
-     */
-    KeyValueTableConfiguration getKeyValueTableConfiguration(String scopeName, String keyValueTableName);
-
-    /**
      * Closes the {@link KeyValueTableManager}.
      *
      * @see java.lang.AutoCloseable#close()

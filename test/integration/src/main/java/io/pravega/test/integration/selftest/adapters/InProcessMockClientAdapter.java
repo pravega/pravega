@@ -338,13 +338,6 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public KeyValueTableConfiguration getKeyValueTableConfiguration(String scopeName, String keyValueTableName) {
-            return Futures.getAndHandleExceptions(
-                    this.streamManager.getController().getKeyValueTableConfiguration(scopeName, keyValueTableName),
-                    RuntimeException::new);
-        }
-
-        @Override
         public void close() {
             // Nothing to do.
         }

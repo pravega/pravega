@@ -213,8 +213,10 @@ public class ScopeTest {
         @Cleanup
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, clientConfig, connectionFactory);
 
-        keyValueTableManager.createKeyValueTable(scope, kvtName1, KeyValueTableConfiguration.builder().partitionCount(1).build());
-        keyValueTableManager.createKeyValueTable(scope, kvtName2, KeyValueTableConfiguration.builder().partitionCount(1).build());
+        KeyValueTableConfiguration conf = KeyValueTableConfiguration.builder()
+                .partitionCount(1).primaryKeyLength(4).secondaryKeyLength(8).build();
+        keyValueTableManager.createKeyValueTable(scope, kvtName1, conf);
+        keyValueTableManager.createKeyValueTable(scope, kvtName2, conf);
 
         readerGroupManager.createReaderGroup(groupName1, ReaderGroupConfig.builder()
                 .stream(getScopedStreamName(scope, streamName1)).build());

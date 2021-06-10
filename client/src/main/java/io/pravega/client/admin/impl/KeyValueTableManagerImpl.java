@@ -123,14 +123,5 @@ public class KeyValueTableManagerImpl implements KeyValueTableManager {
         return new BlockingAsyncIterator<>(asyncIterator);
     }
 
-    @Override
-    public KeyValueTableConfiguration getKeyValueTableConfiguration(@NonNull String scopeName, @NonNull String keyValueTableName) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        NameUtils.validateUserKeyValueTableName(keyValueTableName);
-        NameUtils.validateUserScopeName(scopeName);
-        log.info("Getting the configuration for scope/key-value-table: {}/{}", scopeName, keyValueTableName);
-        return Futures.getThrowingException(controller.getKeyValueTableConfiguration(scopeName, keyValueTableName));
-    }
-
     //endregion
 }

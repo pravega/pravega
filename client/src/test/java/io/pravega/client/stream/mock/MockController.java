@@ -209,7 +209,7 @@ public class MockController implements Controller {
 
     @Synchronized
     List<Segment> getSegmentsForKeyValueTable(KeyValueTableInfo kvt) {
-        KeyValueTableConfiguration config = getKeyValueTableConfiguration(kvt);
+        KeyValueTableConfiguration config = getKeyValueTableConfig(kvt);
         Preconditions.checkArgument(config != null, "Key-Value Table " + kvt.getScopedName() + " must be created first");
         List<Segment> result = new ArrayList<>(config.getPartitionCount());
         for (int i = 0; i < config.getPartitionCount(); i++) {
@@ -249,7 +249,7 @@ public class MockController implements Controller {
         return null;
     }
 
-    private KeyValueTableConfiguration getKeyValueTableConfiguration(KeyValueTableInfo kvtInfo) {
+    private KeyValueTableConfiguration getKeyValueTableConfig(KeyValueTableInfo kvtInfo) {
         for (MockScope scope : createdScopes.values()) {
             KeyValueTableConfiguration c = scope.keyValueTables.get(kvtInfo);
             if (c != null) {
@@ -786,7 +786,7 @@ public class MockController implements Controller {
     @Override
     @Synchronized
     public CompletableFuture<KeyValueTableConfiguration> getKeyValueTableConfiguration(String scope, String kvtName) {
-        return CompletableFuture.completedFuture(getKeyValueTableConfiguration(new KeyValueTableInfo(scope, kvtName)));
+        return CompletableFuture.completedFuture(getKeyValueTableConfig(new KeyValueTableInfo(scope, kvtName)));
     }
 
     @Override
