@@ -562,8 +562,8 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     @VisibleForTesting
-    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns(OperationContext context) {
-        return super.getAllOrderedCommittingTxnsHelper(txnCommitOrderer, context);
+    public CompletableFuture<Map<Long, UUID>> getAllOrderedTxns(OperationContext context) {
+        return super.getAllOrderedTxnsHelper(txnCommitOrderer, context);
     }
 
     @Override
@@ -733,7 +733,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateCommittingTxnsCount(int committingTxnsCount, OperationContext context) {
+    public CompletableFuture<Version> updateCommittingTxnsCount(final int committingTxnsCount, OperationContext context) {
         throw new UnsupportedOperationException();
     }
 

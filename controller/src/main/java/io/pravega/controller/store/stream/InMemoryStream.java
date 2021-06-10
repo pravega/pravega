@@ -820,7 +820,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns(OperationContext context) {
+    public CompletableFuture<Map<Long, UUID>> getAllOrderedTxns(OperationContext context) {
         synchronized (txnsLock) {
             return CompletableFuture.completedFuture(Collections.unmodifiableMap(transactionCommitOrder));
         }
@@ -1056,7 +1056,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateCommittingTxnsCount(int committingTxnsCount, OperationContext context) {
+    public CompletableFuture<Version> updateCommittingTxnsCount(int committingTxnsCount, OperationContext context) {
         return null;
     }
 

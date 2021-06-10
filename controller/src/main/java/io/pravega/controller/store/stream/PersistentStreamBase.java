@@ -2180,8 +2180,8 @@ public abstract class PersistentStreamBase implements Stream {
                       });
     }
 
-    protected CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxnsHelper(ZkOrderedStore txnCommitOrderer,
-                                                                                   OperationContext context) {
+    protected CompletableFuture<Map<Long, UUID>> getAllOrderedTxnsHelper(ZkOrderedStore txnCommitOrderer,
+                                                                         OperationContext context) {
         return Futures.exceptionallyExpecting(txnCommitOrderer.getEntitiesWithPosition(getScope(), getName()),
                 DATA_NOT_FOUND_PREDICATE, Collections.emptyMap())
                       .thenApply(map -> map.entrySet().stream()
@@ -2203,8 +2203,6 @@ public abstract class PersistentStreamBase implements Stream {
 
         AtomicInteger from = new AtomicInteger(0);
         AtomicInteger till = new AtomicInteger(Math.min(limit, txnIds.size()));
-        AtomicInteger committingTxnCount = new AtomicInteger(0);
-
         return Futures.loop(() -> from.get() < txnIds.size() && transactionsMap.size() < limit, 
                 () -> getVersionedTransactionRecords(epoch, txnIds.subList(from.get(), till.get()), context).thenAccept(txns -> {
             for (int i = 0; i < txns.size(); i++) {
@@ -2215,11 +2213,11 @@ public abstract class PersistentStreamBase implements Stream {
                 switch (txnRecord.getStatus()) {
                     case COMMITTING:
                         if (txnRecord.getCommitOrder() == order) {
-                             if (transactionsMap.size() < limit) {
-                                 // if entry matches record's position then include it
-                                 transactionsMap.add(txnRecord);
-                             }
-                             committingTxnCount.addAndGet(1);
+                            // if entry matches record's position then include it
+                            transactionsMap.add(txnRecord);
+                            if (transactionsMap.size() >= limit) {
+                                break;
+                            }
                         } else {
                             log.debug(context.getRequestId(), "duplicate txn {} at position {}. removing {}", 
                                     txnId, txnRecord.getCommitOrder(), order);
@@ -2244,7 +2242,7 @@ public abstract class PersistentStreamBase implements Stream {
             }
             from.set(till.get());
             till.set(Math.min(from.get() + limit, txnIds.size()));
-        }), executor).thenAccept(v -> updateCommittingTxnsCount(committingTxnCount.get(), context));
+        }), executor);
     }
 
     CompletableFuture<List<ActiveTxnRecord>> getTransactionRecords(int epoch, List<String> txnIds, OperationContext context) {
@@ -2658,9 +2656,6 @@ public abstract class PersistentStreamBase implements Stream {
      */
     abstract CompletableFuture<List<VersionedTransactionData>> getOrderedCommittingTxnInLowestEpoch(
             int limit, OperationContext context);
-    
-    @VisibleForTesting
-    abstract CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns(OperationContext context);
     // endregion
 
     // region marker
@@ -2690,9 +2685,6 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Version> updateCommittingTxnRecord(VersionedMetadata<CommittingTransactionsRecord> data, 
                                                                   OperationContext context);
-
-    abstract CompletableFuture<Version> updateCommittingTxnsCount(int committingTxnsCount, OperationContext context);
-
     // endregion
 
     // region processor

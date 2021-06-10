@@ -882,12 +882,11 @@ class PravegaTablesStream extends PersistentStreamBase {
         return super.getOrderedCommittingTxnInLowestEpochHelper(txnCommitOrderer, limit, executor, context);
     }
 
-    @Override
     @VisibleForTesting
-    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns(OperationContext context) {
+    public CompletableFuture<Map<Long, UUID>> getAllOrderedTxns(OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
-        return super.getAllOrderedCommittingTxnsHelper(txnCommitOrderer, context);
+        return super.getAllOrderedTxnsHelper(txnCommitOrderer, context);
     }
 
     @Override
@@ -1270,7 +1269,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateCommittingTxnsCount(int txnCount, OperationContext context) {
+    public CompletableFuture<Version> updateCommittingTxnsCount(final int txnCount, OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
         log.info("COMMITTING Transactions Count: {}", txnCount);
         return getMetadataTable(context)
