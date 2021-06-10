@@ -26,6 +26,7 @@ import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
@@ -39,6 +40,7 @@ import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -104,6 +106,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -517,6 +521,45 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             return handleException(mergeSegments.getRequestId(), mergeSegments.getSource(), operation, e);
                         }
                     });
+    }
+
+    @Override
+    public void mergeSegmentsBatch(WireCommands.MergeSegmentsBatch mergeSegments) {
+        final String operation = "mergeSegmentsBatch";
+
+        List<String> sources = mergeSegments.getSources();
+        for (String s : sources) {
+            if (!verifyToken(s, mergeSegments.getRequestId(), mergeSegments.getDelegationToken(), operation)) {
+                return;
+            }
+        }
+
+        log.info(mergeSegments.getRequestId(), "Merging Segments batch {} ", mergeSegments);
+
+        Futures.allOfWithResults(sources.stream().map(source ->
+                Futures.handleCompose(segmentStore.mergeStreamSegment(mergeSegments.getTarget(),
+                        source, TIMEOUT), (r, e) -> {
+                    if (e != null) {
+                        if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
+                            log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
+                                    sources);
+                            return segmentStore.getStreamSegmentInfo(mergeSegments.getTarget(), TIMEOUT)
+                                               .thenApply(SegmentProperties::getLength);
+                        } else {
+                            throw new CompletionException(e);
+                        }
+                    } else {
+                        recordStatForTransaction(r, mergeSegments.getTarget());
+                        return CompletableFuture.completedFuture(r.getTargetSegmentLength());
+                    }
+                })).collect(toList()))
+               .thenAccept(mergeResults -> {
+                   connection.send(new WireCommands.SegmentsMergedBatch(mergeSegments.getRequestId(),
+                           mergeSegments.getTarget(),
+                           sources,
+                           mergeResults));
+               })
+               .exceptionally(e -> handleException(mergeSegments.getRequestId(), mergeSegments.getTarget(), operation, e));
     }
 
     @Override

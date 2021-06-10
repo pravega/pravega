@@ -37,6 +37,7 @@ import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -53,7 +54,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.pravega.test.integration.utils.IntegerSerializer;
 import lombok.Cleanup;
+import lombok.CustomLog;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.curator.test.TestingServer;
@@ -199,3 +203,4 @@ public class EndToEndAutoScaleUpWithTxnTest {
         });
     }
 }
+
