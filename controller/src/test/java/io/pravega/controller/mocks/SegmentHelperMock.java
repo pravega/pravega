@@ -41,6 +41,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
@@ -81,6 +82,12 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(0L)).when(helper).commitTransaction(
+                anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
+        
+        doAnswer(x -> {
+            List<Long> list = ((List<UUID>) x.getArgument(4)).stream().map(z -> 0L).collect(Collectors.toList());
+            return CompletableFuture.completedFuture(list);
+        }).when(helper).commitTransactions(
                 anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).updatePolicy(
