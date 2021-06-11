@@ -231,7 +231,6 @@ project('shared:security') {
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
         // We need to explicitly import these as Bookkeeper 4.14+ is not transitively including them anymore.
-        compile group: 'org.bouncycastle', name: 'bcpkix-jdk15on', version: bouncyCastleVersion
         compile group: 'org.bouncycastle', name: 'bcprov-ext-jdk15on', version: bouncyCastleVersion
 
         testCompile project(':test:testcommon')
