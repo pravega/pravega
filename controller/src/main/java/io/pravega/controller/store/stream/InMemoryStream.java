@@ -39,7 +39,6 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
-import io.pravega.controller.store.stream.records.CommittingTxnsCountRecord;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
 
@@ -159,8 +158,8 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<CommittingTxnsCountRecord> getCommittingTxnsCount(OperationContext context) {
-        return null;
+    public CompletableFuture<Integer> getCommittingTxnsCount(OperationContext context) {
+        return CompletableFuture.completedFuture(Integer.valueOf(100));
     }
 
     @Override
@@ -820,7 +819,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Map<Long, UUID>> getAllOrderedTxns(OperationContext context) {
+    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns(OperationContext context) {
         synchronized (txnsLock) {
             return CompletableFuture.completedFuture(Collections.unmodifiableMap(transactionCommitOrder));
         }

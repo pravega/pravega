@@ -28,7 +28,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
-import io.pravega.controller.store.stream.records.CommittingTxnsCountRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
@@ -808,12 +807,12 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<CommittingTxnsCountRecord> getCommittingTxnsCount(OperationContext context) {
+    public CompletableFuture<Integer> getCommittingTxnsCount(OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> storeHelper.getCachedOrLoad(metadataTable, COMMITTING_TRANSACTIONS_COUNT_KEY,
-                        CommittingTxnsCountRecord::fromBytes, context.getOperationStartTime(), context.getRequestId()))
+                        BYTES_TO_INTEGER_FUNCTION, context.getOperationStartTime(), context.getRequestId()))
                 .thenApply(VersionedMetadata::getObject);
     }
 
@@ -882,11 +881,12 @@ class PravegaTablesStream extends PersistentStreamBase {
         return super.getOrderedCommittingTxnInLowestEpochHelper(txnCommitOrderer, limit, executor, context);
     }
 
+    @Override
     @VisibleForTesting
-    public CompletableFuture<Map<Long, UUID>> getAllOrderedTxns(OperationContext context) {
+    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns(OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
-        return super.getAllOrderedTxnsHelper(txnCommitOrderer, context);
+        return super.getAllOrderedCommittingTxnsHelper(txnCommitOrderer, context);
     }
 
     @Override
@@ -1274,13 +1274,9 @@ class PravegaTablesStream extends PersistentStreamBase {
         log.info("COMMITTING Transactions Count: {}", txnCount);
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> storeHelper.getCachedOrLoad(metadataTable, COMMITTING_TRANSACTIONS_COUNT_KEY,
-                        CommittingTxnsCountRecord::fromBytes, context.getOperationStartTime(), context.getRequestId())
-                .thenCompose(oldCount -> {
-                    VersionedMetadata<CommittingTxnsCountRecord> update = new VersionedMetadata<>(CommittingTxnsCountRecord.builder()
-                            .committingTransactionsCount(txnCount).build(), oldCount.getVersion());
-                    return storeHelper.updateEntry(metadataTable, COMMITTING_TRANSACTIONS_COUNT_KEY,
-                            update.getObject(), CommittingTxnsCountRecord::toBytes, update.getVersion(), context.getRequestId());
-                }));
+                        BYTES_TO_INTEGER_FUNCTION, context.getOperationStartTime(), context.getRequestId())
+                .thenCompose(oldCount -> storeHelper.updateEntry(metadataTable, COMMITTING_TRANSACTIONS_COUNT_KEY,
+                        txnCount, INTEGER_TO_BYTES_FUNCTION, oldCount.getVersion(), context.getRequestId())));
     }
 
     @Override

@@ -40,7 +40,6 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.Subscribers;
-import io.pravega.controller.store.stream.records.CommittingTxnsCountRecord;
 
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -562,8 +561,8 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     @VisibleForTesting
-    public CompletableFuture<Map<Long, UUID>> getAllOrderedTxns(OperationContext context) {
-        return super.getAllOrderedTxnsHelper(txnCommitOrderer, context);
+    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns(OperationContext context) {
+        return super.getAllOrderedCommittingTxnsHelper(txnCommitOrderer, context);
     }
 
     @Override
@@ -813,7 +812,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<CommittingTxnsCountRecord> getCommittingTxnsCount(OperationContext context) {
+    public CompletableFuture<Integer> getCommittingTxnsCount(OperationContext context) {
         throw new UnsupportedOperationException();
     }
 

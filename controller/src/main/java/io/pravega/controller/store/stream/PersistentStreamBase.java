@@ -2172,18 +2172,16 @@ public abstract class PersistentStreamBase implements Stream {
                               TransactionMetrics.getInstance().reportTransactionBatchCreate(timer2.getElapsed());
                               Timer timer3 = new Timer();
                               return txnCommitOrderer.removeEntities(getScope(), getName(), toPurge)
-                                      .thenAccept(k -> {
-                                          TransactionMetrics.getInstance().reportTransactionZkOrdererPurgeStale(timer3.getElapsed());
-                                          updateCommittingTxnsCount(allTxns.size(), context);
-                                      });
-                          }).thenApply(v -> transactionsMap.stream().sorted(
+                                      .thenRun(() -> TransactionMetrics.getInstance().reportTransactionZkOrdererPurgeStale(timer3.getElapsed()))
+                                      .thenCompose(k -> updateCommittingTxnsCount(allTxns.size(), context));
+                          }).thenApply(version -> transactionsMap.stream().sorted(
                                                         Comparator.comparing(VersionedTransactionData::getCommitOrder))
                                                                .collect(Collectors.toList()));
                       });
     }
 
-    protected CompletableFuture<Map<Long, UUID>> getAllOrderedTxnsHelper(ZkOrderedStore txnCommitOrderer,
-                                                                         OperationContext context) {
+    protected CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxnsHelper(ZkOrderedStore txnCommitOrderer,
+                                                                                   OperationContext context) {
         return Futures.exceptionallyExpecting(txnCommitOrderer.getEntitiesWithPosition(getScope(), getName()),
                 DATA_NOT_FOUND_PREDICATE, Collections.emptyMap())
                       .thenApply(map -> map.entrySet().stream()
@@ -2658,6 +2656,9 @@ public abstract class PersistentStreamBase implements Stream {
      */
     abstract CompletableFuture<List<VersionedTransactionData>> getOrderedCommittingTxnInLowestEpoch(
             int limit, OperationContext context);
+
+    @VisibleForTesting
+    abstract CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns(OperationContext context);
     // endregion
 
     // region marker

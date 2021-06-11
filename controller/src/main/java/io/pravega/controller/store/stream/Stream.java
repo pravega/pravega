@@ -33,7 +33,6 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
-import io.pravega.controller.store.stream.records.CommittingTxnsCountRecord;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -748,7 +747,7 @@ interface Stream {
      * @return A completable future which when completed will return count of transactions in Committing State
      * where 'Key' is number of splits and 'Value' is number of merges in the Stream till this epoch.
      */
-    CompletableFuture<CommittingTxnsCountRecord> getCommittingTxnsCount(OperationContext context);
+    CompletableFuture<Integer> getCommittingTxnsCount(OperationContext context);
 
     /**
      * Updates number of open transactions in the Stream.
@@ -758,14 +757,4 @@ interface Stream {
      *
      */
     CompletableFuture<Version> updateCommittingTxnsCount(final int txnCount, OperationContext context);
-
-    /**
-     * Return whether any transaction is active on the stream.
-     *
-     * @return a boolean indicating whether a transaction is active on the stream.
-     * Returns the number of transactions ongoing for the stream.
-     */
-    CompletableFuture<Map<Long, UUID>> getAllOrderedTxns(OperationContext context);
-
-
 }

@@ -1031,7 +1031,7 @@ public abstract class StreamMetadataStoreTest {
         // entry for open transaction tx02
         streamObj.addTxnToCommitOrder(tx02, context).join();
 
-        Map<Long, UUID> positions = streamObj.getAllOrderedTxns(context).join();
+        Map<Long, UUID> positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(4, positions.size());
         assertEquals(positions.get(0L), tx00);
         assertEquals(positions.get(1L), tx00);
@@ -1045,7 +1045,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(tx00, ordered.get(0));
 
         // verify that duplicates and stale entries are purged. entries for open transaction and committing are retained
-        positions = streamObj.getAllOrderedTxns(context).join();
+        positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(2, positions.size());
         assertEquals(positions.get(0L), tx00);
         assertEquals(positions.get(3L), tx02);
@@ -1080,7 +1080,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(0L, orderedRecords.get(0).getCommitOrder().longValue());
 
         // verify that positions has 3 new entries added though
-        positions = streamObj.getAllOrderedTxns(context).join();
+        positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(5, positions.size());
         assertEquals(positions.get(0L), tx00);
         assertEquals(positions.get(3L), tx02);
@@ -1092,7 +1092,7 @@ public abstract class StreamMetadataStoreTest {
                 null, executor).join().getKey();
         
         // verify that after including transaction tx00 in the record, we no longer keep its reference in the ordered
-        positions = streamObj.getAllOrderedTxns(context).join();
+        positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(4, positions.size());
         assertFalse(positions.containsKey(0L));
         assertEquals(positions.get(3L), tx02);
@@ -1124,7 +1124,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(tx12, ordered.get(2));
 
         // verify that transactions are still present in position
-        positions = streamObj.getAllOrderedTxns(context).join();
+        positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(4, positions.size());
         assertEquals(positions.get(3L), tx02);
         assertEquals(positions.get(4L), tx10);
@@ -1138,7 +1138,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(record.getObject().getTransactionsToCommit(), ordered);
         
         // verify that transactions included for commit are removed from positions.
-        positions = streamObj.getAllOrderedTxns(context).join();
+        positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(1, positions.size());
         assertEquals(positions.get(3L), tx02);
 
@@ -1155,7 +1155,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(0, ordered.size());
 
         // verify that only reference to the open transaction is retained in position
-        positions = streamObj.getAllOrderedTxns(context).join();
+        positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(1, positions.size());
         assertEquals(positions.get(3L), tx02);
     }
