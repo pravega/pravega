@@ -426,7 +426,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                          final String stream,
                                                          final OperationContext ctx) {
         return streamMetadataStore.getCommittingTxnsCount(scope, stream, ctx, executor)
-                .thenApply(txnsCount -> (txnsCount.intValue() < this.openTxnsLimit) ? Boolean.TRUE : Boolean.FALSE);
+                .thenApply(txnsCount -> {
+                    log.info("Committing txns Count: {}", txnsCount.intValue());
+                    return (txnsCount.intValue() <= this.openTxnsLimit) ? Boolean.TRUE : Boolean.FALSE;
+                });
     }
 
     private void addTxnToTimeoutService(String scope, String stream, long lease, long maxExecutionPeriod, UUID txnId,

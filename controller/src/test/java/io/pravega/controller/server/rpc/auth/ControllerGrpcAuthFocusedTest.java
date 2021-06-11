@@ -179,7 +179,7 @@ public class ControllerGrpcAuthFocusedTest {
                 EXECUTOR, "host", authHelper, helper);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
-                EXECUTOR, "host", authHelper, 100);
+                EXECUTOR, "host", authHelper, 1000);
 
         kvtMetadataTasks = new TableMetadataTasks(kvtStore,  segmentHelper,
                 EXECUTOR, EXECUTOR, "host", authHelper, helper);
