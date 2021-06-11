@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 
 import static io.pravega.segmentstore.server.ContainerEventProcessor.ProcessorEventData.HEADER_LENGTH;
 import static io.pravega.segmentstore.server.ContainerEventProcessor.ProcessorEventData.MAX_TOTAL_EVENT_SIZE;
+import static io.pravega.segmentstore.server.containers.MetadataStore.SegmentInfo.newSegment;
 import static io.pravega.shared.NameUtils.getEventProcessorSegmentName;
 
 /**
@@ -123,7 +124,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         return s -> Futures.exceptionallyComposeExpecting(
                 container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout),
                 e -> e instanceof StreamSegmentNotExistsException,
-                () -> metadataStore.submitAssignment(MetadataStore.SegmentInfo.newSegment(getEventProcessorSegmentName(container.getId(), s),
+                () -> metadataStore.submitAssignment(newSegment(getEventProcessorSegmentName(container.getId(), s),
                         SYSTEM_CRITICAL_SEGMENT, Collections.emptyList()), true, timeout) // Segment should be pinned.
                         .thenCompose(l -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout)));
     }
@@ -214,10 +215,11 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
             // Instantiate the EventProcessor and put it into the map. If the EventProcessor is closed, auto-unregister.
             Runnable onClose = () -> eventProcessorMap.remove(name);
+            Function<List<BufferView>, CompletableFuture<Void>> noHandler = l -> CompletableFuture.completedFuture(null);
             return segmentSupplier.apply(name)
                     .thenApply(segment -> {
                         Exceptions.checkNotClosed(this.closed.get(), this);
-                        EventProcessorImpl eventProcessor = new EventProcessorImpl(name, segment, l -> CompletableFuture.completedFuture(null), config, onClose);
+                        EventProcessorImpl eventProcessor = new EventProcessorImpl(name, segment, noHandler, config, onClose);
                         eventProcessorMap.put(name, eventProcessor);
                         return eventProcessor;
                     });
