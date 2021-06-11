@@ -127,6 +127,13 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     }
 
     @Override
+    public void testGetReaderGroup() {
+        final String resourceURI = getURI() + "v1/scopes/scope1/readergroups/readergroup1";
+        Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        assertEquals("List Reader Groups response code", expectedResult, response.getStatus());
+    }
+
+    @Override
     @Test
     public void testDeleteStream() throws Exception {
         final String resourceURI = getURI() + "v1/scopes/scope1/streams/stream1";

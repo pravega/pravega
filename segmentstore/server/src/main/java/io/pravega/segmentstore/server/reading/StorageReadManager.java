@@ -201,7 +201,15 @@ public class StorageReadManager implements AutoCloseable {
     private CompletableFuture<SegmentHandle> getHandle() {
         synchronized (this.lock) {
             if (this.handle == null) {
-                this.handle = storage.openRead(this.segmentName);
+                this.handle = storage.openRead(this.segmentName)
+                        .whenComplete((h, ex) -> {
+                            if (ex != null) {
+                                synchronized (this.lock) {
+                                    log.debug("{}: storage.openRead failed for {}. Resetting handle. {}", this.traceObjectId, this.segmentName, ex);
+                                    this.handle = null;
+                                }
+                            }
+                        });
             }
 
             return this.handle;

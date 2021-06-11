@@ -148,7 +148,6 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
         val chunkStorage = createChunkStorage();
         @Cleanup
         val metadataStore = createMetadataStore();
-        val policy = SegmentRollingPolicy.NO_ROLLING;
         val config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG;
         @Cleanup
         val chunkedSegmentStorage = new ChunkedSegmentStorage(CONTAINER_ID, chunkStorage, metadataStore, executorService(), config);
@@ -159,14 +158,12 @@ public class ChunkedSegmentStorageTests extends ThreadPooledTestSuite {
 
         Assert.assertNotNull(chunkedSegmentStorage.getMetadataStore());
         Assert.assertEquals(chunkStorage, chunkedSegmentStorage.getChunkStorage());
-        Assert.assertEquals(policy, chunkedSegmentStorage.getConfig().getDefaultRollingPolicy());
         Assert.assertEquals(1, chunkedSegmentStorage.getEpoch());
 
         Assert.assertEquals(metadataStore, chunkedSegmentStorage.getMetadataStore());
         Assert.assertEquals(chunkStorage, chunkedSegmentStorage.getChunkStorage());
-        Assert.assertEquals(policy, chunkedSegmentStorage.getConfig().getDefaultRollingPolicy());
         Assert.assertNotNull(chunkedSegmentStorage.getSystemJournal());
-        Assert.assertEquals(chunkedSegmentStorage.getSystemJournal().getConfig().getDefaultRollingPolicy(), policy);
+        Assert.assertEquals(chunkedSegmentStorage.getSystemJournal().getConfig().getStorageMetadataRollingPolicy(), chunkedSegmentStorage.getConfig().getStorageMetadataRollingPolicy());
         Assert.assertEquals(1, chunkedSegmentStorage.getEpoch());
         Assert.assertEquals(CONTAINER_ID, chunkedSegmentStorage.getContainerId());
         Assert.assertEquals(0, chunkedSegmentStorage.getConfig().getMinSizeLimitForConcat());
