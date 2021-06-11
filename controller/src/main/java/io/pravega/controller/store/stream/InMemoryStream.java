@@ -158,6 +158,11 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
+    public CompletableFuture<Integer> getCommittingTxnsCount(OperationContext context) {
+        return CompletableFuture.completedFuture(Integer.valueOf(100));
+    }
+
+    @Override
     CompletableFuture<Void> deleteStream(OperationContext context) {
         return CompletableFuture.completedFuture(null);
     }
@@ -1047,6 +1052,11 @@ public class InMemoryStream extends PersistentStreamBase {
             }
         }
         return result;
+    }
+
+    @Override
+    public CompletableFuture<Version> updateCommittingTxnsCount(int committingTxnsCount, OperationContext context) {
+        return null;
     }
 
     @Override

@@ -105,6 +105,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private final CompletableFuture<EventStreamWriter<CommitEvent>> commitWriterFuture;
     private final CompletableFuture<EventStreamWriter<AbortEvent>> abortWriterFuture;
     private final AtomicLong maxTransactionExecutionTimeBound;
+    private final int openTxnsLimit;
 
     @VisibleForTesting
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
@@ -114,7 +115,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final GrpcAuthHelper authHelper) {
+                                          final GrpcAuthHelper authHelper,
+                                          final int openTxnsLimit) {
         this.hostId = hostId;
         this.executor = executor;
         this.eventExecutor = eventExecutor;
@@ -126,6 +128,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         this.commitWriterFuture = new CompletableFuture<>();
         this.abortWriterFuture = new CompletableFuture<>();
         this.maxTransactionExecutionTimeBound = new AtomicLong(Duration.ofDays(Config.MAX_TXN_EXECUTION_TIMEBOUND_DAYS).toMillis());
+        this.openTxnsLimit = (openTxnsLimit <= 0) ? Config.OPEN_TXNS_LIMIT : openTxnsLimit;
     }
 
     @VisibleForTesting
@@ -135,8 +138,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, executor, hostId, timeoutServiceConfig, taskCompletionQueue, authHelper);
+                                          final GrpcAuthHelper authHelper,
+                                          final int openTxnsLimit) {
+        this(streamMetadataStore, segmentHelper, executor, executor, hostId, timeoutServiceConfig, taskCompletionQueue, authHelper, openTxnsLimit);
     }
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
@@ -145,9 +149,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService eventExecutor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          final GrpcAuthHelper authHelper) {
+                                          final GrpcAuthHelper authHelper,
+                                          final int openTxnsLimit) {
         this(streamMetadataStore, segmentHelper, executor, eventExecutor, hostId, timeoutServiceConfig, 
-                null, authHelper);
+                null, authHelper, openTxnsLimit);
     }
 
     @VisibleForTesting
@@ -155,8 +160,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          final GrpcAuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, executor, hostId, TimeoutServiceConfig.defaultConfig(), authHelper);
+                                          final GrpcAuthHelper authHelper,
+                                          final int openTxnsLimit) {
+        this(streamMetadataStore, segmentHelper, executor, executor, hostId, TimeoutServiceConfig.defaultConfig(), authHelper, openTxnsLimit);
     }
 
     private void setReady() {
@@ -369,44 +375,61 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         // - DataNotFoundException because it will only happen in rare case
         // when we generate the transactionid against latest epoch (if there is ongoing scale then this is new epoch)
         // and then epoch node is deleted as scale starts and completes.
-        return validate.thenCompose(validated -> RetryHelper.withRetriesAsync(() ->
-                streamMetadataStore.generateTransactionId(scope, stream, ctx, executor)
-                .thenCompose(txnId -> {
-                    CompletableFuture<Void> addIndex = addTxnToIndex(scope, stream, txnId, ctx.getRequestId());
+        return validate.thenCompose(validated -> checkTxnRateLimit(scope, stream, ctx))
+                .thenCompose(limitCheckPassed -> {
+                if (!limitCheckPassed) {
+                    throw new RuntimeException("Create transaction failed because Open Transactions limit exceeded. Try again later.");
+                }
+                return RetryHelper.withRetriesAsync(() ->
+                            streamMetadataStore.generateTransactionId(scope, stream, ctx, executor)
+                            .thenCompose(txnId -> {
+                            CompletableFuture<Void> addIndex = addTxnToIndex(scope, stream, txnId, ctx.getRequestId());
 
-                    // Step 3. Create txn node in the store.
-                    CompletableFuture<VersionedTransactionData> txnFuture = createTxnInStore(scope, stream, lease,
-                            ctx, maxExecutionPeriod, txnId, addIndex, ctx.getRequestId());
+                                // Step 3. Create txn node in the store.
+                                CompletableFuture<VersionedTransactionData> txnFuture = createTxnInStore(scope, stream, lease,
+                                                        ctx, maxExecutionPeriod, txnId, addIndex, ctx.getRequestId());
 
-                    // Step 4. Notify segment stores about new txn.
-                    CompletableFuture<List<StreamSegmentRecord>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
-                            streamMetadataStore.getSegmentsInEpoch(scope, stream, txnData.getEpoch(), ctx, executor), executor);
+                                // Step 4. Notify segment stores about new txn.
+                                CompletableFuture<List<StreamSegmentRecord>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
+                                                        streamMetadataStore.getSegmentsInEpoch(scope, stream, txnData.getEpoch(), ctx, executor), executor);
 
-                    CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
-                            notifyTxnCreation(scope, stream, activeSegments, txnId, ctx.getRequestId()), executor)
-                                                                   .whenComplete((v, e) ->
-                            // Method notifyTxnCreation ensures that notification completes
-                            // even in the presence of n/w or segment store failures.
-                            log.trace(ctx.getRequestId(), "Txn={}, notified segments stores", txnId));
+                                CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
+                                                        notifyTxnCreation(scope, stream, activeSegments, txnId, ctx.getRequestId()), executor)
+                                                        .whenComplete((v, e) ->
+                                                                // Method notifyTxnCreation ensures that notification completes
+                                                                // even in the presence of n/w or segment store failures.
+                                                                log.trace(ctx.getRequestId(), "Txn={}, notified segments stores", txnId));
 
-                    // Step 5. Start tracking txn in timeout service
-                    return notify.whenCompleteAsync((result, ex) -> {
-                        addTxnToTimeoutService(scope, stream, lease, maxExecutionPeriod, txnId, txnFuture, ctx.getRequestId());
-                    }, executor).thenApplyAsync(v -> {
-                        List<StreamSegmentRecord> segments = segmentsFuture.join().stream().map(x -> {
-                            long generalizedSegmentId = RecordHelper.generalizedSegmentId(x.segmentId(), txnId);
-                            int epoch = NameUtils.getEpoch(generalizedSegmentId);
-                            int segmentNumber = NameUtils.getSegmentNumber(generalizedSegmentId);
-                            return StreamSegmentRecord.builder().creationEpoch(epoch).segmentNumber(segmentNumber)
-                                    .creationTime(x.getCreationTime()).keyStart(x.getKeyStart()).keyEnd(x.getKeyEnd()).build();
-                        }).collect(Collectors.toList());
+                                // Step 5. Start tracking txn in timeout service
+                                return notify.whenCompleteAsync((result, ex) -> {
+                                                    addTxnToTimeoutService(scope, stream, lease, maxExecutionPeriod, txnId, txnFuture, ctx.getRequestId());
+                                                }, executor).thenApplyAsync(v -> {
+                                                    List<StreamSegmentRecord> segments = segmentsFuture.join().stream().map(x -> {
+                                                        long generalizedSegmentId = RecordHelper.generalizedSegmentId(x.segmentId(), txnId);
+                                                        int epoch = NameUtils.getEpoch(generalizedSegmentId);
+                                                        int segmentNumber = NameUtils.getSegmentNumber(generalizedSegmentId);
+                                                        return StreamSegmentRecord.builder().creationEpoch(epoch).segmentNumber(segmentNumber)
+                                                                .creationTime(x.getCreationTime()).keyStart(x.getKeyStart()).keyEnd(x.getKeyEnd()).build();
+                                                    }).collect(Collectors.toList());
 
-                        return new ImmutablePair<>(txnFuture.join(), segments);
-                    }, executor);
-                }), e -> {
-            Throwable unwrap = Exceptions.unwrap(e);
-            return unwrap instanceof StoreException.WriteConflictException || unwrap instanceof StoreException.DataNotFoundException;
-        }, 5, executor));
+                                                    return new ImmutablePair<>(txnFuture.join(), segments);
+                                                }, executor);
+                                }), e -> {
+                                Throwable unwrap = Exceptions.unwrap(e);
+                                return unwrap instanceof StoreException.WriteConflictException || unwrap instanceof StoreException.DataNotFoundException;
+                            }, 5, executor);
+                }
+                );
+    }
+
+    private CompletableFuture<Boolean> checkTxnRateLimit(final String scope,
+                                                         final String stream,
+                                                         final OperationContext ctx) {
+        return streamMetadataStore.getCommittingTxnsCount(scope, stream, ctx, executor)
+                .thenApply(txnsCount -> {
+                    log.info("Committing txns Count: {}", txnsCount.intValue());
+                    return (txnsCount.intValue() <= this.openTxnsLimit) ? Boolean.TRUE : Boolean.FALSE;
+                });
     }
 
     private void addTxnToTimeoutService(String scope, String stream, long lease, long maxExecutionPeriod, UUID txnId,
@@ -654,12 +677,17 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         }) :
                 CompletableFuture.completedFuture(null);
 
-        addIndex.whenComplete((v, e) -> {
+        checkTxnRateLimit(scope, stream, ctx).thenCompose(limitCheckPassed -> {
+            if (!limitCheckPassed) {
+                throw new RuntimeException("Create transaction failed because Open Transactions limit exceeded. Try again later.");
+            }
+            return addIndex.whenComplete((v, e) -> {
             if (e != null) {
                 log.debug(requestId, "Txn={}, already present/newly added to host-txn index of host={}", txnId, hostId);
             } else {
                 log.debug(requestId, "Txn={}, added txn to host-txn index of host={}", txnId, hostId);
             }
+            });
         });
 
         // Step 2. Seal txn

@@ -109,6 +109,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT = "segmentsSealedSizeMapShard-%d";
     private static final String SEGMENT_SEALED_EPOCH_KEY_FORMAT = "segmentSealedEpochPath-%d"; // segment id
     private static final String COMMITTING_TRANSACTIONS_RECORD_KEY = "committingTxns";
+    private static final String COMMITTING_TRANSACTIONS_COUNT_KEY = "committingTxnsCount";
     private static final String SEGMENT_MARKER_PATH_FORMAT = "markers-%d";
     private static final String WAITING_REQUEST_PROCESSOR_PATH = "waitingRequestProcessor";
 
@@ -806,6 +807,16 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
+    public CompletableFuture<Integer> getCommittingTxnsCount(OperationContext context) {
+        Preconditions.checkNotNull(context, "operation context cannot be null");
+
+        return getMetadataTable(context)
+                .thenCompose(metadataTable -> storeHelper.getCachedOrLoad(metadataTable, COMMITTING_TRANSACTIONS_COUNT_KEY,
+                        BYTES_TO_INTEGER_FUNCTION, context.getOperationStartTime(), context.getRequestId()))
+                .thenApply(VersionedMetadata::getObject);
+    }
+
+    @Override
     public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
@@ -1248,13 +1259,24 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> updateCommittingTxnRecord(VersionedMetadata<CommittingTransactionsRecord> update, 
+    CompletableFuture<Version> updateCommittingTxnRecord(VersionedMetadata<CommittingTransactionsRecord> update,
                                                          OperationContext context) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> storeHelper.updateEntry(metadataTable, COMMITTING_TRANSACTIONS_RECORD_KEY,
                         update.getObject(), CommittingTransactionsRecord::toBytes, update.getVersion(), context.getRequestId()));
+    }
+
+    @Override
+    public CompletableFuture<Version> updateCommittingTxnsCount(final int txnCount, OperationContext context) {
+        Preconditions.checkNotNull(context, "operation context cannot be null");
+        log.info("COMMITTING Transactions Count: {}", txnCount);
+        return getMetadataTable(context)
+                .thenCompose(metadataTable -> storeHelper.getCachedOrLoad(metadataTable, COMMITTING_TRANSACTIONS_COUNT_KEY,
+                        BYTES_TO_INTEGER_FUNCTION, context.getOperationStartTime(), context.getRequestId())
+                .thenCompose(oldCount -> storeHelper.updateEntry(metadataTable, COMMITTING_TRANSACTIONS_COUNT_KEY,
+                        txnCount, INTEGER_TO_BYTES_FUNCTION, oldCount.getVersion(), context.getRequestId())));
     }
 
     @Override
