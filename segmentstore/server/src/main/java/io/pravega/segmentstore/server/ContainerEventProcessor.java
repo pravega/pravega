@@ -48,6 +48,20 @@ public interface ContainerEventProcessor extends AutoCloseable {
                                                   @NonNull EventProcessorConfig config);
 
     /**
+     * Instantiates a new {@link EventProcessor} that only enables to add new data to the internal Segment. This may be
+     * useful when a user needs to store events, but it is not clear how the best approach to process them will be. This
+     * append-only {@link EventProcessor} can be replaced in the future by a regular one with a handler function that
+     * will consume all the events in the internal Segment. If internal Segment exists, the {@link EventProcessor} will
+     * re-use it. If not, a new internal Segment will be  created. Multiple calls to this method for the same name
+     * should result in returning the same {@link EventProcessor} object.
+     *
+     * @param name     Name of the {@link EventProcessor} object.
+     * @return A {@link CompletableFuture} that, when completed, returns a new {@link EventProcessor} object associated
+     * to its own internal Segment.
+     */
+    CompletableFuture<EventProcessor> forDurableQueue(@NonNull String name);
+
+    /**
      * Each {@link EventProcessor} instance has associated an internal Segment and is uniquely identified by its name
      * within a Segment Container. An {@link EventProcessor} tails its internal Segment looking for new events. When it
      * has at least 1 event to read on its Segment, it invokes its handler. If there are multiple events available, up

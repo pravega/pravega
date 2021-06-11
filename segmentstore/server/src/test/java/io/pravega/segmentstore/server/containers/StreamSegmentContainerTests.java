@@ -2150,7 +2150,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             return CompletableFuture.runAsync(latch::release);
         };
         @Cleanup
-        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container,
+        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
                 TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
         ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
                 new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
@@ -2211,7 +2211,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ContainerEventProcessor.EventProcessorConfig config =
                 new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
         @Cleanup
-        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container,
+        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
                 TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
 
         @Cleanup
@@ -2256,7 +2256,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             return CompletableFuture.completedFuture(null);
         };
         @Cleanup
-        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container,
+        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
                 TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
         ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
                 spy(new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES));
@@ -2273,6 +2273,50 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Wait until the processor perform 10 retries of the same event.
         AssertExtensions.assertEventuallyEquals(true, () -> readEvents.get() == 1, 10000);
+    }
+
+    /**
+     * Test the EventProcessor in durable queue mode (no handler). Then, close it and recreate another one on the same
+     * internal Segment (same name) that actually consumes the events stored previously.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testDurableQueueAndSwitchToConsumer() throws Exception {
+        @Cleanup
+        TestContext context = createContext();
+        val container = (StreamSegmentContainer) context.container;
+        container.startAsync().awaitRunning();
+
+        int allEventsToProcess = 100;
+        @Cleanup
+        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
+                TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
+        ContainerEventProcessor.EventProcessor processor = containerEventProcessor.forDurableQueue("testDurableQueue")
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
+
+        // At this point, we can only add events, but not consuming them as the EventProcessor works in durable queue mode.
+        for (int i = 0; i < allEventsToProcess; i++) {
+            BufferView event = new ByteArraySegment(("event" + i).getBytes());
+            processor.add(event, TIMEOUT_FUTURE).join();
+        }
+        Assert.assertEquals("Event processor object not matching", processor, containerEventProcessor.forDurableQueue("testDurableQueue")
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS));
+        // Close the processor and unregister it.
+        processor.close();
+
+        // Now, re-create the Event Processor with a handler to consume the events.
+        ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
+                new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
+        AtomicLong processorResults = new AtomicLong(0);
+        Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
+            processorResults.addAndGet(l.size());
+            return CompletableFuture.completedFuture(null);
+        };
+        processor = containerEventProcessor.forConsumer("testDurableQueue", handler, eventProcessorConfig)
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
+        // Wait for all items to be processed.
+        AssertExtensions.assertEventuallyEquals(true, () -> processorResults.get() == allEventsToProcess, 10000);
     }
 
     /**

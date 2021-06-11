@@ -176,8 +176,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 this.executor, this.traceObjectId);
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
-        this.containerEventProcessor = new ContainerEventProcessorImpl(this, config.getEventProcessorIterationDelay(),
-                config.getEventProcessorOperationTimeout(), this.executor);
+        this.containerEventProcessor = new ContainerEventProcessorImpl(this, this.metadataStore,
+                config.getEventProcessorIterationDelay(), config.getEventProcessorOperationTimeout(), this.executor);
         this.closed = new AtomicBoolean();
     }
 

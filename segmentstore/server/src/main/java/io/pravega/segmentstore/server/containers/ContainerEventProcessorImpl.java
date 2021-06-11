@@ -35,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -83,9 +84,10 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
     //region Constructor
 
-    ContainerEventProcessorImpl(@NonNull SegmentContainer container, @NonNull Duration iterationDelay,
-                                @NonNull Duration containerOperationTimeout, @NonNull ScheduledExecutorService executor) {
-        this(container.getId(), getOrCreateInternalSegment(container, containerOperationTimeout), iterationDelay,
+    ContainerEventProcessorImpl(@NonNull SegmentContainer container, @NonNull MetadataStore metadataStore,
+                                @NonNull Duration iterationDelay, @NonNull Duration containerOperationTimeout,
+                                @NonNull ScheduledExecutorService executor) {
+        this(container.getId(), getOrCreateInternalSegment(container, metadataStore, containerOperationTimeout), iterationDelay,
                 containerOperationTimeout, executor);
     }
 
@@ -116,12 +118,14 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
      * {@link ContainerEventProcessor.EventProcessor} based on its name.
      */
     private static Function<String, CompletableFuture<DirectSegmentAccess>> getOrCreateInternalSegment(SegmentContainer container,
+                                                                                                       MetadataStore metadataStore,
                                                                                                        Duration timeout) {
         return s -> Futures.exceptionallyComposeExpecting(
                 container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout),
                 e -> e instanceof StreamSegmentNotExistsException,
-                () -> container.createStreamSegment(getEventProcessorSegmentName(container.getId(), s), SYSTEM_CRITICAL_SEGMENT, null, timeout)
-                        .thenCompose(v -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout)));
+                () -> metadataStore.submitAssignment(MetadataStore.SegmentInfo.newSegment(getEventProcessorSegmentName(container.getId(), s),
+                        SYSTEM_CRITICAL_SEGMENT, Collections.emptyList()), true, timeout) // Segment should be pinned.
+                        .thenCompose(l -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout)));
     }
 
     /**
@@ -195,6 +199,31 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                     });
         }
     }
+
+    @Override
+    public CompletableFuture<EventProcessor> forDurableQueue(@NonNull String name) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+
+        // Do not limit the amount of outstanding bytes when there is no consumer configured.
+        EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(0, Long.MAX_VALUE);
+        synchronized (eventProcessorMap) {
+            // If the EventProcessor is already loaded, just return it.
+            if (eventProcessorMap.containsKey(name)) {
+                return CompletableFuture.completedFuture(eventProcessorMap.get(name));
+            }
+
+            // Instantiate the EventProcessor and put it into the map. If the EventProcessor is closed, auto-unregister.
+            Runnable onClose = () -> eventProcessorMap.remove(name);
+            return segmentSupplier.apply(name)
+                    .thenApply(segment -> {
+                        Exceptions.checkNotClosed(this.closed.get(), this);
+                        EventProcessorImpl eventProcessor = new EventProcessorImpl(name, segment, l -> CompletableFuture.completedFuture(null), config, onClose);
+                        eventProcessorMap.put(name, eventProcessor);
+                        return eventProcessor;
+                    });
+        }
+    }
+
 
     private class EventProcessorImpl extends ContainerEventProcessor.EventProcessor implements Runnable {
 
