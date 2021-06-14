@@ -19,6 +19,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.impl.EventStreamWriterImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.SimpleCacheTests;
@@ -434,6 +435,10 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("NPE should be thrown",
+                () -> new AutoScaleProcessor(null, executorService(), testSimpleCache),
+                e -> e instanceof NullPointerException);
+
+        AssertExtensions.assertThrows("NPE should be thrown",
                 () -> new AutoScaleProcessor(null, AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
                         .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
@@ -466,6 +471,10 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                         .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
                         .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 150)
                         .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), eventStreamClientFactory, null, testSimpleCache),
+                e -> e instanceof NullPointerException);
+
+        AssertExtensions.assertThrows("NPE should be thrown",
+                () -> new AutoScaleProcessor(null, eventStreamClientFactory, executorService(), testSimpleCache),
                 e -> e instanceof NullPointerException);
     }
 }
