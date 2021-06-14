@@ -127,7 +127,10 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
                         CompletableFuture<Void> future;
                         if (e != null) {
                             log.warn("ConcurrentEventProcessor Processing failed {}", e.getClass().getName());
-                            future = handleProcessingError(request, e);
+                            // Fail the future with actual failure. The failure will be handled by the caller.
+                            Throwable actual = Exceptions.unwrap(e);
+                            log.warn("ConcurrentEventProcessor Processing failed, {} {}", actual.getClass(), actual.getMessage());
+                            future = Futures.failedFuture(actual);
                         } else {
                             log.debug("ConcurrentEventProcessor Processing complete");
                             future = CompletableFuture.completedFuture(null);
@@ -150,37 +153,6 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
             // And since this class does its own checkpointing, so we are not updating our last checkpoint.
             log.warn("processing requested after processor is stopped.");
         }
-    }
-
-    private CompletableFuture<Void> handleProcessingError(R request, Throwable e) {
-        CompletableFuture<Void> future;
-        Throwable cause = Exceptions.unwrap(e);
-
-        if (cause instanceof RetriesExhaustedException) {
-            cause = cause.getCause();
-        }
-
-        if (RetryableException.isRetryable(cause)) {
-            log.warn("ConcurrentEventProcessor Processing failed, Retryable Exception {}. Putting the event back.", cause.getClass().getName());
-
-            Writer<R> writer;
-            if (internalWriter != null) {
-                writer = internalWriter;
-            } else if (getSelfWriter() != null) {
-                writer = getSelfWriter();
-            } else {
-                writer = null;
-            }
-
-            future = indefiniteRetries(() -> writeBack(request, writer), executor);
-        } else {
-            // Fail the future with actual failure. The failure will be handled by the caller. 
-            Throwable actual = Exceptions.unwrap(e);
-            log.warn("ConcurrentEventProcessor Processing failed, {} {}", actual.getClass(), actual.getMessage());
-            future = Futures.failedFuture(actual);
-        }
-
-        return future;
     }
 
     @Override
