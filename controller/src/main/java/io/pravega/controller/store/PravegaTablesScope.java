@@ -260,18 +260,23 @@ public class PravegaTablesScope implements Scope {
         });
     }
 
-    /*
-        Fetch the Streams from the next available Tag Chunk table.
+    /**
+     * Fetch the Streams from the next available Tag Chunk table.
+     *
+     * @param tag Stream Tag
+     * @param token The token corresponds to the last Tag Chunk table that data was read from.
+     * @param context Operation context.
+     * @return A future that returns a List of Streams and the token.
      */
     CompletableFuture<Pair<List<String>, String>> getStreamsFromNextTagChunk(String tag, String token, OperationContext context) {
         return getAllStreamTagsInScopeTableNames(context).thenApply(
-                strings -> {
+                chunkTableList -> {
                     if (token.isEmpty()) {
                         // token is empty, try reading from the first tag table.
-                        return strings.get(0);
+                        return chunkTableList.get(0);
                     } else {
                         // return next index
-                        return strings.get(strings.indexOf(token) + 1);
+                        return chunkTableList.get(chunkTableList.indexOf(token) + 1);
                     }
                 }
         ).thenCompose(table -> storeHelper.expectingDataNotFound(
