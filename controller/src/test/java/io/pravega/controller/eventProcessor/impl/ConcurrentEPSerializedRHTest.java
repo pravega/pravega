@@ -208,7 +208,7 @@ public class ConcurrentEPSerializedRHTest {
 
         @Override
         public CompletableFuture<Void> processEvent(TestBase event) {
-            final Predicate<Throwable> NON_RETRYABLE_EXCEPTIONS = e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException
+            final Predicate<Throwable> nonRetryableExceptions = e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException
                     || Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException
                     || Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException
                     || Exceptions.unwrap(e) instanceof IllegalArgumentException
@@ -217,12 +217,12 @@ public class ConcurrentEPSerializedRHTest {
             receivedForProcessing.add(event);
             CompletableFuture<Void> result = new CompletableFuture<>();
             Retry.withExpBackoff(100, 1, 5, 100)
-                    .retryWhen(NON_RETRYABLE_EXCEPTIONS.negate())
+                    .retryWhen(nonRetryableExceptions.negate())
                     .runAsync(() -> event.process(null), executor)
                     .whenCompleteAsync((r, e) -> {
                         if (e != null) {
                             Throwable cause = Exceptions.unwrap(e);
-                            if (!NON_RETRYABLE_EXCEPTIONS.test(cause)) {
+                            if (!nonRetryableExceptions.test(cause)) {
                                 Retry.indefinitelyWithExpBackoff("Error writing event back into requeststream")
                                         .runAsync(() -> writer.write(event), executor)
                                         .thenAccept(v -> result.completeExceptionally(cause));
