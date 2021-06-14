@@ -1062,7 +1062,6 @@ public class InMemoryStream extends PersistentStreamBase {
         CompletableFuture<Version> result = new CompletableFuture<>();
         VersionedMetadata<Integer> updatedCopy = updatedCopy(new VersionedMetadata<>(Integer.valueOf(comTxnsCount), committingTxnCount.getVersion()));
         synchronized (lock) {
-            //return this.committingTxnsCount = updatedCopy());
             this.committingTxnCount = updatedCopy;
             result.complete(committingTxnCount.getVersion());
         }
