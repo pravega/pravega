@@ -453,8 +453,22 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("NPE should be thrown",
-                () -> new AutoScaleProcessor(null, eventStreamClientFactory, executorService(), testSimpleCache),
+                () -> new AutoScaleProcessor(AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
+                        .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 150)
+                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), eventStreamClientFactory, null),
                 e -> e instanceof NullPointerException);
+
+        AssertExtensions.assertThrows("NPE should be thrown",
+                () -> new AutoScaleProcessor(AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
+                        .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 150)
+                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), eventStreamClientFactory, null, testSimpleCache),
+                e -> e instanceof NullPointerException);
+        
+        
         
     }
 
