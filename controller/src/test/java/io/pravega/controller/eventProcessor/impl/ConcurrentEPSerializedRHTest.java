@@ -20,6 +20,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
 import lombok.Cleanup;
@@ -40,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import static org.junit.Assert.assertTrue;
 
@@ -206,15 +208,21 @@ public class ConcurrentEPSerializedRHTest {
 
         @Override
         public CompletableFuture<Void> processEvent(TestBase event) {
+            final Predicate<Throwable> NON_RETRYABLE_EXCEPTIONS = e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException
+                    || Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException
+                    || Exceptions.unwrap(e) instanceof StoreException.DataContainerNotFoundException
+                    || Exceptions.unwrap(e) instanceof IllegalArgumentException
+                    || Exceptions.unwrap(e) instanceof NullPointerException;
+
             receivedForProcessing.add(event);
             CompletableFuture<Void> result = new CompletableFuture<>();
             Retry.withExpBackoff(100, 1, 5, 100)
-                    .retryWhen(RetryableException::isRetryable)
+                    .retryWhen(NON_RETRYABLE_EXCEPTIONS.negate())
                     .runAsync(() -> event.process(null), executor)
                     .whenCompleteAsync((r, e) -> {
                         if (e != null) {
                             Throwable cause = Exceptions.unwrap(e);
-                            if (cause instanceof OperationDisallowedException) {
+                            if (!NON_RETRYABLE_EXCEPTIONS.test(cause)) {
                                 Retry.indefinitelyWithExpBackoff("Error writing event back into requeststream")
                                         .runAsync(() -> writer.write(event), executor)
                                         .thenAccept(v -> result.completeExceptionally(cause));
