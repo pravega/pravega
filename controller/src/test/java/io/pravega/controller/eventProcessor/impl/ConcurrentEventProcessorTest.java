@@ -146,7 +146,6 @@ public class ConcurrentEventProcessorTest {
     
     @Test(timeout = 10000)
     public void testConcurrentEventProcessor() throws InterruptedException, ExecutionException {
-        EventProcessor.Writer<TestEvent> writer = event -> CompletableFuture.completedFuture(null);
 
         EventProcessor.Checkpointer checkpointer = pos -> {
             checkpoint.set(((TestPosition) pos).getNumber());
@@ -170,7 +169,7 @@ public class ConcurrentEventProcessorTest {
             }
         };
         ConcurrentEventProcessor<TestEvent, TestRequestHandler> processor = new ConcurrentEventProcessor<>(new TestRequestHandler(), 2, executor,
-                checkpointer, writer, 1, TimeUnit.SECONDS);
+                checkpointer, 1, TimeUnit.SECONDS);
 
         CompletableFuture.runAsync(() -> {
             for (int i = 0; i < 5; i++) {
@@ -185,7 +184,6 @@ public class ConcurrentEventProcessorTest {
 
     @Test(timeout = 10000)
     public void testFailedProcessingRetryable() throws InterruptedException, ExecutionException {
-        CompletableFuture<Void> writerTest = new CompletableFuture<>();
         CompletableFuture<Void> checkpointTest = new CompletableFuture<>();
         TestEvent request = new TestEvent(0);
         EventProcessor.Checkpointer checkpointer = pos -> {
@@ -197,24 +195,14 @@ public class ConcurrentEventProcessorTest {
             }
         };
 
-        EventProcessor.Writer<TestEvent> writer = event -> {
-            if (event.equals(request)) {
-                writerTest.complete(null);
-            } else {
-                writerTest.completeExceptionally(new RuntimeException());
-            }
-            return CompletableFuture.completedFuture(null);
-        };
-
         // process throwing retryable exception. Verify that event is written back and checkpoint has moved forward
         ConcurrentEventProcessor<TestEvent, TestFailureRequestHandler> processor = new ConcurrentEventProcessor<>(new TestFailureRequestHandler(new RetryableTestException()),
                 2, executor,
-                checkpointer, writer, 1, TimeUnit.SECONDS);
+                checkpointer, 1, TimeUnit.SECONDS);
 
         processor.process(request, new TestPosition(0));
-
-        assertTrue(Futures.await(writerTest));
         assertTrue(Futures.await(checkpointTest));
+        assertEquals(0, checkpoint.get());
         processor.afterStop();
     }
 
@@ -232,49 +220,15 @@ public class ConcurrentEventProcessorTest {
             }
         };
 
-        EventProcessor.Writer<TestEvent> writer = event -> {
-            writerTest.complete(null);
-            return CompletableFuture.completedFuture(null);
-        };
-
         // process throwing non retryable exception. Verify that no event is written back while the checkpoint has moved forward
         ConcurrentEventProcessor<TestEvent, TestFailureRequestHandler> processor = new ConcurrentEventProcessor<>(
                 new TestFailureRequestHandler(new RuntimeException()),
                 2, executor,
-                checkpointer, writer, 1, TimeUnit.SECONDS);
+                checkpointer, 1, TimeUnit.SECONDS);
 
         processor.process(request, new TestPosition(0));
 
         assertTrue(Futures.await(checkpointTest));
-        assertTrue(!writerTest.isDone());
-        processor.afterStop();
-    }
-
-    @Test(timeout = 10000)
-    public void testWriteBackFailed() throws InterruptedException, ExecutionException {
-        CompletableFuture<Void> checkpointTest = new CompletableFuture<>();
-        CompletableFuture<Void> writerTest = new CompletableFuture<>();
-        TestEvent request = new TestEvent(0);
-        EventProcessor.Checkpointer checkpointer = pos -> checkpointTest.complete(null);
-        AtomicInteger counter = new AtomicInteger();
-        EventProcessor.Writer<TestEvent> writer = event -> {
-            if (counter.incrementAndGet() > 3) {
-                writerTest.complete(null);
-                return CompletableFuture.completedFuture(null);
-            }
-            throw new RetryableTestException();
-        };
-
-        // process throwing non retryable exception. Verify that no event is written back while the checkpoint has moved forward
-        ConcurrentEventProcessor<TestEvent, TestFailureRequestHandler> processor = new ConcurrentEventProcessor<>(
-                new TestFailureRequestHandler(new RetryableTestException()),
-                2, executor,
-                checkpointer, writer, 1, TimeUnit.SECONDS);
-
-        processor.process(request, new TestPosition(0));
-
-        assertTrue(Futures.await(writerTest));
-        assertTrue(!checkpointTest.isDone());
         processor.afterStop();
     }
 
@@ -320,7 +274,7 @@ public class ConcurrentEventProcessorTest {
 
         ConcurrentEventProcessor<TestEvent, RequestHandler<TestEvent>> processor = new ConcurrentEventProcessor<>(
                 requestHandler, 100, executor,
-                checkpointer, writer, 10, TimeUnit.MILLISECONDS);
+                checkpointer, 10, TimeUnit.MILLISECONDS);
 
         processor.process(request0, new TestPosition(0));
         processor.process(request1, new TestPosition(1));

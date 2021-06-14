@@ -65,7 +65,6 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     private final Semaphore semaphore;
     private final ScheduledFuture<?> periodicCheckpoint;
     private final Checkpointer checkpointer;
-    private final Writer<R> internalWriter;
     /**
      * The phaser is used to count number of ongoing requests and act as a 
      * barrier to complete shutdown until all ongoing requests are completed. 
@@ -74,7 +73,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
 
     public ConcurrentEventProcessor(final H requestHandler,
                                     final ScheduledExecutorService executor) {
-        this(requestHandler, MAX_CONCURRENT, executor, null, null, 1, TimeUnit.MINUTES);
+        this(requestHandler, MAX_CONCURRENT, executor, null, 1, TimeUnit.MINUTES);
     }
 
     @VisibleForTesting
@@ -82,7 +81,6 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
                              final int maxConcurrent,
                              final ScheduledExecutorService executor,
                              final Checkpointer checkpointer,
-                             final Writer<R> writer,
                              final long checkpointPeriod,
                              final TimeUnit timeUnit) {
         Preconditions.checkNotNull(requestHandler);
@@ -93,7 +91,6 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         completed = new ConcurrentSkipListSet<>(positionCounterComparator);
         this.checkpointer = checkpointer;
         this.checkpoint = new AtomicReference<>();
-        this.internalWriter = writer;
         this.executor = executor;
         periodicCheckpoint = this.executor.scheduleAtFixedRate(this::periodicCheckpoint, 0, checkpointPeriod, timeUnit);
         semaphore = new Semaphore(maxConcurrent);
@@ -122,7 +119,6 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
                     .whenCompleteAsync((r, e) -> {
                         CompletableFuture<Void> future;
                         if (e != null) {
-                            log.warn("ConcurrentEventProcessor Processing failed {}", e.getClass().getName());
                             // Fail the future with actual failure. The failure will be handled by the caller.
                             Throwable actual = Exceptions.unwrap(e);
                             log.warn("ConcurrentEventProcessor Processing failed, {} {}", actual.getClass(), actual.getMessage());

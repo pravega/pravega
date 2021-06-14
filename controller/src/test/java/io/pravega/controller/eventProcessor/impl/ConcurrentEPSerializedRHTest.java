@@ -77,7 +77,7 @@ public class ConcurrentEPSerializedRHTest {
         ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "test");
         TestRequestHandler2 requestHandler = new TestRequestHandler2(executor);
         ConcurrentEventProcessor<TestBase, TestRequestHandler2> processor = new ConcurrentEventProcessor<>(
-                requestHandler, 1, executor, null, writer, 1, TimeUnit.SECONDS);
+                requestHandler, 1, executor, null, 1, TimeUnit.SECONDS);
 
         CompletableFuture.runAsync(() -> {
             while (!stop.get()) {
