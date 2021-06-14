@@ -467,9 +467,5 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                         .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 150)
                         .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), eventStreamClientFactory, null, testSimpleCache),
                 e -> e instanceof NullPointerException);
-        
-        
-        
     }
-
 }
