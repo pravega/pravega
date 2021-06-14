@@ -1246,7 +1246,10 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getMetadataTable(context)
                 .thenCompose(metadataTable -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(
                         metadataTable, COMMITTING_TRANSACTIONS_RECORD_KEY, committingTxns, CommittingTransactionsRecord::toBytes, 
-                        context.getRequestId())));
+                        context.getRequestId()))
+                        .thenCompose(v -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(
+                        metadataTable, COMMITTING_TRANSACTIONS_COUNT_KEY, Integer.valueOf(0), INTEGER_TO_BYTES_FUNCTION,
+                        context.getRequestId()))));
     }
 
     @Override
