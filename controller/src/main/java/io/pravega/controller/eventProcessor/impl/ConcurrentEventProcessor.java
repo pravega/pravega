@@ -20,9 +20,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.Position;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.eventProcessor.RequestHandler;
-import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
@@ -43,9 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.indefiniteRetries;
 import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.withRetries;
-import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.writeBack;
 
 /**
  * This event processor allows concurrent event processing.
