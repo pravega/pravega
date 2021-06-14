@@ -62,7 +62,7 @@ public class HealthEndpointImpl implements HealthEndpoint {
     @NonNull
     @Override
     public Health getHealth(String id) {
-        if (id == null || id == root.getName()) {
+        if (id == null || id.equals(root.getName())) {
             return updater.getLatestHealth();
         } else {
             List<String> path = Arrays.asList(id.split("/"));
