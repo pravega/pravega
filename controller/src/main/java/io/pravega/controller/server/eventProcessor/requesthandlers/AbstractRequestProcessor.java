@@ -201,9 +201,11 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                         + event + " so that waiting processor" + waitingRequestProcessor + " can work. "));
                     }
                 }).exceptionally(e -> {
-                    retryIndefinitelyThenComplete(
-                            () -> task.writeBack(event), resultFuture, null);
-            return null;
+                    if (writeBackPredicate.test(e)) {
+                        retryIndefinitelyThenComplete(
+                                () -> task.writeBack(event), resultFuture, null);
+                    }
+                    return null;
         });
 
         return resultFuture;
