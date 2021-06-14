@@ -75,7 +75,7 @@ public class HealthServiceImpl implements HealthService {
         }
     }
 
-    private class RootHealthContributor extends HealthContributorImpl {
+    private class RootHealthContributor extends AbstractHealthContributor {
 
         RootHealthContributor() {
             super("", StatusAggregator.UNANIMOUS);

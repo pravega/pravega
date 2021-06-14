@@ -43,7 +43,7 @@ public class HealthContributorTests {
     }
 
     /**
-     * If the {@link io.pravega.shared.health.impl.HealthContributorImpl#doHealthCheck(Health.HealthBuilder)} throws an error, test that it is caught and
+     * If the {@link AbstractHealthContributor#doHealthCheck(Health.HealthBuilder)} throws an error, test that it is caught and
      * a {@link Health} result that reflects an 'unhealthy' state is returned.
      */
     @Test

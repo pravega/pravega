@@ -15,7 +15,7 @@
  */
 package io.pravega.shared.health;
 
-import io.pravega.shared.health.impl.HealthContributorImpl;
+import io.pravega.shared.health.impl.AbstractHealthContributor;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -26,7 +26,7 @@ public class TestHealthContributors {
      * Implements a {@link HealthContributor} that always supplies a healthy result. This class also sets one
      * details entry.
      */
-    public static class HealthyContributor extends HealthContributorImpl {
+    public static class HealthyContributor extends AbstractHealthContributor {
         public static final String DETAILS_KEY = "indicator-details-key";
 
         public static final String DETAILS_VAL = "sample-indicator-details-value";
@@ -51,7 +51,7 @@ public class TestHealthContributors {
     /**
      * Implements an {@link HealthContributor} that *always* supplies a 'failing' result.
      */
-    public static class FailingContributor extends HealthContributorImpl {
+    public static class FailingContributor extends AbstractHealthContributor {
         public FailingContributor(String name) {
             super(name, StatusAggregator.UNANIMOUS);
         }
@@ -69,9 +69,9 @@ public class TestHealthContributors {
 
 
     /**
-     * Implements an {@link HealthContributor} that *always* will throw an error within it's {@link HealthContributorImpl#doHealthCheck(Health.HealthBuilder)}.
+     * Implements an {@link HealthContributor} that *always* will throw an error within it's {@link AbstractHealthContributor#doHealthCheck(Health.HealthBuilder)}.
      */
-    public static class ThrowingContributor extends HealthContributorImpl {
+    public static class ThrowingContributor extends AbstractHealthContributor {
         public ThrowingContributor() {
             super("thrower");
         }

@@ -35,16 +35,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * The {@link HealthContributorImpl} class defines the base logic required to build {@link HealthContributor} objects
+ * The {@link AbstractHealthContributor} class defines the base logic required to build {@link HealthContributor} objects
  * that depend on (or are composed of) other {@link HealthContributor} objects. To do this we need to due two things:
  * reducing/reconciling the (potentially) many different {@link Status} states and a way to persist these relationships.
  *
- * {@link HealthContributorImpl} objects are used *strictly* for grouping, meaning that they do not define their own
+ * {@link AbstractHealthContributor} objects are used *strictly* for grouping, meaning that they do not define their own
  * health checking logic and therefore does not export any details ({@link Health#getDetails}).
  */
 @Slf4j
 @ThreadSafe
-public abstract class HealthContributorImpl implements HealthContributor {
+public abstract class AbstractHealthContributor implements HealthContributor {
 
     /**
      * The {@link StatusAggregator} used to perform the aggregation of all the {@link HealthContributor} dependencies.
@@ -78,11 +78,11 @@ public abstract class HealthContributorImpl implements HealthContributor {
      */
     private final Map<String, HealthContributor> contributors = new ConcurrentHashMap<>();
 
-    public HealthContributorImpl(@NonNull String name) {
+    public AbstractHealthContributor(@NonNull String name) {
         this(name, StatusAggregator.UNANIMOUS);
     }
 
-    public HealthContributorImpl(@NonNull String name, @NonNull StatusAggregator aggregator) {
+    public AbstractHealthContributor(@NonNull String name, @NonNull StatusAggregator aggregator) {
         this.name = name;
         this.aggregator = aggregator;
     }
