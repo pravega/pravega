@@ -20,7 +20,9 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.Position;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.eventProcessor.RequestHandler;
+import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
@@ -41,7 +43,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.indefiniteRetries;
 import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.withRetries;
+import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.writeBack;
 
 /**
  * This event processor allows concurrent event processing.
@@ -65,6 +69,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     private final Semaphore semaphore;
     private final ScheduledFuture<?> periodicCheckpoint;
     private final Checkpointer checkpointer;
+    private final Writer<R> internalWriter;
     /**
      * The phaser is used to count number of ongoing requests and act as a 
      * barrier to complete shutdown until all ongoing requests are completed. 
@@ -73,7 +78,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
 
     public ConcurrentEventProcessor(final H requestHandler,
                                     final ScheduledExecutorService executor) {
-        this(requestHandler, MAX_CONCURRENT, executor, null, 1, TimeUnit.MINUTES);
+        this(requestHandler, MAX_CONCURRENT, executor, null, null, 1, TimeUnit.MINUTES);
     }
 
     @VisibleForTesting
@@ -81,6 +86,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
                              final int maxConcurrent,
                              final ScheduledExecutorService executor,
                              final Checkpointer checkpointer,
+                             final Writer<R> writer,
                              final long checkpointPeriod,
                              final TimeUnit timeUnit) {
         Preconditions.checkNotNull(requestHandler);
@@ -91,6 +97,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         completed = new ConcurrentSkipListSet<>(positionCounterComparator);
         this.checkpointer = checkpointer;
         this.checkpoint = new AtomicReference<>();
+        this.internalWriter = writer;
         this.executor = executor;
         periodicCheckpoint = this.executor.scheduleAtFixedRate(this::periodicCheckpoint, 0, checkpointPeriod, timeUnit);
         semaphore = new Semaphore(maxConcurrent);
@@ -119,10 +126,8 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
                     .whenCompleteAsync((r, e) -> {
                         CompletableFuture<Void> future;
                         if (e != null) {
-                            // Fail the future with actual failure. The failure will be handled by the caller.
-                            Throwable actual = Exceptions.unwrap(e);
-                            log.warn("ConcurrentEventProcessor Processing failed, {} {}", actual.getClass(), actual.getMessage());
-                            future = Futures.failedFuture(actual);
+                            log.warn("ConcurrentEventProcessor Processing failed {}", e.getClass().getName());
+                            future = handleProcessingError(request, e);
                         } else {
                             log.debug("ConcurrentEventProcessor Processing complete");
                             future = CompletableFuture.completedFuture(null);
@@ -145,6 +150,37 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
             // And since this class does its own checkpointing, so we are not updating our last checkpoint.
             log.warn("processing requested after processor is stopped.");
         }
+    }
+
+    private CompletableFuture<Void> handleProcessingError(R request, Throwable e) {
+        CompletableFuture<Void> future;
+        Throwable cause = Exceptions.unwrap(e);
+
+        if (cause instanceof RetriesExhaustedException) {
+            cause = cause.getCause();
+        }
+
+        if (RetryableException.isRetryable(cause)) {
+            log.warn("ConcurrentEventProcessor Processing failed, Retryable Exception {}. Putting the event back.", cause.getClass().getName());
+
+            Writer<R> writer;
+            if (internalWriter != null) {
+                writer = internalWriter;
+            } else if (getSelfWriter() != null) {
+                writer = getSelfWriter();
+            } else {
+                writer = null;
+            }
+
+            future = indefiniteRetries(() -> writeBack(request, writer), executor);
+        } else {
+            // Fail the future with actual failure. The failure will be handled by the caller. 
+            Throwable actual = Exceptions.unwrap(e);
+            log.warn("ConcurrentEventProcessor Processing failed, {} {}", actual.getClass(), actual.getMessage());
+            future = Futures.failedFuture(actual);
+        }
+
+        return future;
     }
 
     @Override

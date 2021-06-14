@@ -180,7 +180,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                                 stream, getProcessorName(), context, executor),
                                                 null, "Exception while trying to create waiting request. Logged and ignored.")
                                                 .thenCompose(ignore ->  retryIndefinitelyThenComplete(
-                                                        () -> task.writeBack(event), resultFuture, ex));
+                                                        () -> task.writeBack(event), resultFuture, null));
                                     } else {
                                         // Processing was done for this event, whether it succeeded or failed, we should remove
                                         // the waiting request if it matches the current processor.
@@ -201,7 +201,8 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                         + event + " so that waiting processor" + waitingRequestProcessor + " can work. "));
                     }
                 }).exceptionally(e -> {
-            resultFuture.completeExceptionally(e);
+                    retryIndefinitelyThenComplete(
+                            () -> task.writeBack(event), resultFuture, null);
             return null;
         });
 
