@@ -50,7 +50,6 @@ public class HealthServiceManager {
 
     public HealthServiceManager(Duration interval) {
         this.root = new RootHealthContributor();
-        // Initializes the ContributorRegistry into the expected starting state.
         this.closed = new AtomicBoolean();
         this.updater = new HealthServiceUpdaterImpl(this.root, interval);
         this.endpoint = new HealthEndpointImpl(this.root, this.updater);
