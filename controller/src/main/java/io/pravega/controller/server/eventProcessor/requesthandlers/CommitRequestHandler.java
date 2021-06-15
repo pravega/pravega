@@ -259,7 +259,13 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                             .thenCompose(versionedMetadata -> streamMetadataStore.completeCommitTransactions(
                                     scope, stream, versionedMetadata, context, executor, writerTimes, writerPositions)
                                     .thenCompose(v -> resetStateConditionally(scope, stream, stateRecord.get(), context))
-                                    .thenRun(() -> TransactionMetrics.getInstance().commitTransaction(scope, stream, timer.getElapsed()))
+                                    .thenRun(() -> {
+                                        TransactionMetrics.getInstance().commitTransaction(scope, stream, timer.getElapsed());
+                                        int size = versionedMetadata.getObject().getTransactionsToCommit().size();
+                                        if (size > 0) {
+                                            TransactionMetrics.getInstance().commitTransactionAvg(scope, stream, timer.getElapsed().dividedBy(size));
+                                        }
+                                    })
                                     .thenApply(v -> versionedMetadata.getObject().getEpoch()));
                 }, executor);
     }
@@ -391,6 +397,9 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     TransactionMetrics.getInstance().commitSegmentsMerge(segMergeTimer.getElapsed());
                     TransactionMetrics.getInstance().reportCommitTransactionBatchCount(scope, stream, transactionsToCommit.size());
                     log.info("Batch Count in commit event processing: " + transactionsToCommit.size());
+                    if (transactionsToCommit.size() > 0) {
+                        TransactionMetrics.getInstance().commitTransactionSegmentMergeAvg(scope, stream, segMergeTimer.getElapsed().dividedBy(transactionsToCommit.size()));
+                    }
                     return txnOffsets;
                 });
     }
