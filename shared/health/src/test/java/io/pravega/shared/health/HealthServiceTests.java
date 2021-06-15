@@ -42,7 +42,7 @@ public class HealthServiceTests {
     @Rule
     public final Timeout timeout = new Timeout(60, TimeUnit.SECONDS);
 
-    HealthService service;
+    HealthServiceManager service;
 
     HealthServiceFactory factory;
 
@@ -63,8 +63,8 @@ public class HealthServiceTests {
     }
 
     /**
-     * Tests that the {@link HealthService} is able to provide {@link Health} results for both a specific {@link HealthContributor}
-     * and the service itself ({@link HealthService}.
+     * Tests that the {@link HealthServiceManager} is able to provide {@link Health} results for both a specific {@link HealthContributor}
+     * and the service itself ({@link HealthServiceManager}.
      */
     @Test
     public void testHealth() throws Exception {
@@ -125,7 +125,7 @@ public class HealthServiceTests {
     }
 
     /**
-     * Test that both the {@link HealthService} and a {@link HealthContributor} can be queried for its {@link Status}
+     * Test that both the {@link HealthServiceManager} and a {@link HealthContributor} can be queried for its {@link Status}
      * information.
      */
     @Test
@@ -142,7 +142,7 @@ public class HealthServiceTests {
     }
 
     /**
-     * Test that both the {@link HealthService} and a {@link HealthContributor} can be queried for its liveness information.
+     * Test that both the {@link HealthServiceManager} and a {@link HealthContributor} can be queried for its liveness information.
      */
     @Test
     public void testLivenessEndpoints() throws Exception {
@@ -151,7 +151,7 @@ public class HealthServiceTests {
         service.getRoot().register(contributor);
 
         awaitHealthContributor(service, contributor.getName());
-        Assert.assertEquals("The HealthService should produce an 'alive' result.",
+        Assert.assertEquals("The HealthServiceManager should produce an 'alive' result.",
                 true, service.getEndpoint().isAlive());
 
         Assert.assertEquals("The HealthContributor with id should produce an 'alive' result.",
@@ -159,7 +159,7 @@ public class HealthServiceTests {
     }
 
     /**
-     * Test that both the {@link HealthService} and a {@link HealthContributor} can be queried for its readiness information.
+     * Test that both the {@link HealthServiceManager} and a {@link HealthContributor} can be queried for its readiness information.
      */
     @Test
     public void testReadinessEndpoints() throws TimeoutException {
@@ -170,12 +170,12 @@ public class HealthServiceTests {
         awaitHealthContributor(service, contributor.getName());
 
         boolean ready = service.getEndpoint().isReady();
-        Assert.assertEquals("The HealthService should produce a 'ready' result.", true, ready);
+        Assert.assertEquals("The HealthServiceManager should produce a 'ready' result.", true, ready);
         ready = service.getEndpoint().isReady(contributor.getName());
         Assert.assertEquals("The SampleIndicator should produce a 'ready' result.", true, ready);
     }
 
-    public static void awaitHealthContributor(HealthService service, String id) throws TimeoutException {
+    public static void awaitHealthContributor(HealthServiceManager service, String id) throws TimeoutException {
         TestUtils.await(() -> service.getEndpoint().getHealth(id) != null,
                 (int) service.getHealthServiceUpdater().getInterval().toMillis(),
                 service.getHealthServiceUpdater().getInterval().toMillis() * 3);

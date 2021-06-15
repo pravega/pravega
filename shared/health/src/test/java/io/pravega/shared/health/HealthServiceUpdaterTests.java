@@ -30,7 +30,7 @@ import io.pravega.test.common.AssertExtensions;
 @Slf4j
 public class HealthServiceUpdaterTests {
 
-    HealthService service;
+    HealthServiceManager service;
 
     HealthServiceUpdater healthServiceUpdater;
 

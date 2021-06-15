@@ -15,8 +15,9 @@
  */
 package io.pravega.shared.health.impl;
 
-import io.pravega.shared.health.HealthService;
+import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.health.HealthServiceFactory;
+import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.test.common.TestUtils;
 import lombok.Cleanup;
 import org.junit.After;
@@ -37,7 +38,7 @@ public class HealthEndpointTests {
     @Rule
     public final Timeout timeout = new Timeout(60, TimeUnit.SECONDS);
 
-     HealthService service;
+     HealthServiceManager service;
 
     HealthServiceFactory factory;
 

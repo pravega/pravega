@@ -18,7 +18,7 @@ package io.pravega.shared.health;
 import java.util.Map;
 
 /**
- * The {@link HealthEndpoint} interface defines all the types of requests a {@link HealthService} should expect to serve.
+ * The {@link HealthEndpoint} interface defines all the types of requests a {@link HealthServiceManager} should expect to serve.
  */
 public interface HealthEndpoint {
 

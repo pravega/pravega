@@ -16,14 +16,13 @@
 package io.pravega.shared.health;
 
 import io.pravega.common.Exceptions;
-import io.pravega.shared.health.impl.HealthServiceImpl;
 import lombok.NonNull;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Provides instances of a {@link HealthService} and optionally starts the {@link HealthServiceUpdater}.
+ * Provides instances of a {@link HealthServiceManager} and optionally starts the {@link HealthServiceUpdater}.
  */
 public class HealthServiceFactory implements AutoCloseable {
     private final AtomicBoolean closed;
@@ -36,24 +35,24 @@ public class HealthServiceFactory implements AutoCloseable {
     }
 
     /**
-     * Provides an instance of the {@link HealthService} and may optionally start its {@link HealthServiceUpdater}.
+     * Provides an instance of the {@link HealthServiceManager} and may optionally start its {@link HealthServiceUpdater}.
      * @param interval The interval at which the 'health tree' is updated.
      *
-     * @return The created {@link HealthService} instance.
+     * @return The created {@link HealthServiceManager} instance.
      */
     @NonNull
-    public HealthService createHealthService(Duration interval) {
+    public HealthServiceManager createHealthService(Duration interval) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        HealthService service = new HealthServiceImpl( interval);
+        HealthServiceManager service = new HealthServiceManager( interval);
         return service;
     }
 
-    public HealthService createHealthService() {
+    public HealthServiceManager createHealthService() {
         return createHealthService(Duration.ofSeconds(10));
     }
 
     /**
-     * Closes the {@link HealthServiceFactory} instance, making it unable to create further {@link HealthService} instances.
+     * Closes the {@link HealthServiceFactory} instance, making it unable to create further {@link HealthServiceManager} instances.
      */
     @Override
     public void close() {
