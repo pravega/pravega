@@ -17,7 +17,6 @@ package io.pravega.shared.health.impl;
 
 import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.health.HealthServiceFactory;
-import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.test.common.TestUtils;
 import lombok.Cleanup;
 import org.junit.After;
