@@ -278,15 +278,11 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         commitTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
-    public void commitTransactionAvg(String scope, String streamName, Duration latency) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(COMMIT_TRANSACTION), 1);
-        DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION, 1, streamTags(scope, streamName));
+    public void commitTransactionAvg(Duration latency) {
         commitTransactionLatencyAvg.reportSuccessValue(latency.toMillis());
     }
 
-    public void commitTransactionSegmentMergeAvg(String scope, String streamName, Duration latency) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(COMMIT_TRANSACTION), 1);
-        DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION, 1, streamTags(scope, streamName));
+    public void commitTransactionSegmentMergeAvg(Duration latency) {
         commitTxnSegmentMergeLatencyAvg.reportSuccessValue(latency.toMillis());
     }
 
