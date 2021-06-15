@@ -265,7 +265,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                 TransactionMetrics.getInstance().commitTransaction(scope, stream, timer.getElapsed());
                                 int size = versionedMetadata.getObject().getTransactionsToCommit().size();
                                 if (size > 0) {
-                                    TransactionMetrics.getInstance().commitTransactionAvg(scope, stream, timer.getElapsed().dividedBy(size));
+                                    TransactionMetrics.getInstance().commitTransactionAvg(timer.getElapsed().dividedBy(size));
                                 }
                             })
                             .thenApply(v -> versionedMetadata.getObject().getEpoch()));
@@ -393,6 +393,9 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     TransactionMetrics.getInstance().commitSegmentsMerge(segMergeTimer.getElapsed());
                     TransactionMetrics.getInstance().reportCommitTransactionBatchCount(scope, stream, transactionsToCommit.size());
                     log.info("Batch Count in commit event processing: " + transactionsToCommit.size());
+                    if (transactionsToCommit.size() > 0) {
+                        TransactionMetrics.getInstance().commitTransactionSegmentMergeAvg(segMergeTimer.getElapsed().dividedBy(transactionsToCommit.size()));
+                    }
                     return txnOffsets;
                 });
     }

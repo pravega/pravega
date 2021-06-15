@@ -21,7 +21,41 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.pravega.shared.MetricsNames.*;
+import static io.pravega.shared.MetricsNames.ABORTING_TRANSACTION_LATENCY;
+import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION;
+import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION_FAILED;
+import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION_LATENCY;
+import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION_SEGMENTS_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMITTING_TRANSACTION_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_FAILED;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_SEGMENTS_LATENCY;
+import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION;
+import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_FAILED;
+import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_LATENCY;
+import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_SEGMENTS_LATENCY;
+import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
+import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_GEN_ID_LATENCY;
+import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_ADD_TO_INDEX_LATENCY;
+import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_ADD_TIMEOUT_SVC_LATENCY;
+import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_IN_STORE_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMITTING_TRANSACTION_ADD_TO_INDEX_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_RECORD_OFFSETS_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMITTING_TRANSACTION_REMOVE_TIMEOUT_SVC_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMITTING_TRANSACTION_SEAL_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMITTING_TRANSACTION_WRITE_EVENT_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_START_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_COMPLETE_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_ROLLOVER_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_BATCH_COUNT;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_ORDERER_BATCH_COMMITTING_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_ORDERER_BATCH_PURGE_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_BATCH_CREATE_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_SEGMENTS_MERGE_LATENCY;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_LATENCY_AVG;
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION_SEGMENTS_MERGE_LATENCY_AVG;
+import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
 import static io.pravega.shared.MetricsTags.transactionTags;
 
@@ -70,7 +104,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
         commitTransactionLatencyAvg = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY_AVG);
         commitTransactionSegmentsLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_LATENCY);
-        commitTransactionSegmentsLatencyAvg = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_LATENCY_AVG);
+        commitTransactionSegmentsLatencyAvg = STATS_LOGGER.createStats(COMMIT_TRANSACTION_SEGMENTS_MERGE_LATENCY_AVG);
         committingTransactionLatency = STATS_LOGGER.createStats(COMMITTING_TRANSACTION_LATENCY);
         abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
         abortTransactionSegmentsLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_SEGMENTS_LATENCY);
@@ -244,10 +278,12 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
         commitTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
-    public void commitTransactionAvg(String scope, String streamName, Duration latency) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(COMMIT_TRANSACTION), 1);
-        DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION, 1, streamTags(scope, streamName));
+    public void commitTransactionAvg(Duration latency) {
         commitTransactionLatencyAvg.reportSuccessValue(latency.toMillis());
+    }
+
+    public void commitTransactionSegmentMergeAvg(Duration latency) {
+        commitTransactionSegmentsLatencyAvg.reportSuccessValue(latency.toMillis());
     }
 
     /**
@@ -257,15 +293,6 @@ public final class TransactionMetrics extends AbstractControllerMetrics {
      */
     public void commitTransactionSegments(Duration latency) {
         commitTransactionSegmentsLatency.reportSuccessValue(latency.toMillis());
-    }
-    
-    /**
-     * This method reports the latency of managing segments for a particular commit Transaction.
-     *
-     * @param latency      Time elapsed to merge the segments related to the committed transaction.
-     */
-    public void commitTransactionSegmentsAvg(Duration latency) {
-        commitTransactionSegmentsLatencyAvg.reportSuccessValue(latency.toMillis());
     }
 
     /**

@@ -306,7 +306,7 @@ public final class MetricsNames {
     public static final String COMMIT_TRANSACTION_LATENCY = PREFIX + "controller.transactions.committed_latency_ms";                    // Histogram
     public static final String COMMIT_TRANSACTION_LATENCY_AVG = PREFIX + "controller.transactions.committed_latency_avg_ms";                    // Histogram
     public static final String COMMIT_TRANSACTION_SEGMENTS_LATENCY = PREFIX + "controller.transactions.committed_segments_latency_ms";  // Histogram
-    public static final String COMMIT_TRANSACTION_SEGMENTS_LATENCY_AVG = PREFIX + "controller.transactions.committed_segments_latency_avg_ms";  // Histogram
+    public static final String COMMIT_TRANSACTION_SEGMENTS_MERGE_LATENCY_AVG = PREFIX + "controller.transactions.committed_segments_latency_avg_ms";  // Histogram
     public static final String COMMITTING_TRANSACTION_ADD_TO_INDEX_LATENCY = PREFIX + "controller.transactions.commit_add_index_latency_ms";                    // Histogram
     public static final String COMMITTING_TRANSACTION_SEAL_LATENCY = PREFIX + "controller.transactions.committed_seal_latency_ms";  // Histogram
     public static final String COMMITTING_TRANSACTION_WRITE_EVENT_LATENCY = PREFIX + "controller.transactions.committed_write_event_latency_ms";                    // Histogram

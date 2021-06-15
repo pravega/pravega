@@ -1958,7 +1958,7 @@ public class StreamMetadataTasks extends TaskBase {
                     if (e != null) {
                         Duration elapsed = timer.getElapsed();
                         TransactionMetrics.getInstance().commitTransactionSegments(elapsed);
-                        TransactionMetrics.getInstance().commitTransactionSegmentsAvg(elapsed.dividedBy(txnId.size()));
+                        //TransactionMetrics.getInstance().commitTransactionSegmentsAvg(elapsed.dividedBy(txnId.size()));
                     }
                 });
     }
