@@ -1,12 +1,12 @@
 /**
  * Copyright Pravega Authors.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -73,7 +73,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         return 1;
     }
 
-    @Test(timeout = 10000)
+    @Test (timeout = 10000)
     public void writerCreationTest() throws Exception {
         EventStreamClientFactory clientFactory = mock(EventStreamClientFactory.class);
         CompletableFuture<Void> createWriterLatch = new CompletableFuture<>();
@@ -91,15 +91,14 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         assertFalse(failingWriterProcessor.isInitializeStarted());
         AtomicReference<EventStreamWriter<AutoScaleEvent>> w = new AtomicReference<>();
 
-        AssertExtensions.assertThrows("Bootstrap should not be initiated until isInitializeStarted is true",
+        AssertExtensions.assertThrows("Bootstrap should not be initiated until isInitializeStarted is true", 
                 () -> failingWriterProcessor.bootstrapOnce(clientFactory, w),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
-        // report but since the cooldown time hasnt elapsed, no scale event should be attempted. So no writer should 
-        // be initialized yet. 
+        // report but since the cooldown time hasnt elapsed, no scale event should be attempted. So no writer should be initialized yet. 
         failingWriterProcessor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
         assertFalse(failingWriterProcessor.isInitializeStarted());
-
+        
         failingWriterProcessor.setTimeMillis(20 * 60000L);
         failingWriterProcessor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
         // the above should initiate the bootstrap.
@@ -123,7 +122,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         doAnswer(x -> writerMock).when(clientFactory).createEventWriter(any(), any(), any());
 
         processor.notifyCreated(segmentStreamName);
-
+        
         // report a low rate to trigger a scale down 
         processor.setTimeMillis(21 * 60000L);
         processor.report(segmentStreamName, 10, 0L, 1.0, 1.0, 1.0, 1.0);
@@ -132,18 +131,17 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         AssertExtensions.assertEventuallyEquals(writerMock, () -> processor.getWriterFuture().join(), 10000L);
         AutoScaleEvent event = queue.take();
         assertEquals(event.getDirection(), AutoScaleEvent.DOWN);
-
+        
         processor.close();
-
+        
         // create third writer, this time supply the writer directly
-        EventStreamWriter<AutoScaleEvent> writer = spy(createWriter(e -> {
-        }));
-
+        EventStreamWriter<AutoScaleEvent> writer = spy(createWriter(e -> { }));
+        
         // verify that when writer is set, we are able to get the processor initialized
         TestAutoScaleProcessor processor2 = new TestAutoScaleProcessor(writer,
                 AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
                 executorService());
-
+        
         processor2.notifyCreated(segmentStreamName);
         assertFalse(processor2.isInitializeStarted());
         processor2.setTimeMillis(20 * 60000L);
@@ -155,8 +153,8 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         processor2.close();
         verify(writer, times(1)).close();
     }
-
-    @Test(timeout = 10000)
+    
+    @Test (timeout = 10000)
     public void scaleTest() {
         CompletableFuture<Void> result = new CompletableFuture<>();
         CompletableFuture<Void> result2 = new CompletableFuture<>();
@@ -354,7 +352,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
             @Override
             public void noteTime(long timestamp) {
-
+                
             }
         };
     }
@@ -367,13 +365,11 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
             super(configuration, executor, testSimpleCache);
         }
 
-        TestAutoScaleProcessor(@NonNull EventStreamWriter<AutoScaleEvent> writer,
-                               @NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor) {
+        TestAutoScaleProcessor(@NonNull EventStreamWriter<AutoScaleEvent> writer, @NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor) {
             super(writer, configuration, executor);
         }
 
-        TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory,
-                               @NonNull ScheduledExecutorService executor) {
+        TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory, @NonNull ScheduledExecutorService executor) {
             super(configuration, clientFactory, executor);
         }
 
