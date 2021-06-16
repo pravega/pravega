@@ -66,7 +66,7 @@ public class HealthServiceManager {
     }
 
     @VisibleForTesting
-    public HealthServiceUpdater getHealthServiceUpdater() {
+    HealthServiceUpdater getHealthServiceUpdater() {
         return updater;
     }
 
