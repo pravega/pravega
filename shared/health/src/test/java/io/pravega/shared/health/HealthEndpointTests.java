@@ -37,12 +37,9 @@ public class HealthEndpointTests {
 
      HealthServiceManager service;
 
-    HealthServiceFactory factory;
-
     @Before
     public void before() {
-        factory = new HealthServiceFactory();
-        service = factory.createHealthService(Duration.ofSeconds(1));
+        service = new HealthServiceManager(Duration.ofSeconds(1));
         service.getHealthServiceUpdater().startAsync();
         service.getHealthServiceUpdater().awaitRunning();
     }
@@ -51,7 +48,6 @@ public class HealthEndpointTests {
     public void after() {
         service.getHealthServiceUpdater().stopAsync();
         service.getHealthServiceUpdater().awaitTerminated();
-        factory.close();
         service.close();
     }
 

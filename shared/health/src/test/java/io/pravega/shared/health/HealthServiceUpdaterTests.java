@@ -27,6 +27,8 @@ import io.pravega.shared.health.TestHealthContributors.FailingContributor;
 
 import io.pravega.test.common.AssertExtensions;
 
+import java.time.Duration;
+
 @Slf4j
 public class HealthServiceUpdaterTests {
 
@@ -34,11 +36,9 @@ public class HealthServiceUpdaterTests {
 
     HealthServiceUpdater healthServiceUpdater;
 
-    HealthServiceFactory factory;
     @Before
     public void before() {
-        factory = new HealthServiceFactory();
-        service = factory.createHealthService();
+        service = new HealthServiceManager(Duration.ofSeconds(1));
         service.getHealthServiceUpdater().startAsync();
         healthServiceUpdater = service.getHealthServiceUpdater();
         healthServiceUpdater.awaitRunning();
@@ -46,7 +46,6 @@ public class HealthServiceUpdaterTests {
 
     @After
     public void after() {
-        factory.close();
         service.close();
         healthServiceUpdater.stopAsync();
         healthServiceUpdater.awaitTerminated();

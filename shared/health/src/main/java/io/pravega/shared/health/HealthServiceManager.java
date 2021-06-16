@@ -26,7 +26,7 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
-public class HealthServiceManager {
+public class HealthServiceManager implements AutoCloseable {
 
     /**
      * The root {@link HealthContributor} of the service. All {@link HealthContributor} objects are reachable from this
@@ -70,6 +70,7 @@ public class HealthServiceManager {
         return updater;
     }
 
+    @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
             this.updater.close();

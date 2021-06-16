@@ -33,23 +33,20 @@ import org.junit.rules.Timeout;
 import io.pravega.shared.health.TestHealthContributors.HealthyContributor;
 
 /**
- * The {@link HealthServiceTests} encapsulates much of the same processes that {@link HealthEndpoint} performs, so
+ * The {@link HealthManagerTests} encapsulates much of the same processes that {@link HealthEndpoint} performs, so
  * an explicit test class for the former is skipped.
  */
 @Slf4j
-public class HealthServiceTests {
+public class HealthManagerTests {
 
     @Rule
     public final Timeout timeout = new Timeout(60, TimeUnit.SECONDS);
 
     HealthServiceManager service;
 
-    HealthServiceFactory factory;
-
     @Before
     public void before() {
-        factory = new HealthServiceFactory();
-        service = factory.createHealthService(Duration.ofSeconds(1));
+        service = new HealthServiceManager(Duration.ofSeconds(1));
         service.getHealthServiceUpdater().startAsync();
         service.getHealthServiceUpdater().awaitRunning();
     }
@@ -58,7 +55,6 @@ public class HealthServiceTests {
     public void after() {
         service.getHealthServiceUpdater().stopAsync();
         service.getHealthServiceUpdater().awaitTerminated();
-        factory.close();
         service.close();
     }
 
