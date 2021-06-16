@@ -168,36 +168,26 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     @Override
     protected void doStop() {
-        log.info("{}: Enter doStop().", this.traceObjectId);
         // We need to first stop the operation queue, which will prevent any new items from being processed.
         Throwable ex = new CancellationException("OperationProcessor is shutting down.");
         closeQueue(ex);
 
         // Close the DataFrameBuilder and cancel any operations caught in limbo.
-        log.info("{}: Closing dataFrameBuilder.", this.traceObjectId);
         synchronized (this.stateLock) {
             this.dataFrameBuilder.close();
         }
-        log.info("{}: Closed dataFrameBuilder.", this.traceObjectId);
-        log.info("{}: Invoking state.fail().", this.traceObjectId);
+
         this.state.fail(ex, null);
-        log.info("{}: Completed state.fail().", this.traceObjectId);
-        log.info("{}: Closing throttler.", this.traceObjectId);
         this.throttler.close();
-        log.info("{}: Closed throttler.", this.traceObjectId);
-        log.info("{}: Closing metrics.", this.traceObjectId);
         this.metrics.close();
-        log.info("{}: Closed metrics.", this.traceObjectId);
         super.doStop();
     }
 
     @Override
     protected void errorHandler(Throwable ex) {
-        log.info("{}: Invoking errorHandler.", this.traceObjectId);
         ex = Exceptions.unwrap(ex);
         closeQueue(ex);
         if (!isShutdownException(ex)) {
-            log.info("{}: errorHandler not shutdown exception.", this.traceObjectId, ex);
             // Shutdown exceptions means we are already stopping, so no need to do anything else. For all other cases,
             // record the failure and then stop the OperationProcessor.
             super.errorHandler(ex);
@@ -210,7 +200,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     @SneakyThrows
     private Void iterationErrorHandler(Throwable ex) {
-       log.info("{}: Invoking iterationErrorHandler.", this.traceObjectId, ex);
         ex = Exceptions.unwrap(ex);
         // If we get an ObjectClosedException while we are shutting down, then it's safe to ignore it. It was most likely
         // caused by the queue being shut down, but the main processing loop has just started another iteration and they
@@ -218,7 +207,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         State s = state();
         boolean isExpected = isShutdownException(ex) && (s == State.STOPPING || s == State.TERMINATED || s == State.FAILED);
         if (!isExpected) {
-            log.info("{}: iterationErrorHandler rethrowing.", this.traceObjectId, ex);
             throw ex;
         }
 
@@ -332,11 +320,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                         this.state.addPending(o);
                         count++;
                     } catch (Throwable ex) {
-                        log.warn("{}: Exception caught in processOperations (1st block).", this.traceObjectId, ex);
                         ex = Exceptions.unwrap(ex);
                         this.state.failOperation(o, ex);
                         if (isFatalException(ex)) {
-                            log.warn("{}: Is fatal (1st block), throwing.", this.traceObjectId, ex);
                             // If we encountered an unrecoverable error then we cannot proceed - rethrow the Exception
                             // and let it be handled by the enclosing try-catch. Otherwise, we only need to fail this
                             // operation as its failure is isolated to itself (most likely it's invalid).
@@ -369,7 +355,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     }
                 }
             } catch (Throwable ex) {
-                log.warn("{}: Exception caught in processOperations (2st block).", this.traceObjectId, ex);
                 // Fail ALL the operations that haven't been acknowledged yet.
                 ex = Exceptions.unwrap(ex);
                 this.state.fail(ex, null);
@@ -377,7 +362,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 if (isFatalException(ex)) {
                     // If we encountered a fatal exception, it means we detected something that we cannot possibly recover from.
                     // We need to shutdown right away (this will be done by the main loop).
-                    log.warn("{}: Is fatal (2st block), throwing.", this.traceObjectId, ex);
+
                     // But first, fail any Operations that we did not have a chance to process yet.
                     cancelIncompleteOperations(operations, ex);
                     throw Exceptions.sneakyThrow(ex);
@@ -424,22 +409,17 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * @param causingException The exception to fail with. If null, it will default to ObjectClosedException.
      */
     private void closeQueue(Throwable causingException) {
-        log.info("{}: Invoking closeQueue.", this.traceObjectId);
         // Close the operation queue and extract any outstanding Operations from it.
         Collection<CompletableOperation> remainingOperations = this.operationQueue.close();
-        log.info("{}: operationQueue closed.", this.traceObjectId);
         if (remainingOperations != null && remainingOperations.size() > 0) {
-            log.info("{}: Cancelling remaining operations {}.", this.traceObjectId, remainingOperations.size());
             // If any outstanding Operations were left in the queue, they need to be failed.
             // If no other cause was passed, assume we are closing the queue because we are shutting down.
             Throwable failException = causingException != null ? causingException : new CancellationException();
-            log.info("{}: Cancellation failException {}.", this.traceObjectId, failException);
             cancelIncompleteOperations(remainingOperations, failException);
         }
 
         // The commit queue will auto-close when we are done and it itself is empty. We just need to unblock it in case
         // it was idle and waiting on a pending take() operation.
-        log.info("{}: commitQueue cancelPendingTake.", this.traceObjectId);
         this.commitQueue.cancelPendingTake();
     }
 
@@ -447,7 +427,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * Cancels those Operations in the given list that have not yet completed with the given exception.
      */
     private void cancelIncompleteOperations(Iterable<CompletableOperation> operations, Throwable failException) {
-        log.warn("{}: Entering cancelIncompleteOperations.", this.traceObjectId);
         assert failException != null : "no exception to set";
         int cancelCount = 0;
         for (CompletableOperation o : operations) {
@@ -660,22 +639,16 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
         void fail(Throwable ex, DataFrameBuilder.CommitArgs commitArgs) {
-            log.info("{}: Entering state.fail() with commitArgs {}.", traceObjectId, commitArgs, ex);
             List<CompletableOperation> toFail = null;
             try {
                 synchronized (stateLock) {
-                    log.info("{}: before collectFailureCandidates.", traceObjectId);
                     toFail = collectFailureCandidates(commitArgs);
-                    log.info("{}: after collectFailureCandidates.", traceObjectId);
                     this.pendingOperationCount -= toFail.size();
                 }
             } finally {
                 if (toFail != null) {
-                    log.info("{}: There are failure candidates {}.", traceObjectId, toFail.size());
                     toFail.forEach(o -> {
-                        log.info("{}: failOperation {}.", traceObjectId, o.getOperation().getSequenceNumber());
                         failOperation(o, ex);
-                        log.info("{}: notifyOperationCommitted {}.", traceObjectId, o.getOperation().getSequenceNumber());
                         notifyOperationCommitted(o);
                     });
                     metrics.operationsFailed(toFail);
@@ -684,9 +657,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
             // All exceptions are final. If we cannot write to DurableDataLog, the safest way out is to shut down and
             // perform a new recovery that will detect any possible data loss or corruption.
-            log.info("{}: Invoking error handler in state.fail().", traceObjectId);
             Callbacks.invokeSafely(OperationProcessor.this::errorHandler, ex, null);
-            log.info("{}: Completed invoking error handler in state.fail().", traceObjectId);
         }
 
         /**
@@ -753,35 +724,25 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          */
         @GuardedBy("stateLock")
         private List<CompletableOperation> collectFailureCandidates(DataFrameBuilder.CommitArgs commitArgs) {
-            log.info("{}: starting collectFailureCandidates with commitArgs {}.", traceObjectId, commitArgs);
             // Discard all updates to the metadata.
             List<CompletableOperation> candidates = new ArrayList<>();
             if (commitArgs != null) {
-                log.info("{}: collectFailureCandidates commitArgs not null.", traceObjectId);
                 // Rollback all changes to the metadata from this commit on, and fail all involved operations.
                 OperationProcessor.this.metadataUpdater.rollback(commitArgs.getMetadataTransactionId());
-                log.info("{}: metadataUpdater.rollback completed.", traceObjectId);
                 while (!this.metadataTransactions.isEmpty() && this.metadataTransactions.peekLast().getMetadataTransactionId() >= commitArgs.getMetadataTransactionId()) {
                     // Fail all operations in this particular commit.
-                    log.info("{}: metadataUpdater.rollback completed.", traceObjectId);
                     DataFrameBuilder.CommitArgs t = this.metadataTransactions.pollLast();
-                    log.info("{}: metadataUpdater.rollback completed.", traceObjectId);
                     candidates.addAll(t.getOperations());
                 }
             } else {
-                log.info("{}: collectFailureCandidates commitArgs null.", traceObjectId);
                 // Rollback all changes to the metadata and fail all outstanding commits.
                 this.metadataTransactions.forEach(t -> candidates.addAll(t.getOperations()));
-                log.info("{}: collectFailureCandidates metadataTransactions.clear().", traceObjectId);
                 this.metadataTransactions.clear();
-                log.info("{}: collectFailureCandidates OperationProcessor.this.metadataUpdater.rollback().", traceObjectId);
                 OperationProcessor.this.metadataUpdater.rollback(0);
             }
-            log.info("{}: collectFailureCandidates candidates.addAll().", traceObjectId);
+
             candidates.addAll(this.nextFrameOperations);
-            log.info("{}: collectFailureCandidates nextFrameOperations.clear().", traceObjectId);
             this.nextFrameOperations.clear();
-            log.info("{}: Exiting collectFailureCandidates.", traceObjectId);
             return candidates;
         }
     }
