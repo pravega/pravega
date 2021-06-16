@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AccessLevel;
@@ -38,13 +39,13 @@ import lombok.val;
 /**
  * An async processor that executes items after a predetermined (yet fixed) delay of time.
  *
- * Items are added to the processor using {@link DelayedProcessor#process}. The "clock" start ticking from the moment
+ * Items are added to the processor using {@link DelayedProcessor#process}. The "clock" starts ticking from the moment
  * they were added and the processor will guarantee that the item will not be processed before the preconfigured delay
  * time (note that it may be executed some time after the delay expired, mostly due to other items in front of it that
  * need execution as well).
  *
  * Each item must implement {@link Item} and hence provide a unique {@link Item#key()}. The Key is used to differentiate
- * between different instances of {@link Item} that refer to the same task (i.e., we same segment). If an {@link Item}
+ * between different instances of {@link Item} that refer to the same task (i.e., the same segment). If an {@link Item}
  * with a same Key is already queued up for processing (but has not yet finished executing), a call to {@link #process}
  * with it as argument will not add it again.
  * <p>
@@ -65,7 +66,7 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> implements AutoCl
     private final DelayedQueue queue;
     private final CompletableFuture<Void> runTask;
     private volatile CompletableFuture<Void> currentIterationDelayTask;
-    private volatile boolean closed = false;
+    private final AtomicBoolean closed;
     private final String traceObjectId;
 
     //endregion
@@ -92,6 +93,7 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> implements AutoCl
         this.itemDelay = itemDelay;
         this.executor = executor;
         this.traceObjectId = traceObjectId;
+        this.closed = new AtomicBoolean(false);
         this.timer = new Timer();
         this.queue = new DelayedQueue();
         this.runTask = start();
@@ -103,14 +105,13 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> implements AutoCl
 
     @Override
     public void close() {
-        if (!this.closed) {
+        if (!this.closed.getAndSet(true)) {
             this.runTask.cancel(true);
             val delayTask = this.currentIterationDelayTask;
             if (delayTask != null) {
                 delayTask.cancel(true);
             }
             this.queue.clear();
-            this.closed = true;
             log.info("{}: Closed.", this.traceObjectId);
         }
     }
@@ -129,7 +130,7 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> implements AutoCl
      * @param item The Item to process.
      */
     public void process(@NonNull T item) {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         this.queue.add(item);
     }
 
@@ -141,7 +142,7 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> implements AutoCl
      * @param key The Item's key.
      */
     public void cancel(@NonNull String key) {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         this.queue.remove(key);
     }
 
@@ -158,13 +159,13 @@ public class DelayedProcessor<T extends DelayedProcessor.Item> implements AutoCl
     private CompletableFuture<Void> start() {
         log.info("{}: Started. Iteration Delay = {} ms.", this.traceObjectId, this.itemDelay.toMillis());
         return Futures.loop(
-                () -> !this.closed,
+                () -> !this.closed.get(),
                 () -> delay().thenComposeAsync(v -> runOneIteration(), this.executor),
                 this.executor);
     }
 
     private CompletableFuture<Void> runOneIteration() {
-        if (this.closed) {
+        if (this.closed.get()) {
             log.debug("{}: Not running iteration due to shutting down.", this.traceObjectId);
             return CompletableFuture.completedFuture(null);
         }
