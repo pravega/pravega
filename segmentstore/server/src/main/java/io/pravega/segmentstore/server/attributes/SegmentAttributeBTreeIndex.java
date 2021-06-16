@@ -145,14 +145,14 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         this.traceObjectId = String.format("AttributeIndex[%d-%d]", this.segmentMetadata.getContainerId(), this.segmentMetadata.getId());
         this.keySerializer = getKeySerializer(segmentMetadata);
         this.index = BTreeIndex.builder()
-                .keyLength(this.keySerializer.getKeyLength())
-                .valueLength(VALUE_LENGTH)
-                .maxPageSize(this.config.getMaxIndexPageSize())
-                .executor(this.executor)
-                .getLength(this::getLength)
-                .readPage(this::readPage)
-                .writePages(this::writePages)
-                .maintainStatistics(false)
+                               .keyLength(this.keySerializer.getKeyLength())
+                               .valueLength(VALUE_LENGTH)
+                               .maxPageSize(this.config.getMaxIndexPageSize())
+                               .executor(this.executor)
+                               .getLength(this::getLength)
+                               .readPage(this::readPage)
+                               .writePages(this::writePages)
+                               .maintainStatistics(shouldMaintainStatistics(segmentMetadata))
                                .traceObjectId(this.traceObjectId)
                                .build();
 
@@ -167,6 +167,10 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         Preconditions.checkArgument(keyLength <= AttributeId.MAX_LENGTH, "Invalid value %s for attribute `%s` for Segment `%s'. Expected at most %s.",
                 Attributes.ATTRIBUTE_ID_LENGTH, segmentMetadata.getName(), AttributeId.MAX_LENGTH);
         return keyLength <= 0 ? new UUIDKeySerializer() : new BufferKeySerializer((int) keyLength);
+    }
+
+    private boolean shouldMaintainStatistics(SegmentMetadata segmentMetadata) {
+        return segmentMetadata.getType().isFixedKeyLengthTableSegment();
     }
 
     /**
@@ -365,6 +369,12 @@ class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.Client,
         ensureInitialized();
         return new AttributeIteratorImpl(fromId, (id, inclusive) ->
                 this.index.iterator(this.keySerializer.serialize(id), inclusive, this.keySerializer.serialize(toId), true, fetchTimeout));
+    }
+
+    @Override
+    public long getCount() {
+        val s = this.index.getStatistics();
+        return s == null ? -1 : s.getEntryCount();
     }
 
     //endregion

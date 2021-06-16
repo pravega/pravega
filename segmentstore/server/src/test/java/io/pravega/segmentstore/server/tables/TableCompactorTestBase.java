@@ -24,8 +24,6 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.DataCorruptionException;
-import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -39,12 +37,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -52,23 +47,24 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the {@link TableCompactor} class.
+ * Unit test base for any class implementing {@link TableCompactor}.
  */
-public class TableCompactorTests extends ThreadPooledTestSuite {
-    private static final int KEY_COUNT = 100; // Number of distinct keys in the tests, numbered 0 to KEY_COUNT-1.
+abstract class TableCompactorTestBase extends ThreadPooledTestSuite {
+    protected static final int KEY_COUNT = 100; // Number of distinct keys in the tests, numbered 0 to KEY_COUNT-1.
+    protected static final int KEY_LENGTH = 32;
+    protected static final int VALUE_LENGTH = 64;
+    protected static final int UPDATE_ENTRY_LENGTH = KEY_LENGTH + VALUE_LENGTH + EntrySerializer.HEADER_LENGTH;
+    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int SKIP_COUNT = 5; // At each iteration i, we update all keys K>=i*SKIP_COUNT+DELETE_COUNT.
     private static final int DELETE_COUNT = 1; // At each iteration i, we remove keys K>=i*SKIP_COUNT to K<i*SKIP_COUNT+DELETE_COUNT
-    private static final int KEY_LENGTH = 32;
-    private static final int VALUE_LENGTH = 64;
-    private static final int UPDATE_ENTRY_LENGTH = KEY_LENGTH + VALUE_LENGTH + EntrySerializer.HEADER_LENGTH;
     private static final String SEGMENT_NAME = "TableSegment";
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private static final KeyHasher KEY_HASHER = KeyHashers.DEFAULT_HASHER;
 
     @Override
     protected int getThreadPoolSize() {
         return 3;
     }
+
+    protected abstract TestContext createContext(int maxCompactionLength);
 
     /**
      * Tests the {@link TableCompactor#isCompactionRequired} method.
@@ -77,37 +73,38 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
     public void testIsCompactionRequired() {
         final int compactionReadLength = 100; // This also determines whether to compact or not.
         @Cleanup
-        val c = new TestContext(compactionReadLength);
+        val c = createContext(compactionReadLength);
         c.segmentMetadata.setLength(compactionReadLength);
 
         // TruncationOffset < Compaction offset, and CompactionOffset >= LastIndexedOffset.
-        setSegmentState(50, 50, 1, 100, 50, c);
-        Assert.assertFalse("Unexpected result when CompactionOffset is equal to IndexOffset.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        c.setSegmentState(50, 50, 1, 100, 50);
+        Assert.assertFalse("Unexpected result when CompactionOffset is equal to IndexOffset.", c.getCompactor().isCompactionRequired().join());
 
         // TruncationOffset > Compaction offset, and TruncationOffset >= LastIndexedOffset.
         c.segmentMetadata.setStartOffset(50);
-        setSegmentState(10, 50, 1, 100, 50, c);
-        Assert.assertFalse("Unexpected result when TruncationOffset is equal to IndexOffset.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        c.setSegmentState(10, 50, 1, 100, 50);
+        Assert.assertFalse("Unexpected result when TruncationOffset is equal to IndexOffset.", c.getCompactor().isCompactionRequired().join());
 
         // Utilization == Threshold
-        setSegmentState(0, 100, 50, 100, 50, c);
-        Assert.assertFalse("Unexpected result when Utilization==MinUtilization.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        c.setSegmentState(0, 100, 50, 100, 50);
+        Assert.assertFalse("Unexpected result when Utilization==MinUtilization.", c.getCompactor().isCompactionRequired().join());
 
         // Utilization > Threshold
-        setSegmentState(0, 100, 51, 100, 50, c);
-        Assert.assertFalse("Unexpected result when Utilization>MinUtilization.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        c.setSegmentState(0, 100, 51, 100, 50);
+        Assert.assertFalse("Unexpected result when Utilization>MinUtilization.", c.getCompactor().isCompactionRequired().join());
 
         // Empty table
-        setSegmentState(0, 100, 10, 0, 50, c);
-        Assert.assertFalse("Unexpected result when TotalEntryCount==0.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        c.setSegmentState(0, 100, 10, 0, 50);
+        Assert.assertFalse("Unexpected result when TotalEntryCount==0.", c.getCompactor().isCompactionRequired().join());
 
         // Utilization < Threshold, but not enough "uncompacted" length.
-        setSegmentState(0, 100, 49, 100, 50, c);
-        Assert.assertFalse("Unexpected result when Utilization>MinUtilization.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        c.setSegmentState(0, 100, 49, 100, 50);
+        Assert.assertFalse("Unexpected result when Utilization>MinUtilization.", c.getCompactor().isCompactionRequired().join());
 
         // Utilization < Threshold, and enough "uncompacted" length (IndexLength-Max(StartOffset,CompactOffset))>ReadLength.
-        setSegmentState(0, 151, 49, 100, 50, c);
-        Assert.assertTrue("Unexpected result when Utilization>MinUtilization.", c.compactor.isCompactionRequired(c.segmentMetadata));
+        c.segmentMetadata.setLength(Math.max(c.segmentMetadata.getLength(), c.segmentMetadata.getStartOffset() + 151));
+        c.setSegmentState(0, 151, 49, 100, 50);
+        Assert.assertTrue("Unexpected result when Utilization>MinUtilization.", c.getCompactor().isCompactionRequired().join());
     }
 
     /**
@@ -118,33 +115,35 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         final long noOffset = -1;
         long compactionOffset = 100;
         @Cleanup
-        val c = new TestContext(UPDATE_ENTRY_LENGTH);
+        val c = createContext(UPDATE_ENTRY_LENGTH);
         c.segmentMetadata.setLength(250);
-        setSegmentState(compactionOffset, 200, 1, 1, 100, c);
+        c.setSegmentState(compactionOffset, 200, 1, 1, 100);
 
         // 1. If we encountered compacted items during indexing.
         Assert.assertEquals("Unexpected result when highestCopiedOffset>0.",
-                1, c.compactor.calculateTruncationOffset(c.segmentMetadata, 1));
+                1, c.getCompactor().calculateTruncationOffset(1));
         Assert.assertEquals("Unexpected result when highestCopiedOffset>0.",
-                101, c.compactor.calculateTruncationOffset(c.segmentMetadata, 101));
+                101, c.getCompactor().calculateTruncationOffset(101));
 
         // 2. No compacted items during indexing.
-        // Segment is not fully indexed.
-        setLastIndexedOffset(c.segmentMetadata.getLength() - 1, c);
-        Assert.assertEquals("Unexpected result when segment not fully indexed.",
-                noOffset, c.compactor.calculateTruncationOffset(c.segmentMetadata, 0));
+        if (c.hasDelayedIndexing()) {
+            // Segment is not fully indexed.
+            c.setLastIndexedOffset(c.segmentMetadata.getLength() - 1);
+            Assert.assertEquals("Unexpected result when segment not fully indexed.",
+                    noOffset, c.getCompactor().calculateTruncationOffset(0));
+        }
 
         // Segment is fully indexed, but segment is already truncated at compaction offset.
-        setLastIndexedOffset(c.segmentMetadata.getLength(), c);
+        c.setLastIndexedOffset(c.segmentMetadata.getLength());
         c.segmentMetadata.setStartOffset(compactionOffset);
         Assert.assertEquals("Unexpected result when segment already truncated at compaction offset.",
-                noOffset, c.compactor.calculateTruncationOffset(c.segmentMetadata, 0));
+                noOffset, c.getCompactor().calculateTruncationOffset(0));
 
         // Segment is fully indexed, and COMPACTION_OFFSET is higher than start offset.
         compactionOffset += 5;
         setCompactionOffset(compactionOffset, c);
         Assert.assertEquals("Unexpected result when segment is truncated before compaction offset.",
-                compactionOffset, c.compactor.calculateTruncationOffset(c.segmentMetadata, 0));
+                compactionOffset, c.getCompactor().calculateTruncationOffset(0));
     }
 
     /**
@@ -153,7 +152,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
     @Test
     public void testCompactionUpToDate() throws Exception {
         @Cleanup
-        val context = new TestContext(UPDATE_ENTRY_LENGTH);
+        val context = createContext(UPDATE_ENTRY_LENGTH);
 
         // Generate and index the data.
         populate(context);
@@ -162,26 +161,26 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         long length = context.segmentMetadata.getLength();
         setCompactionOffset(length, context);
         setMinUtilization(100, context);
-        Assert.assertFalse("Not expecting compaction to be required.", context.compactor.isCompactionRequired(context.segmentMetadata));
-        context.compactor.compact(context.segment, context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertFalse("Not expecting compaction to be required.", context.getCompactor().isCompactionRequired().join());
+        context.getCompactor().compact(context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Not expecting any segment modifications.", length, context.segmentMetadata.getLength());
-        Assert.assertEquals("Not expecting any compaction changes.", length, context.indexWriter.getCompactionOffset(context.segmentMetadata));
+        Assert.assertEquals("Not expecting any compaction changes.", length, IndexReader.getCompactionOffset(context.segmentMetadata));
 
         // Set the COMPACTION_OFFSET to an invalid value and verify the appropriate exception is thrown.
         setCompactionOffset(length + 1, context);
-        Assert.assertFalse("Not expecting compaction to be required.", context.compactor.isCompactionRequired(context.segmentMetadata));
+        Assert.assertFalse("Not expecting compaction to be required.", context.getCompactor().isCompactionRequired().join());
         AssertExtensions.assertSuppliedFutureThrows(
                 "compact() worked with invalid segment state.",
-                () -> context.compactor.compact(context.segment, context.timer),
+                () -> context.getCompactor().compact(context.timer),
                 ex -> ex instanceof DataCorruptionException);
 
         // Set Segment's StartOffset to max.
         setCompactionOffset(length - 1, context);
         context.segmentMetadata.setStartOffset(length);
-        Assert.assertFalse("Not expecting compaction to be required.", context.compactor.isCompactionRequired(context.segmentMetadata));
-        context.compactor.compact(context.segment, context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertFalse("Not expecting compaction to be required.", context.getCompactor().isCompactionRequired().join());
+        context.getCompactor().compact(context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Not expecting any segment modifications.", length, context.segmentMetadata.getLength());
-        Assert.assertEquals("Not expecting any compaction changes.", length - 1, context.indexWriter.getCompactionOffset(context.segmentMetadata));
+        Assert.assertEquals("Not expecting any compaction changes.", length - 1, IndexReader.getCompactionOffset(context.segmentMetadata));
     }
 
     /**
@@ -204,7 +203,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
     @SneakyThrows
     private void testCompaction(int readLength) {
         @Cleanup
-        val context = new TestContext(readLength);
+        val context = createContext(readLength);
 
         // Generate and index the data.
         val keyData = populate(context);
@@ -213,14 +212,15 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         val sortedEntries = sort(keyData, context).listIterator();
 
         // Keep track of various segment state and attributes - we will be progressively be checking it at each step.
-        long compactionOffset = context.indexWriter.getCompactionOffset(context.segmentMetadata);
-        final long lastIndexedOffset = context.indexWriter.getLastIndexedOffset(context.segmentMetadata);
-        long totalEntryCount = context.indexWriter.getTotalEntryCount(context.segmentMetadata);
-        final long entryCount = context.indexWriter.getEntryCount(context.segmentMetadata);
+        long compactionOffset = IndexReader.getCompactionOffset(context.segmentMetadata);
+        final long compactionEndOffset = context.segmentMetadata.getLength();
+        final long lastIndexedOffset = context.getCompactor().getLastIndexedOffset();
+        Assert.assertEquals("Expected segment to be fully indexed prior to test.", compactionEndOffset, lastIndexedOffset);
+        long totalEntryCount = IndexReader.getTotalEntryCount(context.segmentMetadata);
+        final long entryCount = context.getCompactor().getUniqueEntryCount().join();
 
         // Perform compaction, step-by-step, until there is nothing left to compact.
-        int expectedCopyOnReadCount = 0;
-        while (compactionOffset < lastIndexedOffset) {
+        while (compactionOffset < compactionEndOffset) {
             // Collect the entries that we expect to be compacted in this iteration.
             val candidates = collect(sortedEntries, readLength);
             AssertExtensions.assertGreaterThan("No more entries to process yet compaction not done.", 0, candidates.size());
@@ -231,21 +231,26 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
             long initialLength = context.segmentMetadata.getLength();
 
             // Execute a compaction.
-            context.compactor.compact(context.segment, context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            context.getCompactor().compact(context.timer).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Check that the appropriate Table Segment attributes changed as expected.
             long expectedCompactionOffset = compactionOffset + candidatesLength;
-            long newCompactionOffset = context.indexWriter.getCompactionOffset(context.segmentMetadata);
+            long newCompactionOffset = IndexReader.getCompactionOffset(context.segmentMetadata);
             Assert.assertEquals("Expected COMPACTION_OFFSET to have advanced.", expectedCompactionOffset, newCompactionOffset);
-            long newTotalEntryCount = context.indexWriter.getTotalEntryCount(context.segmentMetadata);
-            Assert.assertEquals("Expected TOTAL_ENTRY_COUNT to have decreased.",
-                    totalEntryCount - candidates.size(), newTotalEntryCount);
+            long newTotalEntryCount = IndexReader.getTotalEntryCount(context.segmentMetadata);
+            val expectedTotalEntryCount = context.hasDelayedIndexing()
+                    ? totalEntryCount - candidates.size()
+                    : totalEntryCount - candidates.size() + candidates.stream().filter(c -> c.isActive).count();
+            Assert.assertEquals("Unexpected TOTAL_ENTRY_COUNT after partial compaction.",
+                    expectedTotalEntryCount, newTotalEntryCount);
 
-            // Check that these attributes have NOT changed.
-            Assert.assertEquals("Not expecting LAST_INDEX_OFFSET to have changed.",
-                    lastIndexedOffset, context.indexWriter.getLastIndexedOffset(context.segmentMetadata));
+            // Check that these attributes have NOT changed (as applicable).
+            if (context.hasDelayedIndexing()) {
+                Assert.assertEquals("Not expecting LAST_INDEX_OFFSET to have changed.",
+                        lastIndexedOffset, context.getCompactor().getLastIndexedOffset());
+            }
             Assert.assertEquals("Not expecting ENTRY_COUNT to have changed.",
-                    entryCount, context.indexWriter.getEntryCount(context.segmentMetadata));
+                    entryCount, (long) context.getCompactor().getUniqueEntryCount().join());
 
             if (copyCandidates.size() > 0) {
                 // Check that the segment's length has increased (which would indicate copied entries).
@@ -271,15 +276,20 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
 
             compactionOffset = newCompactionOffset;
             totalEntryCount = newTotalEntryCount;
-            expectedCopyOnReadCount++;
         }
 
         Assert.assertFalse("Not expecting any more entries to be compacted.", sortedEntries.hasNext());
 
-        // TOTAL_ENTRY_COUNT should have been reduced to 0 at the end - we have moved all entries out of the index.
-        // In the real world, the IndexWriter will readjust this number as appropriate when reindexing these values.
-        Assert.assertEquals("Expecting TOTAL_ENTRY_COUNT to be 0 after a full compaction.",
-                0, context.indexWriter.getTotalEntryCount(context.segmentMetadata));
+        if (context.hasDelayedIndexing()) {
+            // TOTAL_ENTRY_COUNT should have been reduced to 0 at the end - we have moved all entries out of the index.
+            // In the real world, the IndexWriter will readjust this number as appropriate when reindexing these values.
+            Assert.assertEquals("Expecting TOTAL_ENTRY_COUNT to be 0 after a full compaction.",
+                    0, IndexReader.getTotalEntryCount(context.segmentMetadata));
+        } else {
+            // For Fixed-Key-Length Table Segments, the entries are instantly indexed so these attributes should match.
+            Assert.assertEquals("Expecting TOTAL_ENTRY_COUNT to match UNIQUE_ENTRY_COUNT after a full compaction.",
+                    (long) context.getCompactor().getUniqueEntryCount().join(), IndexReader.getTotalEntryCount(context.segmentMetadata));
+        }
     }
 
     /**
@@ -308,24 +318,30 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
 
         // Populate segment.
         int minIndex = 0;
-        setSegmentState(0, 0, 0, 0, 0, context);
+        context.setSegmentState(0, 0, 0, 0, 0);
         while (minIndex < keys.size()) {
             int deleteCount = Math.min(DELETE_COUNT, keys.size() - minIndex);
             for (int i = 0; i < deleteCount; i++) {
-                // Serialize removal and append it to the segment.
                 val keyData = keys.get(minIndex);
-                val key = TableKey.unversioned(keyData.key);
-                val serialization = context.serializer.serializeRemoval(Collections.singleton(key));
-                val offset = context.segment.append(serialization, null, TIMEOUT).join();
+                if (context.areDeletesSerialized()) {
+                    // Serialize removal and append it to the segment.
+                    val key = TableKey.unversioned(keyData.key);
+                    val serialization = context.serializer.serializeRemoval(Collections.singleton(key));
+                    val offset = context.segment.append(serialization, null, TIMEOUT).join();
 
-                // Index it.
-                val previousOffset = keyData.values.isEmpty() ? -1 : (long) keyData.values.lastKey();
-                minIndex++;
-                val keyUpdate = new BucketUpdate.KeyUpdate(keyData.key, offset, offset, true);
-                index(keyUpdate, offset, previousOffset, serialization.getLength(), context);
+                    // Index it.
+                    val previousOffset = keyData.values.isEmpty() ? -1 : (long) keyData.values.lastKey();
+                    minIndex++;
+                    val keyUpdate = new BucketUpdate.KeyUpdate(keyData.key, offset, offset, true);
+                    context.index(keyUpdate, previousOffset, serialization.getLength());
 
-                // Store it as a deletion.
-                keyData.values.put(offset, null);
+                    // Store it as a deletion.
+                    keyData.values.put(offset, null);
+                } else {
+                    // If we don't need to serialize the removal, just index it.
+                    val keyUpdate = new BucketUpdate.KeyUpdate(keyData.key, -1L, -1L, true);
+                    context.index(keyUpdate, -1L, -1);
+                }
             }
 
             // Update the rest.
@@ -344,7 +360,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
                 // Index it.
                 val previousOffset = keyData.values.isEmpty() ? -1 : (long) keyData.values.lastKey();
                 val keyUpdate = new BucketUpdate.KeyUpdate(keyData.key, offset, offset, false);
-                index(keyUpdate, offset, previousOffset, serialization.getLength(), context);
+                context.index(keyUpdate, previousOffset, serialization.getLength());
 
                 // Store it, but also encode its version within.
                 keyData.values.put(offset, TableEntry.versioned(entry.getKey().getKey(), entry.getValue(), offset));
@@ -356,33 +372,14 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
 
         // Sanity checks before we can move on with any test.
         Assert.assertEquals("Expecting the whole segment to have been indexed.",
-                context.segmentMetadata.getLength(), context.indexWriter.getLastIndexedOffset(context.segmentMetadata));
+                context.segmentMetadata.getLength(), context.getCompactor().getLastIndexedOffset());
         Assert.assertEquals("Not expecting any changes to the COMPACTION_OFFSET attribute.",
-                0, context.indexWriter.getCompactionOffset(context.segmentMetadata));
+                0, IndexReader.getCompactionOffset(context.segmentMetadata));
         AssertExtensions.assertLessThan("Expecting fewer active Table Entries than keys.",
-                keys.size(), context.indexWriter.getEntryCount(context.segmentMetadata));
+                keys.size(), IndexReader.getEntryCount(context.segmentMetadata));
         AssertExtensions.assertGreaterThan("Expecting more total Table Entries than keys.",
-                keys.size(), context.indexWriter.getTotalEntryCount(context.segmentMetadata));
+                keys.size(), IndexReader.getTotalEntryCount(context.segmentMetadata));
         return keys.stream().collect(Collectors.toMap(k -> k.key, k -> k));
-    }
-
-    /**
-     * Uses the {@link IndexWriter} to indexes the given {@link BucketUpdate.KeyUpdate} at the given offset into the Segment's Index.
-     *
-     * @param keyUpdate      The update.
-     * @param offset         The last indexed offset, if including this update.
-     * @param previousOffset The previous last index offset.
-     * @param length         Update length.
-     * @param context        TestContext.
-     */
-    private void index(BucketUpdate.KeyUpdate keyUpdate, long offset, long previousOffset, int length, TestContext context) {
-        val b = context.indexWriter.groupByBucket(context.segment, Collections.singleton(keyUpdate), context.timer).join()
-                .stream().findFirst().get();
-        if (previousOffset >= 0) {
-            b.withExistingKey(new BucketUpdate.KeyInfo(keyUpdate.getKey(), previousOffset, previousOffset));
-        }
-
-        context.indexWriter.updateBuckets(context.segment, Collections.singleton(b.build()), offset, offset + length, 1, TIMEOUT).join();
     }
 
     /**
@@ -436,16 +433,6 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         return result;
     }
 
-    private void setSegmentState(long compactionOffset, long indexOffset, long entryCount, long totalEntryCount, long utilizationThreshold, TestContext context) {
-        context.segmentMetadata.updateAttributes(ImmutableMap.<AttributeId, Long>builder()
-                .put(TableAttributes.COMPACTION_OFFSET, compactionOffset)
-                .put(TableAttributes.INDEX_OFFSET, indexOffset)
-                .put(TableAttributes.ENTRY_COUNT, entryCount)
-                .put(TableAttributes.TOTAL_ENTRY_COUNT, totalEntryCount)
-                .put(TableAttributes.MIN_UTILIZATION, utilizationThreshold)
-                .build());
-    }
-
     private void setMinUtilization(long utilizationThreshold, TestContext context) {
         context.segmentMetadata.updateAttributes(ImmutableMap.<AttributeId, Long>builder()
                 .put(TableAttributes.MIN_UTILIZATION, utilizationThreshold)
@@ -457,13 +444,6 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
                 .put(TableAttributes.COMPACTION_OFFSET, compactionOffset)
                 .build());
     }
-
-    private void setLastIndexedOffset(long offset, TestContext context) {
-        context.segmentMetadata.updateAttributes(ImmutableMap.<AttributeId, Long>builder()
-                .put(TableAttributes.INDEX_OFFSET, offset)
-                .build());
-    }
-
 
     private TableEntry readEntryAt(long offset, int length, TestContext context) throws Exception {
         byte[] copiedData = new byte[length];
@@ -485,80 +465,54 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         }
     }
 
+    @RequiredArgsConstructor
     private static class KeyData {
         final BufferView key;
-        final UUID keyHash;
         final SortedMap<Long, TableEntry> values = new TreeMap<>();
-
-        KeyData(BufferView key) {
-            this.key = key;
-            this.keyHash = KEY_HASHER.hash(key);
-        }
 
         @Override
         public String toString() {
             return String.format("%s: %s", this.key.hashCode(),
                     this.values.entrySet().stream().map(e -> e.getKey() + (e.getValue() == null ? "[D]" : ""))
-                               .collect(Collectors.joining(", ")));
+                            .collect(Collectors.joining(", ")));
         }
     }
 
-    private class TestContext implements AutoCloseable {
+    protected abstract class TestContext implements AutoCloseable {
         final StreamSegmentMetadata segmentMetadata;
         final SegmentMock segment;
         final EntrySerializer serializer;
-        final TestConnector writerConnector;
-        final IndexWriter indexWriter;
-        final TableCompactor compactor;
         final TimeoutTimer timer;
 
-        TestContext(int maxCompactLength) {
+        TestContext() {
             this.segmentMetadata = new StreamSegmentMetadata(SEGMENT_NAME, 1, 1);
             this.segment = new SegmentMock(this.segmentMetadata, executorService());
-            this.indexWriter = new IndexWriter(KEY_HASHER, executorService());
             this.serializer = new EntrySerializer();
-            this.writerConnector = new TestConnector(this.segment, this.serializer, KEY_HASHER, maxCompactLength);
-            this.compactor = new TableCompactor(this.writerConnector, this.indexWriter, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);
         }
 
-        @Override
-        public void close() {
-            this.writerConnector.close();
-        }
-    }
+        abstract TableCompactor getCompactor();
 
-    @Getter
-    @RequiredArgsConstructor
-    private class TestConnector implements TableWriterConnector {
-        private final SegmentMock segment;
-        private final EntrySerializer serializer;
-        private final KeyHasher keyHasher;
-        private final int maxCompactLength;
+        protected abstract boolean hasDelayedIndexing();
 
-        @Override
-        public SegmentMetadata getMetadata() {
-            return this.segment.getMetadata();
-        }
+        protected abstract boolean areDeletesSerialized();
 
-        @Override
-        public CompletableFuture<DirectSegmentAccess> getSegment(Duration timeout) {
-            return CompletableFuture.completedFuture(this.segment);
-        }
+        protected abstract void setSegmentState(long compactionOffset, long indexOffset, long entryCount, long totalEntryCount, long utilizationThreshold);
 
-        @Override
-        public void notifyIndexOffsetChanged(long lastIndexedOffset, int processedSizeBytes) {
-            throw new UnsupportedOperationException("not needed");
-        }
+        protected abstract void setLastIndexedOffset(long offset);
 
-        @Override
-        public int getMaxCompactionSize() {
-            return this.maxCompactLength;
-        }
+        /**
+         * Uses the {@link IndexWriter} to indexes the given {@link BucketUpdate.KeyUpdate} at the given offset into the Segment's Index.
+         *
+         * @param keyUpdate      The update.
+         * @param previousOffset The previous last index offset.
+         * @param length         Update length.
+         */
+        protected abstract void index(BucketUpdate.KeyUpdate keyUpdate, long previousOffset, int length);
 
         @Override
         public void close() {
-            // Nothing to do.
         }
     }
+
 }

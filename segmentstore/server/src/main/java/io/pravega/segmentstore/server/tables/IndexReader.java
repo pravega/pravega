@@ -76,7 +76,7 @@ class IndexReader {
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
      * @return The offset.
      */
-    long getLastIndexedOffset(SegmentProperties segmentInfo) {
+    static long getLastIndexedOffset(SegmentProperties segmentInfo) {
         return segmentInfo.getAttributes().getOrDefault(TableAttributes.INDEX_OFFSET, 0L);
     }
 
@@ -86,7 +86,7 @@ class IndexReader {
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
      * @return The count.
      */
-    long getEntryCount(SegmentProperties segmentInfo) {
+    static long getEntryCount(SegmentProperties segmentInfo) {
         return segmentInfo.getAttributes().getOrDefault(TableAttributes.ENTRY_COUNT, 0L);
     }
 
@@ -97,7 +97,7 @@ class IndexReader {
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
      * @return The count.
      */
-    long getTotalEntryCount(SegmentProperties segmentInfo) {
+    static long getTotalEntryCount(SegmentProperties segmentInfo) {
         return segmentInfo.getAttributes().getOrDefault(TableAttributes.TOTAL_ENTRY_COUNT, 0L);
     }
 
@@ -107,7 +107,7 @@ class IndexReader {
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
      * @return The count.
      */
-    long getBucketCount(SegmentProperties segmentInfo) {
+    static long getBucketCount(SegmentProperties segmentInfo) {
         return segmentInfo.getAttributes().getOrDefault(TableAttributes.BUCKET_COUNT, 0L);
     }
 
@@ -117,7 +117,7 @@ class IndexReader {
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
      * @return The index.
      */
-    long getCompactionOffset(SegmentProperties segmentInfo) {
+    static long getCompactionOffset(SegmentProperties segmentInfo) {
         return segmentInfo.getAttributes().getOrDefault(TableAttributes.COMPACTION_OFFSET, 0L);
     }
 
@@ -127,7 +127,7 @@ class IndexReader {
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
      * @return The result.
      */
-    long getCompactionUtilizationThreshold(SegmentProperties segmentInfo) {
+    static long getCompactionUtilizationThreshold(SegmentProperties segmentInfo) {
         return segmentInfo.getAttributes().getOrDefault(TableAttributes.MIN_UTILIZATION, 0L);
     }
 

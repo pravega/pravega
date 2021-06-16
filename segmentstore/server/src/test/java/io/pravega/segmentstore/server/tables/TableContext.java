@@ -22,6 +22,8 @@ import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -39,6 +41,7 @@ import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Random;
@@ -172,13 +175,20 @@ public class TableContext implements AutoCloseable {
             return Futures.failedFuture(new StreamSegmentExistsException(segmentName));
         }
 
+        if (attributes == null || attributes.stream().noneMatch(au -> au.getAttributeId().equals(Attributes.ATTRIBUTE_SEGMENT_TYPE))) {
+            attributes = attributes == null ? new ArrayList<>() : new ArrayList<>(attributes);
+            attributes.add(new AttributeUpdate(Attributes.ATTRIBUTE_SEGMENT_TYPE, AttributeUpdateType.Replace, segmentType.getValue()));
+        }
+
+        val uc = AttributeUpdateCollection.from(attributes);
         return CompletableFuture
                 .runAsync(() -> {
                     SegmentMock segment = this.segmentCreator.get();
                     Assert.assertTrue(this.segment.compareAndSet(null, segment));
                 }, executorService)
-                .thenCompose(v -> this.segment.get().updateAttributes(attributes == null ? new AttributeUpdateCollection() : AttributeUpdateCollection.from(attributes), timeout));
-        }
+                .thenCompose(v -> this.segment.get().updateAttributes(uc, timeout))
+                .thenRun(() -> this.segment.get().getMetadata().refreshDerivedProperties());
+    }
 
         @Override
         public CompletableFuture<Void> deleteStreamSegment(String segmentName, Duration timeout) {

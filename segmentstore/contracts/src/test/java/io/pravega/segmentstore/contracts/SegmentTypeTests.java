@@ -36,6 +36,8 @@ public class SegmentTypeTests {
     public void testBuilder() {
         checkBuilder(SegmentType.STREAM_SEGMENT, SegmentType.FORMAT_BASIC);
         checkBuilder(SegmentType.builder().tableSegment().build(), SegmentType.FORMAT_TABLE_SEGMENT, SegmentType::isTableSegment);
+        checkBuilder(SegmentType.builder().fixedKeyLengthTableSegment().build(), SegmentType.FORMAT_FIXED_KEY_LENGTH_TABLE_SEGMENT,
+                SegmentType::isTableSegment, SegmentType::isFixedKeyLengthTableSegment);
         checkBuilder(SegmentType.builder().internal().build(), SegmentType.ROLE_INTERNAL, SegmentType::isInternal);
         checkBuilder(SegmentType.builder().system().build(), SegmentType.ROLE_SYSTEM, SegmentType::isSystem, SegmentType::isInternal);
         checkBuilder(SegmentType.builder().critical().build(), SegmentType.ROLE_CRITICAL, SegmentType::isCritical);

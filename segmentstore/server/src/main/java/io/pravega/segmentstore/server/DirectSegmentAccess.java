@@ -161,6 +161,7 @@ public interface DirectSegmentAccess {
 
     /**
      * Gets an iterator for the Segment's Attributes in the given range (using natural ordering based on {@link AttributeId#compareTo}.
+     *
      * @param fromId  An AttributeId representing the first Attribute Id to include.
      * @param toId    An AttributeId representing the last Attribute Id to include.
      * @param timeout Timeout for the operation.
@@ -168,4 +169,14 @@ public interface DirectSegmentAccess {
      * through the Segment's Attributes.
      */
     CompletableFuture<AttributeIterator> attributeIterator(AttributeId fromId, AttributeId toId, Duration timeout);
+
+    /**
+     * Gets the number of Extended (non-Core) Attributes for this segment that have been persisted into the index.
+     * This may not include recently updated or removed Attributes (only those that are stored in the index).
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will return the number of Extended Attributes for this Segment.
+     * If such statistics are not maintained on the Segment (for example, a legacy segment), this will be completed with -1.
+     */
+    CompletableFuture<Long> getExtendedAttributeCount(Duration timeout);
 }

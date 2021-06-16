@@ -43,6 +43,7 @@ import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -349,7 +350,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         private final AtomicLong nextVersion = new AtomicLong(0);
 
         @Override
-        public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, Duration timeout) {
+        public CompletableFuture<Void> createSegment(String segmentName, SegmentType segmentType, TableSegmentConfig config, Duration timeout) {
             return CompletableFuture.runAsync(() -> {
                 synchronized (this.segments) {
                     if (this.segments.containsKey(segmentName)) {
