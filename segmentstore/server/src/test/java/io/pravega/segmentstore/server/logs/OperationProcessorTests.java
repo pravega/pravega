@@ -562,10 +562,10 @@ public class OperationProcessorTests extends OperationLogTestBase {
     }
 
     /**
-     * Tests the ability of the OperationProcessor handle a DataLogWriterNotPrimaryException.
+     * Tests the behavior of the OperationProcessor when handling a {@link CancellationException} and {@link ObjectClosedException}.
      */
     @Test
-    public void testWithCancellationException() throws Exception {
+    public void testWithCancellationExceptionAndObjectClosedException() throws Exception {
         int streamSegmentCount = 1;
         int appendsPerStreamSegment = 1;
         int transactionsPerStreamSegment = 2;
@@ -601,6 +601,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 OperationWithCompletion.allOf(completionFutures)::join,
                 ex -> ex instanceof CancellationException);
         operations.remove(0);
+        // Even though the exception, the OperationProcessor is not closed.
         Assert.assertTrue("OperationProcessor not running when it should.", operationProcessor.isRunning());
 
         // The second operation will be a ObjectCloseException, which is supposed to shut down the OperationProcessor.
