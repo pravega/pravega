@@ -23,6 +23,7 @@ import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.Version;
@@ -31,6 +32,7 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import java.util.Optional;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,7 +42,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 import static io.pravega.shared.MetricsNames.TIMEDOUT_TRANSACTIONS;
 import static io.pravega.shared.MetricsTags.streamTags;
@@ -51,8 +53,8 @@ import static io.pravega.shared.MetricsTags.streamTags;
  * 1. Set initial timeout.
  * 2. Increase timeout.
  */
-@Slf4j
 public class TimerWheelTimeoutService extends AbstractService implements TimeoutService {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TimerWheelTimeoutService.class));
 
     // region HashedWheelTimer parameters
 
@@ -69,7 +71,8 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     private final ConcurrentHashMap<String, TxnData> map;
     @Getter
     private final long maxLeaseValue;
-
+    private final Random requestIdGenerator = new Random();
+    
     @Getter(value = AccessLevel.PACKAGE)
     @VisibleForTesting
     private final BlockingQueue<Optional<Throwable>> taskCompletionQueue;
@@ -87,9 +90,10 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
 
             String key = getKey(scope, stream, txnId);
 
-            log.debug("Executing timeout task for txn {}", key);
-            streamTransactionMetadataTasks.abortTxn(scope, stream, txnId, txnData.getVersion(), null)
-                    .handle((ok, ex) -> {
+            long requestId = requestIdGenerator.nextLong();
+            log.debug(requestId, "Executing timeout task for txn {}", key);
+            streamTransactionMetadataTasks.abortTxn(scope, stream, txnId, txnData.getVersion(), requestId)
+                                          .handle((ok, ex) -> {
                         // If abort attempt fails because of (1) version mismatch, or (2) node not found,
                         // ignore the timeout task.
                         // In other cases, esp. because lock attempt fails, we reschedule this task for execution
@@ -103,7 +107,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
                             if (error instanceof StoreException.WriteConflictException ||
                                     error instanceof StoreException.DataNotFoundException ||
                                     error instanceof StoreException.IllegalStateException) {
-                                log.debug("Timeout task for tx {} failed because of {}. Ignoring timeout task.",
+                                log.debug(requestId, "Timeout task for tx {} failed because of {}. Ignoring timeout task.",
                                         key, error.getClass().getName());
                                 map.remove(key, txnData);
                                 notifyCompletion(error);

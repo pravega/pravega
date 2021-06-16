@@ -230,6 +230,8 @@ project('shared:security') {
         // in newer Java SE versions (9 and newer).
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+        // We need to explicitly import these as Bookkeeper 4.14+ is not transitively including them anymore.
+        compile group: 'org.bouncycastle', name: 'bcprov-ext-jdk15on', version: bouncyCastleVersion
 
         testCompile project(':test:testcommon')
     }
@@ -310,6 +312,21 @@ project ('shared:rest') {
         compile project(":shared:basic-authplugin")
         compile project(":shared:security")
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
+    }
+}
+
+project ('shared:health') {
+    dependencies {
+        compile project(':common')
+        testCompile project(':test:testcommon')
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+    }
+
+    javadoc {
+        exclude 'io/pravega/shared/*'
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
     }
 }
 
@@ -726,10 +743,10 @@ project('controller') {
         compile project(":shared:basic-authplugin")
         compile project(":shared:security")
         compile project(":shared:controller-api")
-        compile project(":shared:rest")
         compile project(':shared:cluster')
         compile project(":client")
         compile project(":shared:metrics")
+        compile project(":shared:rest")
         runtimeOnly group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
@@ -798,6 +815,7 @@ project('cli:admin') {
         compile project(':segmentstore:server:host')
         compile project(':segmentstore:storage:impl')
         compile project(':shared:cluster')
+        compile project(":shared:security")
         compile project(':test:testcommon')
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-common', version: bookKeeperVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
@@ -1041,14 +1059,19 @@ project('test:system') {
     }
 
     task runFluentBitInstall(type: Exec) {
-        environment 'FLUENT_BIT_STORAGE_CLASS', System.getProperty("logStorageClass", "")
-        environment 'FLUENT_BIT_HOST_LOGS_PATH', System.getProperty("k8HostLogPath", "")
-        commandLine './kubernetes/fluentBitSetup.sh', 'install'
+        if (System.getProperty("skipFluentInstall", "false") == "false") {
+            environment 'FLUENT_BIT_STORAGE_CLASS', System.getProperty("logStorageClass", "")
+            environment 'FLUENT_BIT_HOST_LOGS_PATH', System.getProperty("k8HostLogPath", "")
+            environment 'ALPINE_IMAGE', System.getProperty("alpineImage", "alpine:latest")
+            commandLine './kubernetes/fluentBitSetup.sh', 'install'
+        } else {
+            commandLine 'echo', 'Skipping Fluent-Bit installation.'
+        }
     }
 
     task fetchSystemTestLogs(type: Exec) {
         environment 'FLUENT_BIT_EXPORT_PATH', "logs"
-        commandLine './kubernetes/fluentBitSetup.sh', 'fetch-logs'
+        commandLine './kubernetes/fluentBitSetup.sh', 'fetch-namespace-logs'
         commandLine './kubernetes/fluentBitSetup.sh', 'fetch-system-test-logs'
     }
 

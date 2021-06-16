@@ -25,11 +25,11 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
-import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.test.common.AssertExtensions;
+
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -37,10 +37,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mock;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
@@ -59,10 +59,6 @@ public class PravegaTablesStoreHelperTest {
     private SegmentHelper segmentHelper;
     private GrpcAuthHelper authHelper;
     private PravegaTablesStoreHelper storeHelper;
-    @Mock
-    private KVTableMetadataStore kvtStore;
-    @Mock
-    private TableMetadataTasks kvtMetadataTasks;
 
     @Before
     public void setup() throws Exception {
@@ -81,25 +77,25 @@ public class PravegaTablesStoreHelperTest {
     public void testTables() {
         // create table
         String table = "table";
-        storeHelper.createTable(table).join();
+        storeHelper.createTable(table, 0L).join();
         String key = "key";
         String value = "value";
         byte[] valueBytes = value.getBytes();
-        storeHelper.addNewEntry(table, key, valueBytes).join();
+        storeHelper.addNewEntry(table, key, value, String::getBytes, 0L).join();
 
         // get entry
-        VersionedMetadata<String> entry = storeHelper.getEntry(table, key, String::new).join();
+        VersionedMetadata<String> entry = storeHelper.getEntry(table, key, String::new, 0L).join();
         assertEquals(entry.getObject(), value);
         
         List<String> keys = new ArrayList<>();
         // get all keys
-        storeHelper.getAllKeys(table).collectRemaining(keys::add).join();
+        storeHelper.getAllKeys(table, 0L).collectRemaining(keys::add).join();
         assertEquals(keys.size(), 1);
         assertEquals(keys.get(0), key);
         
         // get all entries
         Map<String, String> entries = new HashMap<>();
-        storeHelper.getAllEntries(table, String::new).collectRemaining(x -> {
+        storeHelper.getAllEntries(table, String::new, 0L).collectRemaining(x -> {
             entries.put(x.getKey(), x.getValue().getObject());
             return true;
         }).join();
@@ -110,79 +106,80 @@ public class PravegaTablesStoreHelperTest {
         value = "value2";
         valueBytes = value.getBytes();
         Version version = entry.getVersion();
-        storeHelper.updateEntry(table, key, valueBytes, version).join();
+        storeHelper.updateEntry(table, key, value, String::getBytes, version, 0L).join();
         // bad version update
-        AssertExtensions.assertFutureThrows("bad version", storeHelper.updateEntry(table, key, valueBytes, version),
+        AssertExtensions.assertFutureThrows("bad version", storeHelper.updateEntry(table, key, value,
+                String::getBytes, version, 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
         // get and verify
-        entry = storeHelper.getEntry(table, key, String::new).join();
+        entry = storeHelper.getEntry(table, key, String::new, 0L).join();
         assertEquals(entry.getObject(), value);
 
         // check delete non empty table
-        AssertExtensions.assertFutureThrows("Not Empty", storeHelper.deleteTable(table, true), 
+        AssertExtensions.assertFutureThrows("Not Empty", storeHelper.deleteTable(table, true, 0L), 
             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException);
         
         // remove entry
-        storeHelper.removeEntry(table, key).join();
-        AssertExtensions.assertFutureThrows("", storeHelper.getEntry(table, key, String::new), 
+        storeHelper.removeEntry(table, key, 0L).join();
+        AssertExtensions.assertFutureThrows("", storeHelper.getEntry(table, key, String::new, 0L), 
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         // idempotent remove
-        storeHelper.removeEntry(table, key).join();
+        storeHelper.removeEntry(table, key, 0L).join();
         
-        storeHelper.addNewEntryIfAbsent(table, key, valueBytes).join();
-        entry = storeHelper.getEntry(table, key, String::new).join();
+        storeHelper.addNewEntryIfAbsent(table, key, value, String::getBytes, 0L).join();
+        entry = storeHelper.getEntry(table, key, String::new, 0L).join();
         assertEquals(entry.getObject(), value);
         version = entry.getVersion();
         
         // idempotent
-        storeHelper.addNewEntryIfAbsent(table, key, valueBytes).join();
-        entry = storeHelper.getEntry(table, key, String::new).join();
+        storeHelper.addNewEntryIfAbsent(table, key, value, x -> x.getBytes(), 0L).join();
+        entry = storeHelper.getEntry(table, key, String::new, 0L).join();
         assertEquals(entry.getVersion(), version);
         
-        AssertExtensions.assertFutureThrows("Exists", storeHelper.addNewEntry(table, key, valueBytes), 
+        AssertExtensions.assertFutureThrows("Exists", storeHelper.addNewEntry(table, key, value, x -> x.getBytes(), 0L), 
             e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException);
 
-        Map<String, byte[]> entriesToAdd = new HashMap<>();
-        entriesToAdd.put("1", new byte[0]);
-        entriesToAdd.put("2", new byte[0]);
-        entriesToAdd.put("3", new byte[0]);
-        storeHelper.addNewEntriesIfAbsent(table, entriesToAdd).join();
+        List<Map.Entry<String, byte[]>> entriesToAdd = new ArrayList<>();
+        entriesToAdd.add(new AbstractMap.SimpleEntry<>("1", new byte[0]));
+        entriesToAdd.add(new AbstractMap.SimpleEntry<>("2", new byte[0]));
+        entriesToAdd.add(new AbstractMap.SimpleEntry<>("3", new byte[0]));
+        storeHelper.addNewEntriesIfAbsent(table, entriesToAdd, x -> x, 0L).join();
 
         keys = new ArrayList<>();
         // get all keys
-        storeHelper.getAllKeys(table).collectRemaining(keys::add).join();
+        storeHelper.getAllKeys(table, 0L).collectRemaining(keys::add).join();
         assertEquals(keys.size(), 4);
         
         // get all keys paginated
         ByteBuf token = Unpooled.wrappedBuffer(Base64.getDecoder().decode(""));
-        Map.Entry<ByteBuf, List<String>> response = storeHelper.getKeysPaginated(table, token, 2).join();
+        Map.Entry<ByteBuf, List<String>> response = storeHelper.getKeysPaginated(table, token, 2, 0L).join();
         assertEquals(response.getValue().size(), 2);
         assertTrue(response.getKey().hasArray());
 
-        response = storeHelper.getKeysPaginated(table, response.getKey(), 2).join();
+        response = storeHelper.getKeysPaginated(table, response.getKey(), 2, 0L).join();
         assertEquals(response.getValue().size(), 2);
         assertTrue(response.getKey().hasArray());
 
         // remove entries
-        storeHelper.removeEntries(table, Lists.newArrayList("1", "2", "3", key)).join();
+        storeHelper.removeEntries(table, Lists.newArrayList("1", "2", "3", key), 0L).join();
 
         // non existent table
-        AssertExtensions.assertFutureThrows("non existent table", storeHelper.getEntry("nonExistentTable", key, x -> x),
+        AssertExtensions.assertFutureThrows("non existent table", storeHelper.getEntry("nonExistentTable", key, x -> x, 0L),
             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         // non existent key
-        AssertExtensions.assertFutureThrows("non existent key", storeHelper.getEntry(table, "nonExistentKey", x -> x),
+        AssertExtensions.assertFutureThrows("non existent key", storeHelper.getEntry(table, "nonExistentKey", x -> x, 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
         keys = Lists.newArrayList("4", "5", "non existent", "7");
-        entriesToAdd = new HashMap<>();
-        entriesToAdd.put(keys.get(0), keys.get(0).getBytes());
-        entriesToAdd.put(keys.get(1), keys.get(1).getBytes());
-        entriesToAdd.put(keys.get(3), keys.get(3).getBytes());
-        storeHelper.addNewEntriesIfAbsent(table, entriesToAdd).join();
+        entriesToAdd = new ArrayList<>();
+        entriesToAdd.add(new AbstractMap.SimpleEntry<>(keys.get(0), keys.get(0).getBytes()));
+        entriesToAdd.add(new AbstractMap.SimpleEntry<>(keys.get(1), keys.get(1).getBytes()));
+        entriesToAdd.add(new AbstractMap.SimpleEntry<>(keys.get(3), keys.get(3).getBytes()));
+        storeHelper.addNewEntriesIfAbsent(table, entriesToAdd, x -> x, 0L).join();
 
         Version.LongVersion nonExistentKey = new Version.LongVersion(-1);
         List<VersionedMetadata<String>> values = storeHelper.getEntries(table, keys,
-                String::new, new VersionedMetadata<>(null, nonExistentKey)).join();
+                String::new, new VersionedMetadata<>(null, nonExistentKey), 0L).join();
         assertEquals(keys.size(), values.size());
         assertEquals(keys.get(0), values.get(0).getObject());
         assertEquals(keys.get(1), values.get(1).getObject());
@@ -199,19 +196,19 @@ public class PravegaTablesStoreHelperTest {
         CompletableFuture<Void> connectionDropped = Futures.failedFuture(
                 new WireCommandFailedException(WireCommandType.CREATE_TABLE_SEGMENT, WireCommandFailedException.Reason.ConnectionDropped));
         doAnswer(x -> connectionDropped).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean());
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.createTable("table"),
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.createTable("table", 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
 
         CompletableFuture<Void> connectionFailed = Futures.failedFuture(
                 new WireCommandFailedException(WireCommandType.CREATE_TABLE_SEGMENT, WireCommandFailedException.Reason.ConnectionFailed));
         doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean());
-        AssertExtensions.assertFutureThrows("ConnectionFailed", storeHelper.createTable("table"),
+        AssertExtensions.assertFutureThrows("ConnectionFailed", storeHelper.createTable("table", 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
 
         CompletableFuture<Void> authFailed = Futures.failedFuture(
                 new WireCommandFailedException(WireCommandType.CREATE_TABLE_SEGMENT, WireCommandFailedException.Reason.AuthFailed));
         doAnswer(x -> connectionFailed).when(segmentHelper).createTableSegment(anyString(), anyString(), anyLong(), anyBoolean());
-        AssertExtensions.assertFutureThrows("AuthFailed", storeHelper.createTable("table"),
+        AssertExtensions.assertFutureThrows("AuthFailed", storeHelper.createTable("table", 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
     }
     
@@ -226,12 +223,13 @@ public class PravegaTablesStoreHelperTest {
                 new WireCommandFailedException(WireCommandType.UPDATE_TABLE_ENTRIES, WireCommandFailedException.Reason.ConnectionDropped));
         doAnswer(x -> connectionDropped).when(segmentHelper).updateTableEntries(anyString(), any(), anyString(), anyLong());
         
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", new byte[0]),
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key",
+                new byte[0], x -> x, 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         verify(segmentHelper, times(1)).updateTableEntries(anyString(), any(), anyString(), anyLong());
 
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", new byte[0],
-                new Version.LongVersion(0L)),
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", 
+                new byte[0], x -> x, new Version.LongVersion(0L), 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         verify(segmentHelper, times(2)).updateTableEntries(anyString(), any(), anyString(), anyLong());
 
@@ -242,12 +240,13 @@ public class PravegaTablesStoreHelperTest {
                 new WireCommandFailedException(WireCommandType.UPDATE_TABLE_ENTRIES, WireCommandFailedException.Reason.ConnectionFailed));
         doAnswer(x -> connectionFailed).when(segmentHelper).updateTableEntries(anyString(), any(), anyString(), anyLong());
 
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", new byte[0]),
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key",
+                new byte[0], x -> x, 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         verify(segmentHelper, times(3)).updateTableEntries(anyString(), any(), anyString(), anyLong());
         
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", new byte[0],
-                new Version.LongVersion(0L)),
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key",
+                new byte[0], x -> x, new Version.LongVersion(0L), 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         verify(segmentHelper, times(4)).updateTableEntries(anyString(), any(), anyString(), anyLong());
 
@@ -257,13 +256,14 @@ public class PravegaTablesStoreHelperTest {
                 new WireCommandFailedException(WireCommandType.UPDATE_TABLE_ENTRIES, WireCommandFailedException.Reason.UnknownHost));
         doAnswer(x -> unknownHost).when(segmentHelper).updateTableEntries(anyString(), any(), anyString(), anyLong());
         
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", new byte[0]),
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.addNewEntry("table", "key", 
+                new byte[0], x -> x, 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         // this should be retried. we have configured 2 retries, so 2 retries should happen hence jump from 4 to 6. 
         verify(segmentHelper, times(6)).updateTableEntries(anyString(), any(), anyString(), anyLong());
 
-        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key", new byte[0],
-                new Version.LongVersion(0L)),
+        AssertExtensions.assertFutureThrows("ConnectionDropped", storeHelper.updateEntry("table", "key",
+                new byte[0], x -> x, new Version.LongVersion(0L), 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
         verify(segmentHelper, times(8)).updateTableEntries(anyString(), any(), anyString(), anyLong());
     }

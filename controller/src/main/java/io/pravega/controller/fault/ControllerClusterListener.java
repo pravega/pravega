@@ -110,7 +110,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                             .map(Host::getHostId)
                             .collect(Collectors.toSet());
                 } catch (ClusterException e) {
-                    log.warn("Error fetching cluster members {}", e);
+                    log.error("Error fetching cluster members {}", e.getMessage());
                     throw new CompletionException(e);
                 }
             };
