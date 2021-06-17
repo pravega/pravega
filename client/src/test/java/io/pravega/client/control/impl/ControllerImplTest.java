@@ -1287,17 +1287,17 @@ public class ControllerImplTest {
             @Override
             public void deleteKeyValueTable(KeyValueTableInfo request,
                                      StreamObserver<DeleteKVTableStatus> responseObserver) {
-                if (request.getKvtName().equals("kvtable success")) {
+                if (request.getKvtName().equals("kvtable1")) {
                     responseObserver.onNext(DeleteKVTableStatus.newBuilder()
                             .setStatus(DeleteKVTableStatus.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
-                } else if (request.getKvtName().equals(FAILING)) {
+                } else if (request.getKvtName().equals("kvtable2")) {
                     responseObserver.onNext(DeleteKVTableStatus.newBuilder()
                             .setStatus(DeleteKVTableStatus.Status.FAILURE)
                             .build());
                     responseObserver.onCompleted();
-                } else if (request.getKvtName().equals(NON_EXISTENT)) {
+                } else if (request.getKvtName().equals("kvtable3")) {
                     responseObserver.onNext(DeleteKVTableStatus.newBuilder()
                             .setStatus(DeleteKVTableStatus.Status.TABLE_NOT_FOUND)
                             .build());
