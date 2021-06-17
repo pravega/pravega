@@ -499,12 +499,4 @@ public class SimpleCacheTests {
         Collections.shuffle(list, random);
         return list;
     }
-    
-    public static class TestSimpleCache<KeyT, ValueT> extends SimpleCache<KeyT, ValueT> {
-        public TestSimpleCache(int maxSize, @NonNull Duration expirationTime,
-                               @Nullable BiConsumer<KeyT, ValueT> onExpiration,
-                               @NonNull Supplier<Long> currentTime) {
-            super(maxSize, expirationTime, onExpiration, currentTime);
-        }
-    }
 }

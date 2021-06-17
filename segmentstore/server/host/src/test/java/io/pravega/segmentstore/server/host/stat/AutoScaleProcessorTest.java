@@ -21,14 +21,13 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.SimpleCacheTests;
+import io.pravega.common.util.SimpleCache;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.NonNull;
-import lombok.val;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -36,22 +35,21 @@ import org.junit.Test;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -361,7 +359,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         private AtomicLong timeMillis = new AtomicLong();
 
         TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor,
-                               io.pravega.common.util.SimpleCacheTests.TestSimpleCache<String, Pair<Long, Long>> testSimpleCache) {
+                               SimpleCache<String, Pair<Long, Long>> testSimpleCache) {
             super(configuration, executor, testSimpleCache);
         }
 
@@ -373,12 +371,6 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
             super(configuration, clientFactory, executor);
         }
 
-        TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory,
-                               @NonNull ScheduledExecutorService executor,
-                               io.pravega.common.util.SimpleCacheTests.TestSimpleCache<String, Pair<Long, Long>> testSimpleCache) {
-            super(configuration, clientFactory, executor, testSimpleCache);
-        }
-
         @Override
         protected long getTimeMillis() {
             return timeMillis.get();
@@ -388,49 +380,68 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
             timeMillis.set(time);
         }
     }
-
+    
     @Test
-    public void testCacheGetOnReport() {
-        final int infiniteSize = Integer.MAX_VALUE;
-        final AtomicLong currentTime = new AtomicLong();
-        val evictions = new ArrayList<Map.Entry<Long, Long>>();
-        io.pravega.common.util.SimpleCacheTests.TestSimpleCache<String, Pair<Long, Long>> testSimpleCache =
-                new SimpleCacheTests.TestSimpleCache(
-                        infiniteSize,
-                        Duration.ofSeconds(60), (k, v) -> evictions.add(new AbstractMap.SimpleImmutableEntry(k, v)),
-                        currentTime::get);
+    public void testSteadyStateExpiry() {
+        HashMap<String, Pair<Long, Long>> map = new HashMap<>();
+        HashMap<String, Long> lastAccessedTime = new HashMap<>();
+        List<String> evicted = new ArrayList<>();
+        SimpleCache<String, Pair<Long, Long>> simpleCache = mock(SimpleCache.class);
+        AtomicLong clock = new AtomicLong(0L);
+        Function<Void, Void> cleanup = m -> {
+            for(Map.Entry<String, Long> e : lastAccessedTime.entrySet()) {
+                if (e.getValue() < clock.get()) {
+                    lastAccessedTime.remove(e.getKey());
+                    map.remove(e.getKey());
+                    evicted.add(e.getKey());
+                }
+            }
+            // remove all that should have expired.
+            return null;
+        };
+        doAnswer(x -> {
+            cleanup.apply(null);
+            return map.get(x.getArgument(0));
+        }).when(simpleCache).get(anyString());
+        doAnswer(x -> {
+            cleanup.apply(null);
+            map.put(x.getArgument(0), x.getArgument(1));
+            return map.get(x.getArgument(0));
+        }).when(simpleCache).put(anyString(), any());
+        doAnswer(x -> cleanup.apply(null)).when(simpleCache).cleanUp();
+
         TestAutoScaleProcessor monitor = new TestAutoScaleProcessor(
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
                         .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
                         .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 150)
                         .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(),
-                executorService(), testSimpleCache);
+                executorService(), simpleCache);
         String streamSegmentName1 = NameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM1, 0L);
         monitor.setTimeMillis(0L);
-        currentTime.set(0L);
+        clock.set(0L);
         monitor.notifyCreated(streamSegmentName1);
         monitor.put(streamSegmentName1, new ImmutablePair<>(5L, 5L));
         monitor.setTimeMillis(30 * 1000L);
-        currentTime.set(30L);
+        clock.set(30L);
         monitor.report(streamSegmentName1, 10L, 0L, 10D, 10D, 10D, 10D);
         monitor.setTimeMillis(80 * 1000L);
-        currentTime.set(80L);
-        testSimpleCache.cleanUp();
+        clock.set(80L);
+        simpleCache.cleanUp();
         assertNotNull(monitor.get(streamSegmentName1));
-        assertNotNull(testSimpleCache.get(streamSegmentName1));
-        assertTrue(evictions.isEmpty());
+        assertNotNull(simpleCache.get(streamSegmentName1));
+        assertTrue(evicted.isEmpty());
 
         AssertExtensions.assertThrows("NPE should be thrown",
                 () -> new AutoScaleProcessor(AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
                         .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
                         .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 150)
-                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), null, testSimpleCache),
+                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), null, simpleCache),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("NPE should be thrown",
-                () -> new AutoScaleProcessor(null, executorService(), testSimpleCache),
+                () -> new AutoScaleProcessor(null, executorService(), simpleCache),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("NPE should be thrown",
@@ -447,7 +458,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 .build();
         ClientConfig objectUnderTest = AutoScaleProcessor.prepareClientConfig(config);
         EventStreamClientFactory eventStreamClientFactory = EventStreamClientFactory.withScope(SCOPE, objectUnderTest);
-        
+
         AssertExtensions.assertThrows("NPE should be thrown",
                 () -> new AutoScaleProcessor(null, eventStreamClientFactory, executorService()),
                 e -> e instanceof NullPointerException);
@@ -465,11 +476,11 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
                         .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
                         .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 150)
-                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), eventStreamClientFactory, null, testSimpleCache),
+                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), eventStreamClientFactory, null, simpleCache),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("NPE should be thrown",
-                () -> new AutoScaleProcessor(null, eventStreamClientFactory, executorService(), testSimpleCache),
+                () -> new AutoScaleProcessor(null, eventStreamClientFactory, executorService(), simpleCache),
                 e -> e instanceof NullPointerException);
     }
 }

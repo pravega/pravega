@@ -533,7 +533,6 @@ project('segmentstore:server:host') {
         compile project(':segmentstore:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
-        testCompile project(path:':common', configuration:'testRuntime')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
