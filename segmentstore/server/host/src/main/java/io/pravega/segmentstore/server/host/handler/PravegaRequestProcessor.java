@@ -517,7 +517,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 Futures.handleCompose(segmentStore.mergeStreamSegment(mergeSegments.getTarget(),
                         source, TIMEOUT), (r, e) -> {
                     if (e != null) {
-                        if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
+                        Throwable unwrap = Exceptions.unwrap(e);
+                        if (unwrap instanceof StreamSegmentMergedException || unwrap instanceof StreamSegmentNotExistsException) {
                             log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
                                     sources);
                             return segmentStore.getStreamSegmentInfo(mergeSegments.getTarget(), TIMEOUT)
