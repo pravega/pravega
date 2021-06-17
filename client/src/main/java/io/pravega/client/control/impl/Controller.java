@@ -482,6 +482,7 @@ public interface Controller extends AutoCloseable {
      *
      * @param scope   Scope
      * @param kvtName KeyValueTable name
+     * @throws IllegalArgumentException if the key-value table does not exist.
      * @return A future which will throw if the operation fails, otherwise returning the KeyValueTableConfiguration of
      * the corresponding KeyValueTable name.
      */
