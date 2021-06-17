@@ -188,6 +188,7 @@ def withoutJaxbAndJjwt = { exclude group: 'javax.xml.bind', module: 'jaxb-api'
 
 project('shared:authplugin') {
     dependencies {
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
     }
 
     tasks.withType(JavaCompile) {

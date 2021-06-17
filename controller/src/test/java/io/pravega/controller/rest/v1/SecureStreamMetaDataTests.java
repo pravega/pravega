@@ -32,7 +32,7 @@ import java.util.Collections;
 
 import org.junit.Before;
 
-import static io.pravega.controller.auth.AuthFileUtils.addAuthFileEntry;
+import static io.pravega.auth.AuthFileUtils.addAuthFileEntry;
 
 public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
 

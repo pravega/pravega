@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.auth;
+package io.pravega.auth;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import lombok.NonNull;
@@ -24,6 +25,7 @@ import java.io.FileWriter;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@VisibleForTesting
 public class AuthFileUtils {
 
     public static String credentialsAndAclAsString(String username, String password, String acl) {

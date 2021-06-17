@@ -73,7 +73,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString;
+import static io.pravega.auth.AuthFileUtils.credentialsAndAclAsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
