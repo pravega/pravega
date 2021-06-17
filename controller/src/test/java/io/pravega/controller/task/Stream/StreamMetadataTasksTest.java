@@ -264,6 +264,14 @@ public abstract class StreamMetadataTasksTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
+    @Test
+    public void testCreateStreamTxnCountInitialized() throws Exception {
+        StreamMetadataStore streamMetadataStore = getStore();
+        final OperationContext context = streamMetadataStore.createStreamContext(SCOPE, stream2, 0L);
+        CompletableFuture<Integer> committingTxnCountFuture = streamMetadataStore.getCommittingTxnsCount(SCOPE, stream2, context, executor);
+        assertEquals(0, committingTxnCountFuture.get().intValue());
+    }
+
     @Test(timeout = 30000)
     public void testeventHelperNPE() throws Exception {
         StreamMetadataStore streamMetadataStore = getStore();

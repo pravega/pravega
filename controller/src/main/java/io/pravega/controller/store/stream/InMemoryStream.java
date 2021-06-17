@@ -94,6 +94,8 @@ public class InMemoryStream extends PersistentStreamBase {
     @GuardedBy("lock")
     private VersionedMetadata<CommittingTransactionsRecord> committingTxnRecord;
     @GuardedBy("lock")
+    private VersionedMetadata<Integer> committingTxnCount;
+    @GuardedBy("lock")
     private String waitingRequestNode;
 
     private final Object txnsLock = new Object();
@@ -143,6 +145,7 @@ public class InMemoryStream extends PersistentStreamBase {
         super(scope, name, chunkSize, shardSize);
         completedTxns = CacheBuilder.newBuilder()
                                     .expireAfterWrite(completedTxnTTL, TimeUnit.MILLISECONDS).build();
+        committingTxnCount = new VersionedMetadata<>(Integer.valueOf(0), new Version.IntVersion(0));
     }
 
     @Override
@@ -1055,8 +1058,14 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Version> updateCommittingTxnsCount(int committingTxnsCount, OperationContext context) {
-        return null;
+    public CompletableFuture<Version> updateCommittingTxnsCount(int comTxnsCount, OperationContext context) {
+        CompletableFuture<Version> result = new CompletableFuture<>();
+        VersionedMetadata<Integer> updatedCopy = updatedCopy(new VersionedMetadata<>(Integer.valueOf(comTxnsCount), committingTxnCount.getVersion()));
+        synchronized (lock) {
+            this.committingTxnCount = updatedCopy;
+            result.complete(committingTxnCount.getVersion());
+        }
+        return result;
     }
 
     @Override
