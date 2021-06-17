@@ -125,7 +125,7 @@ public abstract class ControllerEventProcessorTest {
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, TaskStoreFactory.createInMemoryStore(executor),
                 segmentHelperMock, executor, "1", GrpcAuthHelper.getDisabledAuthHelper(), eventHelperMock);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock,
-                executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
+                executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), 100);
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         // region createStream

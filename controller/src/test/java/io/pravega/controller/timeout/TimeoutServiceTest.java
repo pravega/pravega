@@ -131,7 +131,7 @@ public abstract class TimeoutServiceTest {
                 SegmentHelperMock.getSegmentHelperMock(), executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, hostId, TimeoutServiceConfig.defaultConfig(),
-                new LinkedBlockingQueue<>(5), GrpcAuthHelper.getDisabledAuthHelper());
+                new LinkedBlockingQueue<>(5), GrpcAuthHelper.getDisabledAuthHelper(), 100);
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         // Create TimeoutService
@@ -284,7 +284,7 @@ public abstract class TimeoutServiceTest {
         @Cleanup
         StreamTransactionMetadataTasks streamTransactionMetadataTasks2 = new StreamTransactionMetadataTasks(streamStore2,
                 helperMock, executor, "2", TimeoutServiceConfig.defaultConfig(),
-                new LinkedBlockingQueue<>(5), GrpcAuthHelper.getDisabledAuthHelper());
+                new LinkedBlockingQueue<>(5), GrpcAuthHelper.getDisabledAuthHelper(), 100);
         streamTransactionMetadataTasks2.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         // Create TimeoutService

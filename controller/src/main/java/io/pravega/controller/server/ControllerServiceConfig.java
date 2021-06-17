@@ -30,6 +30,13 @@ import java.util.Optional;
  */
 public interface ControllerServiceConfig {
     /**
+     * Fetches the limit on number of open transactions.
+     *
+     * @return The max open transaction limit per stream, beyond which create commit requests will be throttled.
+     */
+    int getOpenTransactionsLimit();
+
+    /**
      * Fetches the size of the thread pool used by controller.
      *
      * @return The size of the thread pool used by controller.

@@ -40,6 +40,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.stream.records.StreamSubscriber;
 import io.pravega.controller.store.stream.records.Subscribers;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -731,6 +732,11 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
+    public CompletableFuture<Version> updateCommittingTxnsCount(final int committingTxnsCount, OperationContext context) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CompletableFuture<Void> createWaitingRequestNodeIfAbsent(String waitingRequestProcessor, OperationContext context) {
         return Futures.toVoid(store.createZNodeIfNotExist(waitingRequestProcessorPath, 
                 waitingRequestProcessor.getBytes(StandardCharsets.UTF_8)));
@@ -803,6 +809,11 @@ class ZKStream extends PersistentStreamBase {
         store.invalidateCache(epochTransitionPath, id);
         store.invalidateCache(committingTxnsPath, id);
         store.invalidateCache(currentEpochRecordPath, id);
+    }
+
+    @Override
+    public CompletableFuture<Integer> getCommittingTxnsCount(OperationContext context) {
+        throw new UnsupportedOperationException();
     }
 
     /**

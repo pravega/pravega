@@ -739,4 +739,22 @@ interface Stream {
      * where 'Key' is number of splits and 'Value' is number of merges in the Stream till this epoch.
      */
     CompletableFuture<SimpleEntry<Long, Long>> getSplitMergeCountsTillEpoch(EpochRecord epochRecord, OperationContext context);
+
+    /**
+     * Finds number of open transactions in the Stream.
+     *
+     * @param context Operation Context
+     * @return A completable future which when completed will return count of transactions in Committing State
+     * where 'Key' is number of splits and 'Value' is number of merges in the Stream till this epoch.
+     */
+    CompletableFuture<Integer> getCommittingTxnsCount(OperationContext context);
+
+    /**
+     * Updates number of open transactions in the Stream.
+     *
+     * @param context Operation Context
+     * @return A completable future which when completed will return count of transactions in Committing State.
+     *
+     */
+    CompletableFuture<Version> updateCommittingTxnsCount(final int txnCount, OperationContext context);
 }

@@ -105,6 +105,7 @@ public class Main {
                     .grpcServerConfig(Optional.of(grpcServerConfig))
                     .restServerConfig(Optional.of(restServerConfig))
                     .tlsEnabledForSegmentStore(Config.TLS_ENABLED_FOR_SEGMENT_STORE)
+                    .openTxnsLimit(Config.OPEN_TXNS_LIMIT)
                     .build();
 
             setUncaughtExceptionHandler(Main::logUncaughtException);

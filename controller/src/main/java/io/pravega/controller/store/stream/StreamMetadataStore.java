@@ -1560,4 +1560,17 @@ public interface StreamMetadataStore extends AutoCloseable {
      */
     CompletableFuture<UUID> getReaderGroupId(final String scopeName, final String rgName, OperationContext context, 
                                              Executor executor);
+
+    /**
+     * Fetches the count of transactions in COMMITTING STate on this Stream.
+     *
+     * @param scope        stream scope
+     * @param name         stream name.
+     * @param context      operation context
+     * @param executor     callers executor
+     * @return current stream configuration.
+     */
+    CompletableFuture<Integer> getCommittingTxnsCount(final String scope, final String name,
+                                                                        final OperationContext context,
+                                                                        final Executor executor);
 }

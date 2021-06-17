@@ -976,10 +976,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         Stream streamObj = getStream(scope, stream, context);
         return Futures.completeOn(streamObj.completeCommittingTransactions(record, context, writerTimes, writerIdToTxnOffsets), executor)
                 .thenAcceptAsync(result -> {
-                    streamObj.getNumberOfOngoingTransactions(context).thenAccept(count ->
-                            TransactionMetrics.reportOpenTransactions(scope, stream, count));
-                    TransactionMetrics.getInstance().commitTransactionComplete(timer.getElapsed());
-                }, executor);
+                        TransactionMetrics.getInstance().commitTransactionComplete(timer.getElapsed());
+                        streamObj.getNumberOfOngoingTransactions(context)
+                                .thenAccept(count -> TransactionMetrics.reportOpenTransactions(scope, stream, count));
+                    }, executor);
     }
 
     @Override
@@ -1214,6 +1214,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             final OperationContext ctx, final Executor executor) {
         OperationContext context = getOperationContext(ctx);
         return Futures.completeOn(getReaderGroup(scope, name, context).updateVersionedState(previous, state, context), executor);
+    }
+
+    @Override
+    public CompletableFuture<Integer> getCommittingTxnsCount(String scope, String stream,
+                                                                               OperationContext ctx,
+                                                                               Executor executor) {
+        OperationContext context = getOperationContext(ctx);
+        return Futures.completeOn(getStream(scope, stream, context).getCommittingTxnsCount(context), executor);
     }
 
     //endregion

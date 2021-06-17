@@ -197,6 +197,9 @@ public final class Config {
     public static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named(
             "scale.request.readerGroup.name", "scaleGroup", "scale.ReaderGroup");
 
+    public static final Property<Integer> OPEN_TXN_LIMIT_COUNT = Property.named(
+            "transaction.open.limit", 100);
+
     public static final String COMPONENT_CODE = "controller";
 
     //endregion
@@ -285,6 +288,8 @@ public final class Config {
 
     public static final Integer REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE;
 
+    public static final Integer OPEN_TXNS_LIMIT;
+
     private static final String METRICS_PATH = "controller.metrics.";
 
 
@@ -354,6 +359,7 @@ public final class Config {
         METRICS_CONFIG = createMetricsConfig(properties);
 
         REQUEST_TIMEOUT_SECONDS_SEGMENT_STORE = p.getInt(PROPERTY_SEGMENT_STORE_REQUEST_TIMEOUT_SECONDS);
+        OPEN_TXNS_LIMIT = p.getInt(OPEN_TXN_LIMIT_COUNT);
     }
 
     private static Properties loadConfiguration() {

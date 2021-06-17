@@ -139,7 +139,7 @@ public class IntermittentCnxnFailureTest {
                 executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, segmentHelperMock, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
+                streamStore, segmentHelperMock, executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), 100);
 
         controllerService = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null, requestTracker);

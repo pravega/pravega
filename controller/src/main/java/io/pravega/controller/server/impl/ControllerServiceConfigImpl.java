@@ -57,6 +57,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
     @Getter
     private final Duration shutdownTimeout;
 
+    private final int openTransactionsLimit;
+
     @Builder
     ControllerServiceConfigImpl(final int threadPoolSize,
                                 final StoreClientConfig storeClientConfig,
@@ -68,7 +70,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                                 final Optional<GRPCServerConfig> grpcServerConfig,
                                 final Optional<RESTServerConfig> restServerConfig,
                                 final Duration retentionFrequency,
-                                final Duration shutdownTimeout) {
+                                final Duration shutdownTimeout,
+                                final int openTxnsLimit) {
         Exceptions.checkArgument(threadPoolSize > 0, "threadPoolSize", "Should be positive integer");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
@@ -102,5 +105,6 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         this.retentionFrequency = retentionFrequency == null ? Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES)
                 : retentionFrequency;
         this.shutdownTimeout = shutdownTimeout == null ? Duration.ofSeconds(10) : shutdownTimeout;
+        this.openTransactionsLimit = (openTxnsLimit < 1) ? Config.OPEN_TXNS_LIMIT.intValue() : openTxnsLimit;
     }
 }
