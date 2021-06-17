@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.shared.rest.security;
+package io.pravega.controller.server.security.auth.handler;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -39,8 +39,8 @@ import java.security.Principal;
 @Slf4j
 public class AuthInterceptor implements ServerInterceptor {
 
-    private static final String PRINCIPAL_KEY_NAME = "PravegaContext";
-    private static final String INTERCEPTOR_KEY_NAME = "InterceptorContext";
+    public static final String PRINCIPAL_KEY_NAME = "PravegaContext";
+    public static final String INTERCEPTOR_KEY_NAME = "InterceptorContext";
 
     /**
      * Represents the key used for indexing the {@link Principal} object stored in the current

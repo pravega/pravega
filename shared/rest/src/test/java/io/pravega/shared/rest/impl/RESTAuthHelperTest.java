@@ -16,6 +16,7 @@
 package io.pravega.shared.rest.impl;
 
 import io.pravega.auth.AuthException;
+import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.shared.rest.mocks.FakeAuthHandler;
 import io.pravega.shared.rest.security.RESTAuthHelper;
 import io.pravega.shared.rest.security.AuthHandlerManager;
@@ -42,7 +43,15 @@ public class RESTAuthHelperTest {
 
     @Before
     public void init() {
-        AuthHandlerManager authManager = new AuthHandlerManager(null);
+        RESTServerConfig config = RESTServerConfigImpl.builder()
+                .host("localhost")
+                .port(1000)
+                .authorizationEnabled(true)
+                .userPasswordFile("passwd")
+                .tlsEnabled(false)
+                .build();
+
+        AuthHandlerManager authManager = new AuthHandlerManager(config);
         authManager.registerHandler(new FakeAuthHandler());
         authHelper = new RESTAuthHelper(authManager);
     }

@@ -19,6 +19,7 @@ import io.grpc.ServerBuilder;
 import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.shared.security.auth.Credentials;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.shared.rest.security.AuthHandlerManager;
@@ -100,7 +101,7 @@ public class PravegaAuthManagerTest {
                     new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH));
 
             server.addService(SERVICE_IMPL);
-            AUTH_HANDLER_MANAGER.registerInterceptors(server);
+            GrpcAuthHelper.registerInterceptors(AUTH_HANDLER_MANAGER.getHandlerMap(), server);
             server.build().start();
         } catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {
             throw new RuntimeException(e);

@@ -26,6 +26,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
@@ -187,7 +188,7 @@ public class StreamMetaDataAuthFocusedTests {
                 .port(1000)
                 .build());
         ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
-        authManager.registerInterceptors(server);
+        GrpcAuthHelper.registerInterceptors(authManager.getHandlerMap(), server);
 
         mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();

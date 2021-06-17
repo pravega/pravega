@@ -52,7 +52,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
-import io.pravega.shared.rest.security.AuthInterceptor;
+import io.pravega.controller.server.security.auth.handler.AuthInterceptor;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.authplugin.basic.PasswordAuthHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;

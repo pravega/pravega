@@ -30,12 +30,15 @@ import java.util.Properties;
 public class RESTServerConfigImpl implements RESTServerConfig {
     private final String host;
     private final int port;
+    private final boolean authorizationEnabled;
+    private final String userPasswordFile;
     private final boolean tlsEnabled;
     private final String keyFilePath;
     private final String keyFilePasswordPath;
 
     @Builder
-    RESTServerConfigImpl(final String host, final int port, boolean tlsEnabled, String keyFilePath, String keyFilePasswordPath) {
+    RESTServerConfigImpl(final String host, final int port, boolean authorizationEnabled, String userPasswordFile,
+                         boolean tlsEnabled, String keyFilePath, String keyFilePasswordPath) {
         Exceptions.checkNotNullOrEmpty(host, "host");
         Exceptions.checkArgument(port > 0, "port", "Should be positive integer");
         Exceptions.checkArgument(!tlsEnabled || !Strings.isNullOrEmpty(keyFilePath),
@@ -46,6 +49,8 @@ public class RESTServerConfigImpl implements RESTServerConfig {
         this.tlsEnabled = tlsEnabled;
         this.keyFilePath = keyFilePath;
         this.keyFilePasswordPath = keyFilePasswordPath;
+        this.authorizationEnabled = authorizationEnabled;
+        this.userPasswordFile = userPasswordFile;
     }
 
     @Override
@@ -61,12 +66,20 @@ public class RESTServerConfigImpl implements RESTServerConfig {
                         Strings.isNullOrEmpty(keyFilePath) ? "unspecified" : "specified"))
                 .append(String.format("keyFilePasswordPath is %s",
                         Strings.isNullOrEmpty(keyFilePasswordPath) ? "unspecified" : "specified"))
+                .append(String.format("authorizationEnabled: %b, ", authorizationEnabled))
+                .append(String.format("userPasswordFile is %s, ",
+                        Strings.isNullOrEmpty(userPasswordFile) ? "unspecified" : "specified"))
                 .append(")")
                 .toString();
     }
 
     @Override
     public boolean isAuthorizationEnabled() {
+        return this.authorizationEnabled;
+    }
+
+    @Override
+    public boolean isTlsEnabled() {
         return this.tlsEnabled;
     }
 

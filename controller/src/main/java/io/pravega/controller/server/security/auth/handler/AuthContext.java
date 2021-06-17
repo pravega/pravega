@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.shared.rest.security;
+package io.pravega.controller.server.security.auth.handler;
 
 import io.pravega.auth.AuthHandler;
 import lombok.Getter;

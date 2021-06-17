@@ -305,6 +305,11 @@ project('shared:protocol') {
 }
 
 project ('shared:rest') {
+    sourceSets {
+        main.resources.srcDirs += "$projectDir/src/conf"
+        test.resources.srcDirs += "$rootDir/config"
+    }
+
     dependencies {
         compile project(':common')
         compile "io.grpc:grpc-core:" + grpcVersion
@@ -312,6 +317,9 @@ project ('shared:rest') {
         compile project(":shared:basic-authplugin")
         compile project(":shared:security")
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
+        testCompile project(':test:testcommon')
+        testCompile "io.grpc:grpc-netty:" + grpcVersion
     }
 }
 

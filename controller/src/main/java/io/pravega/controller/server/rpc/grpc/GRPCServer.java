@@ -66,7 +66,7 @@ public class GRPCServer extends AbstractIdleService {
                         RPCTracingHelpers.getServerInterceptor(requestTracker)));
         if (serverConfig.isAuthorizationEnabled()) {
             this.authHandlerManager = new AuthHandlerManager(serverConfig);
-            this.authHandlerManager.registerInterceptors(builder);
+            GrpcAuthHelper.registerInterceptors(authHandlerManager.getHandlerMap(), builder);
         } else {
             this.authHandlerManager = null;
         }

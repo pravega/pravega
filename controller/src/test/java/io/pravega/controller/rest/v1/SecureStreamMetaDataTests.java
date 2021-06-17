@@ -73,7 +73,6 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
                                                                       .port(1000)
                                                                       .build());
         ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
-        this.authManager.registerInterceptors(server);
         super.setup();
     }
 
