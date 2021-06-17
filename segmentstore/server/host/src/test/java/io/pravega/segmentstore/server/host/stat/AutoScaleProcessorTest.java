@@ -35,7 +35,10 @@ import org.junit.Test;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -389,7 +392,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         SimpleCache<String, Pair<Long, Long>> simpleCache = mock(SimpleCache.class);
         AtomicLong clock = new AtomicLong(0L);
         Function<Void, Void> cleanup = m -> {
-            for(Map.Entry<String, Long> e : lastAccessedTime.entrySet()) {
+            for (Map.Entry<String, Long> e : lastAccessedTime.entrySet()) {
                 if (e.getValue() < clock.get()) {
                     lastAccessedTime.remove(e.getKey());
                     map.remove(e.getKey());
