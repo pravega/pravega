@@ -141,14 +141,18 @@ public class SecureControllerCommandsTest {
         command.printResponseInfo(Response.status(Response.Status.INTERNAL_SERVER_ERROR).build());
     }
 
+    @Test
+    @SneakyThrows
+    public void testDescribeReaderGroupCommand() {
+        // Check that the system reader group can be listed.
+        String commandResult = TestUtils.executeCommand("controller describe-readergroup _system commitStreamReaders", cliConfig());
+        Assert.assertTrue(commandResult.contains("commitStreamReaders"));
+        Assert.assertNotNull(ControllerDescribeReaderGroupCommand.descriptor());
+    }
+
     // TODO: Test controller describe-stream command in the secure scenario (auth+TLS).
     // Cannot at this point due to the following issue:
     // Issue 3821: Create describeStream REST call in Controller
     // https://github.com/pravega/pravega/issues/3821
-
-    // TODO: Test controller describe-readergroup command in the secure scenario (auth+TLS).
-    // Cannot at this point due to the following issue:
-    // Issue 5196: REST call for fetching readergroup properties does not work when TLS is enabled in the standalone
-    // https://github.com/pravega/pravega/issues/5196
 }
 
