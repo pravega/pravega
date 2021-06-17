@@ -26,7 +26,6 @@ import io.pravega.shared.security.token.JsonWebToken;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.ServiceLoader;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
