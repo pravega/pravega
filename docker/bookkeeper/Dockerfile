@@ -23,9 +23,9 @@
 # - github.com/apache/bookkeeper/blob/branch-4.9/docker/Dockerfile
 #
 
-FROM apache/bookkeeper:4.11.1
+FROM apache/bookkeeper:4.14.1
 
-ARG BK_VERSION=4.11.1
+ARG BK_VERSION=4.14.1
 ARG DISTRO_NAME=bookkeeper-all-${BK_VERSION}-bin
 
 RUN set -x \
