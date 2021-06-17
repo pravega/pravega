@@ -147,7 +147,7 @@ public interface AsyncIterator<T> {
      * @param <T> Item type.
      * @return A singleton {@link AsyncIterator}.
      */
-    static <T> AsyncIterator<T> singleton(T item){
+    static <T> AsyncIterator<T> singleton(T item) {
         val returned = new AtomicBoolean(false);
         return () -> CompletableFuture.completedFuture(returned.getAndSet(true) ? null : item);
     }
