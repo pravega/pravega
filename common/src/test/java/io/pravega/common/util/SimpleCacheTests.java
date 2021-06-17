@@ -31,16 +31,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-import lombok.NonNull;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
-
-import javax.annotation.Nullable;
 
 /**
  * Unit tests for the {@link SimpleCache} class.
