@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
+import io.pravega.segmentstore.contracts.DynamicAttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
@@ -50,6 +51,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
 
@@ -66,6 +68,8 @@ class SegmentMock implements DirectSegmentAccess {
     @GuardedBy("this")
     private final ByteBufferOutputStream contents = new ByteBufferOutputStream();
     private final ScheduledExecutorService executor;
+    @Setter
+    private volatile Runnable beforeAppendCallback;
     @GuardedBy("this")
     private BiConsumer<Long, Integer> appendCallback;
 
@@ -107,29 +111,33 @@ class SegmentMock implements DirectSegmentAccess {
     @Override
     public CompletableFuture<Long> append(BufferView data, AttributeUpdateCollection attributeUpdates, long tableSegmentOffset, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> {
-            // Note that this append is not atomic (data & attributes) - but for testing purposes it does not matter as
-            // this method should only be used for constructing the test data.
+            val beforeAppendCallback = this.beforeAppendCallback;
+            if (beforeAppendCallback != null) {
+                beforeAppendCallback.run();
+            }
             long offset;
-            BiConsumer<Long, Integer> appendCallback;
+            BiConsumer<Long, Integer> afterAppendCallback;
             synchronized (this) {
                 offset = this.contents.size();
-                try {
-                    data.copyTo(this.contents);
-                } catch (IOException ex) {
-                    throw new CompletionException(ex);
-                }
                 if (attributeUpdates != null) {
                     val updatedValues = new HashMap<AttributeId, Long>();
                     attributeUpdates.forEach(update -> collectAttributeValue(update, updatedValues));
                     this.metadata.updateAttributes(updatedValues);
                 }
 
+                // Only append data after we have processed attributes - as we may reject the append due to bad attributes.
+                try {
+                    data.copyTo(this.contents);
+                } catch (IOException ex) {
+                    throw new CompletionException(ex);
+                }
+
                 this.metadata.setLength(this.contents.size());
-                appendCallback = this.appendCallback;
+                afterAppendCallback = this.appendCallback;
             }
 
-            if (appendCallback != null) {
-                appendCallback.accept(offset, data.getLength());
+            if (afterAppendCallback != null) {
+                afterAppendCallback.accept(offset, data.getLength());
             }
 
             return offset;
@@ -189,16 +197,21 @@ class SegmentMock implements DirectSegmentAccess {
         return CompletableFuture.supplyAsync(() -> new AttributeIteratorImpl(this.metadata, fromId, toId), this.executor);
     }
 
+    @Override
+    public CompletableFuture<Long> getExtendedAttributeCount(Duration timeout) {
+        return CompletableFuture.supplyAsync(
+                () -> (long) getAttributeCount((id, value) -> !Attributes.isCoreAttribute(id) && value != Attributes.NULL_ATTRIBUTE_VALUE), this.executor);
+    }
+
     @GuardedBy("this")
     @SneakyThrows(BadAttributeUpdateException.class)
     private void collectAttributeValue(AttributeUpdate update, Map<AttributeId, Long> values) {
-        long newValue = update.getValue();
-        boolean hasValue = false;
-        long previousValue = Attributes.NULL_ATTRIBUTE_VALUE;
-        if (this.metadata.getAttributes().containsKey(update.getAttributeId())) {
-            hasValue = true;
-            previousValue = this.metadata.getAttributes().get(update.getAttributeId());
+        if (update.isDynamic()) {
+            update.setValue(((DynamicAttributeUpdate) update).getValueReference().evaluate(this.metadata));
         }
+        long newValue = update.getValue();
+        long previousValue = this.metadata.getAttributes().getOrDefault(update.getAttributeId(), Attributes.NULL_ATTRIBUTE_VALUE);
+        boolean hasValue = previousValue != Attributes.NULL_ATTRIBUTE_VALUE;
 
         switch (update.getUpdateType()) {
             case ReplaceIfGreater:
@@ -208,7 +221,7 @@ class SegmentMock implements DirectSegmentAccess {
 
                 break;
             case ReplaceIfEquals:
-                if (update.getComparisonValue() != previousValue || !hasValue) {
+                if (update.getComparisonValue() != previousValue) {
                     throw new BadAttributeUpdateException("Segment", update, !hasValue,
                             String.format("ReplaceIfEquals (E=%s, A=%s)", previousValue, update.getComparisonValue()));
                 }
@@ -265,6 +278,7 @@ class SegmentMock implements DirectSegmentAccess {
         AttributeIteratorImpl(SegmentMetadata metadata, AttributeId fromId, AttributeId toId) {
             this.attributes = metadata
                     .getAttributes().entrySet().stream()
+                    .filter(e -> !Attributes.isCoreAttribute(e.getKey()))
                     .filter(e -> fromId.compareTo(e.getKey()) <= 0 && toId.compareTo(e.getKey()) >= 0)
                     .sorted(Comparator.comparing(Map.Entry::getKey, AttributeId::compareTo))
                     .collect(Collectors.toCollection(ArrayDeque::new));

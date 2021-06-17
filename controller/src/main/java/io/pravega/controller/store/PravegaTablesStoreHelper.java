@@ -130,7 +130,7 @@ public class PravegaTablesStoreHelper {
      * @param <T> Type of object to deserialize the response into.
      * @param table name of table
      * @param key key to query
-     * @param time time after which the cache entry should have been loaded. 
+     * @param time time after which the cache entry should have been loaded.
      * @param requestId request id
      * @return Returns a completableFuture which when completed will have the deserialized value with its store key version.
      */
@@ -143,7 +143,7 @@ public class PravegaTablesStoreHelper {
         log.trace(requestId, "found entry for key {} in table {} in cache", key, table);
         return getVersionedMetadata(cachedData);
     }
-    
+
     /**
      * Method to invalidate cached value in the cache for the specified table.
      * @param table table name
@@ -169,8 +169,8 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Void> createTable(String tableName, long requestId) {
         log.debug(requestId, "create table called for table: {}", tableName);
 
-        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(tableName, authToken.get(), requestId, 
-                false),
+        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(tableName, authToken.get(), requestId,
+                false, 0),
                 () -> String.format("create table: %s", tableName), requestId))
                 .whenCompleteAsync((r, e) -> {
                     if (e != null) {
@@ -227,14 +227,14 @@ public class PravegaTablesStoreHelper {
                     if (unwrap instanceof StoreException.WriteConflictException) {
                         throw StoreException.create(StoreException.Type.DATA_EXISTS, errorMessage.get());
                     } else {
-                        log.debug(requestId, "add new entry {} to {} threw exception {} {}", 
+                        log.debug(requestId, "add new entry {} to {} threw exception {} {}",
                                 key, tableName, unwrap.getClass(), unwrap.getMessage());
                         throw new CompletionException(e);
                     }
                 })
                 .thenApplyAsync(x -> {
                     TableSegmentKeyVersion first = x.get(0);
-                    log.debug(requestId, "entry for key {} added to table {} with version {}", 
+                    log.debug(requestId, "entry for key {} added to table {} with version {}",
                             key, tableName, first.getSegmentVersion());
                     Version version = new Version.LongVersion(first.getSegmentVersion());
                     putInCache(tableName, key, new VersionedMetadata<>(val, version), time);
@@ -253,7 +253,7 @@ public class PravegaTablesStoreHelper {
      * @param requestId request id
      * @return CompletableFuture which when completed will have added entry to the table if it did not exist.
      */
-    public <T> CompletableFuture<Version> addNewEntryIfAbsent(String tableName, String key, T val, Function<T, byte[]> toBytes, 
+    public <T> CompletableFuture<Version> addNewEntryIfAbsent(String tableName, String key, T val, Function<T, byte[]> toBytes,
                                                               long requestId) {
         // if entry exists, we will get write conflict in attempting to create it again.
         return expectingDataExists(addNewEntry(tableName, key, val, toBytes, requestId), null);
@@ -270,12 +270,12 @@ public class PravegaTablesStoreHelper {
      *
      * @param tableName table name
      * @param toAdd map of keys and values to add.
-     * @param toBytes function to serialize individual values in the list of items to add. 
+     * @param toBytes function to serialize individual values in the list of items to add.
      * @param requestId request id
-     * @param <T>       type of values. 
+     * @param <T>       type of values.
      * @return CompletableFuture which when completed successfully will indicate that all entries have been added successfully.
      */
-    public <T> CompletableFuture<Void> addNewEntriesIfAbsent(String tableName, List<Map.Entry<String, T>> toAdd, 
+    public <T> CompletableFuture<Void> addNewEntriesIfAbsent(String tableName, List<Map.Entry<String, T>> toAdd,
                                                              Function<T, byte[]> toBytes, long requestId) {
         List<TableSegmentEntry> entries = toAdd.stream().map(x ->
                 TableSegmentEntry.notExists(x.getKey().getBytes(Charsets.UTF_8), toBytes.apply(x.getValue())))
@@ -292,14 +292,14 @@ public class PravegaTablesStoreHelper {
                         if (unwrap instanceof StoreException.WriteConflictException) {
                             throw StoreException.create(StoreException.Type.DATA_EXISTS, errorMessage.get());
                         } else {
-                            log.debug(requestId, "add new entries to {} threw exception {} {}", 
+                            log.debug(requestId, "add new entries to {} threw exception {} {}",
                                     tableName, unwrap.getClass(), unwrap.getMessage());
                             throw new CompletionException(e);
                         }
                     } else {
                         log.debug(requestId, "entries added {} to table {}", toAdd, tableName);
                         for (int i = 0; i < r.size(); i++) {
-                            putInCache(tableName, toAdd.get(i).getKey(), 
+                            putInCache(tableName, toAdd.get(i).getKey(),
                                     new VersionedMetadata<>(toAdd.get(i).getValue(),
                                             new Version.LongVersion(r.get(i).getSegmentVersion())), time);
                         }
@@ -331,7 +331,7 @@ public class PravegaTablesStoreHelper {
                 () -> String.format("updateEntry: key: %s table: %s", key, tableName), true, requestId)
                 .thenApplyAsync(x -> {
                     TableSegmentKeyVersion first = x.get(0);
-                    log.debug(requestId, "entry for key {} updated to table {} with new version {}", 
+                    log.debug(requestId, "entry for key {} updated to table {} with new version {}",
                             key, tableName, first.getSegmentVersion());
                     Version newVersion = new Version.LongVersion(first.getSegmentVersion());
                     putInCache(tableName, key, new VersionedMetadata<>(val, newVersion), time);
@@ -373,7 +373,7 @@ public class PravegaTablesStoreHelper {
 
                             T deserialized = fromBytes.apply(getArray(first.getValue()));
 
-                            return new VersionedMetadata<>(deserialized, 
+                            return new VersionedMetadata<>(deserialized,
                                     new Version.LongVersion(first.getKey().getVersion().getSegmentVersion()));
                         }
                     } finally {
@@ -393,15 +393,15 @@ public class PravegaTablesStoreHelper {
 
     /**
      * Method to retrieve the value for a given key from a table and it fetches from cache if the aftertime is less than
-     * the time of the cached value. After it retrieves the value, it loads it into the cache. 
+     * the time of the cached value. After it retrieves the value, it loads it into the cache.
      * loads it into the cache. This method takes a deserialization function and deserializes
-     * the received byte[] using the supplied function.  
+     * the received byte[] using the supplied function.
      * @param tableName tableName
      * @param key key
      * @param fromBytes deserialization function
      * @param <T> Type of deserialized object
-     * @param afterTime time after which the cache entry should be treated as valid. if the value was loaded before this time, 
-     *                  then ignore cached and fetch from store. 
+     * @param afterTime time after which the cache entry should be treated as valid. if the value was loaded before this time,
+     *                  then ignore cached and fetch from store.
      * @param requestId request id
      * @return CompletableFuture which when completed will have the versionedMetadata retrieved from the store.
      */
@@ -433,8 +433,8 @@ public class PravegaTablesStoreHelper {
      * @return CompletableFuture which when completed will have the versionedMetadata retrieved from the store.
      */
     public <T> CompletableFuture<List<VersionedMetadata<T>>> getEntries(String tableName, List<String> keys, 
-                                                                        Function<byte[], T> fromBytes, 
-                                                                        VersionedMetadata<T> nonExistent, 
+                                                                        Function<byte[], T> fromBytes,
+                                                                        VersionedMetadata<T> nonExistent,
                                                                         long requestId) {
         log.trace(requestId, "get entries called for : {} keys : {}", tableName, keys);
         List<TableSegmentKey> tableKeys = keys.stream().map(key -> TableSegmentKey.unversioned(key.getBytes(Charsets.UTF_8)))
@@ -496,7 +496,7 @@ public class PravegaTablesStoreHelper {
      * @param key key
      * @param ver version for conditional removal
      * @param requestId request id
-     * @return CompletableFuture which when completed will indicate successful deletion of entry from the table. 
+     * @return CompletableFuture which when completed will indicate successful deletion of entry from the table.
      * It ignores DataNotFound exception. 
      */
     public CompletableFuture<Void> removeEntry(String tableName, String key, Version ver, long requestId) {
@@ -559,7 +559,7 @@ public class PravegaTablesStoreHelper {
                 () -> String.format("get keys paginated for table: %s", tableName), requestId)
                 .thenApplyAsync(result -> {
                     try {
-                        List<String> items = result.getItems().stream().map(x -> new String(getArray(x.getKey()), 
+                        List<String> items = result.getItems().stream().map(x -> new String(getArray(x.getKey()),
                                 Charsets.UTF_8)).collect(Collectors.toList());
                         log.trace(requestId, "get keys paginated on table {} returned items {}", tableName, items);
                         // if the returned token and result are empty, return the incoming token so that
@@ -638,7 +638,7 @@ public class PravegaTablesStoreHelper {
      * @param requestId request id
      * @return AsyncIterator that can be used to iterate over keys in the table.
      */
-    public <T> AsyncIterator<Map.Entry<String, VersionedMetadata<T>>> getAllEntries(String tableName, Function<byte[], T> fromBytes, 
+    public <T> AsyncIterator<Map.Entry<String, VersionedMetadata<T>>> getAllEntries(String tableName, Function<byte[], T> fromBytes,
                                                                                     long requestId) {
         return new ContinuationTokenAsyncIterator<>(token -> getEntriesPaginated(tableName, token, 1000, fromBytes,
                 requestId)
@@ -650,18 +650,18 @@ public class PravegaTablesStoreHelper {
     }
 
     public <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
-        return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, 
+        return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException,
                 toReturn);
     }
 
     <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
-        return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, 
+        return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException,
                 toReturn);
     }
 
     private <T> Supplier<CompletableFuture<T>> exceptionalCallback(Supplier<CompletableFuture<T>> future,
                                                                    Supplier<String> errorMessageSupplier,
-                                                                   boolean throwOriginalOnCFE, 
+                                                                   boolean throwOriginalOnCFE,
                                                                    long requestId) {
         return () -> CompletableFuture.completedFuture(null).thenComposeAsync(v -> future.get(), executor).exceptionally(t -> {
             String errorMessage = errorMessageSupplier.get();
@@ -768,22 +768,22 @@ public class PravegaTablesStoreHelper {
     }
 
     /**
-     * Helper method to load the value from a table into the cache. It first attempts to 
-     * load the value by using the table name which may already be cached. 
+     * Helper method to load the value from a table into the cache. It first attempts to
+     * load the value by using the table name which may already be cached.
      * It handles table (data container) not found exception
      * and automatically invokes tablename supplier with "ignore cached" value to fetch the latest table name and uses
      * that to read the specified key and load the value into the cache and return the value to the caller.
-     * 
+     *
      * @param tableNameSupplier a bifunction tht takes a flag for whether to ignore cached table name.
      *                         It also takes an operation context and returns a table name.
      * @param key Key to load
      * @param valueFunction deserializer for value.
      * @param context operation context
-     * @param <T> type of value. 
-     * @return CompletableFuture which when completed will hold the value which is loaded into the cache. 
+     * @param <T> type of value.
+     * @return CompletableFuture which when completed will hold the value which is loaded into the cache.
      */
     public <T> CompletableFuture<VersionedMetadata<T>> loadFromTableHandleStaleTableName(
-            BiFunction<Boolean, OperationContext, CompletableFuture<String>> tableNameSupplier, 
+            BiFunction<Boolean, OperationContext, CompletableFuture<String>> tableNameSupplier,
                          String key, Function<byte[], T> valueFunction, OperationContext context) {
         return Futures.exceptionallyComposeExpecting(
                 tableNameSupplier.apply(false, context).thenCompose(tableName ->

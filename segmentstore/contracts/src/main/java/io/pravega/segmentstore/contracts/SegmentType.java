@@ -53,6 +53,8 @@ public class SegmentType {
     @VisibleForTesting
     static final long FORMAT_TABLE_SEGMENT = 0b0000_0001L;
     @VisibleForTesting
+    static final long FORMAT_FIXED_KEY_LENGTH_TABLE_SEGMENT = 0b0000_0100L | FORMAT_TABLE_SEGMENT;
+    @VisibleForTesting
     static final long ROLE_INTERNAL = 0b0001_0000L;
     @VisibleForTesting
     static final long ROLE_SYSTEM = 0b0010_0000L | ROLE_INTERNAL;
@@ -99,6 +101,15 @@ public class SegmentType {
     }
 
     /**
+     * Whether this {@link SegmentType} refers to a Fixed-Key-Length Table Segment (which implies {@link #isTableSegment()}.
+     *
+     * @return True if Fixed-Key-Length Table Segment, false otherwise.
+     */
+    public boolean isFixedKeyLengthTableSegment() {
+        return (this.flags & FORMAT_FIXED_KEY_LENGTH_TABLE_SEGMENT) == FORMAT_FIXED_KEY_LENGTH_TABLE_SEGMENT;
+    }
+
+    /**
      * Whether this {@link SegmentType} refers to a Segment (regardless of Format) that is for exclusive internal access.
      * If so, external requests may be denied on such Segments.
      *
@@ -135,7 +146,9 @@ public class SegmentType {
     public String toString() {
         StringBuilder result = new StringBuilder();
         result.append(String.format("[%s]: Base", this.flags));
-        if (isTableSegment()) {
+        if (isFixedKeyLengthTableSegment()) {
+            result.append(", Table Segment (Fixed-Key-Length)");
+        } else if (isTableSegment()) {
             result.append(", Table Segment");
         }
 
@@ -164,10 +177,10 @@ public class SegmentType {
      * Attributes Checked:
      * - {@link Attributes#ATTRIBUTE_SEGMENT_TYPE} (base value)
      * - {@link TableAttributes#INDEX_OFFSET} (whether a Table Segment - if not already in base value)
-     * - {@link TableAttributes#SORTED} (whether a Sorted Table Segment - if not already in base value)
      *
      * The {@link TableAttributes} is necessary to support upgrades. {@link SegmentType} was introduced in Pravega 0.9,
-     * however Table Segments (and their sorted versions) were introduced in prior versions.
+     * however Table Segments were introduced in prior versions. Fixed-Key-Length Table Segments were introduced post 0.9,
+     * so they should already have the correct Segment Type set.
      *
      * @param segmentAttributes A {@link Map} containing the Segment's Attributes to load from.
      * @return A {@link SegmentType}.
@@ -226,6 +239,11 @@ public class SegmentType {
 
         public Builder tableSegment() {
             this.flags |= FORMAT_TABLE_SEGMENT;
+            return this;
+        }
+
+        public Builder fixedKeyLengthTableSegment() {
+            this.flags |= FORMAT_FIXED_KEY_LENGTH_TABLE_SEGMENT;
             return this;
         }
 

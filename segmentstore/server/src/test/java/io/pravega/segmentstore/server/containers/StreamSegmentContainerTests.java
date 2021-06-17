@@ -1989,6 +1989,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected attribute 2.", 2L, (long) info.getAttributes().get(attributeId2));
             Assert.assertEquals("Unexpected attribute 2.", 3L, (long) info.getAttributes().get(attributeId3));
             Assert.assertTrue("Unexpected isSealed.", info.isSealed());
+            Assert.assertEquals(-1L, (long) dsa.getExtendedAttributeCount(TIMEOUT).join()); // Not expecting any in this case as they are disabled for this segment.
 
             // Check written data.
             byte[] readBuffer = new byte[appendData.length - 1];
