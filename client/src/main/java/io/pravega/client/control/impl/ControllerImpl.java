@@ -77,6 +77,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
@@ -1588,21 +1589,36 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, GET_KEY_VALUE_TABLE_CONFIGURATION, scope, kvtName, requestId);
         String scopedKvtName = NameUtils.getScopedKeyValueTableName(scope, kvtName);
 
-        final CompletableFuture<KeyValueTableConfig> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<KeyValueTableConfig> callback = new RPCAsyncCallback<>(requestId,
+        final CompletableFuture<KeyValueTableConfigResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<KeyValueTableConfigResponse> callback = new RPCAsyncCallback<>(requestId,
                     GET_KEY_VALUE_TABLE_CONFIGURATION, scope, kvtName);
             new ControllerClientTagger(client, timeoutMillis).withTag(requestId, GET_KEY_VALUE_TABLE_CONFIGURATION,
                     scope, kvtName)
                     .getKeyValueTableConfiguration(ModelHelper.createKeyValueTableInfo(scope, kvtName), callback);
             return callback.getFuture();
         }, this.executor);
-        return result.thenApplyAsync(ModelHelper::encode, this.executor)
-                .whenComplete((x, e) -> {
-                    if (e != null) {
-                        log.warn(requestId, "getKeyValueTableConfiguration failed for key value table: {}", scopedKvtName, e);
-                    }
-                    LoggerHelpers.traceLeave(log, "getKeyValueTableConfiguration", traceId, scope, kvtName, requestId);
-                });
+        return result.thenApplyAsync(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to get configuration for key-value table: {}", scopedKvtName);
+                    throw new ControllerFailureException("Failed to get configuration for key-value table: " + scopedKvtName);
+                case TABLE_NOT_FOUND:
+                    log.warn(requestId, "Key-value table does not exist: {}", scopedKvtName);
+                    throw new IllegalArgumentException("Key-value table does not exist: " + scopedKvtName);
+                case SUCCESS:
+                    log.info(requestId, "Successfully obtained configuration for key-value table: {}", scopedKvtName);
+                    return ModelHelper.encode(x.getConfig());
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status getting key-value table configuration " +
+                            scopedKvtName + " " + x.getStatus());
+            }
+        }, this.executor).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "getKeyValueTableConfiguration {} failed: ", scopedKvtName, e);
+            }
+            LoggerHelpers.traceLeave(log, "getKeyValueTableConfiguration", traceId, scope, kvtName, requestId);
+        });
     }
 
     @Override
@@ -2015,7 +2031,7 @@ public class ControllerImpl implements Controller {
         }
 
         void getKeyValueTableConfiguration(io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo kvtInfo,
-                                           RPCAsyncCallback<KeyValueTableConfig> callback) {
+                                           RPCAsyncCallback<KeyValueTableConfigResponse> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .getKeyValueTableConfiguration(kvtInfo, callback);
         }

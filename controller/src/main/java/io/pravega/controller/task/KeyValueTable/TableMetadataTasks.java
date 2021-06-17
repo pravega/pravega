@@ -117,10 +117,10 @@ public class TableMetadataTasks implements AutoCloseable {
      */
     public CompletableFuture<CreateKeyValueTableStatus.Status> createKeyValueTable(String scope, String kvtName,
                                                                                    KeyValueTableConfiguration kvtConfig,
-                                                                                   final long createTimestamp, 
+                                                                                   final long createTimestamp,
                                                                                    long requestId) {
         OperationContext context = kvtMetadataStore.createContext(scope, kvtName, requestId);
-        
+
         return RetryHelper.withRetriesAsync(() -> {
                // 1. check if scope with this name exists...
                return kvtMetadataStore.checkScopeExists(scope, context, executor)
@@ -142,9 +142,9 @@ public class TableMetadataTasks implements AutoCloseable {
                                                    createTimestamp, requestId, id);
                                            //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
                                            return eventHelper.addIndexAndSubmitTask(event,
-                                                   () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, id, 
+                                                   () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, id,
                                                            context, executor))
-                                                   .thenCompose(x -> isCreateProcessed(scope, kvtName, kvtConfig, 
+                                                   .thenCompose(x -> isCreateProcessed(scope, kvtName, kvtConfig,
                                                            createTimestamp, executor, context));
                                        }
                                        return isCreateProcessed(scope, kvtName, kvtConfig, createTimestamp, executor, context);
@@ -161,7 +161,7 @@ public class TableMetadataTasks implements AutoCloseable {
      * @param requestId  request id.
      * @return delete status.
      */
-    public CompletableFuture<DeleteKVTableStatus.Status> deleteKeyValueTable(final String scope, final String kvtName, 
+    public CompletableFuture<DeleteKVTableStatus.Status> deleteKeyValueTable(final String scope, final String kvtName,
                                                                              long requestId) {
             OperationContext context = kvtMetadataStore.createContext(scope, kvtName, requestId);
 
@@ -276,8 +276,8 @@ public class TableMetadataTasks implements AutoCloseable {
     private CompletableFuture<Void> createNewSegment(String scope, String kvt, long segmentId, int keyLength, String controllerToken,
                                                      long requestId) {
         final String qualifiedTableSegmentName = getQualifiedTableSegmentName(scope, kvt, segmentId);
-        log.debug(requestId, "Creating segment {}", qualifiedTableSegmentName);
-        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(qualifiedTableSegmentName, controllerToken, requestId, true), executor));
+        log.debug("Creating segment {}", qualifiedTableSegmentName);
+        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(qualifiedTableSegmentName, controllerToken, requestId, false, 0), executor));
     }
 
     @Override

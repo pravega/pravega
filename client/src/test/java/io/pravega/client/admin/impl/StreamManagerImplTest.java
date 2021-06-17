@@ -457,6 +457,16 @@ public class StreamManagerImplTest {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.CreateTableSegment request = invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                        .process(new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
+                return null;
+            }
+        }).when(connection).send(Mockito.any(WireCommands.CreateTableSegment.class));
+
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
                 WireCommands.GetStreamSegmentInfo request = (WireCommands.GetStreamSegmentInfo) invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
                         .process(new WireCommands.StreamSegmentInfo(request.getRequestId(), request.getSegmentName(), true,
@@ -476,7 +486,7 @@ public class StreamManagerImplTest {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                WireCommands.DeleteTableSegment request = (WireCommands.DeleteTableSegment) invocation.getArgument(0);
+                WireCommands.DeleteTableSegment request = invocation.getArgument(0);
                 connectionFactory.getProcessor(location)
                         .process(new WireCommands.SegmentDeleted(request.getRequestId(), request.getSegment()));
                 return null;
@@ -497,13 +507,9 @@ public class StreamManagerImplTest {
         String kvt2 = "kvt2";
         streamManager.createScope(scope);
 
-        KeyValueTableConfiguration conf = KeyValueTableConfiguration.builder()
-                .partitionCount(4)
-                .primaryKeyLength(4)
-                .secondaryKeyLength(8)
-                .build();
-        keyValueTableManager.createKeyValueTable(scope, kvt1, conf);
-        keyValueTableManager.createKeyValueTable(scope, kvt2, conf);
+        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(1).primaryKeyLength(1).secondaryKeyLength(1).build();
+        keyValueTableManager.createKeyValueTable(scope, kvt1, kvtConfig);
+        keyValueTableManager.createKeyValueTable(scope, kvt2, kvtConfig);
         Set<KeyValueTableInfo> keyValueTables = Sets.newHashSet(keyValueTableManager.listKeyValueTables(scope));
 
         assertEquals(2, keyValueTables.size());

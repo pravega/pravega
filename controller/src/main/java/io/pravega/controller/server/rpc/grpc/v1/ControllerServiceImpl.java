@@ -301,7 +301,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void getKeyValueTableConfiguration(KeyValueTableInfo request, StreamObserver<Controller.KeyValueTableConfig> responseObserver) {
+    public void getKeyValueTableConfiguration(KeyValueTableInfo request, StreamObserver<Controller.KeyValueTableConfigResponse> responseObserver) {
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
                 GET_KEY_VALUE_TABLE_CONFIGURATION, request.getScope(), request.getKvtName());
 

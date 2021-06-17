@@ -70,8 +70,7 @@ public class CreateTableEvent implements ControllerEvent {
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00)
-                    .revision(1, this::write01, this::read01);
+            version(0).revision(0, this::write00, this::read00);
         }
 
         private void write00(CreateTableEvent e, RevisionDataOutput target) throws IOException {
@@ -81,6 +80,8 @@ public class CreateTableEvent implements ControllerEvent {
             target.writeLong(e.timestamp);
             target.writeLong(e.requestId);
             target.writeUUID(e.tableId);
+            target.writeInt(e.primaryKeyLength);
+            target.writeInt(e.secondaryKeyLength);
         }
 
         private void read00(RevisionDataInput source, CreateTableEventBuilder eb) throws IOException {
@@ -90,14 +91,6 @@ public class CreateTableEvent implements ControllerEvent {
             eb.timestamp(source.readLong());
             eb.requestId(source.readLong());
             eb.tableId(source.readUUID());
-        }
-
-        private void write01(CreateTableEvent e, RevisionDataOutput target) throws IOException {
-            target.writeInt(e.primaryKeyLength);
-            target.writeInt(e.secondaryKeyLength);
-        }
-
-        private void read01(RevisionDataInput source, CreateTableEventBuilder eb) throws IOException {
             eb.primaryKeyLength(source.readInt());
             eb.secondaryKeyLength(source.readInt());
         }

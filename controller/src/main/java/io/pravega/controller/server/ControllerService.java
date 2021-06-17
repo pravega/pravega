@@ -42,6 +42,7 @@ import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateKeyValueTableStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -128,7 +129,7 @@ public class ControllerService {
         Preconditions.checkArgument(createTimestamp >= 0);
         Preconditions.checkArgument(kvtConfig.getPartitionCount() > 0);
         Preconditions.checkArgument(kvtConfig.getPrimaryKeyLength() > 0);
-        Preconditions.checkArgument(kvtConfig.getSecondaryKeyLength() > 0);
+        Preconditions.checkArgument(kvtConfig.getSecondaryKeyLength() >= 0);
         Timer timer = new Timer();
         try {
             NameUtils.validateUserKeyValueTableName(kvtName);
@@ -170,13 +171,20 @@ public class ControllerService {
         return kvtMetadataStore.listKeyValueTables(scope, token, limit, context, executor);
     }
 
-    public CompletableFuture<Controller.KeyValueTableConfig> getKeyValueTableConfiguration(final String scope, final String kvtName,
+    public CompletableFuture<KeyValueTableConfigResponse> getKeyValueTableConfiguration(final String scope, final String kvtName,
                                                                                                    final long requestId) {
         Exceptions.checkNotNullOrEmpty(scope, "Scope name");
         Exceptions.checkNotNullOrEmpty(kvtName, "KeyValueTable name.");
         OperationContext context = kvtMetadataStore.createContext(scope, kvtName, requestId);
-        return kvtMetadataStore.getKVTable(scope, kvtName, context)
-                .getConfiguration(context).thenApplyAsync(conf -> ModelHelper.decode(scope, kvtName, conf));
+        return kvtMetadataStore.getConfiguration(scope, kvtName, context, executor).handleAsync((r, ex) -> {
+            if (ex == null) {
+                return KeyValueTableConfigResponse.newBuilder().setConfig(ModelHelper.decode(scope, kvtName, r))
+                        .setStatus(KeyValueTableConfigResponse.Status.SUCCESS).build();
+            } else if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
+                return KeyValueTableConfigResponse.newBuilder().setStatus(KeyValueTableConfigResponse.Status.TABLE_NOT_FOUND).build();
+            }
+            return KeyValueTableConfigResponse.newBuilder().setStatus(KeyValueTableConfigResponse.Status.FAILURE).build();
+        });
     }
 
     /**
