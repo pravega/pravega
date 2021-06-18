@@ -16,12 +16,14 @@
 package io.pravega.shared.metrics;
 
 import io.pravega.common.Timer;
+import io.pravega.test.common.SerializedClassRunner;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertEquals;
 
@@ -29,6 +31,7 @@ import static org.junit.Assert.assertEquals;
  * Test for Stats provider.
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class MetricsProviderTest {
 
     private final StatsLogger statsLogger = MetricsProvider.createStatsLogger("testStatsLogger");

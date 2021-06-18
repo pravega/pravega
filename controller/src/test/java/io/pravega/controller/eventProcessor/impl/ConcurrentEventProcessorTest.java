@@ -39,13 +39,17 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class ConcurrentEventProcessorTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
 
     @Data
     @AllArgsConstructor

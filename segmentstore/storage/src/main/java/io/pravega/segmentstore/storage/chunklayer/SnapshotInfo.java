@@ -13,16 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.store.stream;
+package io.pravega.segmentstore.storage.chunklayer;
 
-import lombok.Getter;
+import lombok.Builder;
+import lombok.Data;
 
-class OperationContextImpl<T> implements OperationContext {
+/**
+ * Basic info about snapshot.
+ */
+@Data
+@Builder
+public class SnapshotInfo {
+    /**
+     * Epoch.
+     */
+    final private long epoch;
 
-    @Getter
-    private final Stream stream;
-
-    OperationContextImpl(Stream stream) {
-        this.stream = stream;
-    }
+    /**
+     * Id of the snapshot.
+     */
+    final private long snapshotId;
 }

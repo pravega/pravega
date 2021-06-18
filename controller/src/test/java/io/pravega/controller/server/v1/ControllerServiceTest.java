@@ -62,6 +62,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -69,7 +70,9 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -88,11 +91,14 @@ import static org.mockito.Mockito.spy;
 public class ControllerServiceTest {
 
     private static final String SCOPE = "scope";
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
 
-    private final StreamMetadataStore streamStore = spy(StreamStoreFactory.createInMemoryStore(executor));
+    private final StreamMetadataStore streamStore = spy(StreamStoreFactory.createInMemoryStore());
     private final KVTableMetadataStore kvtStore = spy(KVTableStoreFactory.createInMemoryStore(streamStore, executor));
 
     private StreamMetadataTasks streamMetadataTasks;
@@ -108,7 +114,6 @@ public class ControllerServiceTest {
     private long scaleTs;
 
     private RequestTracker requestTracker = new RequestTracker(true);
-    
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -124,31 +129,31 @@ public class ControllerServiceTest {
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
-                segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 segmentHelper, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
 
         kvtMetadataTasks = new TableMetadataTasks(kvtStore, segmentHelper,  executor,  executor,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                "host", GrpcAuthHelper.getDisabledAuthHelper());
         consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                new SegmentHelper(connectionPool, hostStore, executor), executor, null);
+                new SegmentHelper(connectionPool, hostStore, executor), executor, null, requestTracker);
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(policy2).build();
 
         // createScope
-        streamStore.createScope(SCOPE).get();
+        streamStore.createScope(SCOPE, null, executor).get();
 
         // region createStream
         startTs = System.currentTimeMillis();
-        OperationContext context = streamStore.createContext(SCOPE, stream1);
+        OperationContext context = streamStore.createStreamContext(SCOPE, stream1, 0L);
         streamStore.createStream(SCOPE, stream1, configuration1, startTs, context, executor).get();
-        streamStore.setState(SCOPE, stream1, State.ACTIVE, context, executor);
+        streamStore.setState(SCOPE, stream1, State.ACTIVE, context, executor).get();
 
-        OperationContext context2 = streamStore.createContext(SCOPE, stream2);
+        OperationContext context2 = streamStore.createStreamContext(SCOPE, stream2, 0L);
         streamStore.createStream(SCOPE, stream2, configuration2, startTs, context2, executor).get();
-        streamStore.setState(SCOPE, stream2, State.ACTIVE, context2, executor);
+        streamStore.setState(SCOPE, stream2, State.ACTIVE, context2, executor).get();
 
         // endregion
 
@@ -202,23 +207,23 @@ public class ControllerServiceTest {
     public void testMethods() throws InterruptedException, ExecutionException {
         Map<SegmentId, Long> segments;
 
-        segments = consumer.getSegmentsAtHead(SCOPE, stream1).get();
+        segments = consumer.getSegmentsAtHead(SCOPE, stream1, 0L).get();
         assertEquals(2, segments.size());
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 0)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 1)));
 
-        segments = consumer.getSegmentsAtHead(SCOPE, stream1).get();
+        segments = consumer.getSegmentsAtHead(SCOPE, stream1, 0L).get();
         assertEquals(2, segments.size());
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 0)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream1, 1)));
 
-        segments = consumer.getSegmentsAtHead(SCOPE, stream2).get();
+        segments = consumer.getSegmentsAtHead(SCOPE, stream2, 0L).get();
         assertEquals(3, segments.size());
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 0)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 1)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 2)));
 
-        segments = consumer.getSegmentsAtHead(SCOPE, stream2).get();
+        segments = consumer.getSegmentsAtHead(SCOPE, stream2, 0L).get();
         assertEquals(3, segments.size());
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 0)));
         assertEquals(Long.valueOf(0), segments.get(ModelHelper.createSegmentId(SCOPE, stream2, 1)));
@@ -228,17 +233,17 @@ public class ControllerServiceTest {
     @Test(timeout = 10000L)
     public void testTransactions() {
         TransactionMetrics.initialize();
-        UUID txnId = consumer.createTransaction(SCOPE, stream1, 10000L).join().getKey();
+        UUID txnId = consumer.createTransaction(SCOPE, stream1, 10000L, 0L).join().getKey();
         doThrow(StoreException.create(StoreException.Type.WRITE_CONFLICT, "Write conflict"))
                 .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
                 any(), any());
 
         AssertExtensions.assertFutureThrows("Write conflict should have been thrown",
-                consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L),
+                consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L, 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
         AssertExtensions.assertFutureThrows("Write conflict should have been thrown",
-                consumer.abortTransaction(SCOPE, stream1, txnId),
+                consumer.abortTransaction(SCOPE, stream1, txnId, 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
         doThrow(StoreException.create(StoreException.Type.CONNECTION_ERROR, "Connection failed"))
@@ -246,21 +251,43 @@ public class ControllerServiceTest {
                 any(), any());
 
         AssertExtensions.assertFutureThrows("Store connection exception should have been thrown",
-                consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L),
+                consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L, 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
 
         AssertExtensions.assertFutureThrows("Store connection exception should have been thrown",
-                consumer.abortTransaction(SCOPE, stream1, txnId),
+                consumer.abortTransaction(SCOPE, stream1, txnId, 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
 
         doThrow(StoreException.create(StoreException.Type.UNKNOWN, "Connection failed"))
                 .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
                 any(), any());
 
-        Controller.TxnStatus status = consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L).join();
+        AssertExtensions.assertFutureThrows("Unknown exception should have been thrown",
+                consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L, 0L),
+                e -> Exceptions.unwrap(e) instanceof StoreException.UnknownException);
+
+        AssertExtensions.assertFutureThrows("Unknown exception should have been thrown",
+                consumer.abortTransaction(SCOPE, stream1, txnId, 0L),
+                e -> Exceptions.unwrap(e) instanceof StoreException.UnknownException);
+
+        doThrow(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Data Not Found"))
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
+                any(), any());
+
+        Controller.TxnStatus status = consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L, 0L).join();
         assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
 
-        status = consumer.abortTransaction(SCOPE, stream1, txnId).join();
+        status = consumer.abortTransaction(SCOPE, stream1, txnId, 0L).join();
+        assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
+
+        doThrow(StoreException.create(StoreException.Type.ILLEGAL_STATE, "Data Not Found"))
+                .when(streamStore).sealTransaction(eq(SCOPE), eq(stream1), eq(txnId), anyBoolean(), any(), anyString(), anyLong(),
+                any(), any());
+
+        status = consumer.commitTransaction(SCOPE, stream1, txnId, "", 0L, 0L).join();
+        assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
+
+        status = consumer.abortTransaction(SCOPE, stream1, txnId, 0L).join();
         assertEquals(status.getStatus(), Controller.TxnStatus.Status.FAILURE);
         reset(streamStore);
     }
@@ -277,14 +304,14 @@ public class ControllerServiceTest {
                 .when(streamStore).noteWriterMark(eq(scope), eq(stream), eq(writerId), anyLong(), any(), any(), any());
         
         AssertExtensions.assertFutureThrows("Exception should be thrown to the caller", 
-                consumer.noteTimestampFromWriter(scope, stream, writerId, 100L, Collections.singletonMap(1L, 1L)),
+                consumer.noteTimestampFromWriter(scope, stream, writerId, 100L, Collections.singletonMap(1L, 1L), 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
         doAnswer(x -> Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "data not found")))
                 .when(streamStore).noteWriterMark(eq(scope), eq(stream), eq(writerId), anyLong(), any(), any(), any());
 
         AssertExtensions.assertFutureThrows("Exception should be thrown to the caller", 
-                consumer.noteTimestampFromWriter(scope, stream, writerId, 100L, Collections.singletonMap(1L, 1L)),
+                consumer.noteTimestampFromWriter(scope, stream, writerId, 100L, Collections.singletonMap(1L, 1L), 0L),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         
     }

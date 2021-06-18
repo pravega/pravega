@@ -17,6 +17,7 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
 import lombok.Cleanup;
 import org.apache.curator.framework.CuratorFramework;
@@ -25,9 +26,10 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
+import org.junit.runner.RunWith;
 import java.io.IOException;
 
+@RunWith(SerializedClassRunner.class)
 public class ServiceStarterTest {
 
     private String zkUrl;

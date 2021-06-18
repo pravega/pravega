@@ -116,13 +116,14 @@ public class EndToEndChannelLeakTest {
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).get();
         controller.createStream(SCOPE, STREAM_NAME, config).get();
         //Set the max number connections to verify channel creation behaviour
         final ClientConfig clientConfig = ClientConfig.builder().maxConnectionsPerSegmentStore(5).build();
 
         @Cleanup
         SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig, new InlineExecutor());
+        @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionPool);
@@ -196,10 +197,11 @@ public class EndToEndChannelLeakTest {
         final ClientConfig clientConfig = ClientConfig.builder().maxConnectionsPerSegmentStore(5).build();
 
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).get();
         controller.createStream(SCOPE, STREAM_NAME, config).get();
         @Cleanup
         SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig, executor);
+        @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionPool);
@@ -277,17 +279,18 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(5, connectionPool, connectionFactory);
     }
     
-    @Test//(timeout = 30000)
+    @Test(timeout = 30000)
     public void testDetectChannelLeakSegmentSealed() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).get();
         controller.createStream(SCOPE, STREAM_NAME, config).get();
         //Set the max number connections to verify channel creation behaviour
         final ClientConfig clientConfig = ClientConfig.builder().maxConnectionsPerSegmentStore(500).build();
 
+        @Cleanup
         SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig, executor);
         @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);
@@ -397,8 +400,9 @@ public class EndToEndChannelLeakTest {
         //Set the max number connections to verify channel creation behaviour
         final ClientConfig clientConfig = ClientConfig.builder().maxConnectionsPerSegmentStore(500).build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controllerWrapper.getControllerService().createScope(SCOPE, 0L).get();
         controller.createStream(SCOPE, STREAM_NAME, config).get();
+        @Cleanup
         SocketConnectionFactoryImpl connectionFactory = new SocketConnectionFactoryImpl(clientConfig, new InlineExecutor());
         @Cleanup
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig, connectionFactory);

@@ -26,6 +26,7 @@ import io.pravega.client.tables.Version;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
 import io.pravega.test.common.AssertExtensions;
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,9 +38,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
+import lombok.Getter;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Base test suite for anything testing {@link KeyValueTable}s. This covers core functionality for {@link KeyValueTable}s
@@ -47,6 +51,12 @@ import org.junit.Test;
  * `io.pravega.test.integration.KeyValueTableImplTests` (using real Segment Store and Wire Protocol).
  */
 public abstract class KeyValueTableTestBase extends KeyValueTableTestSetup {
+    
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    @Getter
+    @Rule
+    public final Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+    
     /**
      * Tests the ability to perform single-key conditional insertions. These methods are exercised:
      * - {@link KeyValueTable#putIfAbsent}

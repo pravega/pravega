@@ -35,23 +35,12 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.TestUtils;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import io.pravega.test.integration.demo.ControllerWrapper;
-import java.net.URI;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -59,49 +48,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class UnreadBytesTest extends ThreadPooledTestSuite {
-
-    private final int controllerPort = TestUtils.getAvailableListenPort();
-    private final URI controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
-    private final String serviceHost = "localhost";
-    private final int servicePort = TestUtils.getAvailableListenPort();
-    private final int containerCount = 4;
-    private TestingServer zkTestServer;
-    private PravegaConnectionListener server;
-    private ControllerWrapper controllerWrapper;
-    private ServiceBuilder serviceBuilder;
+    
+    @ClassRule
+    public static final PravegaResource PRAVEGA = new PravegaResource();
 
     @Override
     protected int getThreadPoolSize() {
         return 1;
-    }
-
-    @Before
-    public void setUp() throws Exception {
-        zkTestServer = new TestingServerStarter().start();
-
-        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
-
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
-        server.startListening();
-
-        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
-                false,
-                controllerPort,
-                serviceHost,
-                servicePort,
-                containerCount);
-        controllerWrapper.awaitRunning();
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        controllerWrapper.close();
-        server.close();
-        serviceBuilder.close();
-        zkTestServer.close();
     }
 
     @Test(timeout = 50000)
@@ -109,25 +62,26 @@ public class UnreadBytesTest extends ThreadPooledTestSuite {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                 .build();
-
-        Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("unreadbytes").get();
-        controller.createStream("unreadbytes", "unreadbytes", config).get();
+        String streamName = "testUnreadBytes";
+        Controller controller = PRAVEGA.getLocalController();
+        controller.createScope("unreadbytes").get();
+        controller.createStream("unreadbytes", streamName, config).get();
 
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
+        String group = "testUnreadBytes-group";
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
-        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes").build());
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes", ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
+        groupManager.createReaderGroup(group, ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("unreadbytes/" + streamName).build());
         @Cleanup
-        ReaderGroup readerGroup = groupManager.getReaderGroup("group");
+        ReaderGroup readerGroup = groupManager.getReaderGroup(group);
 
         @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", new JavaSerializer<>(),
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", group, new JavaSerializer<>(),
                 ReaderConfig.builder().build());
         long unreadBytes = readerGroup.getMetrics().unreadBytes();
         assertTrue("Unread bvtes: " + unreadBytes, unreadBytes == 0);
@@ -166,30 +120,31 @@ public class UnreadBytesTest extends ThreadPooledTestSuite {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
-
-        Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("unreadbytes").get();
-        controller.createStream("unreadbytes", "unreadbytes", config).get();
+        String streamName = "testUnreadBytesWithEndStreamCuts";
+        Controller controller = PRAVEGA.getLocalController();
+        controller.createScope("unreadbytes").get();
+        controller.createStream("unreadbytes", streamName, config).get();
 
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
         //Write just 2 events to simplify simulating a checkpoint.
         writer.writeEvent("0", "data of size 30").get();
         writer.writeEvent("0", "data of size 30").get();
 
+        String group = "testUnreadBytesWithEndStreamCuts-group";
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes", ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
         //create a bounded reader group.
-        groupManager.createReaderGroup("group", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes", StreamCut.UNBOUNDED,
-                        getStreamCut("unreadbytes", 90L, 0)).build());
+        groupManager.createReaderGroup(group, ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints().stream("unreadbytes/" + streamName, StreamCut.UNBOUNDED,
+                        getStreamCut(streamName, 90L, 0)).build());
 
-        ReaderGroup readerGroup = groupManager.getReaderGroup("group");
+        ReaderGroup readerGroup = groupManager.getReaderGroup(group);
         @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", new JavaSerializer<>(),
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", group, new JavaSerializer<>(),
                 ReaderConfig.builder().build());
 
         EventRead<String> firstEvent = reader.readNextEvent(15000);
@@ -224,25 +179,26 @@ public class UnreadBytesTest extends ThreadPooledTestSuite {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                 .build();
-
-        Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("unreadbytes").get();
-        controller.createStream("unreadbytes", "unreadbytes", config).get();
+        String streamName = "testUnreadBytesWithCheckpointsAndStreamCuts";
+        Controller controller = PRAVEGA.getLocalController();
+        controller.createScope("unreadbytes").get();
+        controller.createStream("unreadbytes", streamName, config).get();
 
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
+        String group = "testUnreadBytesWithCheckpointsAndStreamCuts-group";
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
-        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes").build());
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(PRAVEGA.getControllerURI()).build());
+        groupManager.createReaderGroup(group, ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("unreadbytes/" + streamName).build());
         @Cleanup
-        ReaderGroup readerGroup = groupManager.getReaderGroup("group");
+        ReaderGroup readerGroup = groupManager.getReaderGroup(group);
 
         @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", new JavaSerializer<>(),
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", group, new JavaSerializer<>(),
                 ReaderConfig.builder().build());
         long unreadBytes = readerGroup.getMetrics().unreadBytes();
         assertTrue("Unread bvtes: " + unreadBytes, unreadBytes == 0);

@@ -27,6 +27,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -113,8 +115,11 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
             futures.add(this.registry.startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER)
                                      .thenAccept(this::registerHandle));
         }
-
-        Futures.allOf(futures).join();
+        try {
+            Futures.join(Futures.allOf(futures), INIT_TIMEOUT_PER_CONTAINER.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            throw new RuntimeException("Failed to start SegmentContainerManager", e);
+        }
         LoggerHelpers.traceLeave(log, "initialize", traceId);
     }
 

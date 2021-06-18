@@ -36,9 +36,12 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.AfterClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static io.pravega.controller.auth.AuthFileUtils.addAuthFileEntry;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -103,6 +106,9 @@ public class PravegaAuthManagerTest {
             throw new RuntimeException(e);
         }
     }
+
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
 
     @AfterClass
     public static void tearDown() throws Exception {

@@ -13,11 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.client.stream.impl;
+package io.pravega.controller.store.stream;
 
-public class ReaderGroupNotFoundException extends IllegalArgumentException {
-    private static final long serialVersionUID = 1L;
-    public ReaderGroupNotFoundException(String readerGroupScopedName) {
-        super(String.format("Reader Group %s not found.", readerGroupScopedName));
+import io.pravega.controller.store.Scope;
+import lombok.Getter;
+
+class ScopeOperationContext implements OperationContext {
+    @Getter
+    private final Scope scope;
+    @Getter
+    private final long requestId;
+    @Getter
+    private final long operationStartTime = System.currentTimeMillis();
+
+    ScopeOperationContext(Scope scope, long requestId) {
+        this.scope = scope;
+        this.requestId = requestId;
     }
 }

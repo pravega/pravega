@@ -259,7 +259,7 @@ public class ServiceBuilder implements AutoCloseable {
     //region Component Builders
 
     protected SegmentToContainerMapper createSegmentToContainerMapper(ServiceConfig serviceConfig) {
-        return new SegmentToContainerMapper(serviceConfig.getContainerCount());
+        return new SegmentToContainerMapper(serviceConfig.getContainerCount(), serviceConfig.isEnableAdminGateway());
     }
 
     protected WriterFactory createWriterFactory() {
@@ -373,7 +373,9 @@ public class ServiceBuilder implements AutoCloseable {
      */
     @VisibleForTesting
     public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig builderConfig, ExecutorBuilder executorBuilder) {
-        ServiceConfig serviceConfig = builderConfig.getConfig(ServiceConfig::builder);
+        ServiceConfig serviceConfig = builderConfig.getConfigBuilder(ServiceConfig::builder)
+            .with(ServiceConfig.LISTENING_IP_ADDRESS, "localhost")
+            .build();
         ServiceBuilder builder;
         if (serviceConfig.isReadOnlySegmentStore()) {
             // Only components required for ReadOnly SegmentStore.
@@ -418,7 +420,7 @@ public class ServiceBuilder implements AutoCloseable {
 
         @Override
         protected SegmentToContainerMapper createSegmentToContainerMapper(ServiceConfig serviceConfig) {
-            return new SegmentToContainerMapper(READONLY_CONTAINER_COUNT);
+            return new SegmentToContainerMapper(READONLY_CONTAINER_COUNT, serviceConfig.isEnableAdminGateway());
         }
 
         @Override

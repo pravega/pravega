@@ -85,8 +85,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
@@ -96,10 +95,10 @@ import static org.mockito.Mockito.spy;
  */
 public abstract class StreamMetadataStoreTest {
 
-    //Ensure each test completes within 10 seconds.
+    //Ensure each test completes within 30 seconds.
     @Rule 
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
-    protected StreamMetadataStore store;
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+    protected TestStore store;
     protected BucketStore bucketStore;
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected final String scope = "scope";
@@ -125,7 +124,7 @@ public abstract class StreamMetadataStoreTest {
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
 
         // region createStream
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         long start = System.currentTimeMillis();
         store.createStream(scope, stream1, configuration1, start, null, executor).get();
@@ -205,7 +204,7 @@ public abstract class StreamMetadataStoreTest {
         // endregion
 
         // region delete scope and stream
-        assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY, store.deleteScope(scope).join().getStatus());
+        assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY, store.deleteScope(scope, null, executor).join().getStatus());
 
         // Deleting a stream should succeed.
         assertNull(store.deleteStream(scope, stream1, null, executor).join());
@@ -219,10 +218,10 @@ public abstract class StreamMetadataStoreTest {
         assertNull(store.deleteStream(scope, stream2, null, executor).join());
 
         // Delete scope should succeed now.
-        assertEquals(DeleteScopeStatus.Status.SUCCESS, store.deleteScope(scope).join().getStatus());
+        assertEquals(DeleteScopeStatus.Status.SUCCESS, store.deleteScope(scope, null, executor).join().getStatus());
 
         // Deleting deleted scope should return Scope_Not_Found.
-        assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_FOUND, store.deleteScope(scope).join().getStatus());
+        assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_FOUND, store.deleteScope(scope, null, executor).join().getStatus());
 
         // Deleting non-existing stream should return null.
         AssertExtensions.assertFutureThrows("Should throw StoreException",
@@ -235,19 +234,19 @@ public abstract class StreamMetadataStoreTest {
     public void listScopesPaginated() throws Exception {
         // list stream in scope
         String scope = "scopeList";
-        store.createScope(scope + "1").get();
-        store.createScope(scope + "2").get();
-        store.createScope(scope + "3").get();
+        store.createScope(scope + "1", null, executor).get();
+        store.createScope(scope + "2", null, executor).get();
+        store.createScope(scope + "3", null, executor).get();
 
-        Pair<List<String>, String> scopes = store.listScopes("", 2, executor).get();
+        Pair<List<String>, String> scopes = store.listScopes("", 2, executor, 0L).get();
         assertEquals("List scopes", 2, scopes.getKey().size());
         assertFalse(Strings.isNullOrEmpty(scopes.getValue()));
 
-        scopes = store.listScopes(scopes.getValue(), 2, executor).get();
+        scopes = store.listScopes(scopes.getValue(), 2, executor, 0L).get();
         assertEquals("List scopes", 1, scopes.getKey().size());
         assertFalse(Strings.isNullOrEmpty(scopes.getValue()));
 
-        scopes = store.listScopes(scopes.getValue(), 2, executor).get();
+        scopes = store.listScopes(scopes.getValue(), 2, executor, 0L).get();
         assertEquals("List scopes", 0, scopes.getKey().size());
         assertFalse(Strings.isNullOrEmpty(scopes.getValue()));
     }
@@ -255,19 +254,19 @@ public abstract class StreamMetadataStoreTest {
     @Test
     public void listStreamsInScope() throws Exception {
         // list stream in scope
-        store.createScope("Scope").get();
+        store.createScope("Scope", null, executor).get();
         store.createStream("Scope", stream1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState("Scope", stream1, State.ACTIVE, null, executor).get();
         store.createStream("Scope", stream2, configuration2, System.currentTimeMillis(), null, executor).get();
         store.setState("Scope", stream2, State.ACTIVE, null, executor).get();
-        Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
+        Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope", null, executor).get();
         assertEquals("List streams in scope", 2, streamInScope.size());
         assertTrue("List streams in scope", streamInScope.containsKey(stream1));
         assertTrue("List streams in scope", streamInScope.containsKey(stream2));
 
         // List streams in non-existent scope 'Scope1'
         try {
-            store.listStreamsInScope("Scope1").join();
+            store.listStreamsInScope("Scope1", null, executor).join();
         } catch (StoreException se) {
             assertTrue("List streams in non-existent scope Scope1",
                     se instanceof StoreException.DataNotFoundException);
@@ -281,7 +280,7 @@ public abstract class StreamMetadataStoreTest {
     public void listStreamsInScopePaginated() throws Exception {
         // list stream in scope
         String scope = "scopeList";
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
         String stream1 = "stream1";
         String stream2 = "stream2";
         String stream3 = "stream3";
@@ -293,25 +292,25 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream3, configuration2, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream3, State.ACTIVE, null, executor).get();
         
-        Pair<List<String>, String> streamInScope = store.listStream(scope, "", 2, executor).get();
+        Pair<List<String>, String> streamInScope = store.listStream(scope, "", 2, executor, null).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor, null).get();
         assertEquals("List streams in scope", 1, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor, null).get();
         assertEquals("List streams in scope", 0, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
         
         store.deleteStream(scope, stream1, null, executor).join();
         
-        streamInScope = store.listStream(scope, "", 2, executor).get();
+        streamInScope = store.listStream(scope, "", 2, executor, null).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor, null).get();
         assertEquals("List streams in scope", 0, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
     }
@@ -319,14 +318,14 @@ public abstract class StreamMetadataStoreTest {
     @Test
     public void partialStreamsInScope() throws Exception {
         // list stream in scope
-        store.createScope("Scope").get();
+        store.createScope("Scope", null, executor).get();
         store.createStream("Scope", stream1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState("Scope", stream1, State.ACTIVE, null, executor).get();
         String partial = "partial";
         store.createStream("Scope", partial, configuration1, System.currentTimeMillis(), null, executor).get();
 
         // verify that when we do list stream in scope we filter out partially created streams. 
-        Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
+        Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope", null, executor).get();
         assertEquals("List streams in scope", 1, streamInScope.size());
         assertFalse("Does not contain partial", streamInScope.containsKey(partial));
 
@@ -338,20 +337,20 @@ public abstract class StreamMetadataStoreTest {
             CompletableFuture<StreamConfiguration> result = new CompletableFuture<>();
             result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "configuration"));
             return result;
-        }).when(streamObjSpied).getConfiguration();
+        }).when(streamObjSpied).getConfiguration(any());
 
-        ((AbstractStreamMetadataStore) store).setStream(streamObjSpied);
+        ((TestStore) store).setStream(streamObjSpied);
 
         // verify that when we do list stream in scope we do not get partial. 
-        streamInScope = store.listStreamsInScope("Scope").get();
+        streamInScope = store.listStreamsInScope("Scope", null, executor).get();
         assertEquals("List streams in scope", 1, streamInScope.size());
         assertFalse("List streams in scope", streamInScope.containsKey(partial));
         
         reset(streamObjSpied);
         // set to return unknown state
-        doAnswer(x -> CompletableFuture.completedFuture(State.UNKNOWN)).when(streamObjSpied).getState(anyBoolean());
+        doAnswer(x -> CompletableFuture.completedFuture(State.UNKNOWN)).when(streamObjSpied).getState(anyBoolean(), any());
         // verify that when we do list stream in scope we do not get partial. 
-        streamInScope = store.listStreamsInScope("Scope").get();
+        streamInScope = store.listStreamsInScope("Scope", null, executor).get();
         assertEquals("List streams in scope", 1, streamInScope.size());
         assertFalse("List streams in scope", streamInScope.containsKey(partial));
     }
@@ -359,24 +358,24 @@ public abstract class StreamMetadataStoreTest {
     @Test
     public void listScopes() throws Exception {
         // list scopes test
-        List<String> list = store.listScopes().get();
+        List<String> list = store.listScopes(executor, 0L).get();
         assertEquals("List Scopes size", 0, list.size());
 
-        store.createScope("Scope1").get();
-        store.createScope("Scope2").get();
-        store.createScope("Scope3").get();
-        store.createScope("Scope4").get();
+        store.createScope("Scope1", null, executor).get();
+        store.createScope("Scope2", null, executor).get();
+        store.createScope("Scope3", null, executor).get();
+        store.createScope("Scope4", null, executor).get();
 
-        list = store.listScopes().get();
+        list = store.listScopes(executor, 0L).get();
         assertEquals("List Scopes size", 4, list.size());
 
-        store.deleteScope("Scope1").get();
-        store.deleteScope("Scope2").get();
-        list = store.listScopes().get();
+        store.deleteScope("Scope1", null, executor).get();
+        store.deleteScope("Scope2", null, executor).get();
+        list = store.listScopes(executor, 0L).get();
         assertEquals("List Scopes size", 2, list.size());
 
         store.createStream("Scope3", "stream1", configuration1, System.currentTimeMillis(), null, executor).join();
-        list = store.listScopes().get();
+        list = store.listScopes(executor, 0L).get();
         assertEquals("List Scopes size", 2, list.size());
     }
 
@@ -387,13 +386,13 @@ public abstract class StreamMetadataStoreTest {
         String scopeName;
 
         // get existent scope
-        store.createScope(scope1).get();
-        scopeName = store.getScopeConfiguration(scope1).get();
+        store.createScope(scope1, null, executor).get();
+        scopeName = store.getScopeConfiguration(scope1, null, executor).get();
         assertEquals("Get existent scope", scope1, scopeName);
 
         // get non-existent scope
         AssertExtensions.assertFutureThrows("Should throw StoreException",
-                store.getScopeConfiguration(scope2),
+                store.getScopeConfiguration(scope2, null, executor),
                 (Throwable t) -> t instanceof StoreException.DataNotFoundException);
     }
 
@@ -463,7 +462,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -583,7 +582,6 @@ public abstract class StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment6 = new SimpleEntry<>(0.0, 1.0);
         List<Long> scale3SealedSegments = Arrays.asList(computeSegmentId(4, 2), computeSegmentId(5, 2), computeSegmentId(6, 2));
         long scaleTs3 = System.currentTimeMillis();
-
         @SuppressWarnings("unchecked")
         PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
         PersistentStreamBase streamObjSpied = spy(streamObj);
@@ -595,17 +593,19 @@ public abstract class StreamMetadataStoreTest {
             // wait until we create epoch transition outside of this method
             updateEpochTransitionCalled.complete(null);
             latch.join();
-        }).thenCompose(v -> streamObj.updateEpochTransitionNode(x.getArgument(0)))).when(streamObjSpied).updateEpochTransitionNode(any());
+        }).thenCompose(v -> streamObj.updateEpochTransitionNode(x.getArgument(0), x.getArgument(1))))
+                .when(streamObjSpied).updateEpochTransitionNode(any(), any());
 
-        doAnswer(x -> streamObj.getEpochTransitionNode()).when(streamObjSpied).getEpochTransitionNode();
+        doAnswer(x -> streamObj.getEpochTransitionNode(x.getArgument(0))).when(streamObjSpied).getEpochTransitionNode(any());
 
-        ((AbstractStreamMetadataStore) store).setStream(streamObjSpied);
+        OperationContext context = new StreamOperationContext(((AbstractStreamMetadataStore) store).getScope(scope, null), streamObjSpied, 0L);
 
         // the following should be stuck at createEpochTransition
-        CompletableFuture<VersionedMetadata<EpochTransitionRecord>> resp = store.submitScale(scope, stream, scale3SealedSegments, Arrays.asList(segment6), scaleTs3, null, null, executor);
+        CompletableFuture<VersionedMetadata<EpochTransitionRecord>> resp = store.submitScale(scope, stream, scale3SealedSegments,
+                Collections.singletonList(segment6), scaleTs3, null, context, executor);
         updateEpochTransitionCalled.join();
-        VersionedMetadata<EpochTransitionRecord> epochRecord = streamObj.getEpochTransition().join();
-        streamObj.updateEpochTransitionNode(new VersionedMetadata<>(EpochTransitionRecord.EMPTY, epochRecord.getVersion())).join();
+        VersionedMetadata<EpochTransitionRecord> epochRecord = streamObj.getEpochTransition(context).join();
+        streamObj.updateEpochTransitionNode(new VersionedMetadata<>(EpochTransitionRecord.EMPTY, epochRecord.getVersion()), context).join();
         latch.complete(null);
 
         AssertExtensions.assertFutureThrows("", resp, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
@@ -620,7 +620,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -644,8 +644,10 @@ public abstract class StreamMetadataStoreTest {
         CompletableFuture<Void> latch = new CompletableFuture<>();
         CompletableFuture<Void> updateEpochTransitionCalled = new CompletableFuture<>();
 
-        doAnswer(x -> streamObj.getEpochTransitionNode()).when(streamObjSpied).getEpochTransitionNode();
-        doAnswer(x -> streamObj.updateEpochTransitionNode(any())).when(streamObjSpied).updateEpochTransitionNode(any());
+        doAnswer(x -> streamObj.getEpochTransitionNode(x.getArgument(0))).when(streamObjSpied)
+                                                                         .getEpochTransitionNode(any());
+        doAnswer(x -> streamObj.updateEpochTransitionNode(x.getArgument(0), x.getArgument(1)))
+                .when(streamObjSpied).updateEpochTransitionNode(any(), any());
 
         doAnswer(x -> CompletableFuture.runAsync(() -> {
             VersionedMetadata<EpochTransitionRecord> argument = x.getArgument(0);
@@ -657,55 +659,57 @@ public abstract class StreamMetadataStoreTest {
                 updateEpochTransitionCalled.complete(null);
                 latch.join();
             }
-        }).thenCompose(v -> streamObj.updateEpochTransitionNode(x.getArgument(0))))
-                .when(streamObjSpied).updateEpochTransitionNode(any());
+        }).thenCompose(v -> streamObj.updateEpochTransitionNode(x.getArgument(0), x.getArgument(1))))
+                .when(streamObjSpied).updateEpochTransitionNode(any(), any());
 
-        ((AbstractStreamMetadataStore) store).setStream(streamObjSpied);
+        StreamOperationContext context = new StreamOperationContext(((AbstractStreamMetadataStore) store).getScope(scope, null), streamObjSpied, 0L);
 
         // the following should be stuck at createEpochTransition
         CompletableFuture<VersionedMetadata<EpochTransitionRecord>> response = store.submitScale(scope, stream, segmentsToSeal,
-                Arrays.asList(segment2), scaleTs, null, null, executor);
+                Collections.singletonList(segment2), scaleTs, null, context, executor);
         updateEpochTransitionCalled.join();
 
         // create new epochs corresponding to new scale as the previous scale waits to create epoch transition record
         SimpleEntry<Double, Double> segment2p = new SimpleEntry<>(0.0, 0.5);
-        List<Long> segmentsToSeal2 = Arrays.asList(0L);
+        List<Long> segmentsToSeal2 = Collections.singletonList(0L);
         long scaleTs2 = System.currentTimeMillis();
 
-        streamObjSpied.getEpochRecord(0)
+        streamObjSpied.getEpochRecord(0, context)
                 .thenCompose(epochRecord -> {
                             EpochTransitionRecord record = RecordHelper.computeEpochTransition(epochRecord, segmentsToSeal2,
-                                    Arrays.asList(segment2p), scaleTs2);
-                            return streamObjSpied.getEpochTransition()
-                                .thenCompose(existing -> streamObjSpied.updateEpochTransitionNode(new VersionedMetadata<>(record, existing.getVersion())))
+                                    Collections.singletonList(segment2p), scaleTs2);
+                            return streamObjSpied.getEpochTransition(context)
+                                .thenCompose(existing -> streamObjSpied.updateEpochTransitionNode(
+                                        new VersionedMetadata<>(record, existing.getVersion()), context))
                                     .thenApply(v -> new VersionedMetadata<>(record, v));
                         })
-                .thenCompose(epochRecord -> store.getVersionedState(scope, stream, null, executor)
-                        .thenCompose(state -> store.updateVersionedState(scope, stream, State.SCALING, state, null, executor)
-                                .thenCompose(updatedState -> store.startScale(scope, stream, false, epochRecord, updatedState, null, executor))
-                                .thenCompose(x -> store.scaleCreateNewEpochs(scope, stream, epochRecord, null, executor))
+                .thenCompose(epochRecord -> store.getVersionedState(scope, stream, context, executor)
+                        .thenCompose(state -> store.updateVersionedState(scope, stream, State.SCALING, state, context, executor)
+                                .thenCompose(updatedState -> store.startScale(scope, stream, false, epochRecord, updatedState, context, executor))
+                                .thenCompose(x -> store.scaleCreateNewEpochs(scope, stream, epochRecord, context, executor))
                                 .thenCompose(x -> store.scaleSegmentsSealed(scope, stream,
-                                        segmentsToSeal2.stream().collect(Collectors.toMap(r -> r, r -> 0L)), epochRecord, null, executor))
-                                .thenCompose(x -> store.completeScale(scope, stream, epochRecord, null, executor))))
-                .thenCompose(y -> store.setState(scope, stream, State.ACTIVE, null, executor))
+                                        segmentsToSeal2.stream().collect(Collectors.toMap(r -> r, r -> 0L)), epochRecord, context, executor))
+                                .thenCompose(x -> store.completeScale(scope, stream, epochRecord, context, executor))))
+                .thenCompose(y -> store.setState(scope, stream, State.ACTIVE, context, executor))
                 .join();
 
         latch.complete(null);
 
         // first scale should fail in attempting to update epoch transition record.
-        AssertExtensions.assertSuppliedFutureThrows("WriteConflict in start scale", () -> response, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
-        VersionedMetadata<EpochTransitionRecord> versioned = streamObj.getEpochTransition().join();
+        AssertExtensions.assertSuppliedFutureThrows("WriteConflict in start scale", () -> response,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+        VersionedMetadata<EpochTransitionRecord> versioned = streamObj.getEpochTransition(context).join();
         EpochTransitionRecord epochTransitionRecord = versioned.getObject();
         assertEquals(EpochTransitionRecord.EMPTY, epochTransitionRecord);
         // now that start scale succeeded, we should set the state to scaling.
-        VersionedMetadata<State> state = store.getVersionedState(scope, stream, null, executor).join();
-        state = store.updateVersionedState(scope, stream, State.SCALING, state, null, executor).join();
+        VersionedMetadata<State> state = store.getVersionedState(scope, stream, context, executor).join();
+        state = store.updateVersionedState(scope, stream, State.SCALING, state, context, executor).join();
         // now call first step of scaling -- createNewSegments. this should throw exception
         AssertExtensions.assertFutureThrows("epoch transition was supposed to be invalid",
-                store.startScale(scope, stream, false, versioned, state, null, executor),
+                store.startScale(scope, stream, false, versioned, state, context, executor),
                 e -> Exceptions.unwrap(e) instanceof IllegalStateException);
         // verify that state is reset to ACTIVE
-        assertEquals(State.ACTIVE, store.getState(scope, stream, true, null, executor).join());
+        assertEquals(State.ACTIVE, store.getState(scope, stream, true, context, executor).join());
         // endregion
     }
 
@@ -717,7 +721,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -757,15 +761,15 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
-        assertTrue(store.checkStreamExists(scope, stream).join());
+        assertTrue(store.checkStreamExists(scope, stream, null, executor).join());
 
         store.deleteStream(scope, stream, null, executor).get();
-        assertFalse(store.checkStreamExists(scope, stream).join());
-        DeleteScopeStatus status = store.deleteScope(scope).join();
+        assertFalse(store.checkStreamExists(scope, stream, null, executor).join());
+        DeleteScopeStatus status = store.deleteScope(scope, null, executor).join();
         assertEquals(status.getStatus(), DeleteScopeStatus.Status.SUCCESS);
     }
 
@@ -777,7 +781,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -923,7 +927,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -989,7 +993,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -1020,13 +1024,15 @@ public abstract class StreamMetadataStoreTest {
 
         PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
         // duplicate for tx00
-        streamObj.addTxnToCommitOrder(tx00).join();
+        OperationContext context = new StreamOperationContext(((AbstractStreamMetadataStore) store).getScope(scope, null), 
+                streamObj, 0L);
+        streamObj.addTxnToCommitOrder(tx00, context).join();
         // entry for aborting transaction tx01
-        streamObj.addTxnToCommitOrder(tx01).join();
+        streamObj.addTxnToCommitOrder(tx01,  context).join();
         // entry for open transaction tx02
-        streamObj.addTxnToCommitOrder(tx02).join();
+        streamObj.addTxnToCommitOrder(tx02, context).join();
 
-        Map<Long, UUID> positions = streamObj.getAllOrderedCommittingTxns().join();
+        Map<Long, UUID> positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(4, positions.size());
         assertEquals(positions.get(0L), tx00);
         assertEquals(positions.get(1L), tx00);
@@ -1034,13 +1040,13 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(positions.get(3L), tx02);
         
         // verify that when we retrieve transactions from lowest epoch we get tx00
-        List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100).join();
+        List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100, context).join();
         List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
         assertEquals(1, ordered.size());
         assertEquals(tx00, ordered.get(0));
 
         // verify that duplicates and stale entries are purged. entries for open transaction and committing are retained
-        positions = streamObj.getAllOrderedCommittingTxns().join();
+        positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(2, positions.size());
         assertEquals(positions.get(0L), tx00);
         assertEquals(positions.get(3L), tx02);
@@ -1068,14 +1074,14 @@ public abstract class StreamMetadataStoreTest {
                 "", Long.MIN_VALUE, null, executor).get();
         
         // verify that we still get tx00 only 
-        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100).join();
+        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100, context).join();
         ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
         assertEquals(1, ordered.size());
         assertEquals(tx00, ordered.get(0));
         assertEquals(0L, orderedRecords.get(0).getValue().getCommitOrder());
 
         // verify that positions has 3 new entries added though
-        positions = streamObj.getAllOrderedCommittingTxns().join();
+        positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(5, positions.size());
         assertEquals(positions.get(0L), tx00);
         assertEquals(positions.get(3L), tx02);
@@ -1083,10 +1089,11 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(positions.get(5L), tx11);
         assertEquals(positions.get(6L), tx12);
 
-        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, 
+                null, executor).join();
         
         // verify that after including transaction tx00 in the record, we no longer keep its reference in the ordered
-        positions = streamObj.getAllOrderedCommittingTxns().join();
+        positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(4, positions.size());
         assertFalse(positions.containsKey(0L));
         assertEquals(positions.get(3L), tx02);
@@ -1110,7 +1117,7 @@ public abstract class StreamMetadataStoreTest {
         
         // after committing, we should have committed tx00 while having purged references for tx01 and tx02
         // getting ordered list should return txn on epoch 1 in the order in which we issued commits
-        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100).join();
+        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100, context).join();
         ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
         assertEquals(3, ordered.size());
         assertEquals(tx10, ordered.get(0));
@@ -1118,7 +1125,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(tx12, ordered.get(2));
 
         // verify that transactions are still present in position
-        positions = streamObj.getAllOrderedCommittingTxns().join();
+        positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(4, positions.size());
         assertEquals(positions.get(3L), tx02);
         assertEquals(positions.get(4L), tx10);
@@ -1132,7 +1139,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(record.getObject().getTransactionsToCommit(), ordered);
         
         // verify that transactions included for commit are removed from positions.
-        positions = streamObj.getAllOrderedCommittingTxns().join();
+        positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(1, positions.size());
         assertEquals(positions.get(3L), tx02);
 
@@ -1144,12 +1151,12 @@ public abstract class StreamMetadataStoreTest {
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
 
         // references for tx00 should be removed from orderer
-        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100).join();
+        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100, context).join();
         ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
         assertEquals(0, ordered.size());
 
         // verify that only reference to the open transaction is retained in position
-        positions = streamObj.getAllOrderedCommittingTxns().join();
+        positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(1, positions.size());
         assertEquals(positions.get(3L), tx02);
     }
@@ -1162,7 +1169,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -1192,15 +1199,15 @@ public abstract class StreamMetadataStoreTest {
                 "", Long.MIN_VALUE, null, executor).get();
 
         PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
-        
+        StreamOperationContext context = new StreamOperationContext(((AbstractStreamMetadataStore) store).getScope(scope, null), streamObj, 0L);
         // verify that when we retrieve transactions from lowest epoch we get tx00, tx01
-        List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(2).join();
+        List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(2, context).join();
         List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
         assertEquals(2, ordered.size());
         assertEquals(tx00, ordered.get(0));
         assertEquals(tx01, ordered.get(1));
 
-        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(1000).join();
+        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(1000, context).join();
         ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
         assertEquals(3, ordered.size());
         assertEquals(tx00, ordered.get(0));
@@ -1211,7 +1218,7 @@ public abstract class StreamMetadataStoreTest {
         ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, tx00, null, executor).join();
         ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, tx01, null, executor).join();
 
-        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(1000).join();
+        orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(1000, context).join();
         ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
         assertEquals(1, ordered.size());
         assertEquals(tx02, ordered.get(0));
@@ -1227,7 +1234,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -1244,10 +1251,11 @@ public abstract class StreamMetadataStoreTest {
         }
 
         PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
-        
+
+        OperationContext context = new StreamOperationContext(((AbstractStreamMetadataStore) store).getScope(scope, null), streamObj, 0L);
         while (!txns.isEmpty()) {
             int limit = 5;
-            List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(limit).join();
+            List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(limit, context).join();
             List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
             assertEquals(limit, ordered.size());
             for (int i = 0; i < limit; i++) {
@@ -1309,7 +1317,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -1353,7 +1361,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -1391,7 +1399,7 @@ public abstract class StreamMetadataStoreTest {
                 .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -1455,7 +1463,7 @@ public abstract class StreamMetadataStoreTest {
                 .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -1468,15 +1476,18 @@ public abstract class StreamMetadataStoreTest {
 
         streamCut.put(0L, 0L);
         streamCut.put(1L, 10L);
-        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.Before);
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), 
+                StreamCutComparison.Before);
 
         streamCut.put(0L, 10L);
         streamCut.put(1L, 10L);
-        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.EqualOrAfter);
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), 
+                StreamCutComparison.EqualOrAfter);
 
         streamCut.put(0L, 1L);
         streamCut.put(1L, 11L);
-        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), StreamCutComparison.Overlaps);
+        assertEquals(store.compareStreamCut(scope, stream, streamCut, map1, null, executor).join(), 
+                StreamCutComparison.Overlaps);
 
         streamCut.put(0L, 20L);
         streamCut.put(1L, 20L);
@@ -1496,7 +1507,7 @@ public abstract class StreamMetadataStoreTest {
                 .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -1658,7 +1669,7 @@ public abstract class StreamMetadataStoreTest {
                 .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).get();
+        store.createScope(scope, null, executor).get();
 
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
@@ -1747,10 +1758,11 @@ public abstract class StreamMetadataStoreTest {
                                                                      .scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).join();
+        store.createScope(scope, null, executor).join();
 
         for (int i = 0; i < 10; i++) {
-            assertEquals(i * policy.getMinNumSegments(), (int) ((AbstractStreamMetadataStore) store).getSafeStartingSegmentNumberFor(scope, stream).join());
+            assertEquals(i * policy.getMinNumSegments(), (int) ((AbstractStreamMetadataStore) store)
+                    .getSafeStartingSegmentNumberFor(scope, stream, null, executor).join());
             store.createStream(scope, stream, configuration, start, null, executor).join();
             store.setState(scope, stream, State.ACTIVE, null, executor).join();
             store.setSealed(scope, stream, null, executor).join();
@@ -1765,7 +1777,8 @@ public abstract class StreamMetadataStoreTest {
 
         for (int i = 0; i < 10; i++) {
             ((AbstractStreamMetadataStore) store).recordLastStreamSegment(scope, stream, i, null, executor).join();
-            assertEquals(i + 1, (int) ((AbstractStreamMetadataStore) store).getSafeStartingSegmentNumberFor(scope, stream).join());
+            assertEquals(i + 1, (int) ((AbstractStreamMetadataStore) store)
+                    .getSafeStartingSegmentNumberFor(scope, stream, null, executor).join());
         }
     }
 
@@ -1774,26 +1787,26 @@ public abstract class StreamMetadataStoreTest {
         final String scopeName = "RecreationScopePartial";
         final String streamName = "RecreatedStreamPartial";
 
-        store.createScope(scopeName).join();
+        store.createScope(scopeName, null, executor).join();
         
         // region case 1: only add stream to scope without any additional metadata
         StreamMetadataStoreTestHelper.addStreamToScope(store, scopeName, streamName);
-        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+        assertTrue(store.checkStreamExists(scopeName, streamName, null, executor).join());
         store.deleteStream(scopeName, streamName, null, executor).join();
-        assertFalse(store.checkStreamExists(scopeName, streamName).join());
+        assertFalse(store.checkStreamExists(scopeName, streamName, null, executor).join());
 
         // region case 2: only add creation time for the stream and then delete it. 
         StreamMetadataStoreTestHelper.partiallyCreateStream(store, scopeName, streamName, Optional.of(100L), false);
-        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+        assertTrue(store.checkStreamExists(scopeName, streamName, null, executor).join());
         store.deleteStream(scopeName, streamName, null, executor).join();
-        assertFalse(store.checkStreamExists(scopeName, streamName).join());
+        assertFalse(store.checkStreamExists(scopeName, streamName, null, executor).join());
         // endregion
         
         // region case 3: create stream again but this time create the `state` but not history record. 
         StreamMetadataStoreTestHelper.partiallyCreateStream(store, scopeName, streamName, Optional.of(100L), true);
-        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+        assertTrue(store.checkStreamExists(scopeName, streamName, null, executor).join());
         store.deleteStream(scopeName, streamName, null, executor).join();
-        assertFalse(store.checkStreamExists(scopeName, streamName).join());
+        assertFalse(store.checkStreamExists(scopeName, streamName, null, executor).join());
         // endregion
         
         // region case 4: now create full stream metadata. 
@@ -1801,13 +1814,13 @@ public abstract class StreamMetadataStoreTest {
         // since there was no active segments, so we should have segments created from segment 0.
         // configuration 2 has 3 segments. So highest segment number should be 2. 
         store.createStream(scopeName, streamName, configuration2, 101L, null, executor).join();
-        assertTrue(store.checkStreamExists(scopeName, streamName).join());
+        assertTrue(store.checkStreamExists(scopeName, streamName, null, executor).join());
 
         assertEquals(store.getActiveEpoch(scopeName, streamName, null, true, executor).join()
                 .getSegmentIds().stream().max(Long::compareTo).get().longValue(), 2L);
         
         store.deleteStream(scopeName, streamName, null, executor).join();
-        assertFalse(store.checkStreamExists(scopeName, streamName).join());
+        assertFalse(store.checkStreamExists(scopeName, streamName, null, executor).join());
 
         store.createStream(scopeName, streamName, configuration2, 102L, null, executor).join();
         assertEquals(store.getActiveEpoch(scopeName, streamName, null, true, executor).join()
@@ -1818,7 +1831,7 @@ public abstract class StreamMetadataStoreTest {
     @Test
     public void testWriterMark() {
         String stream = "mark";
-        store.createScope(scope).join();
+        store.createScope(scope, null, executor).join();
         store.createStream(scope, stream, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
                                                              .build(), System.currentTimeMillis(), null, executor).join();
 
@@ -1884,7 +1897,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        store.createScope(scope).join();
+        store.createScope(scope, null, executor).join();
 
         store.createStream(scope, stream, configuration, start, null, executor).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -1952,7 +1965,7 @@ public abstract class StreamMetadataStoreTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
-        Controller.CreateScopeStatus createScopeStatus = store.createScope(scopeRGTest).join();
+        Controller.CreateScopeStatus createScopeStatus = store.createScope(scopeRGTest, null, executor).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, createScopeStatus.getStatus());
 
         store.createStream(scopeRGTest, streamRGTest, configuration, start, null, executor).join();
@@ -1975,10 +1988,10 @@ public abstract class StreamMetadataStoreTest {
                 .startingStreamCuts(startSC)
                 .endingStreamCuts(endSC).build();
         rgConfig = ReaderGroupConfig.cloneConfig(rgConfig, rgId, 0L);
-        final RGOperationContext rgContext = store.createRGContext(scopeRGTest, rgName);
-        store.addReaderGroupToScope(scopeRGTest, rgName, rgConfig.getReaderGroupId()).join();
+        final OperationContext rgContext = store.createRGContext(scopeRGTest, rgName, 0L);
+        store.addReaderGroupToScope(scopeRGTest, rgName, rgConfig.getReaderGroupId(), rgContext, executor).join();
         store.createReaderGroup(scopeRGTest, rgName, rgConfig, System.currentTimeMillis(), rgContext, executor).join();
-        UUID readerGroupId = store.getReaderGroupId(scopeRGTest, rgName).get();
+        UUID readerGroupId = store.getReaderGroupId(scopeRGTest, rgName, rgContext, executor).get();
         assertEquals(rgId, readerGroupId);
         ReaderGroupConfigRecord cfgRecord = store.getReaderGroupConfigRecord(scopeRGTest, rgName, rgContext, executor).join().getObject();
         assertEquals(false, cfgRecord.isUpdating());
@@ -1992,7 +2005,7 @@ public abstract class StreamMetadataStoreTest {
     
     private void createAndScaleStream(StreamMetadataStore store, String scope, String stream, int times) {
         long time = System.currentTimeMillis();
-        store.createScope(scope).join();
+        store.createScope(scope, null, executor).join();
         store.createStream(scope, stream, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
                                                              .build(), time, null, executor).join();
         VersionedMetadata<State> state = store.getVersionedState(scope, stream, null, executor).join();
@@ -2013,5 +2026,9 @@ public abstract class StreamMetadataStoreTest {
             store.completeScale(scope, stream, etr, null, executor).join();
             store.setState(scope, stream, State.ACTIVE, null, executor).join();
         }
+    }
+
+    interface TestStore extends StreamMetadataStore {
+        void setStream(io.pravega.controller.store.stream.Stream stream);
     }
 }

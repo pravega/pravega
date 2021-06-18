@@ -17,17 +17,10 @@ package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.impl.PositionImpl;
-import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
-import org.junit.Assert;
-import org.junit.Test;
-
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestingServerStarter;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -35,12 +28,18 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
+import org.apache.curator.test.TestingServer;
+import org.apache.zookeeper.KeeperException;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Tests for Zookeeper based checkpoint store.
  */
 public class ZKCheckpointStoreTests extends CheckpointStoreTests {
-
     private TestingServer zkServer;
     private CuratorFramework cli;
 
@@ -96,6 +95,48 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
                 () -> checkpointStore.removeReaderGroup(process1, readerGroup1), predicate);
     }
 
+    @Test
+    public void testRemoveProcess() throws Exception {
+        final String process1 = "process1";
+        final String readerGroup1 = "rg1";
+        final String reader1 = "reader1";
+        final String reader2 = "reader2";
+
+        Set<String> processes = checkpointStore.getProcesses();
+        Assert.assertEquals(0, processes.size());
+
+        checkpointStore.addReaderGroup(process1, readerGroup1);
+        List<String> result = checkpointStore.getReaderGroups(process1);
+        Assert.assertNotNull(result);
+        Assert.assertEquals(1, result.size());
+        Assert.assertEquals(readerGroup1, result.get(0));
+
+        processes = checkpointStore.getProcesses();
+        Assert.assertEquals(1, processes.size());
+
+        checkpointStore.addReader(process1, readerGroup1, reader1);
+        Map<String, Position> resultMap = checkpointStore.getPositions(process1, readerGroup1);
+        Assert.assertNotNull(resultMap);
+        Assert.assertEquals(1, resultMap.size());
+        Assert.assertNull(resultMap.get(reader1));
+        
+        checkpointStore.addReader(process1, readerGroup1, reader2);
+        resultMap = checkpointStore.getPositions(process1, readerGroup1);
+        Assert.assertNotNull(resultMap);
+        Assert.assertEquals(2, resultMap.size());
+        
+        Map<String, Position> map = checkpointStore.removeProcessFromGroup(process1, readerGroup1);
+        Assert.assertEquals(map.size(), 2);
+        Assert.assertTrue(map.containsKey(reader1));
+        Assert.assertNull(map.get(reader1));
+        Assert.assertTrue(map.containsKey(reader2));
+        Assert.assertNull(map.get(reader2));
+        
+        AssertExtensions.assertThrows(KeeperException.NoNodeException.class, () -> {            
+            cli.getData().forPath(String.format("/%s/%s/%s/%s", "eventProcessors", process1, readerGroup1, reader1));
+        });
+    }
+    
     @Test
     public void readerWithoutCheckpointTest() throws Exception {
         final String process1 = "process1";

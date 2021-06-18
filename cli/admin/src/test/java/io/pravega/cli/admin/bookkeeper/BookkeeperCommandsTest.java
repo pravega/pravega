@@ -191,6 +191,7 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         command.unwrapDataCorruptionException(new DataCorruptionException("test"));
         command.unwrapDataCorruptionException(new DataCorruptionException("test", "test"));
         command.unwrapDataCorruptionException(new DataCorruptionException("test", Arrays.asList("test", "test")));
+        command.unwrapDataCorruptionException(new DataCorruptionException("test", null));
         // Check that exception is thrown if ZK is not available.
         this.zkUtil.stopCluster();
         AssertExtensions.assertThrows(DataLogNotAvailableException.class, () -> TestUtils.executeCommand("container recover 0", STATE.get()));
@@ -207,6 +208,31 @@ public class BookkeeperCommandsTest extends BookKeeperClusterTestCase {
         state.operationComplete(op, new DataCorruptionException("Test exception"));
         state.newOperation(op, entries);
         state.operationComplete(op, null);
+    }
+
+    @Test
+    public void testBookKeeperReconcileCommand() throws Exception {
+        // Try the command against a non-existent log.
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        Assert.assertFalse(TestUtils.executeCommand("bk reconcile 0", STATE.get()).contains("reconciliation completed"));
+        createLedgerInBookkeeperTestCluster(0);
+        // Try the command against an enabled log.
+        Assert.assertFalse(TestUtils.executeCommand("bk reconcile 0", STATE.get()).contains("reconciliation completed"));
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        TestUtils.executeCommand("bk disable 0", STATE.get());
+        // Now, let's try the command under the expected conditions.
+        System.setIn(new ByteArrayInputStream("no".getBytes()));
+        TestUtils.executeCommand("bk reconcile 0", STATE.get());
+        System.setIn(new ByteArrayInputStream("yes".getBytes()));
+        String commandResult = TestUtils.executeCommand("bk reconcile 0", STATE.get());
+        Assert.assertTrue(commandResult.contains("reconciliation completed"));
+    }
+
+    @Test
+    public void testBookKeeperListAllLedgersCommand() throws Exception {
+        Assert.assertTrue(TestUtils.executeCommand("bk list-ledgers", STATE.get()).contains("List of ledgers in the system"));
+        createLedgerInBookkeeperTestCluster(0);
+        Assert.assertTrue(TestUtils.executeCommand("bk list-ledgers", STATE.get()).contains("bookieLogID: 0"));
     }
 
     private void createLedgerInBookkeeperTestCluster(int logId) throws Exception {

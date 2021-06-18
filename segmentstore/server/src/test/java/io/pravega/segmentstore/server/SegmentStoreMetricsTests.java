@@ -24,6 +24,7 @@ import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.test.common.SerializedClassRunner;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,6 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static io.pravega.shared.MetricsTags.containerTag;
 import static io.pravega.shared.MetricsTags.throttlerTag;
@@ -45,6 +47,7 @@ import static org.junit.Assert.assertNull;
  * Unit tests for the {@link SegmentStoreMetrics} class.
  */
 @Slf4j
+@RunWith(SerializedClassRunner.class)
 public class SegmentStoreMetricsTests {
     @Before
     public void setUp() {

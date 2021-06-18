@@ -23,6 +23,9 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.ByteArraySegment;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import lombok.Builder;
 import lombok.Data;
@@ -78,12 +81,12 @@ public class ZKScope implements Scope {
     }
 
     @Override
-    public CompletableFuture<Void> createScope() {
+    public CompletableFuture<Void> createScope(OperationContext context) {
         return store.addNode(scopePath);
     }
 
     @Override
-    public CompletableFuture<Void> deleteScope() {
+    public CompletableFuture<Void> deleteScope(OperationContext context) {
         return store.deleteNode(scopePath)
                     .thenCompose(v -> Futures.exceptionallyExpecting(store.deleteTree(counterPath), DATA_NOT_FOUND_PREDICATE, null))
                     .thenCompose(v -> Futures.exceptionallyExpecting(store.deleteTree(streamsInScopePath), DATA_NOT_FOUND_PREDICATE, null));
@@ -142,12 +145,13 @@ public class ZKScope implements Scope {
     }
 
     @Override
-    public CompletableFuture<List<String>> listStreamsInScope() {
+    public CompletableFuture<List<String>> listStreamsInScope(OperationContext context) {
         return store.getChildren(scopePath, false);
     }
 
     @Override
-    public CompletableFuture<Pair<List<String>, String>> listStreams(int limit, String continuationToken, Executor executor) {
+    public CompletableFuture<Pair<List<String>, String>> listStreams(int limit, String continuationToken, Executor executor,
+                                                                     OperationContext context) {
         // Stream references are stored under a hierarchy of nodes as described in `addStreamsInScope` method. 
         // A continuation token is essentially a serialized integer that is broken into three parts - 
         // msb 2 bytes, middle 4 bytes and lsb 4 bytes. 
@@ -327,10 +331,15 @@ public class ZKScope implements Scope {
         }
     }
 
-    public CompletableFuture<Void> addKVTableToScope(String kvt, byte[] id) {
+    public CompletableFuture<Void> addKVTableToScope(String kvt, UUID id) {
         return Futures.toVoid(getKVTableInScopeZNodePath(this.scopeName, kvt)
                 .thenCompose(path -> store.createZNodeIfNotExist(path)
-                .thenCompose(x -> store.setData(path, id, new Version.IntVersion(0)))));
+                .thenCompose(x -> {
+                    byte[] b = new byte[2 * Long.BYTES];
+                    BitConverter.writeUUID(new ByteArraySegment(b), id);
+
+                    return store.setData(path, b, new Version.IntVersion(0));
+                })));
     }
 
     public CompletableFuture<Void> removeKVTableFromScope(String name) {
@@ -338,16 +347,17 @@ public class ZKScope implements Scope {
                 .thenApply(path -> store.deletePath(path, true)));
     }
 
+    @Override
     public CompletableFuture<Pair<List<String>, String>>  listKeyValueTables(final int limit, final String continuationToken,
-                                                      final Executor executor) {
+                                                      final Executor executor, OperationContext context) {
         String scopePath = String.format(KVTABLES_IN_SCOPE_ROOT_PATH, scopeName);
         return store.getChildren(scopePath).thenApply( kvtables -> new ImmutablePair<>(kvtables, continuationToken));
 
     }
 
     @Override
-    public CompletableFuture<UUID> getReaderGroupId(String rgName) {
-        return null;
+    public CompletableFuture<UUID> getReaderGroupId(String rgName, OperationContext context) {
+        throw new UnsupportedOperationException();
     }
 
     public CompletableFuture<Boolean> checkKeyValueTableExistsInScope(String kvt) {

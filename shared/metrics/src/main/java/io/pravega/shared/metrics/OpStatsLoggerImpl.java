@@ -20,13 +20,14 @@ import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.distribution.HistogramSnapshot;
-
 import java.time.Duration;
 import java.util.EnumMap;
 import java.util.concurrent.TimeUnit;
+import lombok.EqualsAndHashCode;
 
 import static io.pravega.shared.MetricsNames.failMetricName;
 
+@EqualsAndHashCode
 class OpStatsLoggerImpl implements OpStatsLogger {
     //region Members
 

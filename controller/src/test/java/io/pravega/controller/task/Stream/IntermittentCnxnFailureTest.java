@@ -48,12 +48,14 @@ import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -62,7 +64,10 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
 import org.mockito.Mock;
 
 import static org.junit.Assert.assertEquals;
@@ -71,13 +76,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
+@RunWith(SerializedClassRunner.class)
 public class IntermittentCnxnFailureTest {
 
     private static final String SCOPE = "scope";
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     private final String stream1 = "stream1";
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
 
@@ -130,15 +136,15 @@ public class IntermittentCnxnFailureTest {
                 anyString(), anyString(), anyInt());
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+                executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, segmentHelperMock, executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
 
         controllerService = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelperMock, executor, null);
+                streamTransactionMetadataTasks, segmentHelperMock, executor, null, requestTracker);
         StreamMetrics.initialize();
-        controllerService.createScope(SCOPE).get();
+        controllerService.createScope(SCOPE, 0L).get();
     }
 
     @After
@@ -161,15 +167,16 @@ public class IntermittentCnxnFailureTest {
         // Simulate a stream store failure when creating a scope and verify that the failed metrics are updated.
         final Controller.CreateScopeStatus createScopeStatus = Controller.CreateScopeStatus.newBuilder()
                 .setStatus(Controller.CreateScopeStatus.Status.FAILURE).build();
-        when(streamStore.createScope(anyString())).thenReturn(CompletableFuture.completedFuture(createScopeStatus));
-        assertEquals(createScopeStatus, controllerService.createScope(testScope).get());
+        doAnswer(x -> CompletableFuture.completedFuture(createScopeStatus)).when(streamStore).createScope(anyString(), any(), any());
+        assertEquals(createScopeStatus, controllerService.createScope(testScope, 0L).get());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.CREATE_SCOPE_FAILED).count());
 
         // Simulate a stream store failure when deleting a scope and verify that the failed metrics are updated.
         final Controller.DeleteScopeStatus deleteScopeStatus = Controller.DeleteScopeStatus.newBuilder()
                 .setStatus(Controller.DeleteScopeStatus.Status.FAILURE).build();
-        when(streamStore.deleteScope(anyString())).thenReturn(CompletableFuture.completedFuture(deleteScopeStatus));
-        assertEquals(deleteScopeStatus, controllerService.deleteScope(testScope).get());
+        doAnswer(x -> CompletableFuture.completedFuture(deleteScopeStatus)).when(streamStore).deleteScope(anyString(), any(), any());
+
+        assertEquals(deleteScopeStatus, controllerService.deleteScope(testScope, 0L).get());
         assertEquals(1, (long) MetricRegistryUtils.getCounter(MetricsNames.DELETE_SCOPE_FAILED).count());
     }
 
@@ -180,7 +187,7 @@ public class IntermittentCnxnFailureTest {
 
         // start stream creation in background/asynchronously.
         // the connection to server will fail and should be retried
-        controllerService.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
+        controllerService.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), 0L);
 
         // Stream should not have been created and while trying to access any stream metadata
         // we should get illegalStateException

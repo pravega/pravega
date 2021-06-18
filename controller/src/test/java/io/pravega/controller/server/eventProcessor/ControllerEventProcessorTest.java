@@ -20,7 +20,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventHelperMock;
@@ -68,6 +67,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -75,7 +76,9 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -88,6 +91,9 @@ public abstract class ControllerEventProcessorTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
 
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+
     protected CuratorFramework zkClient;
     protected ScheduledExecutorService executor;
     private StreamMetadataStore streamStore;
@@ -98,7 +104,6 @@ public abstract class ControllerEventProcessorTest {
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
     private EventHelper eventHelperMock;
-    private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
     public void setUp() throws Exception {
@@ -118,7 +123,7 @@ public abstract class ControllerEventProcessorTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         eventHelperMock = EventHelperMock.getEventHelperMock(executor, "1", ((AbstractStreamMetadataStore) this.streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, TaskStoreFactory.createInMemoryStore(executor),
-                segmentHelperMock, executor, "1", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, eventHelperMock);
+                segmentHelperMock, executor, "1", GrpcAuthHelper.getDisabledAuthHelper(), eventHelperMock);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock,
                 executor, "host", GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
@@ -126,7 +131,7 @@ public abstract class ControllerEventProcessorTest {
         // region createStream
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
-        streamStore.createScope(SCOPE).join();
+        streamStore.createScope(SCOPE, null, executor).join();
         long start = System.currentTimeMillis();
         streamStore.createStream(SCOPE, STREAM, configuration1, start, null, executor).join();
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();

@@ -82,7 +82,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final int TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH = 128 * 1024;
     private static final Comparator<BufferView> KEY_COMPARATOR = BufferViewComparator.create()::compare;
     @Rule
-    public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    public Timeout globalTimeout = new Timeout(2 * TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
     @Override
     protected int getThreadPoolSize() {

@@ -40,6 +40,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.chunklayer.ChunkedSegmentStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
@@ -48,6 +49,7 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
+import io.pravega.storage.filesystem.FileSystemSimpleStorageFactory;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.integration.selftest.Event;
@@ -116,7 +118,9 @@ class SegmentStoreAdapter extends StoreAdapter {
                 .newInMemoryBuilder(builderConfig)
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
-                    SingletonStorageFactory factory = new SingletonStorageFactory(config.getStorageDir(), setup.getStorageExecutor());
+                    SingletonStorageFactory factory = new SingletonStorageFactory(config.getStorageDir(),
+                            setup.getStorageExecutor(),
+                            testConfig.isChunkedSegmentStorageEnabled());
                     this.storageFactory.set(factory);
 
                     // A bit hack-ish, but we need to get a hold of the Store Executor, so we can request snapshots for it.
@@ -400,10 +404,15 @@ class SegmentStoreAdapter extends StoreAdapter {
         private final AtomicBoolean closed;
         private final Storage storage;
 
-        SingletonStorageFactory(String storageDir, ScheduledExecutorService executor) {
+        SingletonStorageFactory(String storageDir, ScheduledExecutorService executor, boolean isChunkedSegmentStoreEnabled) {
             this.storageDir = storageDir;
-            this.storage = new FileSystemStorageFactory(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, storageDir).build(),
-                    executor).createStorageAdapter();
+            if (isChunkedSegmentStoreEnabled) {
+                this.storage = new FileSystemSimpleStorageFactory(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, storageDir).build(),
+                        executor).createStorageAdapter();
+            } else {
+                this.storage = new FileSystemStorageFactory(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, storageDir).build(),
+                        executor).createStorageAdapter();
+            }
             this.storage.initialize(1);
             this.closed = new AtomicBoolean();
         }

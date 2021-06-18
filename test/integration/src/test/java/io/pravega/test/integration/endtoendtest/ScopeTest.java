@@ -16,15 +16,22 @@
 package io.pravega.test.integration.endtoendtest;
 
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.KeyValueTableManager;
+import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.KeyValueTableManagerImpl;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.ConnectionPoolImpl;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.control.impl.Controller;
+import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -45,6 +52,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.NameUtils.getScopedStreamName;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -110,7 +118,7 @@ public class ScopeTest {
         @Cleanup
         ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
 
-        controllerWrapper.getControllerService().createScope(scope).get();
+        controllerWrapper.getControllerService().createScope(scope, 0L).get();
         controller.createStream(scope, streamName1, config).get();
         controller.createStream(scope, streamName2, config).get();
         controller.createStream(scope, streamName3, config).get();
@@ -169,5 +177,50 @@ public class ScopeTest {
         assertNull(next);
         
         assertTrue(foundCount.entrySet().stream().allMatch(x -> x.getValue() == 2));
+    }
+
+    @Test
+    public void testForceDeleteScope() throws Exception {
+        final String scope = "test";
+        final String streamName1 = "test1";
+        final String streamName2 = "test2";
+        final String streamName3 = "test3";
+        final String kvtName1 = "kvt1";
+        final String kvtName2 = "kvt2";
+        final String groupName1 = "rg1";
+        final String groupName2 = "rg2";
+
+        StreamConfiguration config = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build();
+
+        @Cleanup
+        Controller controller = controllerWrapper.getController();
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + controllerPort)).build();
+        @Cleanup
+        ConnectionPool cp = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        @Cleanup
+        ConnectionFactory connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+
+        controllerWrapper.getControllerService().createScope(scope, 0L).get();
+        controller.createStream(scope, streamName1, config).get();
+        controller.createStream(scope, streamName2, config).get();
+        controller.createStream(scope, streamName3, config).get();
+        @Cleanup
+        StreamManager streamManager = new StreamManagerImpl(controller, cp);
+        @Cleanup
+        KeyValueTableManager keyValueTableManager = new KeyValueTableManagerImpl(clientConfig);
+        @Cleanup
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, clientConfig, connectionFactory);
+
+        keyValueTableManager.createKeyValueTable(scope, kvtName1, KeyValueTableConfiguration.builder().partitionCount(1).build());
+        keyValueTableManager.createKeyValueTable(scope, kvtName2, KeyValueTableConfiguration.builder().partitionCount(1).build());
+
+        readerGroupManager.createReaderGroup(groupName1, ReaderGroupConfig.builder()
+                .stream(getScopedStreamName(scope, streamName1)).build());
+        readerGroupManager.createReaderGroup(groupName2, ReaderGroupConfig.builder()
+                .stream(getScopedStreamName(scope, streamName2)).build());
+
+        assertTrue(streamManager.deleteScope(scope, true));
     }
 }
