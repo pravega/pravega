@@ -23,7 +23,6 @@ import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.shared.security.auth.Credentials;
 import io.pravega.shared.security.auth.DefaultCredentials;
-import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.auth.AuthFileUtils;
 import java.io.File;
