@@ -265,9 +265,21 @@ public class ModelHelperTest {
     @Test
     public void encodeKeyValueTableConfig() {
         Controller.KeyValueTableConfig config = Controller.KeyValueTableConfig.newBuilder()
-                .setScope("scope").setKvtName("kvtable").setPartitionCount(2).build();
+                .setScope("scope").setKvtName("kvtable").setPartitionCount(2)
+                .setPrimaryKeyLength(Integer.BYTES).setSecondaryKeyLength(Long.BYTES).build();
         KeyValueTableConfiguration configuration = ModelHelper.encode(config);
         assertEquals(config.getPartitionCount(), configuration.getPartitionCount());
+        assertEquals(config.getPrimaryKeyLength(), configuration.getPrimaryKeyLength());
+        assertEquals(config.getSecondaryKeyLength(), configuration.getSecondaryKeyLength());
+    }
+
+    @Test
+    public void decodeKeyValueTableConfig() {
+        Controller.KeyValueTableConfig config = ModelHelper.decode("scope", "kvtable",
+                KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(Integer.BYTES).secondaryKeyLength(Long.BYTES).build());
+        assertEquals(2, config.getPartitionCount());
+        assertEquals(Integer.BYTES, config.getPrimaryKeyLength());
+        assertEquals(Long.BYTES, config.getSecondaryKeyLength());
     }
 
     @Test

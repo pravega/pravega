@@ -77,6 +77,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KVTablesInScopeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableConfigResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
@@ -160,6 +161,7 @@ import static io.pravega.shared.controller.tracing.RPCTracingTags.DELETE_STREAM;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_CURRENT_SEGMENTS;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_CURRENT_SEGMENTS_KEY_VALUE_TABLE;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_EPOCH_SEGMENTS;
+import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_KEY_VALUE_TABLE_CONFIGURATION;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_OR_REFRESH_DELEGATION_TOKEN_FOR;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_READER_GROUP_CONFIG;
 import static io.pravega.shared.controller.tracing.RPCTracingTags.GET_SEGMENTS;
@@ -1581,6 +1583,45 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<KeyValueTableConfiguration> getKeyValueTableConfiguration(String scope, String kvtName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, GET_KEY_VALUE_TABLE_CONFIGURATION, scope, kvtName, requestId);
+        String scopedKvtName = NameUtils.getScopedKeyValueTableName(scope, kvtName);
+
+        final CompletableFuture<KeyValueTableConfigResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<KeyValueTableConfigResponse> callback = new RPCAsyncCallback<>(requestId,
+                    GET_KEY_VALUE_TABLE_CONFIGURATION, scope, kvtName);
+            new ControllerClientTagger(client, timeoutMillis).withTag(requestId, GET_KEY_VALUE_TABLE_CONFIGURATION,
+                    scope, kvtName)
+                    .getKeyValueTableConfiguration(ModelHelper.createKeyValueTableInfo(scope, kvtName), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApplyAsync(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn(requestId, "Failed to get configuration for key-value table: {}", scopedKvtName);
+                    throw new ControllerFailureException("Failed to get configuration for key-value table: " + scopedKvtName);
+                case TABLE_NOT_FOUND:
+                    log.warn(requestId, "Key-value table does not exist: {}", scopedKvtName);
+                    throw new IllegalArgumentException("Key-value table does not exist: " + scopedKvtName);
+                case SUCCESS:
+                    log.info(requestId, "Successfully obtained configuration for key-value table: {}", scopedKvtName);
+                    return ModelHelper.encode(x.getConfig());
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status getting key-value table configuration " +
+                            scopedKvtName + " " + x.getStatus());
+            }
+        }, this.executor).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn(requestId, "getKeyValueTableConfiguration {} failed: ", scopedKvtName, e);
+            }
+            LoggerHelpers.traceLeave(log, "getKeyValueTableConfiguration", traceId, scope, kvtName, requestId);
+        });
+    }
+
+    @Override
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
@@ -1987,6 +2028,12 @@ public class ControllerImpl implements Controller {
                                        RPCAsyncCallback<KVTablesInScopeResponse> callback) {
             clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
                     .listKeyValueTablesInScope(request, callback);
+        }
+
+        void getKeyValueTableConfiguration(io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo kvtInfo,
+                                           RPCAsyncCallback<KeyValueTableConfigResponse> callback) {
+            clientStub.withDeadlineAfter(timeoutMillis, TimeUnit.MILLISECONDS)
+                    .getKeyValueTableConfiguration(kvtInfo, callback);
         }
 
         void deleteKeyValueTable(io.pravega.controller.stream.api.grpc.v1.Controller.KeyValueTableInfo kvtInfo, RPCAsyncCallback<DeleteKVTableStatus> callback) {
