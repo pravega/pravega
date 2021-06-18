@@ -72,22 +72,27 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
      * Creates a new instance of the {@link KeyValueTableImpl} class.
      *
      * @param kvt                 A {@link KeyValueTableInfo} containing information about the Key-Value Table.
-     * @param config              A {@link KeyValueTableConfiguration} representing the config for the Key-Value Table.
      * @param tableSegmentFactory Factory to create {@link TableSegment} instances.
      * @param controller          Controller client.
      * @param executor            An Executor for async operations.
      */
-    KeyValueTableImpl(@NonNull KeyValueTableInfo kvt, @NonNull KeyValueTableConfiguration config,
-                      @NonNull TableSegmentFactory tableSegmentFactory, @NonNull Controller controller, @NonNull Executor executor) {
-        this.config = config;
+    KeyValueTableImpl(@NonNull KeyValueTableInfo kvt, @NonNull TableSegmentFactory tableSegmentFactory,
+                      @NonNull Controller controller, @NonNull Executor executor) {
         this.executor = executor;
         this.selector = new SegmentSelector(kvt, controller, tableSegmentFactory);
+        this.config = getConfig(kvt, controller);
         this.entryHelper = new TableEntryHelper(this.selector, this.config);
         this.logTraceId = String.format("KeyValueTable[%s]", kvt.getScopedName());
         this.closed = new AtomicBoolean(false);
         Preconditions.checkArgument(config.getPartitionCount() == this.selector.getSegmentCount(),
                 "Inconsistent Segment Count. Expected %s, actual %s.", config.getPartitionCount(), this.selector.getSegmentCount());
         log.info("{}: Initialized. Config: {}.", this.logTraceId, this.config);
+    }
+
+    private KeyValueTableConfiguration getConfig(KeyValueTableInfo kvt, Controller controller) {
+        return Futures.getAndHandleExceptions(
+                controller.getKeyValueTableConfiguration(kvt.getScope(), kvt.getKeyValueTableName()),
+                RuntimeException::new);
     }
 
     //endregion
