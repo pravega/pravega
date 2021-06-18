@@ -38,13 +38,11 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class AuthHandlerManager {
-    private final ServerConfig serverConfig;
 
     @GuardedBy("this")
     private final Map<String, AuthHandler> handlerMap;
 
     public AuthHandlerManager(ServerConfig serverConfig) {
-        this.serverConfig = serverConfig;
         this.handlerMap = new HashMap<>();
         if (serverConfig != null && serverConfig.isAuthorizationEnabled()) {
             // Load the AuthHandlers if required.

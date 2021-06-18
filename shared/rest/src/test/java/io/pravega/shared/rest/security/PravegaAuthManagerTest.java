@@ -13,12 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.shared.rest;
+package io.pravega.shared.rest.security;
 
 import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.TestAuthHandler;
+import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.shared.security.auth.Credentials;
 import io.pravega.shared.security.auth.DefaultCredentials;
