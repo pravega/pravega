@@ -26,8 +26,6 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.test.TestingServer;
 import org.junit.rules.ExternalResource;
 
-
-
 @Slf4j
 public class PravegaZkCuratorResource extends ExternalResource {
     public CuratorFramework client;
@@ -67,8 +65,8 @@ public class PravegaZkCuratorResource extends ExternalResource {
     @Override
     @SneakyThrows
     public void after() {
-        client.close();
         storeClient.close();
         zkTestServer.close();
+        client.close();
     }
 }
