@@ -55,7 +55,7 @@ public class KeyValueTableIteratorImplTests extends LeakDetectorTestSuite {
             .primaryKeyLength(8)
             .secondaryKeyLength(4)
             .build();
-    private static final int TOTAL_KEY_LENGTH = DEFAULT_CONFIG.getPrimaryKeyLength() + DEFAULT_CONFIG.getSecondaryKeyLength();
+    private static final int TOTAL_KEY_LENGTH = DEFAULT_CONFIG.getTotalKeyLength();
     private static final KeyValueTableConfiguration NO_SK_CONFIG = KeyValueTableConfiguration.builder()
             .partitionCount(DEFAULT_CONFIG.getPartitionCount())
             .primaryKeyLength(TOTAL_KEY_LENGTH)

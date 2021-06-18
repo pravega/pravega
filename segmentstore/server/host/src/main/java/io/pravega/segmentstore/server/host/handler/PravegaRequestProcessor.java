@@ -842,13 +842,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
     }
 
-    private IteratorArgs getIteratorArgs(ByteBuf token, ByteBuf prefix) {
+    private IteratorArgs getIteratorArgs(ByteBuf fromKey, ByteBuf toKey) {
         val args = IteratorArgs.builder().fetchTimeout(TIMEOUT);
-        if (token != null && !token.equals(EMPTY_BUFFER)) {
-            args.serializedState(new ByteBufWrapper(token));
+        if (fromKey != null && !fromKey.equals(EMPTY_BUFFER)) {
+            args.from(new ByteBufWrapper(fromKey));
         }
-        if (prefix != null && !prefix.equals(EMPTY_BUFFER)) {
-            args.prefixFilter(new ByteBufWrapper(prefix));
+        if (toKey != null && !toKey.equals(EMPTY_BUFFER)) {
+            args.to(new ByteBufWrapper(toKey));
         }
         return args.build();
     }

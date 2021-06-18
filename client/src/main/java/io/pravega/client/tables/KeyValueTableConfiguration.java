@@ -54,6 +54,15 @@ public class KeyValueTableConfiguration implements Serializable {
      */
     private final int secondaryKeyLength;
 
+    /**
+     * The total number of bytes for the key (includes Primary and Secondary).
+     *
+     * @return The total key size, in bytes.
+     */
+    public int getTotalKeyLength() {
+        return this.primaryKeyLength + this.secondaryKeyLength;
+    }
+
     @Override
     public String toString() {
         return String.format("Partitions = %s, KeyLength = %s:%s", this.partitionCount, this.primaryKeyLength, this.secondaryKeyLength);

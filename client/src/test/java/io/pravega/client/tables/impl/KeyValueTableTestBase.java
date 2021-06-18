@@ -548,7 +548,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         val rnd = new Random(0);
 
         @Cleanup
-        val kvt = createKeyValueTable(new KeyValueTableInfo("Scope", "KVT_NoSecondaryKeys"), config);
+        val kvt = createKeyValueTable(new KeyValueTableInfo("Scope", "KVTNoSecondaryKeys"), config);
 
         List<ByteBuffer> keys = IntStream.range(0, entryCount)
                 .mapToObj(i -> {

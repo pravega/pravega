@@ -49,7 +49,7 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
     @Override
     protected KeyValueTable createKeyValueTable(KeyValueTableInfo kvt, KeyValueTableConfiguration config) {
         this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), config);
-        int segmentKeyLength = config.getPrimaryKeyLength() + config.getSecondaryKeyLength();
+        int segmentKeyLength = config.getTotalKeyLength();
         val segmentFactory = new MockTableSegmentFactory(getSegmentCount(), segmentKeyLength, executorService());
         return new KeyValueTableImpl(kvt, segmentFactory, this.controller, executorService());
     }

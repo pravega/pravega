@@ -161,7 +161,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
-        logRequest("createSegment", segmentName, segmentType);
+        logRequest("createSegment", segmentName, segmentType, config);
         return this.segmentContainer.createStreamSegment(segmentName, segmentType, attributeUpdates, timeout);
     }
 

@@ -46,7 +46,7 @@ class TableEntryHelper {
     TableEntryHelper(@NonNull SegmentSelector selector, @NonNull KeyValueTableConfiguration config) {
         this.selector = selector;
         this.config = config;
-        this.totalKeyLength = this.config.getPrimaryKeyLength() + this.config.getSecondaryKeyLength();
+        this.totalKeyLength = this.config.getTotalKeyLength();
     }
 
     TableSegmentKey toTableSegmentKey(TableSegment tableSegment, Remove removal) {

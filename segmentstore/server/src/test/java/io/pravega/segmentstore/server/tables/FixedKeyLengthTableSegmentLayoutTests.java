@@ -20,7 +20,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.contracts.tables.IteratorState;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
 import io.pravega.test.common.AssertExtensions;
@@ -79,8 +79,12 @@ public class FixedKeyLengthTableSegmentLayoutTests extends TableSegmentLayoutTes
     }
 
     @Override
-    protected IteratorState createEmptyIteratorState() {
-        return new FixedKeyLengthTableSegmentLayout.IteratorStateImpl(new ByteArraySegment(BufferViewComparator.getMaxValue(DEFAULT_CONFIG.getKeyLength())));
+    protected IteratorArgs createEmptyIteratorArgs() {
+        return IteratorArgs
+                .builder()
+                .fetchTimeout(TIMEOUT)
+                .from(new ByteArraySegment(BufferViewComparator.getMaxValue(DEFAULT_CONFIG.getKeyLength())))
+                .build();
     }
 
     @Override
