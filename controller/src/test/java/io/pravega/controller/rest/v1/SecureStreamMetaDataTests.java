@@ -72,7 +72,6 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
                                                                       .userPasswordFile(file.getAbsolutePath())
                                                                       .port(1000)
                                                                       .build());
-        ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
         super.setup();
     }
 

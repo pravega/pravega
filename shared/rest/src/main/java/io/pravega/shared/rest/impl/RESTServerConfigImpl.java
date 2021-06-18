@@ -16,6 +16,7 @@
 package io.pravega.shared.rest.impl;
 
 import com.google.common.base.Strings;
+import io.pravega.auth.AuthPluginConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.rest.RESTServerConfig;
 import lombok.Builder;
@@ -86,6 +87,9 @@ public class RESTServerConfigImpl implements RESTServerConfig {
     @Override
     public Properties toAuthHandlerProperties() {
         Properties props = new Properties();
+        if (this.userPasswordFile != null) {
+            props.setProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE, this.userPasswordFile);
+        }
         return props;
     }
 }

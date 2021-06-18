@@ -18,6 +18,7 @@ package io.pravega.shared.rest;
 import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TestAuthHandler;
 import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.shared.security.auth.Credentials;
 import io.pravega.shared.security.auth.DefaultCredentials;
@@ -77,9 +78,11 @@ public class PravegaAuthManagerTest {
                     .authorizationEnabled(true)
                     .userPasswordFile(PWD_AUTH_HANDLER_FILE.getAbsolutePath())
                     .port(1000)
+                    .host("localhost")
                     .build();
 
             AUTH_HANDLER_MANAGER = new AuthHandlerManager(config);
+            AUTH_HANDLER_MANAGER.registerHandler(new TestAuthHandler());
         } catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {
             throw new RuntimeException(e);
         }

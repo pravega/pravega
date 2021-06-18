@@ -189,6 +189,7 @@ def withoutJaxbAndJjwt = { exclude group: 'javax.xml.bind', module: 'jaxb-api'
 project('shared:authplugin') {
     dependencies {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        testCompile project(":shared:security")
     }
 
     tasks.withType(JavaCompile) {
@@ -320,6 +321,7 @@ project ('shared:rest') {
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         testCompile project(':test:testcommon')
+        testCompile project(":shared:authplugin").sourceSets.test.output
         testCompile "io.grpc:grpc-netty:" + grpcVersion
     }
 }
@@ -770,6 +772,7 @@ project('controller') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
         testCompile project(':shared:basic-authplugin')
+        testCompile project(":shared:authplugin").sourceSets.test.output
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         // since Java 10 JAXB is not more bundled with the JRE

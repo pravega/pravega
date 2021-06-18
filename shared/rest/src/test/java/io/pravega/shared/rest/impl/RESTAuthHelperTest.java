@@ -17,7 +17,7 @@ package io.pravega.shared.rest.impl;
 
 import io.pravega.auth.AuthException;
 import io.pravega.shared.rest.RESTServerConfig;
-import io.pravega.shared.rest.mocks.FakeAuthHandler;
+import io.pravega.auth.FakeAuthHandler;
 import io.pravega.shared.rest.security.RESTAuthHelper;
 import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.security.auth.UserPrincipal;

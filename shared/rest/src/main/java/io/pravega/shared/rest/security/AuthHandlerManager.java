@@ -102,7 +102,7 @@ public class AuthHandlerManager {
             Preconditions.checkNotNull( handler, "Can not find handler.");
             Principal principal;
             if ((principal = handler.authenticate(token)) == null) {
-                throw new AuthenticationException("Authentication failure");
+                throw new AuthenticationException("Authentication failure (NULL principle)");
             }
             retVal = handler.authorize(resource, principal).ordinal() >= level.ordinal();
         } catch (AuthException e) {

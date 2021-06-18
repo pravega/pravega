@@ -13,9 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.shared.rest.mocks;
+package io.pravega.auth;
 
-import io.pravega.auth.AuthHandler;
 import io.pravega.shared.security.auth.UserPrincipal;
 
 import java.security.Principal;
@@ -37,7 +36,7 @@ public class FakeAuthHandler implements AuthHandler {
 
     @Override
     public Permissions authorize(String resource, Principal principal) {
-        if (principal.getName().equals(PRIVILEGED_USER)) {
+        if (principal.getName().contains(PRIVILEGED_USER)) {
             return Permissions.READ_UPDATE;
         } else {
             return Permissions.NONE;

@@ -13,9 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.auth;
+package io.pravega.auth;
 
-import io.pravega.auth.AuthHandler;
 import io.pravega.shared.security.auth.UserPrincipal;
 
 import java.security.Principal;
