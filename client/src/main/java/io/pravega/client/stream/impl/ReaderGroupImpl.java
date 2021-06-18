@@ -216,7 +216,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         log.info("Reset ReaderGroup {} to {}", getGroupName(), config);
         synchronizer.fetchUpdates();
         while (true) {
-            val currentConfig = synchronizer.getState().getConfig();
+            ReaderGroupConfig currentConfig = synchronizer.getState().getConfig();
             // We only move into the block if the state transition has happened successfully.
             if (stateTransition(currentConfig, new UpdatingConfig(true))) {
                 if (currentConfig.getReaderGroupId() == ReaderGroupConfig.DEFAULT_UUID
