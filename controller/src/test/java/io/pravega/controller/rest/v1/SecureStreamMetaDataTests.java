@@ -15,7 +15,6 @@
  */
 package io.pravega.controller.rest.v1;
 
-import io.grpc.ServerBuilder;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
