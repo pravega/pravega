@@ -758,6 +758,40 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testGetKeyValueTableConfiguration() {
+        KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
+        when(this.mockControllerService.getKeyValueTableConfiguration(any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.KeyValueTableConfigResponse.newBuilder()
+                        .setStatus(Controller.KeyValueTableConfigResponse.Status.SUCCESS)
+                        .setConfig(ModelHelper.decode("scope", "kvtable1", config)).build()));
+        KeyValueTableConfiguration responseConfig = this.testController.getKeyValueTableConfiguration("scope", "kvtable1").join();
+        assertEquals(config.getPartitionCount(), responseConfig.getPartitionCount());
+        assertEquals(config.getPrimaryKeyLength(), responseConfig.getPrimaryKeyLength());
+        assertEquals(config.getSecondaryKeyLength(), responseConfig.getSecondaryKeyLength());
+
+        when(this.mockControllerService.getKeyValueTableConfiguration(any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.KeyValueTableConfigResponse.newBuilder()
+                        .setStatus(Controller.KeyValueTableConfigResponse.Status.FAILURE).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.getKeyValueTableConfiguration("scope", "kvtable2").join(),
+                ex -> ex instanceof ControllerFailureException);
+
+        when(this.mockControllerService.getKeyValueTableConfiguration(any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.KeyValueTableConfigResponse.newBuilder()
+                        .setStatus(Controller.KeyValueTableConfigResponse.Status.TABLE_NOT_FOUND).build()));
+        assertThrows("Expected IllegalArgumentException",
+                () -> this.testController.getKeyValueTableConfiguration("scope", "kvtable3").join(),
+                ex -> ex instanceof IllegalArgumentException);
+
+        when(this.mockControllerService.getKeyValueTableConfiguration(any(), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(Controller.KeyValueTableConfigResponse.newBuilder()
+                        .setStatusValue(-1).build()));
+        assertThrows("Expected ControllerFailureException",
+                () -> this.testController.getKeyValueTableConfiguration("scope", "kvtable4").join(),
+                ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
     public void testDeleteKeyValueTable() throws ExecutionException, InterruptedException {
         when(this.mockControllerService.deleteKeyValueTable(any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.DeleteKVTableStatus.newBuilder()

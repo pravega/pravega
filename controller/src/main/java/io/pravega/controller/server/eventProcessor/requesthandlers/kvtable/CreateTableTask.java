@@ -63,13 +63,15 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
         String scope = request.getScopeName();
         String kvt = request.getKvtName();
         int partitionCount = request.getPartitionCount();
+        int primaryKeyLength = request.getPrimaryKeyLength();
+        int secondaryKeyLength = request.getSecondaryKeyLength();
         long creationTime = request.getTimestamp();
         long requestId = request.getRequestId();
         String kvTableId = request.getTableId().toString();
         KeyValueTableConfiguration config = KeyValueTableConfiguration.builder()
                                             .partitionCount(partitionCount)
-                                            .primaryKeyLength(4) // TODO fix this with https://github.com/pravega/pravega/issues/5939
-                                            .secondaryKeyLength(4) // TODO fix this with https://github.com/pravega/pravega/issues/5939
+                                            .primaryKeyLength(primaryKeyLength)
+                                            .secondaryKeyLength(secondaryKeyLength)
                                             .build();
 
         final OperationContext context = kvtMetadataStore.createContext(scope, kvt, requestId);
@@ -88,11 +90,12 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                                     response.getStatus().equals(CreateKVTableResponse.CreateStatus.EXISTS_CREATING)) {
                                 final int startingSegmentNumber = response.getStartingSegmentNumber();
                                 final int minNumSegments = response.getConfiguration().getPartitionCount();
+                                final int keyLength = response.getConfiguration().getPrimaryKeyLength() + response.getConfiguration().getSecondaryKeyLength();
                                 List<Long> newSegments = IntStream.range(startingSegmentNumber, startingSegmentNumber + minNumSegments)
                                         .boxed()
                                         .map(x -> NameUtils.computeSegmentId(x, 0))
                                         .collect(Collectors.toList());
-                                kvtMetadataTasks.createNewSegments(scope, kvt, newSegments, requestId)
+                                kvtMetadataTasks.createNewSegments(scope, kvt, newSegments, keyLength, requestId)
                                         .thenCompose(y -> {
                                             kvtMetadataStore.getVersionedState(scope, kvt, context, executor)
                                                     .thenCompose(state -> {

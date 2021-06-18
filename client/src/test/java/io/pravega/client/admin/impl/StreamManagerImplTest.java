@@ -444,6 +444,15 @@ public class StreamManagerImplTest {
                 return null;
             }
         }).when(connection).send(Mockito.any(WireCommands.CreateSegment.class));
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.CreateTableSegment request = (WireCommands.CreateTableSegment) invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                        .process(new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
+                return null;
+            }
+        }).when(connection).send(Mockito.any(WireCommands.CreateTableSegment.class));
 
         Mockito.doAnswer(new Answer<Void>() {
             @Override

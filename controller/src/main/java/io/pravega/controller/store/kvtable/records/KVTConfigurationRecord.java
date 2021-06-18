@@ -81,8 +81,8 @@ public class KVTConfigurationRecord {
                                       .kvtName(revisionDataInput.readUTF());
             KeyValueTableConfiguration config = KeyValueTableConfiguration.builder()
                     .partitionCount(revisionDataInput.readInt())
-                    .primaryKeyLength(4) // TODO fix this with https://github.com/pravega/pravega/issues/5939
-                    .secondaryKeyLength(4) // TODO fix this with https://github.com/pravega/pravega/issues/5939
+                    .primaryKeyLength(revisionDataInput.readInt())
+                    .secondaryKeyLength(revisionDataInput.readInt())
                     .build();
             configurationRecordBuilder.kvtConfiguration(config);
 
@@ -93,6 +93,8 @@ public class KVTConfigurationRecord {
             revisionDataOutput.writeUTF(kvtConfigurationRecord.getScope());
             revisionDataOutput.writeUTF(kvtConfigurationRecord.getKvtName());
             revisionDataOutput.writeInt(kvtConfigurationRecord.getKvtConfiguration().getPartitionCount());
+            revisionDataOutput.writeInt(kvtConfigurationRecord.getKvtConfiguration().getPrimaryKeyLength());
+            revisionDataOutput.writeInt(kvtConfigurationRecord.getKvtConfiguration().getSecondaryKeyLength());
         }
 
 

@@ -138,7 +138,8 @@ public class TableMetadataTasks implements AutoCloseable {
                                            UUID id = kvtMetadataStore.newScope(scope).newId();
 
                                            CreateTableEvent event = new CreateTableEvent(scope, kvtName, kvtConfig.getPartitionCount(),
-                                                        createTimestamp, requestId, id);
+                                                   kvtConfig.getPrimaryKeyLength(), kvtConfig.getSecondaryKeyLength(),
+                                                   createTimestamp, requestId, id);
                                            //4. Update ScopeTable with the entry for this KVT and Publish the event for creation
                                            return eventHelper.addIndexAndSubmitTask(event,
                                                    () -> kvtMetadataStore.createEntryForKVTable(scope, kvtName, id,
@@ -264,19 +265,20 @@ public class TableMetadataTasks implements AutoCloseable {
     }
 
     public CompletableFuture<Void> createNewSegments(String scope, String kvt,
-                                                      List<Long> segmentIds, long requestId) {
+                                                      List<Long> segmentIds, int keyLength, long requestId) {
         return Futures.toVoid(Futures.allOfWithResults(segmentIds
                 .stream()
                 .parallel()
-                .map(segment -> createNewSegment(scope, kvt, segment, retrieveDelegationToken(), requestId))
+                .map(segment -> createNewSegment(scope, kvt, segment, keyLength, retrieveDelegationToken(), requestId))
                 .collect(Collectors.toList())));
     }
 
-    private CompletableFuture<Void> createNewSegment(String scope, String kvt, long segmentId, String controllerToken,
+    private CompletableFuture<Void> createNewSegment(String scope, String kvt, long segmentId, int keyLength, String controllerToken,
                                                      long requestId) {
         final String qualifiedTableSegmentName = getQualifiedTableSegmentName(scope, kvt, segmentId);
         log.debug("Creating segment {}", qualifiedTableSegmentName);
-        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(qualifiedTableSegmentName, controllerToken, requestId, false, 0), executor));
+        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(qualifiedTableSegmentName, controllerToken,
+                requestId, false, keyLength), executor));
     }
 
     @Override
