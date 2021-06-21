@@ -337,6 +337,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull DirectSegmentAccess segment,
                                                                               @NonNull GetIteratorItem<T> getItems,
                                                                               @NonNull IteratorArgs args) {
+        Preconditions.checkArgument(args.getContinuationToken() == null, "ContinuationToken not supported for FixedKeyLengthTableSegments.");
         val segmentKeyLength = getSegmentKeyLength(segment.getInfo());
         val fromId = args.getFrom() == null
                 ? AttributeId.Variable.minValue(segmentKeyLength)

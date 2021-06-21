@@ -29,12 +29,18 @@ import lombok.NonNull;
 @Builder
 public class IteratorArgs {
     /**
-     * (Optional) Where the iterator should start at.
+     * (Optional) A token that indicates the current state of the iterator. This is used for Hash Table Segments.
+     */
+    private final BufferView continuationToken;
+    /**
+     * (Optional) Where the iterator should start at. This is used in conjunction with {@link #getTo()} for
+     * Fixed-Key-Length Table Segments.
      */
     private final BufferView from;
 
     /**
-     * (Optional) Where the iterator should end at.
+     * (Optional) Where the iterator should end at. This is used in conjunction with {@link #getTo()} for
+     * Fixed-Key-Length Table Segments.
      */
     private final BufferView to;
     /**

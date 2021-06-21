@@ -15,6 +15,7 @@
  */
 package io.pravega.client.tables;
 
+import com.google.common.annotations.Beta;
 import io.pravega.common.util.AsyncIterator;
 import java.util.List;
 import lombok.Data;
@@ -25,6 +26,7 @@ import lombok.Data;
  * @param <T> Iterator Item type.
  */
 @Data
+@Beta
 public class IteratorItem<T> {
     /**
      * A List of items that are contained in this instance.

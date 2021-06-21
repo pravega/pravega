@@ -15,6 +15,7 @@
  */
 package io.pravega.client.tables;
 
+import com.google.common.annotations.Beta;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import io.pravega.common.util.AsyncIterator;
 import java.nio.ByteBuffer;
@@ -26,6 +27,7 @@ import lombok.NonNull;
  *
  * See {@link Builder} for configuring, and {@link #keys()} and {@link #entries()} for running.
  */
+@Beta
 public interface KeyValueTableIterator {
     /**
      * Creates a new Iterator for {@link TableKey}s in the associated {@link KeyValueTable}. This is preferred to

@@ -567,8 +567,9 @@ public class SegmentHelper implements AutoCloseable {
 
         final HashTableIteratorItem.State token = (state == null) ? HashTableIteratorItem.State.EMPTY : state;
 
+        WireCommands.TableIteratorArgs args = new WireCommands.TableIteratorArgs(token.getToken(), Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
         WireCommands.ReadTableKeys request = new WireCommands.ReadTableKeys(requestId, tableName, delegationToken,
-                suggestedKeyCount, token.getToken(), Unpooled.EMPTY_BUFFER);
+                suggestedKeyCount, args);
         return sendRequest(connection, clientRequestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableKeys.class, type);
@@ -614,8 +615,9 @@ public class SegmentHelper implements AutoCloseable {
 
         final HashTableIteratorItem.State token = (state == null) ? HashTableIteratorItem.State.EMPTY : state;
 
+        WireCommands.TableIteratorArgs args = new WireCommands.TableIteratorArgs(token.getToken(), Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
         WireCommands.ReadTableEntries request = new WireCommands.ReadTableEntries(requestId, tableName, delegationToken,
-                suggestedEntryCount, token.getToken(), Unpooled.EMPTY_BUFFER);
+                suggestedEntryCount, args);
         return sendRequest(connection, clientRequestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableEntries.class, type);

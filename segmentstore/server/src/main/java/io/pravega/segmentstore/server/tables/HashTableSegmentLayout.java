@@ -225,9 +225,9 @@ class HashTableSegmentLayout extends TableSegmentLayout {
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
                                                                               @NonNull GetBucketReader<T> createBucketReader) {
-        Preconditions.checkArgument(args.getTo() == null, "getToKey() not supported for HashTableSegments.");
+        Preconditions.checkArgument(args.getFrom() == null && args.getTo() == null, "Range Iterators not supported for HashTableSegments.");
         UUID fromHash;
-        BufferView serializedState = args.getFrom();
+        BufferView serializedState = args.getContinuationToken();
         try {
             fromHash = KeyHasher.getNextHash(serializedState == null ? null : IteratorStateImpl.deserialize(serializedState).getKeyHash());
         } catch (IOException ex) {

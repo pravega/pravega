@@ -231,8 +231,8 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         @Cleanup
         val context = new TestContext();
         testIterator(context.segment::keyIterator,
-                () -> ((WireCommands.ReadTableKeys) context.getConnection().getLastSentWireCommand()).getFromKey(),
-                () -> ((WireCommands.ReadTableKeys) context.getConnection().getLastSentWireCommand()).getToKey(),
+                () -> ((WireCommands.ReadTableKeys) context.getConnection().getLastSentWireCommand()).getArgs().getFromKey(),
+                () -> ((WireCommands.ReadTableKeys) context.getConnection().getLastSentWireCommand()).getArgs().getToKey(),
                 TableSegmentEntry::getKey,
                 expectedResult -> {
                     val replyKeys = toWireKeys(expectedResult);
@@ -251,8 +251,8 @@ public class TableSegmentImplTest extends ThreadPooledTestSuite {
         @Cleanup
         val context = new TestContext();
         testIterator(context.segment::entryIterator,
-                () -> ((WireCommands.ReadTableEntries) context.getConnection().getLastSentWireCommand()).getFromKey(),
-                () -> ((WireCommands.ReadTableEntries) context.getConnection().getLastSentWireCommand()).getToKey(),
+                () -> ((WireCommands.ReadTableEntries) context.getConnection().getLastSentWireCommand()).getArgs().getFromKey(),
+                () -> ((WireCommands.ReadTableEntries) context.getConnection().getLastSentWireCommand()).getArgs().getToKey(),
                 e -> e,
                 expectedResult -> {
                     val replyEntries = toWireEntries(expectedResult, null);

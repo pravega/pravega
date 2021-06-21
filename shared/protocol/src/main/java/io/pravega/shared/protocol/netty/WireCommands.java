@@ -61,7 +61,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 11;
+    public static final int WIRE_VERSION = 12;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -1975,11 +1975,8 @@ public final class WireCommands {
         @ToString.Exclude
         final String delegationToken;
         final int suggestedKeyCount;
-        /**
-         * See {@link ReadTableEntries#fromKey}.
-         */
-        final ByteBuf fromKey;
-        final ByteBuf toKey;
+        final TableIteratorArgs args;
+
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1992,7 +1989,52 @@ public final class WireCommands {
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeInt(suggestedKeyCount);
-            out.writeInt(fromKey.readableBytes()); // continuation token length.
+            args.writeFields(out);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            int suggestedKeyCount = in.readInt();
+            TableIteratorArgs args = new TableIteratorArgs(in);
+            return new ReadTableKeys(requestId, segment, delegationToken, suggestedKeyCount, args);
+        }
+    }
+
+    @RequiredArgsConstructor
+    @Getter
+    @EqualsAndHashCode
+    public static final class TableIteratorArgs {
+        final ByteBuf continuationToken; // Used to indicate the point from which the next entry should be fetched.
+        final ByteBuf prefixFilter;      // (Deprecated as of 0.10) Used to indicate any prefix filters to apply to keys.
+        final ByteBuf fromKey;           // Lower bound of the iteration.
+        final ByteBuf toKey;             // Upper bound of the iteration.
+
+        TableIteratorArgs(ByteBufInputStream in) throws IOException {
+            this(readBuffer(in), readBuffer(in), readBuffer(in), readBuffer(in));
+        }
+
+        private static ByteBuf readBuffer(ByteBufInputStream in) throws IOException {
+            int dataLength = in.available() >= Integer.BYTES ? in.readInt() : 0;
+            byte[] data = new byte[dataLength];
+            if (dataLength > 0) {
+                in.readFully(data);
+            }
+            return wrappedBuffer(data);
+        }
+
+        void writeFields(DataOutput out) throws IOException {
+            out.writeInt(continuationToken.readableBytes()); // continuation token length.
+            if (continuationToken.readableBytes() != 0) {
+                continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
+            }
+
+            // Prefix Filter has been removed as of 0.10. For backwards compatibility, encoding a length of 0 here.
+            out.writeInt(0);
+
+            // FromKey/ToKey introduced in 0.10.
+            out.writeInt(fromKey.readableBytes());
             if (fromKey.readableBytes() != 0) {
                 fromKey.getBytes(fromKey.readerIndex(), (OutputStream) out, fromKey.readableBytes());
             }
@@ -2001,26 +2043,6 @@ public final class WireCommands {
             if (toKey.readableBytes() != 0) {
                 toKey.getBytes(toKey.readerIndex(), (OutputStream) out, toKey.readableBytes());
             }
-        }
-
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            String delegationToken = in.readUTF();
-            int suggestedKeyCount = in.readInt();
-            int dataLength = in.readInt();
-
-            byte[] continuationToken = new byte[dataLength];
-            in.readFully(continuationToken);
-
-            int prefixFilterLength = in.available() >= Integer.BYTES ? in.readInt() : 0;
-            byte[] prefixFilter = new byte[prefixFilterLength];
-            if (prefixFilterLength > 0) {
-                in.readFully(prefixFilter);
-            }
-
-            return new ReadTableKeys(requestId, segment, delegationToken, suggestedKeyCount, wrappedBuffer(continuationToken),
-                    wrappedBuffer(prefixFilter));
         }
     }
 
@@ -2085,16 +2107,7 @@ public final class WireCommands {
         @ToString.Exclude
         final String delegationToken;
         final int suggestedEntryCount;
-        /**
-         * Depending on Table Segment Type, {@link #fromKey} and {@link #toKey} have different meanings.
-         * - For Hash Table Segments, {@link #fromKey} is a continuation token generated on the server, while {@link #toKey} is not used.
-         * - For Fixed-Key-Length Table Segments, {@link #fromKey} and {@link #toKey} are used to indicate the bounds of the iteration.
-         *
-         * It is highly recommended to use the Client's TableSegmentImpl API which correctly encodes this in the requests
-         * it makes vs creating ad-hoc requests.
-         */
-        final ByteBuf fromKey;
-        final ByteBuf toKey;
+        final TableIteratorArgs args;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -2107,14 +2120,7 @@ public final class WireCommands {
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeInt(suggestedEntryCount);
-            out.writeInt(fromKey.readableBytes()); // continuation token length.
-            if (fromKey.readableBytes() != 0) {
-                fromKey.getBytes(fromKey.readerIndex(), (OutputStream) out, fromKey.readableBytes());
-            }
-            out.writeInt(toKey.readableBytes());
-            if (toKey.readableBytes() != 0) {
-                toKey.getBytes(toKey.readerIndex(), (OutputStream) out, toKey.readableBytes());
-            }
+            args.writeFields(out);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -2122,19 +2128,8 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             int suggestedEntryCount = in.readInt();
-            int dataLength = in.readInt();
-
-            byte[] continuationToken = new byte[dataLength];
-            in.readFully(continuationToken);
-
-            int prefixFilterLength = in.available() >= Integer.BYTES ? in.readInt() : 0;
-            byte[] prefixFilter = new byte[prefixFilterLength];
-            if (prefixFilterLength > 0) {
-                in.readFully(prefixFilter);
-            }
-
-            return new ReadTableEntries(requestId, segment, delegationToken, suggestedEntryCount, wrappedBuffer(continuationToken),
-                    wrappedBuffer(prefixFilter));
+            TableIteratorArgs args = new TableIteratorArgs(in);
+            return new ReadTableEntries(requestId, segment, delegationToken, suggestedEntryCount, args);
         }
     }
 

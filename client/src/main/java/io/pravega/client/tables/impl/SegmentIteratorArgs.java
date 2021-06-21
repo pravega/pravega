@@ -66,13 +66,12 @@ class SegmentIteratorArgs {
         int index = result.length - 1;
         ByteBuf resultBuf = null;
         while (index >= 0) {
-            int v = result[index] & 0xFF;
-            if (v >= 0xFF) {
-                // Carryover.
-                result[index] = 0;
-            } else {
+            // Increment by 1, then take the last 8 bits. If we overflowed, then we have a carryover and need to iterate
+            // again, otherwise we found a proper value and we can return it.
+            int v = (result[index] + 1) & 0xFF;
+            result[index] = (byte) v;
+            if (v != 0) {
                 // Found one.
-                result[index] = (byte) (v + 1);
                 resultBuf = Unpooled.wrappedBuffer(result);
                 break;
             }

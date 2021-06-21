@@ -17,6 +17,7 @@ package io.pravega.client.tables.impl;
 
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
@@ -217,7 +218,7 @@ class TableSegmentImpl implements TableSegment {
             Class<ReplyT> replyClass, Function<ReplyT, List<ItemT>> getResult) {
         return this.readContext.execute((state, requestId) -> {
             val request = newIteratorRequest.apply(requestId, this.segmentName, state.getToken(), args.getMaxItemsAtOnce(),
-                    args.getFromKey(), args.getToKey());
+                    new WireCommands.TableIteratorArgs(Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, args.getFromKey(), args.getToKey()));
             return sendRequest(request, state, replyClass)
                     .thenApply(reply -> {
                         val items = getResult.apply(reply);
@@ -233,7 +234,7 @@ class TableSegmentImpl implements TableSegment {
 
     @FunctionalInterface
     private interface CreateIteratorRequest<V extends Request & WireCommand> {
-        V apply(long requestId, String segmentName, String delegationToken, int maxEntriesAtOnce, ByteBuf stateToken, ByteBuf prefixFilter);
+        V apply(long requestId, String segmentName, String delegationToken, int maxEntriesAtOnce, WireCommands.TableIteratorArgs args);
     }
 
     //endregion

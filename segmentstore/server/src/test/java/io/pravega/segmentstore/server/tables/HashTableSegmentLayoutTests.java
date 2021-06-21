@@ -90,7 +90,7 @@ public class HashTableSegmentLayoutTests extends TableSegmentLayoutTestBase {
         return IteratorArgs
                 .builder()
                 .fetchTimeout(TIMEOUT)
-                .from(new HashTableSegmentLayout.IteratorStateImpl(KeyHasher.MAX_HASH).serialize())
+                .continuationToken(new HashTableSegmentLayout.IteratorStateImpl(KeyHasher.MAX_HASH).serialize())
                 .build();
     }
 
