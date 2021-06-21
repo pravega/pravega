@@ -38,7 +38,7 @@ public class PravegaZkCuratorResource extends ExternalResource {
     public int connectionTimeoutMs;
 
     public PravegaZkCuratorResource() {
-       new PravegaZkCuratorResource(new ExponentialBackoffRetry(200, 10, 5000));
+       this(new ExponentialBackoffRetry(200, 10, 5000));
     }
 
     public PravegaZkCuratorResource(RetryPolicy retryPolicy) {
