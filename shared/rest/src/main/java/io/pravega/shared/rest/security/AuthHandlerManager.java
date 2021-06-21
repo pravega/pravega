@@ -42,10 +42,16 @@ public class AuthHandlerManager {
     @GuardedBy("this")
     private final Map<String, AuthHandler> handlerMap;
 
+    /**
+     * If the {@link ServiceLoader} fails to load a {@link AuthHandler} class, any future authorization/authentication
+     * attempts that rely on that {@link AuthHandler} being registered will fail with an {@link AuthenticationException}.
+     * This maintains the previous behavior where the initialization was done via an explicit method call outside of the constructor.
+     *
+     * @param serverConfig The {@link ServerConfig} config object.
+     */
     public AuthHandlerManager(ServerConfig serverConfig) {
         this.handlerMap = new HashMap<>();
         if (serverConfig != null && serverConfig.isAuthorizationEnabled()) {
-            // Load the AuthHandlers if required.
             try {
                 ServiceLoader<AuthHandler> loader = ServiceLoader.load(AuthHandler.class);
                 for (AuthHandler handler : loader) {
