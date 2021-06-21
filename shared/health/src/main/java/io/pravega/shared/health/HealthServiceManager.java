@@ -13,15 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.shared.health.impl;
+package io.pravega.shared.health;
 
-import io.pravega.shared.health.Health;
-import io.pravega.shared.health.Status;
-import io.pravega.shared.health.HealthContributor;
-import io.pravega.shared.health.HealthServiceUpdater;
-import io.pravega.shared.health.HealthEndpoint;
-import io.pravega.shared.health.HealthService;
-import io.pravega.shared.health.StatusAggregator;
+import com.google.common.annotations.VisibleForTesting;
+import io.pravega.shared.health.impl.AbstractHealthContributor;
+import io.pravega.shared.health.impl.HealthEndpointImpl;
+import io.pravega.shared.health.impl.HealthServiceUpdaterImpl;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -29,14 +26,16 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
-public class HealthServiceImpl implements HealthService {
+public class HealthServiceManager implements AutoCloseable {
 
     /**
      * The root {@link HealthContributor} of the service. All {@link HealthContributor} objects are reachable from this
      * contributor.
      */
     @Getter
+    @VisibleForTesting
     private final HealthContributor root;
+
     /**
      * The {@link HealthServiceUpdater} which provides passive health updates.
      */
@@ -49,21 +48,25 @@ public class HealthServiceImpl implements HealthService {
 
     private final HealthEndpoint endpoint;
 
-    public HealthServiceImpl(Duration interval) {
+    public HealthServiceManager(Duration interval) {
         this.root = new RootHealthContributor();
-        // Initializes the ContributorRegistry into the expected starting state.
         this.closed = new AtomicBoolean();
         this.updater = new HealthServiceUpdaterImpl(this.root, interval);
         this.endpoint = new HealthEndpointImpl(this.root, this.updater);
     }
 
-    @Override
+    /**
+     * The main interface between some client and the {@link HealthServiceManager}. The {@link HealthEndpoint} encapsulates
+     * the various types of requests the {@link HealthServiceManager} will be able to fulfill.
+     *
+     * @return The {@link HealthEndpoint} instance.
+     */
     public HealthEndpoint getEndpoint() {
         return this.endpoint;
     }
 
-    @Override
-    public HealthServiceUpdater getHealthServiceUpdater() {
+    @VisibleForTesting
+    HealthServiceUpdater getHealthServiceUpdater() {
         return updater;
     }
 
@@ -75,14 +78,14 @@ public class HealthServiceImpl implements HealthService {
         }
     }
 
-    private class RootHealthContributor extends AbstractHealthContributor {
+    private static class RootHealthContributor extends AbstractHealthContributor {
 
         RootHealthContributor() {
             super("", StatusAggregator.UNANIMOUS);
         }
 
         @Override
-        public Status doHealthCheck(Health.HealthBuilder builder) throws Exception {
+        public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.UP;
             builder.status(status);
             return status;

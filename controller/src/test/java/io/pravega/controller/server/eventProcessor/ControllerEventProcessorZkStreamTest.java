@@ -24,6 +24,6 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 public class ControllerEventProcessorZkStreamTest extends ControllerEventProcessorTest {
     @Override
     StreamMetadataStore createStore() {
-        return StreamStoreFactory.createZKStore(zkClient, executor);
+        return StreamStoreFactory.createZKStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
     }
 }

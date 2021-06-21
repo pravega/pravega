@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class HealthServiceUpdaterImpl extends AbstractScheduledService implements HealthServiceUpdater {
 
     /**
-     * The {@link Health} the daemon should report in the case it has not started querying the {@link HealthService}.
+     * The {@link Health} the daemon should report in the case it has not started querying the {@link io.pravega.shared.health.HealthServiceManager}.
      */
     private static final Health INITIAL_HEALTH = Health.builder().build();
 
@@ -46,7 +46,7 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
     private final AtomicReference<Health> latest = new AtomicReference<Health>(INITIAL_HEALTH);
 
     /**
-     * The {@link HealthService} associated with this {@link HealthServiceUpdater}.
+     * The {@link io.pravega.shared.health.HealthServiceManager} associated with this {@link HealthServiceUpdater}.
      */
     private final HealthContributor root;
 
@@ -103,7 +103,7 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
     }
 
     /**
-     * A {@link HealthServiceUpdater} is only reachable though a {@link HealthService}.
+     * A {@link HealthServiceUpdater} is only reachable though a {@link io.pravega.shared.health.HealthServiceManager}.
      */
     @Override
     public void close() {

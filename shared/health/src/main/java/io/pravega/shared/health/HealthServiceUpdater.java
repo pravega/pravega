@@ -20,7 +20,7 @@ import com.google.common.util.concurrent.Service;
 import java.time.Duration;
 
 /**
- * The {@link HealthServiceUpdater} is responsible for regularly updating the {@link Health} of the {@link HealthService}.
+ * The {@link HealthServiceUpdater} is responsible for regularly updating the {@link Health} of the {@link HealthServiceManager}.
  * This is useful in cases where health information is not regularly queried by some client. In the event of a crash or failure,
  * (should we want to provide this information) it allows us to place an upper bound on how stale this {@link Health}
  * information may be.

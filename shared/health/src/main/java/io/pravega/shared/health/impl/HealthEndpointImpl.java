@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Provides a simpler interface for retrieving {@link Health} information from the {@link io.pravega.shared.health.HealthService}.
+ * Provides a simpler interface for retrieving {@link Health} information from the {@link io.pravega.shared.health.HealthServiceManager}.
  * The {@link HealthEndpoint} should be used to serve information about the {@link Health} of a component for external classes.
  */
 @Slf4j
@@ -119,7 +119,7 @@ public class HealthEndpointImpl implements HealthEndpoint {
         return getHealth(id).getDetails();
     }
 
-    // Performs a linear search over the Health tree.
+    // Performs a linear search over the 'health tree'.
     private Health search(List<String> path, Health current) {
         Health child = current;
         for (String id : path) {

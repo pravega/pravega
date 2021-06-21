@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.server.security.auth;
+package io.pravega.shared.rest.security;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -21,7 +21,6 @@ import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.AuthorizationException;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
 
 import javax.ws.rs.core.Response;
 import java.security.Principal;

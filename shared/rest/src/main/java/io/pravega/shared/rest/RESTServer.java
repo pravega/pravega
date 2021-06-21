@@ -13,22 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.server.rest;
+package io.pravega.shared.rest;
 
 import com.google.common.util.concurrent.AbstractIdleService;
-import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.security.JKSHelper;
-import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.eventProcessor.LocalController;
-import io.pravega.controller.server.rest.resources.PingImpl;
-import io.pravega.controller.server.rest.resources.HealthImpl;
-import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
-import io.pravega.shared.health.HealthService;
 import java.net.URI;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
@@ -46,33 +36,21 @@ import org.glassfish.jersey.server.ServerProperties;
 @Slf4j
 public class RESTServer extends AbstractIdleService {
 
-    private static final long MAX_PASSWORD_LENGTH = 4 * 1024 * 1024;
-
     private final String objectId;
     private final RESTServerConfig restServerConfig;
     private final URI baseUri;
     private final ResourceConfig resourceConfig;
     private HttpServer httpServer;
 
-    public RESTServer(LocalController localController,
-                      ControllerService controllerService,
-                      AuthHandlerManager pravegaAuthManager,
-                      RESTServerConfig restServerConfig,
-                      ConnectionFactory connectionFactory,
-                      ClientConfig clientConfig,
-                      HealthService healthService) {
+    public RESTServer(RESTServerConfig restServerConfig,
+                      Set<Object> resources) {
         this.objectId = "RESTServer";
         this.restServerConfig = restServerConfig;
         final String serverURI = "http://" + restServerConfig.getHost();
         this.baseUri = URI.create(serverURI + ":" + restServerConfig.getPort() + "/");
 
-        final Set<Object> resourceObjs = new HashSet<>();
-        resourceObjs.add(new PingImpl());
-        resourceObjs.add(new HealthImpl(pravegaAuthManager, healthService));
-        resourceObjs.add(new StreamMetadataResourceImpl(localController, controllerService, pravegaAuthManager, connectionFactory, clientConfig));
-
-        final ControllerApplication controllerApplication = new ControllerApplication(resourceObjs);
-        this.resourceConfig = ResourceConfig.forApplication(controllerApplication);
+        final RESTApplication application = new RESTApplication(resources);
+        this.resourceConfig = ResourceConfig.forApplication(application);
         this.resourceConfig.property(ServerProperties.BV_SEND_ERROR_IN_RESPONSE, true);
 
         // Register the custom JSON parser.
