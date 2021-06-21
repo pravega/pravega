@@ -29,11 +29,11 @@ import lombok.extern.slf4j.Slf4j;
 public class ZkRequestSweeperTest extends RequestSweeperTest {
     @Override
     StreamMetadataStore getStream() {
-        return StreamStoreFactory.createZKStore(cli, executor);
+        return StreamStoreFactory.createZKStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
     }
 
     @Override
     HostIndex getHostIndex() {
-        return new ZKHostIndex(cli, "/hostRequestIndex", executor);
+        return new ZKHostIndex(PRAVEGA_ZK_CURATOR_RESOURCE.client, "/hostRequestIndex", executor);
     }
 }
