@@ -309,62 +309,76 @@ public class PravegaTablesScope implements Scope {
                                                 tableName, context)));
     }
 
+    /**
+     * Associate the Stream with corresponding Tags.
+     * @param stream Stream to be associated with the tags.
+     * @param tags Stream Tags.
+     * @param context Context.
+     * @return A future which completes once the update is complete.
+     */
     public CompletableFuture<Void> addTagsUnderScope(String stream, Set<String> tags, OperationContext context) {
         return getAllStreamTagsInScopeTableNames(stream, context)
-                .thenCompose(table -> Futures.toVoid(storeHelper.appendValues(table, tags, stream, this::appendValueToEntries,
-                                                                              context.getRequestId())));
+                .thenCompose(table -> Futures.allOf(tags.stream()
+                                                        .parallel()
+                                                        .map(key -> storeHelper.getAndUpdateValues(table, key,
+                                                                                                   e -> appendStreamToEntry(stream, e),
+                                                                                                   e -> false, // no need of cleanup
+                                                                                                   context.getRequestId()))
+                                                        .collect(Collectors.toList())));
     }
 
-    private List<TableSegmentEntry> appendValueToEntries(String appendValue, List<TableSegmentEntry> currentEntries) {
-        return currentEntries.stream()
-                             .map(entry -> {
-                                 String k = entry.getKey().getKey().toString(StandardCharsets.UTF_8);
-                                 byte[] array = storeHelper.getArray(entry.getValue());
-                                 byte[] updatedBytes;
-                                 if (array.length == 0) {
-                                     updatedBytes = TagRecord.builder().tagName(k).stream(appendValue).build().toBytes();
-                                 } else {
-                                     TagRecord record = TagRecord.fromBytes(array);
-                                     updatedBytes = record.toBuilder().stream(appendValue).build().toBytes();
-                                 }
-                                 return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
-                                                                    updatedBytes,
-                                                                    entry.getKey().getVersion().getSegmentVersion());
-                             })
-                             .collect(Collectors.toList());
+    private TableSegmentEntry appendStreamToEntry(String appendValue, TableSegmentEntry entry) {
+        String key = entry.getKey().getKey().toString(StandardCharsets.UTF_8);
+        byte[] array = storeHelper.getArray(entry.getValue());
+        byte[] updatedBytes;
+        if (array.length == 0) {
+            updatedBytes = TagRecord.builder().tagName(key).stream(appendValue).build().toBytes();
+        } else {
+            TagRecord record = TagRecord.fromBytes(array);
+            updatedBytes = record.toBuilder().stream(appendValue).build().toBytes();
+        }
+        return TableSegmentEntry.versioned(key.getBytes(StandardCharsets.UTF_8), updatedBytes,
+                                           entry.getKey().getVersion().getSegmentVersion());
     }
 
+    /**
+     * Remove Tags for the specified Stream.
+     * @param stream Stream for which tags are removed.
+     * @param tags Stream tags.
+     * @param context Context.
+     * @return A future which completes once the update is complete.
+     */
     public CompletableFuture<Void> removeTagsUnderScope(String stream, Set<String> tags, OperationContext context) {
         return getAllStreamTagsInScopeTableNames(stream, context)
-                .thenCompose(table -> storeHelper.removeValues(table, tags, stream, this::removeValueFromEntries,
-                                                               context.getRequestId()));
+                .thenCompose(table -> Futures.allOf(tags.stream()
+                                                        .parallel()
+                                                        .map(key -> storeHelper.getAndUpdateValues(table, key,
+                                                                                                   e -> removeStreamFromEntry(stream, e),
+                                                                                                   this::isEmptyTagRecord,
+                                                                                                   context.getRequestId()))
+                                                        .collect(Collectors.toList())));
     }
 
-    private Pair<List<TableSegmentEntry>, List<Integer>> removeValueFromEntries(String removeValue, List<TableSegmentEntry> currentEntries) {
-        List<Integer> deleteIndex = new ArrayList<>();
-        List<TableSegmentEntry> updatedEntries = IntStream.range(0, currentEntries.size())
-                                                          .mapToObj(index -> {
-                                                              TableSegmentEntry entry = currentEntries.get(index);
-                                                              String k = entry.getKey().getKey().toString(StandardCharsets.UTF_8);
-                                                              byte[] array = storeHelper.getArray(entry.getValue());
-                                                              byte[] updatedBytes;
-                                                              if (array.length == 0) {
-                                                                  updatedBytes = TagRecord.builder().tagName(k).build().toBytes();
-                                                              } else {
-                                                                  TagRecord record = TagRecord.fromBytes(array);
-                                                                  //Remove stream from TagRecord.
-                                                                  TagRecord updatedRecord = record.toBuilder().removeStream(removeValue).build();
-                                                                  // If the TagRecord is empty mark it to be deleted.
-                                                                  if (updatedRecord.getStreams().isEmpty()) {
-                                                                      deleteIndex.add(index);
-                                                                  }
-                                                                  updatedBytes = updatedRecord.toBytes();
-                                                              }
-                                                              return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
-                                                                                                 updatedBytes,
-                                                                                                 entry.getKey().getVersion().getSegmentVersion());
-                                                          }).collect(Collectors.toList());
-        return new ImmutablePair<>(updatedEntries, deleteIndex);
+    private TableSegmentEntry removeStreamFromEntry(String removeValue, TableSegmentEntry currentEntry) {
+        String k = currentEntry.getKey().getKey().toString(StandardCharsets.UTF_8);
+        byte[] array = storeHelper.getArray(currentEntry.getValue());
+        byte[] updatedBytes;
+        if (array.length == 0) {
+            updatedBytes = TagRecord.builder().tagName(k).build().toBytes();
+        } else {
+            TagRecord record = TagRecord.fromBytes(array);
+            //Remove Stream from TagRecord.
+            TagRecord updatedRecord = record.toBuilder().removeStream(removeValue).build();
+            updatedBytes = updatedRecord.toBytes();
+        }
+        return TableSegmentEntry.versioned(k.getBytes(StandardCharsets.UTF_8),
+                                           updatedBytes,
+                                           currentEntry.getKey().getVersion().getSegmentVersion());
+    }
+
+    private boolean isEmptyTagRecord(TableSegmentEntry entry) {
+        byte[] array = storeHelper.getArray(entry.getValue());
+        return array.length != 0 && TagRecord.fromBytes(array).getStreams().isEmpty();
     }
 
     public CompletableFuture<Void> removeStreamFromScope(String stream, OperationContext context) {
