@@ -1,14 +1,21 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.impl;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -18,15 +25,12 @@ import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
-import com.google.common.base.Preconditions;
 import io.pravega.controller.util.Config;
-import io.pravega.shared.health.HealthConfig;
+import java.time.Duration;
+import java.util.Optional;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.ToString;
-
-import java.time.Duration;
-import java.util.Optional;
 
 /**
  * Controller Service Configuration.
@@ -49,10 +53,10 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
 
     private final Optional<RESTServerConfig> restServerConfig;
 
-    private final Optional<HealthConfig> healthConfig;
-    
     private final Duration retentionFrequency;
-    
+    @Getter
+    private final Duration shutdownTimeout;
+
     @Builder
     ControllerServiceConfigImpl(final int threadPoolSize,
                                 final StoreClientConfig storeClientConfig,
@@ -63,8 +67,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                                 final Optional<ControllerEventProcessorConfig> eventProcessorConfig,
                                 final Optional<GRPCServerConfig> grpcServerConfig,
                                 final Optional<RESTServerConfig> restServerConfig,
-                                final Optional<HealthConfig> healthConfig,
-                                final Duration retentionFrequency) {
+                                final Duration retentionFrequency,
+                                final Duration shutdownTimeout) {
         Exceptions.checkArgument(threadPoolSize > 0, "threadPoolSize", "Should be positive integer");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
@@ -86,8 +90,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         this.eventProcessorConfig = eventProcessorConfig;
         this.gRPCServerConfig = grpcServerConfig;
         this.restServerConfig = restServerConfig;
-        this.healthConfig = healthConfig;
         this.retentionFrequency = retentionFrequency == null ? Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES)
                 : retentionFrequency;
+        this.shutdownTimeout = shutdownTimeout == null ? Duration.ofSeconds(10) : shutdownTimeout;
     }
 }

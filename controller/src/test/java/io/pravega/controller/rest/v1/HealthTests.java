@@ -21,14 +21,11 @@ import io.pravega.controller.server.rest.generated.model.HealthResult;
 import io.pravega.controller.server.rest.generated.model.HealthStatus;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.shared.health.Health;
-import io.pravega.shared.health.HealthConfig;
-import io.pravega.shared.health.HealthIndicator;
 import io.pravega.shared.health.HealthService;
 
 import io.pravega.shared.health.HealthServiceFactory;
 import io.pravega.shared.health.Status;
-import io.pravega.shared.health.impl.HealthConfigImpl;
-import io.pravega.shared.health.impl.StatusAggregatorImpl;
+import io.pravega.shared.health.impl.AbstractHealthContributor;
 import io.pravega.test.common.TestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -43,22 +40,11 @@ import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 import static org.mockito.Mockito.mock;
 
-/**
- * The {@link HealthTests} can be divided into two sets: those that test the implicit component (root) that is automatically
- * created alongside the {@link io.pravega.shared.health.ContributorRegistry} and those that test specific (non-root) HealthComponents.
- *
- * Both implicit and explicit requests have the same code path(s) so we can expect results to be similar between each
- * class of tests.
- */
 @Slf4j
 public class HealthTests {
 
@@ -84,15 +70,15 @@ public class HealthTests {
         ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = getServerConfig();
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        healthServiceFactory = new HealthServiceFactory(getHealthConfig());
-        service = healthServiceFactory.createHealthService(true);
+        healthServiceFactory = new HealthServiceFactory();
+        service = healthServiceFactory.createHealthService();
         restServer = new RESTServer(null, mockControllerService, null, serverConfig,
-                connectionFactory, service);
+                connectionFactory,  ClientConfig.builder().build(), service);
         restServer.startAsync();
         restServer.awaitRunning();
         client = createJerseyClient();
         // Must provide a HealthIndicator to the HealthComponent(s) defined by the HealthConfig.
-        service.registry().register(new StaticHealthyIndicator(IMPLICIT_INDICATOR), IMPLICIT_COMPONENT);
+        service.getRoot().register(new StaticHealthyIndicator(IMPLICIT_INDICATOR));
     }
 
     @After
@@ -103,13 +89,6 @@ public class HealthTests {
         restServer.awaitTerminated();
         connectionFactory.close();
         healthServiceFactory.close();
-        // The ROOT component + the component supplied by our HealthConfig (getHealthConfig).
-        Assert.assertEquals(2, service.registry().contributors().size());
-        Assert.assertEquals(2, service.registry().components().size());
-        // Assert that the component does not contain children.
-        Assert.assertEquals("The HealthService should report only one component.",
-                1,
-                service.registry().getRootContributor().contributors().size());
     }
 
     protected Client createJerseyClient() throws Exception {
@@ -118,12 +97,6 @@ public class HealthTests {
 
     RESTServerConfig getServerConfig() throws Exception {
         return RESTServerConfigImpl.builder().host(HOST).port(TestUtils.getAvailableListenPort())
-                .build();
-    }
-
-    HealthConfig getHealthConfig() throws Exception {
-        return HealthConfigImpl.builder()
-                .define("health-component", StatusAggregatorImpl.DEFAULT)
                 .build();
     }
 
@@ -143,8 +116,6 @@ public class HealthTests {
     public void testHealthNoContributors() {
         URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/%s", IMPLICIT_COMPONENT)))
                 .scheme(getURLScheme()).build();
-        // Remove the only contributor of 'IMPLICIT_COMPONENT'.
-        service.registry().unregister(IMPLICIT_INDICATOR);
 
         Response response = client.target(streamResourceURI).request().buildGet().invoke();
         HealthResult healthResult = response.readEntity(HealthResult.class);
@@ -157,14 +128,13 @@ public class HealthTests {
     @Test
     public void testHealth()  {
         // Register the HealthIndicator.
-        service.registry().register(new StaticHealthyIndicator());
+        service.getRoot().register(new StaticHealthyIndicator());
 
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health"))
                 .scheme(getURLScheme()).build();
         Response response = client.target(streamResourceURI).request().buildGet().invoke();
         HealthResult healthResult = response.readEntity(HealthResult.class);
 
-        log.info("{}", healthResult);
         Assert.assertEquals(200, response.getStatus());
         Assert.assertEquals("HealthService should maintain an 'UP' Status.", HealthStatus.UP, healthResult.getStatus());
         // Details not requested, so children will not be populated.
@@ -186,7 +156,7 @@ public class HealthTests {
     public void testContributorHealth() {
         // Register the HealthIndicator.
         StaticHealthyIndicator indicator = new StaticHealthyIndicator();
-        service.registry().register(indicator);
+        service.getRoot().register(indicator);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/%s", indicator.getName())))
                 .scheme(getURLScheme()).build();
@@ -203,7 +173,7 @@ public class HealthTests {
     public void testStatus()  {
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        service.registry().register(healthyIndicator);
+        service.getRoot().register(healthyIndicator);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
@@ -211,35 +181,17 @@ public class HealthTests {
 
         // Adding an unhealthy indicator should change the Status.
         StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
-        service.registry().register(failingIndicator);
+        service.getRoot().register(failingIndicator);
 
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
         assertStatus(streamResourceURI, HealthStatus.DOWN);
 
         // Make sure that even though we have a majority of healthy reports, we still are considered failing.
-        service.registry().register(new StaticHealthyIndicator("sample-healthy-indicator-two"));
+        service.getRoot().register(new StaticHealthyIndicator("sample-healthy-indicator-two"));
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
         assertStatus(streamResourceURI, HealthStatus.DOWN);
-    }
-
-    @Test
-    public void testContributorStatus() {
-        DynamicIndicator dynamicIndicator = new DynamicIndicator(new ArrayList<>(Arrays.asList(
-                builder -> builder.status(Status.UP),
-                builder -> builder.status(Status.DOWN),
-                builder -> builder.status(Status.UNKNOWN)
-        )));
-        service.registry().register(dynamicIndicator);
-        // Target a specific indicator via a PathParam.
-        URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/status/%s", dynamicIndicator.getName())))
-                .scheme(getURLScheme()).build();
-        assertStatus(streamResourceURI, HealthStatus.UP);
-        // Should now return Status.DOWN.
-        assertStatus(streamResourceURI, HealthStatus.DOWN);
-        // No body provided for the third health check call, so it should be in an 'UNKNOWN' Status.
-        assertStatus(streamResourceURI, HealthStatus.UNKNOWN);
     }
 
     // Service Readiness is in essence a proxy for the Status as a HealthComponent does not provide its own
@@ -248,7 +200,7 @@ public class HealthTests {
     public void testReadiness()  {
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        service.registry().register(healthyIndicator);
+        service.getRoot().register(healthyIndicator);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/readiness"))
                 .scheme(getURLScheme()).build();
@@ -256,7 +208,7 @@ public class HealthTests {
 
         // Adding an unhealthy indicator should change the readiness.
         StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
-        service.registry().register(failingIndicator);
+        service.getRoot().register(failingIndicator);
 
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/readiness"))
                 .scheme(getURLScheme()).build();
@@ -264,39 +216,10 @@ public class HealthTests {
     }
 
     @Test
-    public void testContributorReadiness() {
-        DynamicIndicator dynamicIndicator = new DynamicIndicator(new ArrayList<>(Arrays.asList(
-                builder -> {
-                    builder.status(Status.UP);
-                    builder.ready(true);
-                },
-                builder -> {
-                    builder.status(Status.UP);
-                    builder.ready(false);
-                },
-                // Set the Contributor into a logically invalid state ('DOWN') when ready.
-                builder -> {
-                    builder.status(Status.DOWN);
-                    builder.ready(true);
-                }
-        )));
-        service.registry().register(dynamicIndicator);
-        // Target a specific indicator via a PathParam.
-        URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/readiness/%s", dynamicIndicator.getName())))
-                .scheme(getURLScheme()).build();
-        assertAliveOrReady(streamResourceURI, true);
-        // Should now return Status.DOWN.
-        assertAliveOrReady(streamResourceURI, false);
-
-        Response response = client.target(streamResourceURI).request().buildGet().invoke();
-        Assert.assertEquals(500, response.getStatus());
-    }
-
-    @Test
     public void testLiveness()  {
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        service.registry().register(healthyIndicator);
+        service.getRoot().register(healthyIndicator);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/liveness"))
                 .scheme(getURLScheme()).build();
@@ -304,7 +227,7 @@ public class HealthTests {
 
         // Adding an unhealthy indicator should change the readiness.
         StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
-        service.registry().register(failingIndicator);
+        service.getRoot().register(failingIndicator);
 
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/liveness"))
                 .scheme(getURLScheme()).build();
@@ -312,33 +235,10 @@ public class HealthTests {
     }
 
     @Test
-    public void testContributorLiveness() {
-        DynamicIndicator dynamicIndicator = new DynamicIndicator(new ArrayList<>(Arrays.asList(
-                builder -> {
-                    builder.status(Status.UP);
-                    builder.alive(true);
-                },
-                // Set the Contributor into a logically invalid state ('DOWN') when ready.
-                builder -> {
-                    builder.status(Status.DOWN);
-                    builder.alive(true);
-                }
-        )));
-        service.registry().register(dynamicIndicator);
-        // Target a specific indicator via a PathParam.
-        URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/liveness/%s", dynamicIndicator.getName())))
-                .scheme(getURLScheme()).build();
-        assertAliveOrReady(streamResourceURI, true);
-
-        Response response = client.target(streamResourceURI).request().buildGet().invoke();
-        Assert.assertEquals(500, response.getStatus());
-    }
-
-    @Test
     public void testDependencies()  {
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        service.registry().register(healthyIndicator);
+        service.getRoot().register(healthyIndicator);
         HealthDependencies  expected = new HealthDependencies();
         expected.add(IMPLICIT_COMPONENT);
         expected.add(healthyIndicator.getName());
@@ -347,7 +247,7 @@ public class HealthTests {
         assertDependencies(streamResourceURI, expected);
         // Add another HealthIndicator.
         StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
-        service.registry().register(failingIndicator);
+        service.getRoot().register(failingIndicator);
         expected.add(failingIndicator.getName());
         assertDependencies(streamResourceURI, expected);
     }
@@ -356,7 +256,7 @@ public class HealthTests {
     public void testContributorDependencies() {
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        service.registry().register(healthyIndicator);
+        service.getRoot().register(healthyIndicator);
         URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/components/%s", healthyIndicator.getName())))
                 .scheme(getURLScheme()).build();
         // HealthIndicators should not be able to accept other HealthIndicators.
@@ -366,7 +266,7 @@ public class HealthTests {
     @Test
     public void testDetails()  {
         // Register the HealthIndicator.
-        service.registry().register(new StaticHealthyIndicator());
+        service.getRoot().register(new StaticHealthyIndicator());
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/details"))
                 .scheme(getURLScheme()).build();
         Response response = client.target(streamResourceURI).request().buildGet().invoke();
@@ -378,7 +278,7 @@ public class HealthTests {
     public void testContributorDetails() {
         // Register the HealthIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        service.registry().register(healthyIndicator);
+        service.getRoot().register(healthyIndicator);
         URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/details/%s", healthyIndicator.getName())))
                 .scheme(getURLScheme()).build();
         HealthDetails expected = new HealthDetails();
@@ -442,14 +342,7 @@ public class HealthTests {
     }
 
 
-    private HealthResult firstChild(HealthResult result) {
-        if (result.getChildren().isEmpty()) {
-            throw new RuntimeException("HealthResult was expected to contain children.");
-        }
-        return result.getChildren().stream().findFirst().get();
-    }
-
-    private static class StaticHealthyIndicator extends HealthIndicator {
+    private static class StaticHealthyIndicator extends AbstractHealthContributor {
         public static final String DETAILS_KEY = "static-indicator-details-key";
 
         public static final String DETAILS_VAL = "static-indicator-details-value";
@@ -463,30 +356,21 @@ public class HealthTests {
             super(name);
         }
 
-        public void doHealthCheck(Health.HealthBuilder builder) {
-            setDetail(DETAILS_KEY, () -> DETAILS_VAL);
-            builder.status(Status.UP);
-            builder.alive(true);
+        public Status doHealthCheck(Health.HealthBuilder builder) {
+            Status status = Status.UP;
+            Map<String, Object> details = new HashMap<>();
+            details.put(DETAILS_KEY, DETAILS_VAL);
+            builder.status(status).details(details);
+            return status;
         }
     }
 
-    // To avoid relying on potentially complex logic of some service, supply a list of actions that helps us
-    // model changing health state of the indicator.
-    private static class DynamicIndicator extends StaticHealthyIndicator {
-        private int id = 0;
-        private List<Consumer<Health.HealthBuilder>> actions = new ArrayList<>();
+    private static class StaticFailingIndicator extends AbstractHealthContributor {
 
-        DynamicIndicator(List<Consumer<Health.HealthBuilder>> actions) {
-            super("dynamic-health-indicator");
-            this.actions = actions;
-        }
+        public static final String DETAILS_KEY = "static-failing-indicator-details-key";
 
-        public void doHealthCheck(Health.HealthBuilder builder) {
-            actions.get(id++).accept(builder);
-        }
-    }
+        public static final String DETAILS_VAL = "static-failing-indicator-details-value";
 
-    private static class StaticFailingIndicator extends HealthIndicator {
         public StaticFailingIndicator() {
             super("static-failing-indicator");
         }
@@ -495,9 +379,12 @@ public class HealthTests {
             super(name);
         }
 
-        public void doHealthCheck(Health.HealthBuilder builder) {
-            builder.status(Status.DOWN);
-            builder.alive(false);
+        public Status doHealthCheck(Health.HealthBuilder builder) {
+            Status status = Status.UP;
+            Map<String, Object> details = new HashMap<>();
+            details.put(DETAILS_KEY, DETAILS_VAL);
+            builder.status(status).details(details);
+            return status;
         }
     }
 }

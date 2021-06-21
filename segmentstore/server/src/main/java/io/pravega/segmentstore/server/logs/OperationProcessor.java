@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
@@ -20,9 +26,9 @@ import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.BlockingDrainingQueue;
 import io.pravega.common.util.PriorityBlockingDrainingQueue;
 import io.pravega.segmentstore.server.CacheUtilizationProvider;
-import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
+import io.pravega.segmentstore.server.ServiceHaltException;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -108,10 +114,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 .cacheThrottler(this.cacheUtilizationProvider::getCacheUtilization, this.cacheUtilizationProvider.getCacheTargetUtilization(), this.cacheUtilizationProvider.getCacheMaxUtilization())
                 .batchingThrottler(durableDataLog::getQueueStatistics)
                 .durableDataLogThrottler(durableDataLog.getWriteSettings(), durableDataLog::getQueueStatistics)
+                .operationLogThrottler(this.stateUpdater::getInMemoryOperationLogSize)
                 .build();
         this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, this::hasThrottleExemptOperations, executor, this.metrics);
         this.cacheUtilizationProvider.registerCleanupListener(this.throttler);
         durableDataLog.registerQueueStateChangeListener(this.throttler);
+        this.stateUpdater.registerReadListener(this.throttler);
     }
 
     //endregion
@@ -183,7 +191,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             // Shutdown exceptions means we are already stopping, so no need to do anything else. For all other cases,
             // record the failure and then stop the OperationProcessor.
             super.errorHandler(ex);
-            stopAsync();
+
+            // Run async to prevent deadlocks. closeQueue() above is the most important thing when shutting down as it
+            // will prevent anything new from being added while also cancelling in-flight requests.
+            this.executor.execute(this::stopAsync);
         }
     }
 
@@ -432,7 +443,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * Determines whether the given Throwable is a fatal exception from which we cannot recover.
      */
     private static boolean isFatalException(Throwable ex) {
-        return ex instanceof DataCorruptionException
+        return ex instanceof ServiceHaltException       // Covers DataCorruptionException
                 || ex instanceof DataLogWriterNotPrimaryException
                 || ex instanceof ObjectClosedException
                 || ex instanceof CacheFullException;
@@ -592,8 +603,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     OperationProcessor.this.metadataUpdater.commit(commitArgs.getMetadataTransactionId());
 
                     // Queue operations for memory commit, which will be done asynchronously.
-                    toAck.forEach(OperationProcessor.this.commitQueue::add);
-
+                    queueMemoryCommit(toAck);
                     this.highestCommittedDataFrame = addressSequence;
                 }
             } finally {
@@ -602,6 +612,17 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     metrics.operationsCompleted(toAck, timer.getElapsed());
                 }
                 this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
+            }
+        }
+
+        private void queueMemoryCommit(List<List<CompletableOperation>> toAck) {
+            try {
+                toAck.forEach(OperationProcessor.this.commitQueue::add);
+            } catch (Exception ex) {
+                // If we are unable to queue up these operations for whatever reason, we must unregister them from the
+                // CacheUtilizationProvider, otherwise we will be "leaking" bytes (i.e., overcounting).
+                toAck.forEach(l -> l.forEach(this::notifyOperationCommitted));
+                throw ex;
             }
         }
 

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
@@ -16,6 +22,7 @@ import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SerializedClassRunner;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
@@ -25,6 +32,7 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,10 +47,12 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 /**
  * Unit tests for the {@link Throttler} class.
  */
+@RunWith(SerializedClassRunner.class)
 public class ThrottlerTests extends ThreadPooledTestSuite {
     private static final ThrottlerCalculator.ThrottlerName THROTTLER_NAME = ThrottlerCalculator.ThrottlerName.Cache;
     private static final int MAX_THROTTLE_MILLIS = ThrottlerCalculator.MAX_DELAY_MILLIS;
@@ -372,13 +382,13 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
         // Test 2: When the current delay future completes normally.
         disabled.set(false);
         val t2 = t.throttle();
+        t.awaitCreateDelayFuture(TIMEOUT_MILLIS);
         Assert.assertFalse("Not expected non-disabled throttle to be completed yet.", t2.isDone());
         disabled.set(true);
         Assert.assertFalse("Not expected throttle future to be completed yet.", t2.isDone());
-        if (delayMillis < ThrottlerCalculator.MAX_DELAY_MILLIS) {
-            // This is only set for non-maximum delays.
-            t.completeDelayFuture();
-        }
+
+        // We don't want to wait the actual timeout. Complete it now and check the result.
+        t.completeDelayFuture();
         TestUtils.await(t2::isDone, 5, TIMEOUT_MILLIS);
     }
 
@@ -424,6 +434,10 @@ public class ThrottlerTests extends ThreadPooledTestSuite {
             val result = super.createDelayFuture(millis);
             this.lastDelayFuture.set(result);
             return result;
+        }
+
+        void awaitCreateDelayFuture(int timeoutMillis) throws TimeoutException {
+            TestUtils.await(() -> this.lastDelayFuture.get() != null, 5, timeoutMillis);
         }
 
         void completeDelayFuture() {

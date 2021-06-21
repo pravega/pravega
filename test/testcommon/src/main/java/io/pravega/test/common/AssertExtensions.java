@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.common;
 
@@ -86,6 +92,42 @@ public class AssertExtensions {
     public static <T> void assertEventuallyEquals(String message, T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
         assertEventuallyEquals(expected, eval, checkIntervalMillis, timeoutMillis);
         assertEquals(message, expected, eval.call());
+    }
+
+    /**
+     * Asserts that an exception of the Type provided is thrown eventually.
+     *
+     * @param run  The Runnable to execute.
+     * @param type The type of exception to expect.
+     * @param checkIntervalMillis The number of milliseconds to wait between two checks.
+     * @param timeoutMillis       The timeout in milliseconds after which an assertion error should be thrown.
+     * @throws Exception If the is an assertion error, and exception from `eval`, or the thread is interrupted.
+     */
+    public static void assertEventuallyThrows(Class<? extends Exception> type, RunnableWithException run, int checkIntervalMillis, long timeoutMillis) throws Exception {
+        try {
+        TestUtils.awaitException(() -> {
+                try {
+                    run.run();
+                    Assert.fail("No exception thrown where: " + type.getName() + " was expected");
+                } catch (CompletionException | ExecutionException e) {
+                    if (!type.isAssignableFrom(e.getCause().getClass())) {
+                        throw new RuntimeException(
+                                "Exception of the wrong type. Was expecting " + type + " but got: " + e.getCause().getClass().getName(),
+                                e);
+                    }
+                } catch (Exception e) {
+                    if (!type.isAssignableFrom(e.getClass())) {
+                        throw new RuntimeException(
+                                "Exception of the wrong type. Was expecting " + type + " but got: " + e.getClass().getName(),
+                                e);
+                    }
+                    return true;
+                }
+            return false;
+        }, checkIntervalMillis, timeoutMillis);
+        } catch (TimeoutException e) {
+            throw new TimeoutException("Expected exception did not occur:" + type.getName());
+        }
     }
 
     /**

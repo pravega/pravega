@@ -1,14 +1,21 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.collect.Streams;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -23,9 +30,12 @@ import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.EvictableMetadata;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.segmentstore.server.TestDurableDataLogFactory;
@@ -34,6 +44,8 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
+import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
@@ -315,7 +327,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Generate some test data (we need to do this after we started the DurableLog because in the process of
         // recovery, it wipes away all existing metadata).
-        HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
+        Set<Long> streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
 
         List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
         ErrorInjector<Exception> aSyncErrorInjector = new ErrorInjector<>(
@@ -337,9 +349,11 @@ public class DurableLogTests extends OperationLogTestBase {
         Assert.assertEquals("Expected the DurableLog to fail after DurableDataLogException encountered.",
                 Service.State.FAILED, durableLog.state());
 
-        // We can't really check the DurableLog or the DurableDataLog contents since they are both closed.
-        performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, setup.metadata, false, false);
-        performReadIndexChecks(completionFutures, setup.readIndex);
+        durableLog.close();
+        setup.readIndex.close();
+
+        // Perform failure-recovery specific checks. The regular checks cannot be done here since we are in a failed state.
+        performPostFailureRecoveryChecks(setup, streamSegmentCount, completionFutures);
     }
 
     /**
@@ -385,7 +399,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * is generated.
      */
     @Test
-    public void testAddWithDataCorruptionFailures() throws Exception {
+    public void testAddWithDataCorruptionFailures() {
         int streamSegmentCount = 10;
         int appendsPerStreamSegment = 80;
         int failAtOperationIndex = 123;
@@ -1079,6 +1093,139 @@ public class DurableLogTests extends OperationLogTestBase {
         dl3.close();
     }
 
+    /**
+     * Tests the DurableLog recovery process when there are multiple {@link MetadataCheckpointOperation}s added, with each
+     * such checkpoint including information about evicted segments or segments which had their storage state modified.
+     */
+    @Test
+    public void testRecoveryWithIncrementalCheckpoints() throws Exception {
+        final int streamSegmentCount = 50;
+
+        // Setup a DurableLog and start it.
+        @Cleanup
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
+        @Cleanup
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
+        storage.initialize(1);
+
+        // First DurableLog. We use this for generating data.
+        val metadata1 = new MetadataBuilder(CONTAINER_ID).build();
+        @Cleanup
+        CacheStorage cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+        @Cleanup
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, cacheStorage, executorService());
+        List<Long> deletedIds;
+        Set<Long> evictIds;
+        try (
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, storage, cacheManager, executorService());
+                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata1, dataLogFactory, readIndex, executorService())) {
+            durableLog.startAsync().awaitRunning();
+
+            // Create some segments.
+            val segmentIds = new ArrayList<>(createStreamSegmentsWithOperations(streamSegmentCount, durableLog));
+            deletedIds = segmentIds.subList(0, 5);
+            val mergedFromIds = segmentIds.subList(5, 10);
+            val mergedToIds = segmentIds.subList(10, 15); // Must be same length as mergeFrom
+            evictIds = new HashSet<>(segmentIds.subList(15, 20));
+            val changeStorageStateIds = segmentIds.subList(20, segmentIds.size() - 5);
+
+            // Append something to each segment.
+            for (val segmentId : segmentIds) {
+                if (!evictIds.contains(segmentId)) {
+                    durableLog.add(new StreamSegmentAppendOperation(segmentId, generateAppendData((int) (long) segmentId), null), OperationPriority.Normal, TIMEOUT).join();
+                }
+            }
+
+            // Checkpoint 1.
+            durableLog.checkpoint(TIMEOUT).join();
+
+            // Delete some segments.
+            for (val segmentId : deletedIds) {
+                durableLog.add(new DeleteSegmentOperation(segmentId), OperationPriority.Normal, TIMEOUT).join();
+            }
+
+            // Checkpoint 2.
+            durableLog.checkpoint(TIMEOUT).join();
+
+            // Merge some segments.
+            for (int i = 0; i < mergedFromIds.size(); i++) {
+                durableLog.add(new StreamSegmentSealOperation(mergedFromIds.get(i)), OperationPriority.Normal, TIMEOUT).join();
+                durableLog.add(new MergeSegmentOperation(mergedToIds.get(i), mergedFromIds.get(i)), OperationPriority.Normal, TIMEOUT).join();
+            }
+
+            // Checkpoint 3.
+            durableLog.checkpoint(TIMEOUT).join();
+
+            // Evict some segments.
+            val evictableContainerMetadata = (EvictableMetadata) metadata1;
+            metadata1.removeTruncationMarkers(metadata1.getOperationSequenceNumber());
+            val toEvict = evictableContainerMetadata.getEvictionCandidates(Integer.MAX_VALUE, segmentIds.size())
+                    .stream().filter(m -> evictIds.contains(m.getId())).collect(Collectors.toList());
+            val evicted = evictableContainerMetadata.cleanup(toEvict, Integer.MAX_VALUE);
+            AssertExtensions.assertContainsSameElements("", evictIds, evicted.stream().map(SegmentMetadata::getId).collect(Collectors.toList()));
+
+            // Checkpoint 4.
+            durableLog.checkpoint(TIMEOUT).join();
+
+            // Update storage state for some segments.
+            for (val segmentId : changeStorageStateIds) {
+                val sm = metadata1.getStreamSegmentMetadata(segmentId);
+                if (segmentId % 3 == 0) {
+                    sm.setStorageLength(sm.getLength());
+                }
+                if (segmentId % 4 == 0) {
+                    sm.markSealed();
+                    sm.markSealedInStorage();
+                }
+                if (segmentId % 5 == 0) {
+                    sm.markDeleted();
+                    sm.markDeletedInStorage();
+                }
+            }
+
+            // Checkpoint 5.
+            durableLog.checkpoint(TIMEOUT).join();
+
+            // Stop the processor.
+            durableLog.stopAsync().awaitTerminated();
+        }
+
+        // Second DurableLog. We use this for recovery.
+        val metadata2 = new MetadataBuilder(CONTAINER_ID).build();
+        try (
+                ContainerReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, storage, cacheManager, executorService());
+                DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata2, dataLogFactory, readIndex, executorService())) {
+            durableLog.startAsync().awaitRunning();
+
+            // Validate metadata matches.
+            val expectedSegmentIds = metadata1.getAllStreamSegmentIds();
+            val actualSegmentIds = metadata2.getAllStreamSegmentIds();
+            AssertExtensions.assertContainsSameElements("Unexpected set of recovered segments. Only Active segments expected to have been recovered.",
+                    expectedSegmentIds, actualSegmentIds);
+
+            val expectedSegments = expectedSegmentIds.stream().sorted()
+                    .map(metadata1::getStreamSegmentMetadata)
+                    .collect(Collectors.toList());
+            val actualSegments = actualSegmentIds.stream().sorted()
+                    .map(metadata2::getStreamSegmentMetadata)
+                    .collect(Collectors.toList());
+            for (int i = 0; i < expectedSegments.size(); i++) {
+                val e = expectedSegments.get(i);
+                val a = actualSegments.get(i);
+                SegmentMetadataComparer.assertEquals("Recovered segment metadata mismatch", e, a);
+            }
+
+            // Validate read index is as it should. Here, we can only check if the read indices for evicted segments are
+            // no longer loaded; we do more thorough checks in the ContainerReadIndexTests suite.
+            Streams.concat(evictIds.stream(), deletedIds.stream())
+                    .forEach(segmentId ->
+                            Assert.assertNull("Not expecting a read index for an evicted or deleted segment.", readIndex.getIndex(segmentId)));
+
+            // Stop the processor.
+            durableLog.stopAsync().awaitTerminated();
+        }
+    }
+
     //endregion
 
     //region Truncation
@@ -1087,7 +1234,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * Tests the truncate() method without doing any recovery.
      */
     @Test
-    public void testTruncateWithoutRecovery() throws Exception {
+    public void testTruncateWithoutRecovery() {
         int streamSegmentCount = 50;
         int appendsPerStreamSegment = 20;
 
@@ -1119,11 +1266,13 @@ public class DurableLogTests extends OperationLogTestBase {
             // recovery, it wipes away all existing metadata).
             Set<Long> streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> queuedOperations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
-            val lastOp = new MetadataCheckpointOperation();
-            queuedOperations.add(lastOp); // Add one of these at the end to ensure we can truncate everything.
 
-            List<OperationWithCompletion> completionFutures = processOperations(queuedOperations, durableLog);
-            OperationWithCompletion.allOf(completionFutures).join();
+            // Process all operations.
+            OperationWithCompletion.allOf(processOperations(queuedOperations, durableLog)).join();
+
+            // Add a MetadataCheckpointOperation at the end, after everything else has processed. This ensures that it
+            // sits in a DataFrame by itself and enables us to truncate everything at the end.
+            processOperation(new MetadataCheckpointOperation(), durableLog).completion.join();
             awaitLastOperationAdded(durableLog, metadata);
 
             // Get a list of all the operations, before truncation.
@@ -1403,6 +1552,36 @@ public class DurableLogTests extends OperationLogTestBase {
         Assert.assertFalse(logIterator.hasNext());
     }
 
+    private void performPostFailureRecoveryChecks(ContainerSetup setup, int streamSegmentCount, List<OperationWithCompletion> completionFutures) {
+        val recoveredMetadata = new MetadataBuilder(CONTAINER_ID).build();
+        @Cleanup
+        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, recoveredMetadata, setup.storage, setup.cacheManager, executorService());
+        @Cleanup
+        DurableLog recoveredLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), recoveredMetadata, setup.dataLogFactory, readIndex, executorService());
+        recoveredLog.startAsync().awaitRunning();
+
+        // Fetch recovered operations and skip over the segment creation ones.
+        List<Operation> recoveredOperations = readUpToSequenceNumber(recoveredLog, recoveredMetadata.getOperationSequenceNumber());
+        recoveredOperations = recoveredOperations.subList(1 + streamSegmentCount, recoveredOperations.size());
+
+        val successfulOperationCount = completionFutures.stream().filter(oc -> !oc.completion.isCompletedExceptionally()).count();
+
+        // We expect that we recover the exact set of operations that were acked. However in the process of shutting down
+        // we may have failed some operations that have been successfully written to DurableDataLog (i.e., persisted, but
+        // the connection failed so we never got an ack). Since we cannot determine which of the "failed" operations should
+        // have been successful, we can only check the ones that were.
+        AssertExtensions.assertGreaterThanOrEqual("Fewer operations were recovered than were acked.", successfulOperationCount, recoveredOperations.size());
+
+        val operationsToCheck = completionFutures.subList(0, recoveredOperations.size()).stream()
+                .map(oc -> oc.operation)
+                .collect(Collectors.toList());
+
+        assertRecoveredOperationsMatch(operationsToCheck, recoveredOperations);
+
+        // Stop the services.
+        recoveredLog.stopAsync().awaitTerminated();
+    }
+
     /**
      * Reads the given OperationLog from the beginning up to the given Sequence Number. This method makes use of tail
      * reads in the OperationLog, which handle the case when the OperationProcessor asynchronously adds operations
@@ -1446,20 +1625,24 @@ public class DurableLogTests extends OperationLogTestBase {
         int index = 0;
         for (Operation o : operations) {
             index++;
-            CompletableFuture<Void> completionFuture;
-            try {
-                completionFuture = durableLog.add(o, OperationPriority.Normal, TIMEOUT);
-            } catch (Exception ex) {
-                completionFuture = Futures.failedFuture(ex);
-            }
-
-            completionFutures.add(new OperationWithCompletion(o, completionFuture));
+            val oc = processOperation(o, durableLog);
+            completionFutures.add(oc);
             if (index % waitEvery == 0) {
-                completionFuture.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                oc.completion.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             }
         }
 
         return completionFutures;
+    }
+
+    private OperationWithCompletion processOperation(Operation o, DurableLog durableLog) {
+        CompletableFuture<Void> completionFuture;
+        try {
+            completionFuture = durableLog.add(o, OperationPriority.Normal, TIMEOUT);
+        } catch (Exception ex) {
+            completionFuture = Futures.failedFuture(ex);
+        }
+        return new OperationWithCompletion(o, completionFuture);
     }
 
     private void assertRecoveredOperationsMatch(List<Operation> expected, List<Operation> actual) {

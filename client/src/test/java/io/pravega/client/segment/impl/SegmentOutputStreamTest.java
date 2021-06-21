@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.segment.impl;
 
@@ -21,7 +27,6 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
@@ -33,7 +38,9 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.LeakDetectorTestSuite;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -225,7 +232,6 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         assertTrue(callbackInvoked.get());
     }
 
-
     @Test(timeout = 10000)
     public void testConnectWithMultipleFailures() throws Exception {
         UUID cid = UUID.randomUUID();
@@ -238,26 +244,31 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
 
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
+        InOrder verify = inOrder(connection);
         cf.provideConnection(uri, connection);
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                 retryConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
-        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        reset(connection);
+        verify.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         //simulate a processing Failure and ensure SetupAppend is executed.
-        cf.getProcessor(uri).processingFailure(new IOException());
-        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        reset(connection);
-        cf.getProcessor(uri).connectionDropped();
-        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        reset(connection);
-        cf.getProcessor(uri).wrongHost(new WireCommands.WrongHost(output.getRequestId(), SEGMENT, "newHost", "SomeException"));
-        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        reset(connection);
-        cf.getProcessor(uri).processingFailure(new IOException());
+        ReplyProcessor processor = cf.getProcessor(uri);
+        processor.processingFailure(new IOException());
+        verify.verify(connection).close();
+        verify.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        verifyNoMoreInteractions(connection);
+        processor.connectionDropped();
+        verify.verify(connection).close();
+        verify.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        processor.wrongHost(new WireCommands.WrongHost(output.getRequestId(), SEGMENT, "newHost", "SomeException"));
+        verify.verify(connection).close();
+        verify.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        verifyNoMoreInteractions(connection);
+        processor.processingFailure(new IOException());
         assertTrue( "Connection is  exceptionally closed with RetriesExhaustedException", output.getConnection().isCompletedExceptionally());
         AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> Futures.getThrowingException(output.getConnection()));
+        verify.verify(connection).close();
+        verifyNoMoreInteractions(connection);
     }
 
     @Test(timeout = 10000)
@@ -362,14 +373,14 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
             @Override
             public Object answer(InvocationOnMock invocation) throws Exception {
                 ((Runnable) invocation.getArguments()[0]).run();
-                return null;
+                return new InlineExecutor.NonScheduledFuture<>(CompletableFuture.completedFuture(null));
             }
         }).when(executor).schedule(any(Runnable.class), Mockito.anyLong(), any(TimeUnit.class));
         doAnswer(new Answer<Object>() {
             @Override
             public Object answer(InvocationOnMock invocation) throws Exception {
-                ((Callable<?>) invocation.getArguments()[0]).call();
-                return null;
+                Object result = ((Callable<?>) invocation.getArguments()[0]).call();
+                return new InlineExecutor.NonScheduledFuture<>(CompletableFuture.completedFuture(result));
             }
         }).when(executor).schedule(any(Callable.class), Mockito.anyLong(), any(TimeUnit.class));
     }
@@ -731,7 +742,69 @@ public class SegmentOutputStreamTest extends LeakDetectorTestSuite {
         inOrder.verifyNoMoreInteractions();
     }
 
-    
+
+    @Test(timeout = 10000)
+    public void testConnectionFailureWithSegmentSealed() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
+                RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
+
+        output.reconnect();
+        InOrder inOrder = Mockito.inOrder(connection);
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        // connection is setup .
+        ByteBuffer data = getBuffer("test");
+        CompletableFuture<Void> acked = new CompletableFuture<>();
+        Append append = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId());
+        CompletableFuture<Void> acked2 = new CompletableFuture<>();
+
+        Append append2 = new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId());
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                // simulate in a race with segment is sealed callback and a connection drop.
+                cf.getProcessor(uri).connectionDropped();
+                // wait until the writer reattempts to establish a connection to simulate the race.
+                verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+
+                // the connection object throws a throws a
+                throw new ConnectionFailedException();
+            }
+        }).when(connection).send(append);
+        // trigger the first write
+        output.write(PendingEvent.withoutHeader(null, data, acked));
+
+        AssertExtensions.assertBlocks(() -> {
+            // the below write will be blocked since the connection setup is not complete.
+            output.write(PendingEvent.withoutHeader(null, data, acked2));
+        }, () -> {
+            // simulate a race between segmentIsSealed response and appendSetup.
+            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "Segment is sealed", 1));
+            // invoke the segment is sealed to ensure
+            cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+            // ensure the reconnect is invoked inline.
+            output.reconnect();
+        });
+        CompletableFuture<Void> acked3 = new CompletableFuture<>();
+        output.write(PendingEvent.withoutHeader(null, data, acked3));
+        inOrder.verify(connection).send(append);
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        inOrder.verify(connection).send(any(Append.class));
+        // the setup append should not transmit the inflight events given that the segment is sealed.
+        inOrder.verifyNoMoreInteractions();
+        assertFalse(acked.isDone());
+        assertFalse(acked2.isDone());
+        assertFalse(acked3.isDone());
+    }
+
+
     /**
      * Verifies that if a exception is encountered while flushing data inside of close, the
      * connection is reestablished and the data is retransmitted before close returns.

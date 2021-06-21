@@ -1,9 +1,9 @@
-# Pravega Controller APIs
+# Pravega Controller REST API
 
 
 <a name="overview"></a>
 ## Overview
-List of admin REST APIs for the pravega controller service.
+List of admin REST APIs for the Pravega Controller service.
 
 
 ### Version information
@@ -417,6 +417,12 @@ Create a new stream
       "days" : 0,
       "hours" : 0,
       "minutes" : 0
+    },
+    "maxValue" : 0,
+    "maxTimeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
     }
   }
 }
@@ -440,6 +446,12 @@ Create a new stream
     "type" : "string",
     "value" : 0,
     "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    },
+    "maxValue" : 0,
+    "maxTimeBasedRetention" : {
       "days" : 0,
       "hours" : 0,
       "minutes" : 0
@@ -512,6 +524,12 @@ List streams within the given scope
         "days" : 0,
         "hours" : 0,
         "minutes" : 0
+      },
+      "maxValue" : 0,
+      "maxTimeBasedRetention" : {
+        "days" : 0,
+        "hours" : 0,
+        "minutes" : 0
       }
     }
   } ]
@@ -578,6 +596,12 @@ Fetch the properties of an existing stream
     "type" : "string",
     "value" : 0,
     "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    },
+    "maxValue" : 0,
+    "maxTimeBasedRetention" : {
       "days" : 0,
       "hours" : 0,
       "minutes" : 0
@@ -659,6 +683,12 @@ Update configuration of an existing stream
       "days" : 0,
       "hours" : 0,
       "minutes" : 0
+    },
+    "maxValue" : 0,
+    "maxTimeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
     }
   }
 }
@@ -682,6 +712,12 @@ Update configuration of an existing stream
     "type" : "string",
     "value" : 0,
     "timeBasedRetention" : {
+      "days" : 0,
+      "hours" : 0,
+      "minutes" : 0
+    },
+    "maxValue" : 0,
+    "maxTimeBasedRetention" : {
       "days" : 0,
       "hours" : 0,
       "minutes" : 0
@@ -895,6 +931,8 @@ Updates the current state of the stream
 
 |Name|Description|Schema|
 |---|---|---|
+|**maxTimeBasedRetention**  <br>*optional*|**Example** : `"[timebasedretention](#timebasedretention)"`|[TimeBasedRetention](#timebasedretention)|
+|**maxValue**  <br>*optional*|**Example** : `0`|integer (int64)|
 |**timeBasedRetention**  <br>*optional*|**Example** : `"[timebasedretention](#timebasedretention)"`|[TimeBasedRetention](#timebasedretention)|
 |**type**  <br>*optional*|Indicates if retention is by space or time.  <br>**Example** : `"string"`|enum (LIMITED_DAYS, LIMITED_SIZE_MB)|
 |**value**  <br>*optional*|**Example** : `0`|integer (int64)|

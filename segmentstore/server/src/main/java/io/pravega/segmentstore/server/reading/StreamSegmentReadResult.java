@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.reading;
 
@@ -43,6 +49,8 @@ public class StreamSegmentReadResult implements ReadResult {
     private boolean closed;
     @GuardedBy("this")
     private boolean copyOnRead;
+    @GuardedBy("this")
+    private int maxReadAtOnce;
 
     //endregion
 
@@ -65,6 +73,7 @@ public class StreamSegmentReadResult implements ReadResult {
         this.traceObjectId = traceObjectId;
         this.streamSegmentStartOffset = streamSegmentStartOffset;
         this.maxResultLength = maxResultLength;
+        this.maxReadAtOnce = this.maxResultLength;
         this.getNextItem = getNextItem;
         this.consumedLength = 0;
         this.canRead = true;
@@ -102,6 +111,16 @@ public class StreamSegmentReadResult implements ReadResult {
     @Override
     public synchronized void setCopyOnRead(boolean value) {
         this.copyOnRead = value;
+    }
+
+    @Override
+    public synchronized int getMaxReadAtOnce() {
+        return this.maxReadAtOnce;
+    }
+
+    @Override
+    public synchronized void setMaxReadAtOnce(int value) {
+        this.maxReadAtOnce = value <= 0 || value > this.maxResultLength ? this.maxResultLength : value;
     }
 
     @Override
@@ -185,7 +204,7 @@ public class StreamSegmentReadResult implements ReadResult {
 
         // Retrieve the next item.
         long startOffset = this.streamSegmentStartOffset + this.consumedLength;
-        int remainingLength = this.maxResultLength - this.consumedLength;
+        int remainingLength = Math.min(this.maxReadAtOnce, this.maxResultLength - this.consumedLength);
         CompletableReadResultEntry entry = this.getNextItem.apply(startOffset, remainingLength, this.copyOnRead);
 
         if (entry == null) {

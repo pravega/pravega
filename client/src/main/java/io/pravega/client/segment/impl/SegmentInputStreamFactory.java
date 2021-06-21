@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.segment.impl;
 
@@ -57,6 +63,20 @@ public interface SegmentInputStreamFactory {
      * @return New instance of EventSegmentReader for reading.
      */
     EventSegmentReader createEventReaderForSegment(Segment segment);
+
+    /**
+     * Opens an existing segment for reading events. This operation will fail if the
+     * segment does not exist.
+     * This operation may be called multiple times on the same segment from the
+     * same client (i.e., there can be concurrent Event Readers in the same
+     * process space).
+     *
+     * @param segment The segment to create an input for.
+     * @param startOffset the start offset of the segment.
+     * @param endOffset The end offset of the segment.
+     * @return New instance of EventSegmentReader for reading.
+     */
+    EventSegmentReader createEventReaderForSegment(Segment segment, long startOffset, long endOffset);
 
     /**
      * Open an existing segment for reading up to the provided end offset. This operation will fail if the segment

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store;
 
@@ -25,7 +31,7 @@ import java.io.IOException;
  * This version is exposed to processors over the stream metadata store interface
  * and they should use it if they want to perform compare and swap ability over metadata record updates.
  */
-public interface Version {
+public interface Version extends Comparable<Version> {
     IntVersion asIntVersion();
 
     LongVersion asLongVersion();
@@ -48,6 +54,10 @@ public interface Version {
             throw new UnsupportedOperationException();
         }
 
+        @Override
+        public int compareTo(Version o) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     /**
@@ -72,6 +82,11 @@ public interface Version {
         @Override
         public IntVersion asIntVersion() {
             return this;
+        }
+
+        @Override
+        public int compareTo(Version o) {
+            return Integer.compare(this.intValue, o.asIntVersion().intValue);
         }
 
         @Override
@@ -135,6 +150,11 @@ public interface Version {
         @Override
         public LongVersion asLongVersion() {
             return this;
+        }
+
+        @Override
+        public int compareTo(Version o) {
+            return Long.compare(this.longValue, o.asLongVersion().longValue);
         }
 
         @Override

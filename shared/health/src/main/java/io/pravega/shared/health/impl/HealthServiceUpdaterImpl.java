@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.health.impl;
 
@@ -14,16 +20,15 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.shared.health.Health;
+import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthServiceUpdater;
 import io.pravega.shared.health.HealthService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
@@ -43,7 +48,13 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
     /**
      * The {@link HealthService} associated with this {@link HealthServiceUpdater}.
      */
-    private final HealthService service;
+    private final HealthContributor root;
+
+    /**
+     * The interval at which to run the health check.
+     */
+    @Getter
+    private final Duration interval;
 
     /**
      * The underlying {@link ScheduledExecutorService} used to executor the recurring service-level {@link Health} check.
@@ -51,14 +62,7 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
     private final ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(1, "health-service-updater", Thread.MIN_PRIORITY);
 
     /**
-     * The interval at which to run the health check.
-     */
-    @Getter
-    @Setter
-    private int interval = DEFAULT_INTERVAL_SECONDS;
-
-    /**
-     * Provides the latest {@link Health} result of the recurring {@link io.pravega.shared.health.HealthEndpoint#getHealth(boolean)} calls.
+     * Provides the latest {@link Health} result of the recurring {@link io.pravega.shared.health.HealthEndpoint#getHealth()} calls.
      * @return The latest {@link Health} result.
      */
     public Health getLatestHealth() {
@@ -72,16 +76,16 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
 
     @Override
     protected void runOneIteration() {
-        latest.set(service.endpoint().getHealth(true));
+        latest.set(root.getHealthSnapshot());
     }
 
     @Override
     protected Scheduler scheduler() {
-        return Scheduler.newFixedDelaySchedule(Duration.ofSeconds(interval), Duration.ofSeconds(interval));
+        return Scheduler.newFixedDelaySchedule(interval, interval);
     }
 
     /**
-     * Starts the underlying {@link ScheduledExecutorService} to repeatedly call {@link io.pravega.shared.health.HealthEndpoint#getHealth(boolean)}.
+     * Starts the underlying {@link ScheduledExecutorService} to repeatedly call {@link io.pravega.shared.health.HealthEndpoint#getHealth()}.
      */
     @Override
     protected void startUp() {
@@ -110,11 +114,6 @@ public class HealthServiceUpdaterImpl extends AbstractScheduledService implement
             Futures.await(Services.stopAsync(this, this.executorService));
         }
         log.info("Stopping ScheduledExecutorService.");
-        try {
-            executorService.shutdown();
-            executorService.awaitTermination(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            log.error("Error closing down ScheduledExecutorService.", e);
-        }
+        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), executorService);
     }
 }

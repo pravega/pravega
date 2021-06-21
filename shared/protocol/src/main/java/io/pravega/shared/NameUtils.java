@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared;
 
@@ -24,7 +30,7 @@ import lombok.Getter;
  */
 public final class NameUtils {
     //region Members
-    
+
     // The prefix which will be used to name all internal streams.
     public static final String INTERNAL_NAME_PREFIX = "_";
 
@@ -90,19 +96,39 @@ public final class NameUtils {
     private static final String CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET = "%s.E-%d-O-%d.%s";
 
     /**
+     * Format for name of read index block index entry.
+     */
+    private static final String BLOCK_INDEX_NAME_FORMAT_WITH_OFFSET = "%s.B-%d";
+
+    /**
+     * Prefix for Container Metadata Segment name.
+     */
+    private static final String METADATA_SEGMENT_NAME_PREFIX = "_system/containers/metadata_";
+
+    /**
      * Format for Container Metadata Segment name.
      */
-    private static final String METADATA_SEGMENT_NAME_FORMAT = "_system/containers/metadata_%d";
+    private static final String METADATA_SEGMENT_NAME_FORMAT = METADATA_SEGMENT_NAME_PREFIX + "%d";
+
+    /**
+     * Prefix for Storage Metadata Segment name.
+     */
+    private static final String STORAGE_METADATA_SEGMENT_NAME_PREFIX = "_system/containers/storage_metadata_";
 
     /**
      * Format for Storage Metadata Segment name.
      */
-    private static final String STORAGE_METADATA_SEGMENT_NAME_FORMAT = "_system/containers/storage_metadata_%d";
+    private static final String STORAGE_METADATA_SEGMENT_NAME_FORMAT = STORAGE_METADATA_SEGMENT_NAME_PREFIX + "%d";
 
     /**
      * Format for Container System Journal file name.
      */
     private static final String SYSJOURNAL_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.file%d";
+
+    /**
+     * Format for Container System snapshot file name.
+     */
+    private static final String SYSJOURNAL_SNAPSHOT_NAME_FORMAT = "_system/containers/_sysjournal.epoch%d.container%d.snapshot%d";
 
     /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -130,7 +156,7 @@ public final class NameUtils {
     private static final String KVTABLE_SUFFIX = "_kvtable";
 
     /**
-     * Prefix for identifying system created mark segments for storing watermarks. 
+     * Prefix for identifying system created mark segments for storing watermarks.
      */
     @Getter(AccessLevel.PUBLIC)
     private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
@@ -205,13 +231,23 @@ public final class NameUtils {
     }
 
     /**
+     * Checks whether the given name is an Attribute Segment or not.
+     *
+     * @param segmentName   The name of the segment.
+     * @return              True if the segment is an attribute Segment, false otherwise.
+     */
+    public static boolean isAttributeSegment(String segmentName) {
+        return segmentName.endsWith(ATTRIBUTE_SUFFIX);
+    }
+
+    /**
      * Gets the name of the meta-Segment mapped to the given Segment Name that is responsible with storing extended attributes.
      *
      * @param segmentName The name of the Segment to get the Attribute segment name for.
      * @return The result.
      */
     public static String getAttributeSegmentName(String segmentName) {
-        Preconditions.checkArgument(!segmentName.endsWith(ATTRIBUTE_SUFFIX), "segmentName is already an attribute segment name");
+        Preconditions.checkArgument(!isAttributeSegment(segmentName), "segmentName is already an attribute segment name");
         return segmentName + ATTRIBUTE_SUFFIX;
     }
 
@@ -258,7 +294,7 @@ public final class NameUtils {
      */
     public static String getSegmentChunkName(String segmentName, long offset) {
         Preconditions.checkArgument(!segmentName.contains(OFFSET_SUFFIX), "segmentName is already a SegmentChunk name");
-        return segmentName + OFFSET_SUFFIX + Long.toString(offset);
+        return segmentName + OFFSET_SUFFIX + offset;
     }
 
     /**
@@ -273,6 +309,28 @@ public final class NameUtils {
         return String.format(CHUNK_NAME_FORMAT_WITH_EPOCH_OFFSET, segmentName, epoch, offset, UUID.randomUUID());
     }
 
+
+    /**
+     * Gets the name of the read index block entry for the given segment and offset.
+     *
+     * @param segmentName The name of the Segment.
+     * @param offset      The starting offset of the block.
+     * @return formatted read index block entry name.
+     */
+    public static String getSegmentReadIndexBlockName(String segmentName, long offset) {
+        return String.format(BLOCK_INDEX_NAME_FORMAT_WITH_OFFSET, segmentName, offset);
+    }
+
+    /**
+     * Checks whether given name is a Container Metadata Segment.
+     *
+     * @param segmentName The name of the segment.
+     * @return true if the name is Container Metadata Segment. False otherwise
+     */
+    public static boolean isMetadataSegmentName(String segmentName) {
+        return segmentName.startsWith(METADATA_SEGMENT_NAME_PREFIX);
+    }
+
     /**
      * Gets the name of the Segment that is used to store the Container's Segment Metadata. There is one such Segment
      * per container.
@@ -283,6 +341,16 @@ public final class NameUtils {
     public static String getMetadataSegmentName(int containerId) {
         Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative number.");
         return String.format(METADATA_SEGMENT_NAME_FORMAT, containerId);
+    }
+
+    /**
+     * Checks whether given name is a Storage Metadata Segment.
+     *
+     * @param segmentName The name of the segment.
+     * @return true if the name is Storage Metadata Segment. False otherwise
+     */
+    public static boolean isStorageMetadataSegmentName(String segmentName) {
+        return segmentName.startsWith(STORAGE_METADATA_SEGMENT_NAME_PREFIX);
     }
 
     /**
@@ -306,6 +374,18 @@ public final class NameUtils {
      */
     public static String getSystemJournalFileName(int containerId, long epoch, long currentFileIndex) {
         return String.format(SYSJOURNAL_NAME_FORMAT, epoch, containerId, currentFileIndex);
+    }
+
+
+    /**
+     * Gets file name of SystemJournal snapshot for given container instance.
+     * @param containerId The Id of the Container.
+     * @param epoch Epoch of the container instance.
+     * @param currentSnapshotIndex Current index for journal file.
+     * @return File name of SystemJournal for given container instance
+     */
+    public static String getSystemJournalSnapshotFileName(int containerId, long epoch, long currentSnapshotIndex) {
+        return String.format(SYSJOURNAL_SNAPSHOT_NAME_FORMAT, epoch, containerId, currentSnapshotIndex);
     }
 
     /**
@@ -377,6 +457,17 @@ public final class NameUtils {
     }
 
     /**
+     * Compose and return scoped ReaderGroup name.
+     *
+     * @param scope scope to be used in ScopedReaderGroup name.
+     * @param rgName ReaderGroup name to be used in ScopedReaderGroup name.
+     * @return scoped stream name.
+     */
+    public static String getScopedReaderGroupName(String scope, String rgName) {
+        return getScopedStreamNameInternal(scope, rgName).toString();
+    }
+
+    /**
      * Method to generate Fully Qualified TableSegmentName using scope, stream and segment id.
      *
      * @param scope scope to be used in the ScopedTableSegment name
@@ -387,7 +478,7 @@ public final class NameUtils {
     public static String getQualifiedTableSegmentName(String scope, String kvTableName, long segmentId) {
         int segmentNumber = getSegmentNumber(segmentId);
         int epoch = getEpoch(segmentId);
-        StringBuffer sb = getScopedStreamNameInternal(scope, kvTableName + KVTABLE_SUFFIX);
+        StringBuilder sb = getScopedStreamNameInternal(scope, kvTableName + KVTABLE_SUFFIX);
         sb.append('/');
         sb.append(segmentNumber);
         sb.append(EPOCH_DELIMITER);
@@ -420,7 +511,7 @@ public final class NameUtils {
     public static String getQualifiedStreamSegmentName(String scope, String streamName, long segmentId) {
         int segmentNumber = getSegmentNumber(segmentId);
         int epoch = getEpoch(segmentId);
-        StringBuffer sb = getScopedStreamNameInternal(scope, streamName);
+        StringBuilder sb = getScopedStreamNameInternal(scope, streamName);
         sb.append('/');
         sb.append(segmentNumber);
         sb.append(EPOCH_DELIMITER);
@@ -462,8 +553,8 @@ public final class NameUtils {
         return retVal;
     }
 
-    private static StringBuffer getScopedStreamNameInternal(String scope, String streamName) {
-        StringBuffer sb = new StringBuffer();
+    private static StringBuilder getScopedStreamNameInternal(String scope, String streamName) {
+        StringBuilder sb = new StringBuilder();
         if (!Strings.isNullOrEmpty(scope)) {
             sb.append(scope);
             sb.append('/');
@@ -471,13 +562,13 @@ public final class NameUtils {
         sb.append(streamName);
         return sb;
     }
-    
+
     // region table names
 
     /**
      * Method to generate Fully Qualified table name using scope, and other tokens to be used to compose the table name.
      * The composed name has following format: {@literal <scope>/_tables/<tokens[0]>/<tokens[1]>...}
-     * 
+     *
      * @param scope scope in which table segment to create
      * @param tokens tokens used for composing table segment name
      * @return Fully qualified table segment name composed of supplied tokens.
@@ -495,11 +586,11 @@ public final class NameUtils {
 
     /**
      * Method to extract tokens that were used to compose fully qualified table segment name using method getQualifiedTableName.
-     * 
+     *
      * The first token in the returned list corresponds to scope. Remainder tokens correspond to tokens used to compose tableName.
      *
      * @param qualifiedName fully qualified table name
-     * @return tokens capturing different components of table segment name. First element in the list represents scope 
+     * @return tokens capturing different components of table segment name. First element in the list represents scope
      */
     public static List<String> extractTableSegmentTokens(String qualifiedName) {
         Preconditions.checkNotNull(qualifiedName);
@@ -512,7 +603,7 @@ public final class NameUtils {
         for (int i = 2; i < tokens.length; i++) {
             retVal.add(tokens[i]);
         }
-        
+
         return retVal;
     }
 
@@ -608,7 +699,7 @@ public final class NameUtils {
         return (segmentBaseName == null) ? segmentQualifiedName : segmentBaseName;
     }
     // endregion
-    
+
     /**
      * Construct an internal representation of stream name. This is required to distinguish between user created
      * and pravega internally created streams.
@@ -720,10 +811,10 @@ public final class NameUtils {
     public static String validateWriterId(String writerId) {
         return validateUserStreamName(writerId);
     }
-    
+
     // region watermark
     public static String getMarkStreamForStream(String stream) {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         sb.append(MARK_PREFIX);
         sb.append(stream);
         return sb.toString();

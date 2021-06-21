@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.system;
 
@@ -14,7 +20,6 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.DefaultCredentials;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,7 +29,6 @@ import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.List;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
@@ -34,11 +38,11 @@ import javax.ws.rs.core.Response;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-import mesosphere.marathon.client.MarathonException;
 
 import static org.junit.Assert.assertEquals;
 import static javax.ws.rs.core.Response.Status.OK;
@@ -52,16 +56,16 @@ public class DynamicRestApiTest extends AbstractSystemTest {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(5 * 60);
 
-    private final Client client;
+    private Client client;
     private WebTarget webTarget;
     private String restServerURI;
     private String resourceURl;
 
-    public DynamicRestApiTest() {
-
+    @Before
+    public void setup() {
         org.glassfish.jersey.client.ClientConfig clientConfig = new org.glassfish.jersey.client.ClientConfig();
         clientConfig.register(JacksonJsonProvider.class);
-
+        clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
         if (Utils.AUTH_ENABLED) {
             HttpAuthenticationFeature feature = HttpAuthenticationFeature.basic(Utils.PRAVEGA_PROPERTIES.get("pravega.client.auth.username"),
                     Utils.PRAVEGA_PROPERTIES.get("pravega.client.auth.password"));
@@ -73,13 +77,9 @@ public class DynamicRestApiTest extends AbstractSystemTest {
 
     /**
      * This is used to setup the various services required by the system test framework.
-     *
-     * @throws InterruptedException If interrupted
-     * @throws MarathonException    when error in setup
-     * @throws URISyntaxException   If URI is invalid
      */
     @Environment
-    public static void initialize() throws MarathonException {
+    public static void initialize() {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
         URI controllerUri = ensureControllerRunning(zkUri);
@@ -111,14 +111,9 @@ public class DynamicRestApiTest extends AbstractSystemTest {
         final String scope1 = RandomStringUtils.randomAlphanumeric(10);
         final String stream1 = RandomStringUtils.randomAlphanumeric(10);
 
-        Client client = ClientBuilder.newClient();
         String responseAsString = null;
 
-        ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI(controllerGRPCUri)
-                .credentials(new DefaultCredentials(Utils.PRAVEGA_PROPERTIES.get("pravega.client.auth.username"),
-                        Utils.PRAVEGA_PROPERTIES.get("pravega.client.auth.username")))
-                .build();
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerGRPCUri);
         // Create a scope.
         @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);

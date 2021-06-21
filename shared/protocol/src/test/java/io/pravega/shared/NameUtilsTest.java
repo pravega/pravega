@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared;
 
@@ -59,6 +65,21 @@ public class NameUtilsTest {
         Assert.assertEquals(2, tokens.size());
         Assert.assertEquals(scope, tokens.get(0));
         Assert.assertEquals(kvt, tokens.get(1));
+        AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens(scope), ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens("a/b/c"), ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testGetScopedReaderGroupName() {
+        String scope = "scope";
+        String readergroup = "readerGroup";
+        String scopedName = NameUtils.getScopedReaderGroupName(scope, readergroup);
+        Assert.assertTrue(scopedName.startsWith(scope));
+        Assert.assertTrue(scopedName.endsWith(readergroup));
+        val tokens = NameUtils.extractScopedNameTokens(scopedName);
+        Assert.assertEquals(2, tokens.size());
+        Assert.assertEquals(scope, tokens.get(0));
+        Assert.assertEquals(readergroup, tokens.get(1));
         AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens(scope), ex -> ex instanceof IllegalArgumentException);
         AssertExtensions.assertThrows("", () -> NameUtils.extractScopedNameTokens("a/b/c"), ex -> ex instanceof IllegalArgumentException);
     }
@@ -145,5 +166,32 @@ public class NameUtilsTest {
     public void testGetEpoch() {
         UUID txnId = UUID.fromString("00000065-0000-000a-0000-000000000064");
         assertEquals(101, NameUtils.getEpoch(txnId));
+    }
+
+    @Test
+    public void testStorageNames() {
+        Assert.assertEquals(NameUtils.getStorageMetadataSegmentName(1), "_system/containers/storage_metadata_1");
+        Assert.assertEquals(NameUtils.getSystemJournalFileName(2, 3, 4),
+                "_system/containers/_sysjournal.epoch3.container2.file4");
+        Assert.assertEquals(NameUtils.getSystemJournalSnapshotFileName(5, 6, 7),
+                "_system/containers/_sysjournal.epoch6.container5.snapshot7");
+        Assert.assertTrue(NameUtils.getSegmentChunkName("segment", 8, 9).startsWith("segment.E-8-O-9"));
+        Assert.assertEquals(NameUtils.getSegmentReadIndexBlockName("segment", 10), "segment.B-10");
+    }
+
+    @Test
+    public void testIsContainerMetadataSegmentName() {
+        Assert.assertTrue(NameUtils.isMetadataSegmentName("_system/containers/metadata_1"));
+        Assert.assertTrue(NameUtils.isMetadataSegmentName("_system/containers/metadata_99"));
+        Assert.assertFalse(NameUtils.isMetadataSegmentName("_system/containers/_metadata_1"));
+        Assert.assertFalse(NameUtils.isMetadataSegmentName("system/containers/metadata_1"));
+    }
+
+    @Test
+    public void testIsStorageMetadataSegmentName() {
+        Assert.assertTrue(NameUtils.isStorageMetadataSegmentName("_system/containers/storage_metadata_1"));
+        Assert.assertTrue(NameUtils.isStorageMetadataSegmentName("_system/containers/storage_metadata_99"));
+        Assert.assertFalse(NameUtils.isStorageMetadataSegmentName("_system/containers/_storage_metadata_1"));
+        Assert.assertFalse(NameUtils.isStorageMetadataSegmentName("system/containers/storage_metadata_1"));
     }
 }

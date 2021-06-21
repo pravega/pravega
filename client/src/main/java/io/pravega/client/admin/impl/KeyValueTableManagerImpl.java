@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.admin.impl;
 
@@ -21,13 +27,11 @@ import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BlockingAsyncIterator;
 import io.pravega.shared.NameUtils;
 import java.util.Iterator;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +46,6 @@ public class KeyValueTableManagerImpl implements KeyValueTableManager {
 
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
-    private final ScheduledExecutorService executor;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     //endregion
@@ -55,9 +58,8 @@ public class KeyValueTableManagerImpl implements KeyValueTableManager {
      * @param clientConfig A {@link ClientConfig} that can be used to configure the connection to Pravega.
      */
     public KeyValueTableManagerImpl(@NonNull ClientConfig clientConfig) {
-        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "KeyValueTableManagerImpl-Controller");
-        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(), this.executor);
         this.connectionFactory = new SocketConnectionFactoryImpl(clientConfig);
+        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(), connectionFactory.getInternalExecutor());
     }
 
     /**
@@ -68,7 +70,6 @@ public class KeyValueTableManagerImpl implements KeyValueTableManager {
      */
     @VisibleForTesting
     KeyValueTableManagerImpl(@NonNull Controller controller, @NonNull ConnectionFactory connectionFactory) {
-        this.executor = null;
         this.controller = controller;
         this.connectionFactory = connectionFactory;
     }
@@ -82,10 +83,6 @@ public class KeyValueTableManagerImpl implements KeyValueTableManager {
         if (this.closed.compareAndSet(false, true)) {
             if (this.connectionFactory != null) {
                 this.connectionFactory.close();
-            }
-
-            if (this.executor != null) {
-                ExecutorServiceHelpers.shutdown(this.executor);
             }
 
             if (this.controller != null) {

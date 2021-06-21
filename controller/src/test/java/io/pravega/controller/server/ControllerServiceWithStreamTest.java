@@ -1,20 +1,32 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.control.impl.ModelHelper;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
@@ -30,6 +42,9 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CreateReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteReaderGroupTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateReaderGroupTask;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
@@ -56,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -64,7 +80,9 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.mockito.Mock;
 
 import static org.junit.Assert.assertEquals;
@@ -85,6 +103,8 @@ public abstract class ControllerServiceWithStreamTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
     private static final String STREAM1 = "stream1";
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
     protected CuratorFramework zkClient;
 
@@ -127,19 +147,24 @@ public abstract class ControllerServiceWithStreamTest {
         TransactionMetrics.initialize();
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executor, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", disabledAuthHelper, requestTracker, helperMock);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host", disabledAuthHelper);
+                executor, "host", disabledAuthHelper, helperMock);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, 
+                "host", disabledAuthHelper);
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                new CreateReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new DeleteReaderGroupTask(streamMetadataTasks, streamStore, executor),
+                new UpdateReaderGroupTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
-        consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks, segmentHelperMock, executor, null);
+        consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, 
+                streamTransactionMetadataTasks, segmentHelperMock, executor, null, requestTracker);
     }
 
     abstract StreamMetadataStore getStore();
@@ -167,17 +192,17 @@ public abstract class ControllerServiceWithStreamTest {
         long start = System.currentTimeMillis();
 
         // Create scope
-        Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE).join();
+        Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE, 0L).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
         
         // create stream
-        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, stream, configuration1, start).get();
+        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, stream, configuration1, start, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
 
         // there will be two invocations because we also create internal mark stream
         verify(streamStore, times(2)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
         
-        streamStatus = consumer.createStream(SCOPE, stream, configuration1, start).get();
+        streamStatus = consumer.createStream(SCOPE, stream, configuration1, start, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.STREAM_EXISTS, streamStatus.getStatus());
 
         // verify that create stream is not called again
@@ -193,12 +218,12 @@ public abstract class ControllerServiceWithStreamTest {
         long start = System.currentTimeMillis();
 
         // Create stream and scope
-        Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE).join();
+        Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE, 0L).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
-        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, STREAM1, configuration1, start).get();
+        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, STREAM1, configuration1, start, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
 
-        List<Controller.SegmentRange> currentSegments = consumer.getCurrentSegments(SCOPE, STREAM1).get();
+        List<Controller.SegmentRange> currentSegments = consumer.getCurrentSegments(SCOPE, STREAM1, 0L).get();
         assertEquals(2, currentSegments.size());
 
         //scale segment 1 which has key range from 0.5 to 1.0 at time: start+20
@@ -206,23 +231,25 @@ public abstract class ControllerServiceWithStreamTest {
         keyRanges.put(0.5, 0.75);
         keyRanges.put(0.75, 1.0);
 
-        assertFalse(consumer.checkScale(SCOPE, STREAM1, 0).get().getStatus().equals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS));
-        Controller.ScaleResponse scaleStatus = consumer.scale(SCOPE, STREAM1, Arrays.asList(1L), keyRanges, start + 20)
+        assertFalse(consumer.checkScale(SCOPE, STREAM1, 0, 0L).get().getStatus().equals(
+                Controller.ScaleStatusResponse.ScaleStatus.SUCCESS));
+        Controller.ScaleResponse scaleStatus = consumer.scale(SCOPE, STREAM1, Arrays.asList(1L), keyRanges, start + 20, 0L)
                                                        .get();
         assertEquals(Controller.ScaleResponse.ScaleStreamStatus.STARTED, scaleStatus.getStatus());
         AtomicBoolean done = new AtomicBoolean(false);
-        Futures.loop(() -> !done.get(), () -> consumer.checkScale(SCOPE, STREAM1, scaleStatus.getEpoch())
-                                                      .thenAccept(x -> done.set(x.getStatus().equals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS))), executor).get();
+        Futures.loop(() -> !done.get(), () -> consumer.checkScale(SCOPE, STREAM1, scaleStatus.getEpoch(), 0L)
+                                                      .thenAccept(x -> done.set(x.getStatus().equals(
+                                                              Controller.ScaleStatusResponse.ScaleStatus.SUCCESS))), executor).get();
         //After scale the current number of segments is 3;
-        List<Controller.SegmentRange> currentSegmentsAfterScale = consumer.getCurrentSegments(SCOPE, STREAM1).get();
+        List<Controller.SegmentRange> currentSegmentsAfterScale = consumer.getCurrentSegments(SCOPE, STREAM1, 0L).get();
         assertEquals(3, currentSegmentsAfterScale.size());
 
         Map<Controller.SegmentRange, List<Long>> successorsOfSeg1 = consumer.getSegmentsImmediatelyFollowing(
-                ModelHelper.createSegmentId(SCOPE, STREAM1, 1)).get();
+                ModelHelper.createSegmentId(SCOPE, STREAM1, 1), 0L).get();
         assertEquals(2, successorsOfSeg1.size()); //two segments follow segment 1
 
         Map<Controller.SegmentRange, List<Long>> successorsOfSeg0 = consumer.getSegmentsImmediatelyFollowing(
-                ModelHelper.createSegmentId(SCOPE, STREAM1, 0)).get();
+                ModelHelper.createSegmentId(SCOPE, STREAM1, 0), 0L).get();
         assertEquals(0, successorsOfSeg0.size()); //no segments follow segment 0
     }
 
@@ -235,9 +262,9 @@ public abstract class ControllerServiceWithStreamTest {
         long start = System.currentTimeMillis();
 
         // Create stream and scope
-        Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE).join();
+        Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE, 0L).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
-        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, STREAM, configuration1, start).get();
+        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, STREAM, configuration1, start, 0L).get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
 
         List<Long> segments = new ArrayList<>();
@@ -323,6 +350,52 @@ public abstract class ControllerServiceWithStreamTest {
         testValidRanges(streamCut01, streamCut023, streamCut423, streamCut56, streamCut41, streamCut06, segments);
     }
 
+    @Test(timeout = 5000)
+    public void createReaderGroupTest() throws Exception {
+        String stream = "stream1";
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder()
+                .scalingPolicy(policy1).build();
+        //Start time  when stream is created.
+        long start = System.currentTimeMillis();
+
+        // Create scope
+        Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE, 0L).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
+
+        // create stream
+        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, stream, configuration1, start, 0L).get();
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
+
+        final Segment seg0 = new Segment(SCOPE, "stream1", 0L);
+        final Segment seg1 = new Segment(SCOPE, "stream1", 1L);
+        ImmutableMap<Segment, Long> startStreamCut = ImmutableMap.of(seg0, 10L, seg1, 10L);
+        Map<Stream, StreamCut> startSC = ImmutableMap.of(Stream.of(SCOPE, "stream1"),
+                new StreamCutImpl(Stream.of(SCOPE, "stream1"), startStreamCut));
+        ImmutableMap<Segment, Long> endStreamCut = ImmutableMap.of(seg0, 200L, seg1, 300L);
+        Map<Stream, StreamCut> endSC = ImmutableMap.of(Stream.of(SCOPE, "stream1"),
+                new StreamCutImpl(Stream.of(SCOPE, "stream1"), endStreamCut));
+        ReaderGroupConfig rgConfig = ReaderGroupConfig.builder()
+                .automaticCheckpointIntervalMillis(30000L)
+                .groupRefreshTimeMillis(20000L)
+                .maxOutstandingCheckpointRequest(2)
+                .retentionType(ReaderGroupConfig.StreamDataRetention.AUTOMATIC_RELEASE_AT_LAST_CHECKPOINT)
+                .startingStreamCuts(startSC)
+                .endingStreamCuts(endSC).build();
+        Controller.CreateReaderGroupResponse rgStatus =  consumer.createReaderGroup(SCOPE, "rg1",
+                                                        rgConfig, System.currentTimeMillis(), 0L).get();
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, rgStatus.getStatus());
+
+        // there should be 1 invocation
+        verify(streamStore, times(1)).createReaderGroup(anyString(), anyString(), any(), anyLong(), any(), any());
+
+        rgStatus = consumer.createReaderGroup(SCOPE, "rg1", rgConfig, System.currentTimeMillis(), 0L).get();
+        assertEquals(Controller.CreateReaderGroupResponse.Status.SUCCESS, rgStatus.getStatus());
+
+        // verify that create readergroup is not called again
+        verify(streamStore, times(1)).createReaderGroup(anyString(), anyString(), any(), anyLong(), any(), any());
+    }
+
     private void testValidRanges(Map<Long, Long> streamCut01, Map<Long, Long> streamCut023, Map<Long, Long> streamCut423,
                                  Map<Long, Long> streamCut56, Map<Long, Long> streamCut41, Map<Long, Long> streamCut06,
                                  List<Long> segmentIds) throws ExecutionException, InterruptedException {
@@ -330,7 +403,7 @@ public abstract class ControllerServiceWithStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         Controller.StreamCutRange streamCutRange;
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(streamCut023).build();
-        List<StreamSegmentRecord> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        List<StreamSegmentRecord> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(4, segments.size());
         assertTrue(segments.stream().anyMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3)));
@@ -338,7 +411,7 @@ public abstract class ControllerServiceWithStreamTest {
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(streamCut423).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(5, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4)));
@@ -346,7 +419,7 @@ public abstract class ControllerServiceWithStreamTest {
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(streamCut06).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(5, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(6)));
@@ -354,7 +427,7 @@ public abstract class ControllerServiceWithStreamTest {
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut41).putAllTo(streamCut56).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(6, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(1) || x.segmentId() == segmentIds.get(2) ||
                 x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) || x.segmentId() == segmentIds.get(5) ||
@@ -363,7 +436,7 @@ public abstract class ControllerServiceWithStreamTest {
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(streamCut06).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(5, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(6)));
@@ -374,12 +447,14 @@ public abstract class ControllerServiceWithStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         Controller.StreamCutRange streamCutRange;
         streamCutRange = rangeBuilder.putAllFrom(streamCut023).putAllTo(streamCut01).build();
-        AssertExtensions.assertFutureThrows("to before from", consumer.getSegmentsBetweenStreamCuts(streamCutRange), e -> e instanceof IllegalArgumentException);
+        AssertExtensions.assertFutureThrows("to before from", consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L),
+                e -> e instanceof IllegalArgumentException);
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut56).putAllTo(streamCut023).build();
-        AssertExtensions.assertFutureThrows("to before from", consumer.getSegmentsBetweenStreamCuts(streamCutRange), e -> e instanceof IllegalArgumentException);
+        AssertExtensions.assertFutureThrows("to before from", consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L), 
+                e -> e instanceof IllegalArgumentException);
     }
 
     private void testEmptyTo(Map<Long, Long> streamCut01, Map<Long, Long> streamCut023, Map<Long, Long> streamCut423,
@@ -389,7 +464,7 @@ public abstract class ControllerServiceWithStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         Controller.StreamCutRange streamCutRange;
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(Collections.emptyMap()).build();
-        List<StreamSegmentRecord> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        List<StreamSegmentRecord> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(7, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) ||
@@ -398,7 +473,7 @@ public abstract class ControllerServiceWithStreamTest {
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut023).putAllTo(Collections.emptyMap()).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(6, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) ||
@@ -407,22 +482,23 @@ public abstract class ControllerServiceWithStreamTest {
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut423).putAllTo(Collections.emptyMap()).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(5, segments.size());
-        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) ||
+        assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || 
+                x.segmentId() == segmentIds.get(4) ||
                 x.segmentId() == segmentIds.get(5) || x.segmentId() == segmentIds.get(6)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut56).putAllTo(Collections.emptyMap()).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(2, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(5) || x.segmentId() == segmentIds.get(6)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut41).putAllTo(Collections.emptyMap()).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(6, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) ||
@@ -431,7 +507,7 @@ public abstract class ControllerServiceWithStreamTest {
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut06).putAllTo(Collections.emptyMap()).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(4, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(4) ||
                 x.segmentId() == segmentIds.get(5) || x.segmentId() == segmentIds.get(6)));
@@ -444,14 +520,14 @@ public abstract class ControllerServiceWithStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         Controller.StreamCutRange streamCutRange;
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut01).build();
-        List<StreamSegmentRecord> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        List<StreamSegmentRecord> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(2, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1)));
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut023).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(4, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3)));
@@ -459,7 +535,7 @@ public abstract class ControllerServiceWithStreamTest {
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut423).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(5, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4)));
@@ -467,7 +543,7 @@ public abstract class ControllerServiceWithStreamTest {
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut56).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(7, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) ||
@@ -476,7 +552,7 @@ public abstract class ControllerServiceWithStreamTest {
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut41).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(3, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(4)));
@@ -484,17 +560,18 @@ public abstract class ControllerServiceWithStreamTest {
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut06).build();
-        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange, 0L).get();
         assertEquals(5, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(6)));
     }
 
     private void scale(long start, List<Long> segmentsToSeal, Map<Double, Double> keyRanges) throws InterruptedException, ExecutionException {
-        Controller.ScaleResponse scaleStatus = consumer.scale(SCOPE, STREAM, segmentsToSeal, keyRanges, start)
+        Controller.ScaleResponse scaleStatus = consumer.scale(SCOPE, STREAM, segmentsToSeal, keyRanges, start, 0L)
                                                        .get();
         AtomicBoolean done = new AtomicBoolean(false);
-        Futures.loop(() -> !done.get(), () -> Futures.delayedFuture(() -> consumer.checkScale(SCOPE, STREAM, scaleStatus.getEpoch()), 1000, executor)
-                                                     .thenAccept(x -> done.set(x.getStatus().equals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS))), executor).get();
+        Futures.loop(() -> !done.get(), () -> Futures.delayedFuture(() -> consumer.checkScale(SCOPE, STREAM, scaleStatus.getEpoch(), 0L),
+                1000, executor).thenAccept(x -> done.set(x.getStatus().equals(
+                        Controller.ScaleStatusResponse.ScaleStatus.SUCCESS))), executor).get();
     }
 }

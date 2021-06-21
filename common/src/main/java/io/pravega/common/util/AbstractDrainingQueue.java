@@ -1,14 +1,21 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.common.util;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
@@ -146,7 +153,7 @@ public abstract class AbstractDrainingQueue<T> {
             if (result.size() > 0) {
                 return CompletableFuture.completedFuture(result);
             } else {
-                this.pendingTake = new CompletableFuture<>();
+                this.pendingTake = newTakeResult();
                 return this.pendingTake;
             }
         }
@@ -174,6 +181,12 @@ public abstract class AbstractDrainingQueue<T> {
                 synchronized (this.lock) {
                     if (this.pendingTake == result) {
                         this.pendingTake = null;
+                    } else {
+                        // This take result is no longer registered, which means it has either (just) been completed
+                        // or it is about to. There is a small window (in the #add() method) where the future is
+                        // unregistered but not yet completed. WE MUST MAKE SURE that we do not preemptively cancel it
+                        // (with a TimeoutException), otherwise we will lose data.
+                        return;
                     }
                 }
 
@@ -245,6 +258,11 @@ public abstract class AbstractDrainingQueue<T> {
      * @return The extracted items, in order.
      */
     protected abstract Queue<T> fetch(int maxCount);
+
+    @VisibleForTesting
+    protected CompletableFuture<Queue<T>> newTakeResult() {
+        return new CompletableFuture<>();
+    }
 
     //endregion
 }

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server;
 
@@ -57,6 +63,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     private final ScheduledExecutorService executorService;
     private final AtomicInteger currentGeneration;
     private final AtomicInteger oldestGeneration;
+    private final AtomicBoolean essentialEntriesOnly;
     private final AtomicReference<CacheState> lastCacheState;
     private final AtomicBoolean running;
     private final CachePolicy policy;
@@ -98,6 +105,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         this.clients = new HashSet<>();
         this.oldestGeneration = new AtomicInteger(0);
         this.currentGeneration = new AtomicInteger(0);
+        this.essentialEntriesOnly = new AtomicBoolean(false);
         this.running = new AtomicBoolean();
         this.closed = new AtomicBoolean();
         this.lastCacheState = new AtomicReference<>();
@@ -176,7 +184,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             }
         }
 
-        client.updateGenerations(this.currentGeneration.get(), this.oldestGeneration.get());
+        client.updateGenerations(this.currentGeneration.get(), this.oldestGeneration.get(), this.essentialEntriesOnly.get());
         log.info("{} Registered {}.", TRACE_OBJECT_ID, client);
     }
 
@@ -202,6 +210,21 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     //endregion
 
     //region Helpers
+
+    /**
+     * Gets a value indicating whether the CacheManager has entered "Essential-only" mode.
+     *
+     * @return True if essential-only, false otherwise.
+     */
+    @VisibleForTesting
+    public boolean isEssentialEntriesOnly() {
+        return this.essentialEntriesOnly.get();
+    }
+
+    @VisibleForTesting
+    public int getCurrentGeneration() {
+        return this.currentGeneration.get();
+    }
 
     private boolean cacheFullCallback() {
         log.info("{}: Cache full. Forcing cache policy.", TRACE_OBJECT_ID);
@@ -352,16 +375,19 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     private void fetchCacheState() {
         this.lastCacheState.set(this.cacheStorage.getState());
+        adjustNonEssentialEnabled();
     }
 
     private boolean updateClients() {
         final int cg = this.currentGeneration.get();
         final int og = this.oldestGeneration.get();
+        final boolean essentialEntriesOnly = this.essentialEntriesOnly.get();
         ArrayList<Client> toUnregister = new ArrayList<>();
         boolean reduced = false;
+        log.debug("{}: UpdateClients. Gen={}-{}, EssentialOnly={}.", TRACE_OBJECT_ID, cg, og, essentialEntriesOnly);
         for (Client c : getClients()) {
             try {
-                reduced = c.updateGenerations(cg, og) | reduced;
+                reduced = c.updateGenerations(cg, og, essentialEntriesOnly) | reduced;
             } catch (ObjectClosedException ex) {
                 // This object was closed but it was not unregistered. Do it now.
                 log.warn("{} Detected closed client {}.", TRACE_OBJECT_ID, c);
@@ -415,6 +441,10 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         return isAdjusted;
     }
 
+    private void adjustNonEssentialEnabled() {
+        this.essentialEntriesOnly.set(this.lastCacheState.get().getUsedBytes() >= this.policy.getCriticalThreshold());
+    }
+
     private boolean exceedsPolicy(CacheStatus currentStatus) {
         // We need to increment the OldestGeneration only if any of the following conditions occurred:
         // 1. We currently exceed the maximum usable size as defined by the cache policy.
@@ -432,8 +462,9 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     }
 
     private void logCurrentStatus(CacheStatus status) {
-        log.info("{}: Gen: {}-{}; Clients: {} ({}-{}); Cache: {}.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration,
-                this.clients.size(), status.getNewestGeneration(), status.getOldestGeneration(), this.lastCacheState);
+        log.info("{}: Gen: {}-{}; EssentialOnly: {}; Clients: {} ({}-{}); Cache: {}.", TRACE_OBJECT_ID, this.currentGeneration,
+                this.oldestGeneration, this.essentialEntriesOnly, this.clients.size(), status.getNewestGeneration(),
+                status.getOldestGeneration(), this.lastCacheState);
     }
 
     private long getStoredBytes() {
@@ -462,9 +493,15 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
          * @param currentGeneration The value of the current generation.
          * @param oldestGeneration  The value of the oldest generation. This is the cutoff for which entries can still
          *                          exist in the cache.
+         * @param essentialOnly     If true, essential-only indicates that only cache entries that must be added to the
+         *                          cache should be inserted (i.e., those that cannot yet be recovered from persistent storage).
+         *                          This usually indicates an extremely high cache utilization level so non-essential cache
+         *                          entries should not be inserted in order to improve system stability (such as avoiding
+         *                          {@link io.pravega.segmentstore.storage.cache.CacheFullException}).
+         *                          If false, any cache entries may be inserted.
          * @return If any cache data was trimmed with this update.
          */
-        boolean updateGenerations(int currentGeneration, int oldestGeneration);
+        boolean updateGenerations(int currentGeneration, int oldestGeneration, boolean essentialOnly);
     }
 
     //endregion

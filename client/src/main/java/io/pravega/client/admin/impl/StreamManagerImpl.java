@@ -1,17 +1,24 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.admin.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.connection.impl.ConnectionPool;
@@ -23,20 +30,25 @@ import io.pravega.client.control.impl.ControllerImpl;
 import io.pravega.client.control.impl.ControllerImplConfig;
 import io.pravega.client.stream.DeleteScopeFailedException;
 import io.pravega.client.stream.InvalidStreamException;
+import io.pravega.client.stream.ReaderGroupNotFoundException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
+
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 
 /**
  * A stream manager. Used to bootstrap the client.
@@ -48,19 +60,25 @@ public class StreamManagerImpl implements StreamManager {
     private final ConnectionPool connectionPool;
     private final ScheduledExecutorService executor;
     private final StreamCutHelper streamCutHelper;
-    
+
+
     public StreamManagerImpl(ClientConfig clientConfig) {
-        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
-        this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(), executor);
+        this(clientConfig, ControllerImplConfig.builder().clientConfig(clientConfig).build());
+    }
+
+    @VisibleForTesting
+    public StreamManagerImpl(ClientConfig clientConfig, ControllerImplConfig controllerConfig) {
         this.connectionPool = new ConnectionPoolImpl(clientConfig, new SocketConnectionFactoryImpl(clientConfig));
+        this.executor = connectionPool.getInternalExecutor();
+        this.controller = new ControllerImpl(controllerConfig, executor);
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
     }
 
     @VisibleForTesting
     public StreamManagerImpl(Controller controller, ConnectionPool connectionPool) {
-        this.executor = null;
         this.controller = controller;
         this.connectionPool = connectionPool;
+        this.executor = connectionPool.getInternalExecutor();
         this.streamCutHelper = new StreamCutHelper(controller, connectionPool);
     }
 
@@ -153,13 +171,18 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public boolean deleteScope(String scopeName, boolean deleteStreams) throws DeleteScopeFailedException {
+    public boolean deleteScope(String scopeName, boolean forceDelete) throws DeleteScopeFailedException {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Deleting scope: {}", scopeName);
-        if (deleteStreams) {
+        if (forceDelete) {
+            List<String> readerGroupList = new ArrayList<>();
             Iterator<Stream> iterator = listStreams(scopeName);
             while (iterator.hasNext()) {
                 Stream stream = iterator.next();
+                if (stream.getStreamName().startsWith(READER_GROUP_STREAM_PREFIX)) {
+                    readerGroupList.add(stream.getStreamName().substring(
+                            READER_GROUP_STREAM_PREFIX.length()));
+                }
                 try {
                     Futures.getThrowingException(Futures.exceptionallyExpecting(controller.sealStream(stream.getScope(), stream.getStreamName()),
                             e -> {
@@ -170,6 +193,31 @@ public class StreamManagerImpl implements StreamManager {
                             }, false).thenCompose(sealed -> controller.deleteStream(stream.getScope(), stream.getStreamName())));
                 } catch (Exception e) {
                     String message = String.format("Failed to seal and delete stream %s", stream.getStreamName());
+                    throw new DeleteScopeFailedException(message, e);
+                }
+            }
+
+            Iterator<KeyValueTableInfo> kvtIterator = controller.listKeyValueTables(scopeName).asIterator();
+            while (kvtIterator.hasNext()) {
+                KeyValueTableInfo kvt = kvtIterator.next();
+                try {
+                    Futures.getThrowingException(controller.deleteKeyValueTable(scopeName, kvt.getKeyValueTableName()));
+                } catch (Exception e) {
+                    String message = String.format("Failed to delete key-value table %s", kvt.getKeyValueTableName());
+                    throw new DeleteScopeFailedException(message, e);
+                }
+            }
+
+            for (String groupName: readerGroupList) {
+                try {
+                    Futures.getThrowingException(controller.getReaderGroupConfig(scopeName, groupName)
+                            .thenCompose(conf -> controller.deleteReaderGroup(scopeName, groupName,
+                                    conf.getReaderGroupId())));
+                } catch (Exception e) {
+                    if (Exceptions.unwrap(e) instanceof ReaderGroupNotFoundException) {
+                        continue;
+                    }
+                    String message = String.format("Failed to delete reader group %s", groupName);
                     throw new DeleteScopeFailedException(message, e);
                 }
             }
@@ -208,9 +256,6 @@ public class StreamManagerImpl implements StreamManager {
     public void close() {
         if (this.controller != null) {
             Callbacks.invokeSafely(this.controller::close, ex -> log.error("Unable to close Controller client.", ex));
-        }
-        if (this.executor != null) {
-            ExecutorServiceHelpers.shutdown(this.executor);
         }
         if (this.connectionPool != null) {
             this.connectionPool.close();

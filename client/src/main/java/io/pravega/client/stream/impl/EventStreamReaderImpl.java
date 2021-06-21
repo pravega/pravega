@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -39,6 +45,7 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.SegmentWithRange.Range;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.CopyOnWriteHashMap;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -258,6 +265,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
      */
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
+        groupState.updateConfigIfNeeded();
         PositionInternal position = null;
         if (atCheckpoint != null) {
             // process the checkpoint we're at
@@ -323,6 +331,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private void releaseSealedSegments() throws ReaderNotInReaderGroupException {
         for (Iterator<Entry<Segment, Long>> iterator = sealedSegments.entrySet().iterator(); iterator.hasNext();) {
             Segment oldSegment = iterator.next().getKey();
+            log.info("{} releasing sealed segment {}", this, oldSegment);
             Range range = ranges.get(oldSegment);
             if (groupState.handleEndOfSegment(new SegmentWithRange(oldSegment, range))) {
                 ranges.remove(oldSegment);
@@ -383,7 +392,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId,
                 DelegationTokenProviderFactory.create(controller, segmentId, AccessOperation.READ));
         try {
-            long startingOffset = metadataClient.getSegmentInfo().getStartingOffset();
+            long startingOffset = Futures.getThrowingException(metadataClient.getSegmentInfo()).getStartingOffset();
             segmentReader.setOffset(startingOffset);
         } catch (NoSuchSegmentException e) {
             handleEndOfSegment(segmentReader, true);

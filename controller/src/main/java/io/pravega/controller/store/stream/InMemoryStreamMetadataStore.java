@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.store.stream;
 
@@ -13,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.gson.internal.LinkedTreeMap;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
@@ -24,6 +31,7 @@ import io.pravega.controller.store.Version;
 import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -35,6 +43,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -56,7 +65,11 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final AtomicInteger position = new AtomicInteger();
     @GuardedBy("$lock")
     private final LinkedTreeMap<String, Integer> orderedScopes = new LinkedTreeMap<>();
-    
+
+    @GuardedBy("$lock")
+    private final Map<String, InMemoryReaderGroup> readerGroups = new HashMap<>();
+
+
     @GuardedBy("$lock")
     private final Map<Integer, List<String>> bucketedStreams = new HashMap<>();
 
@@ -65,11 +78,8 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private final AtomicInt96 counter;
 
-    private final Executor executor;
-
-    public InMemoryStreamMetadataStore(Executor executor) {
+    public InMemoryStreamMetadataStore() {
         super(new InMemoryHostIndex(), new InMemoryHostIndex());
-        this.executor = executor;
         this.counter = new AtomicInt96();
     }
 
@@ -80,11 +90,12 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    Stream newStream(String scope, String name) {
-        if (streams.containsKey(scopedStreamName(scope, name))) {
-            return streams.get(scopedStreamName(scope, name));
+    Stream newStream(String scopeName, String name) {
+        String key = scopedStreamName(scopeName, name);
+        if (streams.containsKey(key)) {
+            return streams.get(key);
         } else {
-            return new InMemoryStream(scope, name);
+            return new InMemoryStream(scopeName, name);
         }
     }
 
@@ -95,7 +106,8 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> checkScopeExists(String scope) {
+    public CompletableFuture<Boolean> checkScopeExists(String scope, OperationContext context, Executor executor) {
+        log.debug("InMemory checking if scope exists");
         return CompletableFuture.completedFuture(scopes.containsKey(scope));
     }
 
@@ -107,6 +119,18 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     Version parseVersionData(byte[] data) {
         return Version.IntVersion.fromBytes(data);
+    }
+
+    @Override
+    @Synchronized
+    @SneakyThrows
+    ReaderGroup newReaderGroup(String scope, String name) {
+        final String scopedRGName = scopedStreamName(scope, name);
+        if (readerGroups.containsKey(scopedRGName)) {
+            return readerGroups.get(scopedRGName);
+        } else {
+           return new InMemoryReaderGroup(scope, name);
+        }
     }
 
     @Override
@@ -124,16 +148,20 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<CreateStreamResponse> createStream(final String scopeName, final String streamName,
                                                                 final StreamConfiguration configuration,
                                                                 final long timeStamp,
-                                                                final OperationContext context,
+                                                                final OperationContext ctx,
                                                                 final Executor executor) {
+        OperationContext context = getOperationContext(ctx);
         if (scopes.containsKey(scopeName)) {
             InMemoryStream stream = (InMemoryStream) getStream(scopeName, streamName, context);
-            return getSafeStartingSegmentNumberFor(scopeName, streamName)
-                    .thenCompose(startingSegmentNumber -> stream.create(configuration, timeStamp, startingSegmentNumber)
-                    .thenCompose(status -> {
-                        streams.put(scopedStreamName(scopeName, streamName), stream);
-                        return scopes.get(scopeName).addStreamToScope(streamName).thenApply(v -> status);
-                    }));
+            return getSafeStartingSegmentNumberFor(scopeName, streamName, context, executor)
+                    .thenCompose(startingSegmentNumber -> {
+                        CompletableFuture<CreateStreamResponse> future = stream.create(
+                                configuration, timeStamp, startingSegmentNumber, context);
+                        return future.thenCompose(status -> {
+                                  streams.put(scopedStreamName(scopeName, streamName), stream);
+                                  return scopes.get(scopeName).addStreamToScope(streamName, context).thenApply(v -> status);
+                              });
+                    });
         } else {
             return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
@@ -142,14 +170,15 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
-                                                        final String streamName) {
+    public CompletableFuture<Boolean> checkStreamExists(final String scopeName, final String streamName, 
+                                                        final OperationContext context, final Executor executor) {
         return CompletableFuture.completedFuture(streams.containsKey(scopedStreamName(scopeName, streamName)));
     }
 
     @Override
     @Synchronized
-    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
+    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName,
+                                                                      final OperationContext context, final Executor executor) {
         final Integer safeStartingSegmentNumber = deletedStreams.get(scopedStreamName(scopeName, streamName));
         return CompletableFuture.completedFuture((safeStartingSegmentNumber != null) ? safeStartingSegmentNumber + 1 : 0);
     }
@@ -157,14 +186,15 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     @Synchronized
     public CompletableFuture<Void> deleteStream(final String scopeName, final String streamName,
-                                                final OperationContext context,
+                                                final OperationContext ctx,
                                                 final Executor executor) {
+        OperationContext context = getOperationContext(ctx);
         String scopedStreamName = scopedStreamName(scopeName, streamName);
         if (scopes.containsKey(scopeName) && streams.containsKey(scopedStreamName)) {
-            streams.remove(scopedStreamName);
             return getCreationTime(scopeName, streamName, context, executor)
-                    .thenCompose(time -> scopes.get(scopeName).removeStreamFromScope(streamName))
-                    .thenCompose(v -> super.deleteStream(scopeName, streamName, context, executor));
+                    .thenCompose(time -> scopes.get(scopeName).removeStreamFromScope(streamName, context))
+                    .thenCompose(v -> super.deleteStream(scopeName, streamName, context, executor))
+                    .thenAccept(v -> streams.remove(scopedStreamName));
         } else {
             return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, streamName));
@@ -176,31 +206,85 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<Void> startUpdateConfiguration(final String scopeName,
                                                             final String streamName,
                                                             final StreamConfiguration configuration,
-                                                            final OperationContext context,
+                                                            final OperationContext ctx,
                                                             final Executor executor) {
+        OperationContext context = getOperationContext(ctx);
         if (scopes.containsKey(scopeName)) {
             String scopeStreamName = scopedStreamName(scopeName, streamName);
             if (!streams.containsKey(scopeStreamName)) {
                 return Futures.
                         failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeStreamName));
             }
-            return streams.get(scopeStreamName).startUpdateConfiguration(configuration);
+            return streams.get(scopeStreamName).startUpdateConfiguration(configuration, context);
         } else {
             return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
-    
+
+    @Override
+    public CompletableFuture<Void> addReaderGroupToScope(String scopeName, String rgName, UUID readerGroupId, 
+                                                         final OperationContext context, final Executor executor) {
+        if (scopes.containsKey(scopeName)) {
+            return Futures.toVoid(scopes.get(scopeName).addReaderGroupToScope(rgName, readerGroupId));
+        } else {
+            return Futures.
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
+        }
+    }
+
+    // region ReaderGroup
+    @Override
+    public CompletableFuture<Void> createReaderGroup(final String scope,
+                                                     final String name,
+                                                     final ReaderGroupConfig configuration,
+                                                     final long createTimestamp,
+                                                     final OperationContext context,
+                                                     final Executor executor) {
+        if (scopes.containsKey(scope)) {
+           InMemoryReaderGroup readerGroup = (InMemoryReaderGroup) getReaderGroup(scope, name, context);
+           readerGroups.put(scopedStreamName(scope, name), readerGroup);
+           return readerGroup.create(configuration, createTimestamp, context);
+        } else {
+            return Futures.
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scope));
+        }
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteReaderGroup(final String scopeName, final String rgName,
+                                                     final OperationContext context, final Executor executor) {
+        String scopedRGName = scopedStreamName(scopeName, rgName);
+        if (scopes.containsKey(scopeName) && readerGroups.containsKey(scopedRGName)) {
+            readerGroups.remove(scopedRGName);
+            return scopes.get(scopeName).removeReaderGroupFromScope(rgName);
+        } else {
+            return Futures.
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, rgName));
+        }
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkReaderGroupExists(final String scopeName,
+                                                             final String rgName, 
+                                                             OperationContext context, Executor executor) {
+        return Futures.completeOn(((InMemoryScope) getScope(scopeName, context)).checkReaderGroupExistsInScope(rgName), executor);
+    }
+
+    // endregion
+
     @Override
     @Synchronized
-    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
+    public CompletableFuture<CreateScopeStatus> createScope(final String scopeName, OperationContext ctx, Executor executor) {
+        OperationContext context = getOperationContext(ctx);
         if (!scopes.containsKey(scopeName)) {
-            InMemoryScope scope = new InMemoryScope(scopeName);
-            scope.createScope();
-            scopes.put(scopeName, scope);
-            orderedScopes.put(scopeName, position.incrementAndGet());
-            return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
-                    CreateScopeStatus.Status.SUCCESS).build());
+            InMemoryScope scope = (InMemoryScope) getScope(scopeName, context);
+            return scope.createScope(context)
+                 .thenApply(x -> {
+                     scopes.put(scopeName, scope);
+                     orderedScopes.put(scopeName, position.incrementAndGet());
+                     return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
+                 });
         } else {
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
                     CreateScopeStatus.Status.SCOPE_EXISTS).build());
@@ -209,16 +293,20 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
+    public CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName, OperationContext ctx, Executor executor) {
+        OperationContext context = getOperationContext(ctx);
         if (scopes.containsKey(scopeName)) {
-            return scopes.get(scopeName).listStreamsInScope().thenApply(streams -> {
+            return scopes.get(scopeName).listStreamsInScope(context).thenCompose(streams -> {
                 if (streams.isEmpty()) {
-                    scopes.get(scopeName).deleteScope();
-                    scopes.remove(scopeName);
-                    orderedScopes.remove(scopeName);
-                    return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
+                    return scopes.get(scopeName).deleteScope(context)
+                                 .thenApply(x -> {
+                                     scopes.remove(scopeName);
+                                     orderedScopes.remove(scopeName);
+                                     return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
+                                 });
                 } else {
-                    return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
+                    return CompletableFuture.completedFuture(
+                            DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build());
                 }
             });
         } else {
@@ -229,7 +317,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
+    public CompletableFuture<String> getScopeConfiguration(final String scopeName, OperationContext context, Executor executor) {
         if (scopes.containsKey(scopeName)) {
             return CompletableFuture.completedFuture(scopeName);
         } else {
@@ -239,12 +327,13 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<List<String>> listScopes() {
+    public CompletableFuture<List<String>> listScopes(Executor executor, long requestId) {
         return CompletableFuture.completedFuture(new ArrayList<>(scopes.keySet()));
     }
 
     @Override
-    public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken, int limit, Executor executor) {
+    public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken, int limit, Executor executor, 
+                                                                    long requestId) {
         List<String> result = new ArrayList<>();
         String nextToken = continuationToken;
         int start = Strings.isNullOrEmpty(continuationToken) ? 0 : Integer.parseInt(continuationToken);
@@ -268,10 +357,13 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
      */
     @Override
     @Synchronized
-    public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName) {
+    public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName, 
+                                                                                  final OperationContext ctx,
+                                                                                  final Executor executor) {
+        OperationContext context = getOperationContext(ctx);
         InMemoryScope inMemoryScope = scopes.get(scopeName);
         if (inMemoryScope != null) {
-            return inMemoryScope.listStreamsInScope()
+            return inMemoryScope.listStreamsInScope(context)
                     .thenApply(streams -> {
                         HashMap<String, StreamConfiguration> result = new HashMap<>();
                         for (String stream : streams) {
@@ -314,6 +406,6 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         InMemoryStream stream = (InMemoryStream) getStream(scopeName, streamName, null);
 
         streams.put(scopedStreamName(scopeName, streamName), stream);
-        scopes.get(scopeName).addStreamToScope(streamName).join();
+        scopes.get(scopeName).addStreamToScope(streamName, null).join();
     }
 }

@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.stream.impl;
 
@@ -20,6 +26,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
 import io.pravega.client.stream.impl.ReaderGroupState.SegmentCompleted;
+import io.pravega.client.stream.impl.ReaderGroupState.UpdatingConfig;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -53,7 +60,7 @@ public class ReaderGroupStateTest {
         Map<SegmentWithRange, Long> offsetMap = new HashMap<>();
         offsetMap.put(new SegmentWithRange(new Segment(SCOPE, "S1", 0), 0, 1), 1L);
         offsetMap.put(new SegmentWithRange(new Segment(SCOPE, "S2", 0), 0, 1), 1L);
-        readerState = new ReaderGroupState("stream", revision, readerConf, offsetMap, Collections.emptyMap());
+        readerState = new ReaderGroupState("stream", revision, readerConf, offsetMap, Collections.emptyMap(), false);
     }
     
 
@@ -213,6 +220,17 @@ public class ReaderGroupStateTest {
         Optional<Map<Stream, StreamCut>> streamCuts = readerState.getStreamCutsForCompletedCheckpoint("chk1");
         assertTrue(streamCuts.isPresent());
         assertEquals(expectedStreamCuts, streamCuts.get());
+    }
+
+    @Test
+    public void testUpdatingConfig() {
+        UpdatingConfig update1 = new UpdatingConfig(true);
+        update1.applyTo(readerState, revision);
+        assertTrue(readerState.isUpdatingConfig());
+
+        UpdatingConfig update2 = new UpdatingConfig(false);
+        update2.applyTo(readerState, revision);
+        assertFalse(readerState.isUpdatingConfig());
     }
 
     private Segment getSegment(String streamName) {

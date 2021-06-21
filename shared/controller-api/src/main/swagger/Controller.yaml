@@ -1,5 +1,5 @@
 #
-# Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright Pravega Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -7,6 +7,13 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 # Description of the Pravega Controller APIs.
 
 swagger: "2.0"
@@ -388,14 +395,6 @@ paths:
           description: Internal server error while fetching reader group details
   /health:
     get:
-      parameters:
-        - in: query
-          name: details
-          type: boolean
-          default: false
-          required: false
-          allowEmptyValue: true
-          description: Whether or not to provide the details in the health response.
       tags:
         - "Health"
       operationId: getHealth
@@ -454,21 +453,6 @@ paths:
             $ref: "#/definitions/HealthDetails"
         500:
           description: Internal server error while fetching the health details of the Controller.
-  /health/components:
-    get:
-      tags:
-        - "Health"
-      operationId: getDependencies
-      description: Fetch the details of the Controller service.
-      produces:
-        - application/json
-      responses:
-        200:
-          description: The list of health dependencies of the Controller.
-          schema:
-            $ref: "#/definitions/HealthDependencies"
-        500:
-          description: Internal server error while fetching the health dependencies of the Controller.
   /health/status:
     get:
       tags:
@@ -491,13 +475,6 @@ paths:
         type: string
         required: true
         description: The id of an existing health contributor.
-      - in: query
-        name: details
-        type: boolean
-        default: false
-        required: false
-        allowEmptyValue: true
-        description: Whether or not to include details in response response.
     get:
       tags:
         - "Health"
@@ -583,29 +560,6 @@ paths:
           description: "The health details for the contributor with given id was not found."
         500:
           description: Internal server error while fetching the health details for a given health contributor.
-  /health/components/{id}:
-    parameters:
-      - in: path
-        name: id
-        type: string
-        required: true
-        description: The id of an existing health contributor.
-    get:
-      tags:
-        - "Health"
-      operationId: getContributorDependencies
-      description: Fetch the health dependencies for a specific health contributor.
-      produces:
-        - application/json
-      responses:
-        200:
-          description: The list of health dependencies for a specific health contributor.
-          schema:
-            $ref: "#/definitions/HealthDependencies"
-        404:
-          description: "The health dependencies for the contributor with given id was not found."
-        500:
-          description: Internal server error while fetching the health dependencies of a given health contributor.
   /health/status/{id}:
     parameters:
       - in: path
@@ -793,7 +747,7 @@ definitions:
       details:
         $ref: "#/definitions/HealthDetails"
       children:
-        type: array
+        type: object
         items:
           $ref: "#/definitions/HealthResult"
   HealthStatus:
@@ -807,7 +761,3 @@ definitions:
     type: object
     additionalProperties:
         type: string
-  HealthDependencies:
-    type: array
-    items:
-      type: string

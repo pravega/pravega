@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.metrics;
 
@@ -67,23 +73,20 @@ public class StatsLoggerProxyTest {
         createMetrics(proxy, "", "hostname", "localhost");
         Assert.assertEquals("Unexpected number of metrics registered initially.", METRIC_COUNT * 2, metrics.size());
 
-        // Re-create/request the same metrics. Verify the original ones have not been touched, but we did create (and close)
-        // a new set.
+        // Re-create/request the same metrics. Verify the original ones have not been touched.
         createMetrics(proxy, "");
-        Assert.assertEquals("Unexpected number of metrics registered after re-registering same names.", 3 * METRIC_COUNT, metrics.size());
+        Assert.assertEquals("Unexpected number of metrics registered after re-registering same names.", 2 * METRIC_COUNT, metrics.size());
         Assert.assertFalse("Original metrics were not supposed to be closed.", metrics.subList(0, 2 * METRIC_COUNT).stream().anyMatch(TestMetric::isClosed));
-        Assert.assertTrue("Attempted-added metrics were supposed to be closed.",
-                metrics.stream().skip(2 * METRIC_COUNT).allMatch(TestMetric::isClosed));
 
         // Create a new set of metrics and verify the original ones were not touched.
         createMetrics(proxy, "foo");
-        Assert.assertEquals("Unexpected number of metrics registered after adding new ones.", 4 * METRIC_COUNT, metrics.size());
+        Assert.assertEquals("Unexpected number of metrics registered after adding new ones.", 3 * METRIC_COUNT, metrics.size());
         Assert.assertFalse("Original metrics were not supposed to be closed.", metrics.subList(0, 2 * METRIC_COUNT).stream().anyMatch(TestMetric::isClosed));
         Assert.assertFalse("Newly-added metrics were not supposed to be closed.",
                 metrics.stream().skip(3 * METRIC_COUNT).anyMatch(TestMetric::isClosed));
 
         createMetrics(proxy, "foo", "containerId", "6");
-        Assert.assertEquals("Unexpected number of metrics registered after adding new ones.", 5 * METRIC_COUNT, metrics.size());
+        Assert.assertEquals("Unexpected number of metrics registered after adding new ones.", 4 * METRIC_COUNT, metrics.size());
         Assert.assertFalse("Original metrics were not supposed to be closed.", metrics.subList(0, 2 * METRIC_COUNT).stream().anyMatch(TestMetric::isClosed));
         Assert.assertFalse("Newly-added metrics were not supposed to be closed.",
                 metrics.stream().skip(3 * METRIC_COUNT).anyMatch(TestMetric::isClosed));

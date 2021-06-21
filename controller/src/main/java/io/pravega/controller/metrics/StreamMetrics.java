@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.metrics;
 
@@ -47,19 +53,22 @@ import static io.pravega.shared.MetricsNames.CREATE_KVTABLE_FAILED;
 import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_KVTABLE;
 import static io.pravega.shared.MetricsNames.DELETE_KVTABLE_FAILED;
-import static io.pravega.shared.MetricsNames.ADD_SUBSCRIBER_LATENCY;
-import static io.pravega.shared.MetricsNames.REMOVE_SUBSCRIBER_LATENCY;
-import static io.pravega.shared.MetricsNames.ADD_SUBSCRIBER;
-import static io.pravega.shared.MetricsNames.ADD_SUBSCRIBER_FAILED;
-import static io.pravega.shared.MetricsNames.REMOVE_SUBSCRIBER;
-import static io.pravega.shared.MetricsNames.REMOVE_SUBSCRIBER_FAILED;
+import static io.pravega.shared.MetricsNames.CREATE_READER_GROUP_LATENCY;
+import static io.pravega.shared.MetricsNames.DELETE_READER_GROUP_LATENCY;
+import static io.pravega.shared.MetricsNames.CREATE_READER_GROUP;
+import static io.pravega.shared.MetricsNames.CREATE_READER_GROUP_FAILED;
+import static io.pravega.shared.MetricsNames.DELETE_READER_GROUP;
+import static io.pravega.shared.MetricsNames.DELETE_READER_GROUP_FAILED;
 import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER;
 import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER_FAILED;
 import static io.pravega.shared.MetricsNames.UPDATE_SUBSCRIBER_LATENCY;
-
+import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP_LATENCY;
+import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP;
+import static io.pravega.shared.MetricsNames.UPDATE_READER_GROUP_FAILED;
 
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
+import static io.pravega.shared.MetricsTags.readerGroupTags;
 
 /**
  * Class to encapsulate the logic to report Controller service metrics for Streams.
@@ -72,9 +81,10 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     private final OpStatsLogger deleteStreamLatency;
     private final OpStatsLogger sealStreamLatency;
     private final OpStatsLogger updateStreamLatency;
-    private final OpStatsLogger addSubscriberLatency;
+    private final OpStatsLogger addReaderGroupLatency;
     private final OpStatsLogger truncateStreamLatency;
-    private final OpStatsLogger removeSubscriberLatency;
+    private final OpStatsLogger deleteReaderGroupLatency;
+    private final OpStatsLogger updateReaderGroupLatency;
     private final OpStatsLogger updateSubscriberLatency;
     private final OpStatsLogger createKeyValueTableLatency;
     private final OpStatsLogger deleteKeyValueTableLatency;
@@ -88,13 +98,14 @@ public final class StreamMetrics extends AbstractControllerMetrics {
         sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
         updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
         truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
-        addSubscriberLatency = STATS_LOGGER.createStats(ADD_SUBSCRIBER_LATENCY);
-        removeSubscriberLatency = STATS_LOGGER.createStats(REMOVE_SUBSCRIBER_LATENCY);
+        addReaderGroupLatency = STATS_LOGGER.createStats(CREATE_READER_GROUP_LATENCY);
+        deleteReaderGroupLatency = STATS_LOGGER.createStats(DELETE_READER_GROUP_LATENCY);
         createScopeLatency = STATS_LOGGER.createStats(CREATE_SCOPE_LATENCY);
         deleteScopeLatency = STATS_LOGGER.createStats(DELETE_SCOPE_LATENCY);
         createKeyValueTableLatency = STATS_LOGGER.createStats(CREATE_KVTABLE_LATENCY);
         deleteKeyValueTableLatency = STATS_LOGGER.createStats(DELETE_KVTABLE_LATENCY);
         updateSubscriberLatency = STATS_LOGGER.createStats(UPDATE_SUBSCRIBER_LATENCY);
+        updateReaderGroupLatency = STATS_LOGGER.createStats(UPDATE_READER_GROUP_LATENCY);
     }
 
     /**
@@ -317,62 +328,87 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the global and Stream-specific counters for addSubscriber operation on a Stream
+     * This method increments the global and ReaderGroup-specific counters for createReaderGroup operation
      * and reports the latency.
      *
      * @param scope         Scope.
-     * @param streamName    Name of the Stream.
-     * @param latency       Latency of the addSubscriber operation.
+     * @param rgName        Name of the Reader Group.
+     * @param latency       Latency of the createReaderGroup operation.
      */
-    public void addSubscriber(String scope, String streamName, Duration latency) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(ADD_SUBSCRIBER), 1);
-        DYNAMIC_LOGGER.incCounterValue(ADD_SUBSCRIBER, 1, streamTags(scope, streamName));
-        addSubscriberLatency.reportSuccessValue(latency.toMillis());
+    public void createReaderGroup(String scope, String rgName, Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_READER_GROUP), 1);
+        DYNAMIC_LOGGER.incCounterValue(CREATE_READER_GROUP, 1, readerGroupTags(scope, rgName));
+        addReaderGroupLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
-     * This method increments the counter for failed addSubscriber operation attempts on a Stream.
+     * This method increments the counter for failed createReaderGroup operation.
      *
      * @param scope         Scope Name.
-     * @param streamName    Stream Name.
+     * @param rgName        Reader Group Name.
      */
-    public void addSubscriberFailed(String scope, String streamName) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(ADD_SUBSCRIBER_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(ADD_SUBSCRIBER_FAILED, 1, streamTags(scope, streamName));
+    public void createReaderGroupFailed(String scope, String rgName) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_READER_GROUP_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(CREATE_READER_GROUP_FAILED, 1, readerGroupTags(scope, rgName));
     }
 
     /**
-     * This method increments the global and Stream-specific counters for removeSubscriber operation on a Stream
+     * This method increments the global and ReaderGroup-specific counters for updateReaderGroup operation
+     * and reports the latency.
+     *
+     * @param scope         Scope.
+     * @param rgName        Name of the ReaderGroup.
+     * @param latency       Latency of the updateReaderGroup operation.
+     */
+    public void updateReaderGroup(String scope, String rgName, Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(UPDATE_READER_GROUP), 1);
+        DYNAMIC_LOGGER.incCounterValue(UPDATE_READER_GROUP, 1, readerGroupTags(scope, rgName));
+        updateReaderGroupLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method increments the counter for failed updateReaderGroup operation.
+     *
+     * @param scope     Scope Name.
+     * @param rgName    Reader Group Name.
+     */
+    public void updateReaderGroupFailed(String scope, String rgName) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(UPDATE_READER_GROUP_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(UPDATE_READER_GROUP_FAILED, 1, readerGroupTags(scope, rgName));
+    }
+
+    /**
+     * This method increments the global and ReaderGroup-specific counters for deleteReaderGroup operation
+     * and reports the latency.
+     *
+     * @param scope         Scope.
+     * @param rgName        Name of the Reader Group.
+     * @param latency       Latency of the deleteReaderGroup operation.
+     */
+    public void deleteReaderGroup(String scope, String rgName, Duration latency) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_READER_GROUP), 1);
+        DYNAMIC_LOGGER.incCounterValue(DELETE_READER_GROUP, 1, readerGroupTags(scope, rgName));
+        deleteReaderGroupLatency.reportSuccessValue(latency.toMillis());
+    }
+
+    /**
+     * This method increments the counter for failed deleteReaderGroup operation attempts on a Reader Group.
+     *
+     * @param scope     Scope Name.
+     * @param rgName    Reader Group Name.
+     */
+    public void deleteReaderGroupFailed(String scope, String rgName) {
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_READER_GROUP_FAILED), 1);
+        DYNAMIC_LOGGER.incCounterValue(DELETE_READER_GROUP_FAILED, 1, readerGroupTags(scope, rgName));
+    }
+
+    /**
+     * This method increments the global and Stream-specific counters for updateSubscriberStreamCut operation on a Stream
      * and reports the latency.
      *
      * @param scope         Scope.
      * @param streamName    Name of the Stream.
-     * @param latency       Latency of the removeSubscriber operation.
-     */
-    public void deleteSubscriber(String scope, String streamName, Duration latency) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(REMOVE_SUBSCRIBER), 1);
-        DYNAMIC_LOGGER.incCounterValue(REMOVE_SUBSCRIBER, 1, streamTags(scope, streamName));
-        removeSubscriberLatency.reportSuccessValue(latency.toMillis());
-    }
-
-    /**
-     * This method increments the counter for failed removeSubscriber operation attempts on a Stream.
-     *
-     * @param scope         Scope Name.
-     * @param streamName    Stream Name.
-     */
-    public void deleteSubscriberFailed(String scope, String streamName) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(REMOVE_SUBSCRIBER_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(REMOVE_SUBSCRIBER_FAILED, 1, streamTags(scope, streamName));
-    }
-
-    /**
-     * This method increments the global and Stream-specific counters for updateTruncationSC operation on a Stream
-     * and reports the latency.
-     *
-     * @param scope         Scope.
-     * @param streamName    Name of the Stream.
-     * @param latency       Latency of the updateTruncationStreamCut operation.
+     * @param latency       Latency of the updateSubscriberStreamCut operation.
      */
     public void updateTruncationSC(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(UPDATE_SUBSCRIBER), 1);
@@ -381,7 +417,7 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * This method increments the counter for failed removeSubscriber operation attempts on a Stream.
+     * This method increments the counter for failed updateSubscriberStreamCut operation attempts on a Stream.
      *
      * @param scope         Scope Name.
      * @param streamName    Stream Name.
@@ -455,21 +491,22 @@ public final class StreamMetrics extends AbstractControllerMetrics {
     }
 
     /**
-     * Closes all the OpsStatLogger objects and cleans up the instance.
+     * Resets the OpsStatLogger objects to their initial state..
      */
     public static synchronized void reset() {
-        if (INSTANCE.get() != null) {
-            INSTANCE.get().createStreamLatency.close();
-            INSTANCE.get().deleteStreamLatency.close();
-            INSTANCE.get().sealStreamLatency.close();
-            INSTANCE.get().updateStreamLatency.close();
-            INSTANCE.get().truncateStreamLatency.close();
-            INSTANCE.get().addSubscriberLatency.close();
-            INSTANCE.get().removeSubscriberLatency.close();
-            INSTANCE.get().updateSubscriberLatency.close();
-            INSTANCE.get().createScopeLatency.close();
-            INSTANCE.get().deleteScopeLatency.close();
-            INSTANCE.set(null);
+        StreamMetrics old = INSTANCE.get();
+        if (old != null) {
+            old.createStreamLatency.close();
+            old.deleteStreamLatency.close();
+            old.sealStreamLatency.close();
+            old.updateStreamLatency.close();
+            old.truncateStreamLatency.close();
+            old.addReaderGroupLatency.close();
+            old.deleteReaderGroupLatency.close();
+            old.updateSubscriberLatency.close();
+            old.createScopeLatency.close();
+            old.deleteScopeLatency.close();
         }
+        INSTANCE.set(new StreamMetrics());
     }
 }

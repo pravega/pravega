@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.storage.extendeds3;
 
@@ -18,9 +24,9 @@ import com.emc.object.s3.bean.CanonicalUser;
 import com.emc.object.s3.bean.CopyPartResult;
 import com.emc.object.s3.bean.Grant;
 import com.emc.object.s3.bean.ListObjectsResult;
-import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
+import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
 import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.PutObjectRequest;
@@ -41,7 +47,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
-
 import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.time.Duration;
@@ -92,17 +97,17 @@ public class ExtendedS3Storage implements SyncStorage {
 
     private final ExtendedS3StorageConfig config;
     private final S3Client client;
+    private final boolean shouldClose;
     private final AtomicBoolean closed;
 
     //endregion
 
     //region constructor
-
-    public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config) {
+    public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config, boolean shouldClose) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.client = Preconditions.checkNotNull(client, "client");
         this.closed = new AtomicBoolean(false);
-
+        this.shouldClose = shouldClose;
     }
 
     //endregion
@@ -268,8 +273,7 @@ public class ExtendedS3Storage implements SyncStorage {
 
     private boolean doExists(String streamSegmentName) {
         try {
-            S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(),
-                    config.getPrefix() + streamSegmentName);
+            client.getObjectMetadata(config.getBucket(), config.getPrefix() + streamSegmentName);
             return true;
         } catch (S3Exception e) {
             if (e.getErrorCode().equals("NoSuchKey")) {
@@ -544,8 +548,11 @@ public class ExtendedS3Storage implements SyncStorage {
     //region AutoClosable
 
     @Override
+    @SneakyThrows
     public void close() {
-        this.closed.set(true);
+        if (shouldClose && !this.closed.getAndSet(true)) {
+            this.client.destroy();
+        }
     }
 
     //endregion
@@ -566,7 +573,7 @@ public class ExtendedS3Storage implements SyncStorage {
 
         ExtendedS3SegmentIterator(java.util.function.Predicate<S3Object> patternMatchPredicate) {
             this.results = client.listObjects(config.getBucket(), config.getPrefix());
-            this.innerIterator = client.listObjects(config.getBucket(), config.getPrefix()).getObjects().stream()
+            this.innerIterator = this.results.getObjects().stream()
                     .filter(patternMatchPredicate)
                     .map(this::toSegmentProperties)
                     .iterator();

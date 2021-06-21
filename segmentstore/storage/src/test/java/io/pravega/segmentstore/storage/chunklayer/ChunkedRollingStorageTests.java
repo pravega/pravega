@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -15,7 +21,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryChunkStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetadataStore;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Unit tests for  {@link ChunkedSegmentStorage} and {@link ChunkStorage} based implementation that exercise scenarios
@@ -34,7 +40,7 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
     @Override
     protected Storage createStorage() throws Exception {
         useOldLayout = false;
-        Executor executor = executorService();
+        ScheduledExecutorService executor = executorService();
         // Initialize
         synchronized (ChunkedRollingStorageTests.class) {
             if (null == chunkStorage) {
@@ -66,7 +72,7 @@ public abstract class ChunkedRollingStorageTests extends RollingStorageTestBase 
      * @throws Exception If any unexpected error occurred.
      */
     protected ChunkMetadataStore getMetadataStore() throws Exception {
-        return new InMemoryMetadataStore(executorService());
+        return new InMemoryMetadataStore(ChunkedSegmentStorageConfig.DEFAULT_CONFIG, executorService());
     }
 
     @Override

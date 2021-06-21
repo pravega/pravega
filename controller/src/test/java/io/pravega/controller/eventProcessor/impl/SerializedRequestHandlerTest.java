@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.eventProcessor.impl;
 
@@ -18,7 +24,9 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Data;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -29,6 +37,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -40,6 +49,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 
 public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
 
     @Test(timeout = 10000)
     public void testProcessEvent() throws InterruptedException, ExecutionException {
@@ -288,7 +299,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testCancellation() {
+    public void testCancellation() throws Exception {
         final ConcurrentHashMap<String, List<Integer>> orderOfProcessing = new ConcurrentHashMap<>();
 
         SerializedRequestHandler<TestEvent> requestHandler = new SerializedRequestHandler<TestEvent>(executorService()) {
@@ -319,7 +330,9 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         CompletableFuture<Void> p3 = requestHandler.process(e3, stop::get);
 
         queue = requestHandler.getEventQueueForKey(getKeyForStream(scope, stream));
-        assertTrue(queue.size() >= 2);
+        // ensure that e1 is picked for processing
+        AssertExtensions.assertEventuallyEquals(2, () -> requestHandler.getEventQueueForKey(getKeyForStream(scope, stream)).size(),
+                10000L);
         assertTrue(queue.stream().noneMatch(x -> x.getRight().isDone()));
         List<Integer> collect = queue.stream().map(x -> x.getLeft().getNumber()).collect(Collectors.toList());
         assertTrue(collect.indexOf(2) < collect.indexOf(3));
@@ -329,7 +342,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         
         // verify that until p1 completes nothing else will be processed. 
         queue = requestHandler.getEventQueueForKey(getKeyForStream(scope, stream));
-        assertTrue(queue.size() >= 2);
+        assertEquals(2, queue.size());
         assertTrue(queue.stream().noneMatch(x -> x.getRight().isDone()));
         
         // now complete processing for event 1. All subsequent events for the stream will be cancelled.

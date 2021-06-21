@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.server.containers;
 
@@ -707,6 +713,26 @@ public abstract class MetadataStore implements AutoCloseable {
                     .segmentId(ContainerMetadata.NO_STREAM_SEGMENT_ID)
                     .properties(infoBuilder.build())
                     .build();
+        }
+
+        /**
+         * The method takes in details of a segment i.e., name, length and sealed status and creates a
+         * {@link StreamSegmentInformation} instance, which is returned after serialization.
+         * @param streamSegmentName     The name of the segment.
+         * @param length                The length of the segment.
+         * @param isSealed              The sealed status of the segment.
+         * @return                      An instance of ArrayView with segment information.
+         */
+        static ArrayView recoveredSegment(String streamSegmentName, long length, boolean isSealed) {
+            StreamSegmentInformation segmentProp = StreamSegmentInformation.builder()
+                    .name(streamSegmentName)
+                    .length(length)
+                    .sealed(isSealed)
+                    .build();
+            return serialize(builder()
+                    .segmentId(ContainerMetadata.NO_STREAM_SEGMENT_ID)
+                    .properties(segmentProp)
+                    .build());
         }
 
         @SneakyThrows(IOException.class)

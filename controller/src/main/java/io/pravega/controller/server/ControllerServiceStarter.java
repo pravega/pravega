@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server;
 
@@ -155,7 +161,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
         this.streamMetadataStoreRef = Optional.ofNullable(streamStore);
         this.kvtMetaStoreRef = Optional.ofNullable(kvtStore);
         this.storeClientFailureFuture = new CompletableFuture<>();
-        this.healthServiceFactory = new HealthServiceFactory(serviceConfig.getHealthConfig().get());
+        this.healthServiceFactory = new HealthServiceFactory();
     }
 
     @Override
@@ -169,7 +175,6 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
         log.info("    Host monitor enabled = {}", serviceConfig.getHostMonitorConfig().isHostMonitorEnabled());
         log.info("     gRPC server enabled = {}", serviceConfig.getGRPCServerConfig().isPresent());
         log.info("     REST server enabled = {}", serviceConfig.getRestServerConfig().isPresent());
-        log.info("   HealthService enabled = {}", serviceConfig.getHealthConfig().isPresent());
 
         final BucketStore bucketStore;
         final TaskMetadataStore taskMetadataStore;
@@ -248,7 +253,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             streamStore = streamMetadataStoreRef.orElseGet(() -> StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker, 
+                    segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper,  
                     serviceConfig.getRetentionFrequency().toMillis());
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
@@ -265,7 +270,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
             Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
             watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
-                    clientConfig, watermarkingExecutor);
+                    clientConfig, watermarkingExecutor, requestTracker);
             watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
                     watermarkingWork::watermark, watermarkingExecutor);
 
@@ -291,10 +296,13 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
-            kvtMetadataStore = kvtMetaStoreRef.orElseGet(() -> KVTableStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor, streamStore));
-            kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, eventExecutor, host.getHostId(), authHelper, requestTracker);
-            controllerService = new ControllerService(kvtMetadataStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster);
+            kvtMetadataStore = kvtMetaStoreRef.orElseGet(() -> KVTableStoreFactory.createStore(storeClient, segmentHelper, 
+                    authHelper, controllerExecutor, streamStore));
+            kvtMetadataTasks = new TableMetadataTasks(kvtMetadataStore, segmentHelper, controllerExecutor, 
+                    eventExecutor, host.getHostId(), authHelper);
+            controllerService = new ControllerService(kvtMetadataStore, kvtMetadataTasks, streamStore, bucketStore, 
+                    streamMetadataTasks, streamTransactionMetadataTasks, segmentHelper, controllerExecutor, 
+                    cluster, requestTracker);
 
             // Setup event processors.
             setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
@@ -305,12 +313,13 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        bucketStore, connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, kvtMetadataStore, kvtMetadataTasks,
-                        eventExecutor);
+                        bucketStore, connectionPool, streamMetadataTasks, streamTransactionMetadataTasks, kvtMetadataStore, 
+                        kvtMetadataTasks, eventExecutor);
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
-                eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks, kvtMetadataTasks)
+                eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, 
+                        streamMetadataTasks, kvtMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), eventExecutor);
             }
 
@@ -339,9 +348,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 grpcServer.awaitRunning();
             }
 
-            if (serviceConfig.getHealthConfig().isPresent()) {
-                healthService = healthServiceFactory.createHealthService(true);
-            }
+            healthService = healthServiceFactory.createHealthService();
 
             // Start REST server.
             if (serviceConfig.getRestServerConfig().isPresent()) {
@@ -350,6 +357,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                         grpcServer.getAuthHandlerManager(),
                         serviceConfig.getRestServerConfig().get(),
                         connectionFactory,
+                        clientConfig,
                         healthService);
                 restServer.startAsync();
                 log.info("Awaiting start of REST server");
@@ -389,7 +397,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
         try {
             if (healthService != null) {
                 log.info("Stopping the HealthService.");
-                healthService.clear();
+                healthService.close();
             }
 
             if (healthServiceFactory != null) {
@@ -576,12 +584,12 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
 
     @Override
     public void close() {
-        Callbacks.invokeSafely(() -> stopAsync().awaitTerminated(10, TimeUnit.SECONDS), ex -> log.error("Exception while forcefully shutting down.", ex));
+        Callbacks.invokeSafely(() -> stopAsync().awaitTerminated(serviceConfig.getShutdownTimeout().toMillis(), TimeUnit.MILLISECONDS), ex -> log.error("Exception while forcefully shutting down.", ex));
         close(watermarkingWork);
         close(streamMetadataTasks);
         close(streamTransactionMetadataTasks);
         close(controllerEventProcessors);
-        ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor, watermarkingExecutor, eventExecutor);
+        ExecutorServiceHelpers.shutdown(serviceConfig.getShutdownTimeout(), controllerExecutor, retentionExecutor, watermarkingExecutor, eventExecutor);
         close(cluster);
         close(segmentHelper);
         close(kvtMetadataStore);

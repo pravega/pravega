@@ -1,15 +1,23 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.health;
 
 import com.google.common.util.concurrent.Service;
+
+import java.time.Duration;
 
 /**
  * The {@link HealthServiceUpdater} is responsible for regularly updating the {@link Health} of the {@link HealthService}.
@@ -19,7 +27,6 @@ import com.google.common.util.concurrent.Service;
  */
 public interface HealthServiceUpdater extends Service, AutoCloseable {
 
-    int DEFAULT_INTERVAL_SECONDS = 10;
     /**
      * Supplies the most recent {@link Health} check result.
      *
@@ -29,9 +36,9 @@ public interface HealthServiceUpdater extends Service, AutoCloseable {
 
     /**
      * The interval (in seconds) at which the {@link HealthServiceUpdater} performs the health checks in.
-     * @return The interval in which the executor will call {@link HealthEndpoint#getHealth(boolean)}.
+     * @return The interval in which the executor will call {@link HealthEndpoint#getHealth()}.
      */
-    int getInterval();
+    Duration getInterval();
 
     @Override
     void close();

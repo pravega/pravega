@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.connection.impl;
 
@@ -32,6 +38,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
+import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -267,6 +274,50 @@ public class ClientConnectionTest {
         assertEquals(AppendBlockEnd.class, server.getReadCommands().take().getClass());
         assertTrue(server.getReadCommands().isEmpty());
         assertFalse(processor.failure.get());
+    }
+
+    /**
+     * This test verifies that the number of entries in the {@link FlowToBatchSizeTracker} object of a connection is
+     * driven by the number of flows, not by the different ids from the requests.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void tcpClientConnectionBatchSizeTrackerUniquenessTest() throws Exception {
+        byte[] payload = new byte[100];
+        ClientConnectionTest.ReplyProcessor processor = new ClientConnectionTest.ReplyProcessor();
+        @Cleanup
+        MockServer server = new MockServer();
+        server.start();
+        @Cleanup
+        InlineExecutor executor = new InlineExecutor();
+        @Cleanup
+        TcpClientConnection clientConnection = TcpClientConnection
+                .connect(server.getUri(), ClientConfig.builder().build(), processor, executor, null)
+                .join();
+        UUID writerId = new UUID(1, 1);
+        clientConnection.send(new WireCommands.SetupAppend(1, writerId, "segment", ""));
+        server.getReadCommands().take(); //clear setup.
+        // Check that the map is initially empty.
+        Assert.assertEquals(0, clientConnection.getConnectionReaderFlowToBatchSizeTracker().getFlowToBatchSizeTrackerMap().size());
+        // Create one flow and increase its sequence number on each append.
+        Flow firstFlow = Flow.create();
+        for (int i = 0; i < 100; i++) {
+            clientConnection.send(new Append("segment", writerId, i, new Event(Unpooled.wrappedBuffer(payload)), firstFlow.asLong()));
+            // Assert that the map always contains one entry, as there is only one flow (with increasing sequence number).
+            Assert.assertEquals(1, clientConnection.getConnectionReaderFlowToBatchSizeTracker().getFlowToBatchSizeTrackerMap().size());
+            firstFlow.getNextSequenceNumber();
+        }
+        // Start another writer on the same connection.
+        UUID writerId2 = new UUID(1, 2);
+        clientConnection.send(new WireCommands.SetupAppend(1, writerId2, "segment2", ""));
+        // Create another flow.
+        Flow secondFlow = Flow.create();
+        // Check that with another flow appending, there are just 2 flows in the batch size tracker map.
+        clientConnection.send(new Append("segment2", writerId2, 0, new Event(Unpooled.wrappedBuffer(payload)), secondFlow.getNextSequenceNumber()));
+        Assert.assertEquals(2, clientConnection.getConnectionReaderFlowToBatchSizeTracker().getFlowToBatchSizeTrackerMap().size());
+        clientConnection.send(new Append("segment2", writerId2, 1, new Event(Unpooled.wrappedBuffer(payload)), secondFlow.getNextSequenceNumber()));
+        Assert.assertEquals(2, clientConnection.getConnectionReaderFlowToBatchSizeTracker().getFlowToBatchSizeTrackerMap().size());
     }
 
 }

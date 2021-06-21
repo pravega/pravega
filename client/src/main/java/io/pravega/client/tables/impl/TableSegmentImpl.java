@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.tables.impl;
 
@@ -81,9 +87,8 @@ class TableSegmentImpl implements TableSegment {
      */
     private final Retry.RetryAndThrowConditionally retry;
     private final AtomicBoolean closed = new AtomicBoolean();
-    @GuardedBy("stateLock")
-    private CompletableFuture<ConnectionState> state;
-    private final Object stateLock = new Object();
+    private final ConnectionContext writeContext;
+    private final ConnectionContext readContext;
 
     //endregion
 
@@ -106,6 +111,8 @@ class TableSegmentImpl implements TableSegment {
         this.retry = Retry
                 .withExpBackoff(clientConfig.getInitialBackoffMillis(), clientConfig.getBackoffMultiple(), clientConfig.getRetryAttempts(), clientConfig.getMaxBackoffMillis())
                 .retryWhen(TableSegmentImpl::isRetryableException);
+        this.writeContext = new ConnectionContext();
+        this.readContext = new ConnectionContext();
     }
 
     //region AutoCloseable Implementation
@@ -113,7 +120,7 @@ class TableSegmentImpl implements TableSegment {
     @Override
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
-            resetState();
+            resetConnections();
             log.info("{}: Closed.", this.segmentName);
         }
     }
@@ -125,8 +132,8 @@ class TableSegmentImpl implements TableSegment {
     @Override
     public CompletableFuture<List<TableSegmentKeyVersion>> put(@NonNull Iterator<TableSegmentEntry> tableEntries) {
         val wireEntries = entriesToWireCommand(tableEntries);
-        return execute((state, requestId) -> {
-            val request = new WireCommands.UpdateTableEntries(requestId, this.segmentName, state.getToken(), wireEntries, Long.MIN_VALUE);
+        return this.writeContext.execute((state, requestId) -> {
+            val request = new WireCommands.UpdateTableEntries(requestId, this.segmentName, state.getToken(), wireEntries, WireCommands.NULL_TABLE_SEGMENT_OFFSET);
 
             return sendRequest(request, state, WireCommands.TableEntriesUpdated.class)
                     .thenApply(this::fromWireCommand);
@@ -136,8 +143,8 @@ class TableSegmentImpl implements TableSegment {
     @Override
     public CompletableFuture<Void> remove(@NonNull Iterator<TableSegmentKey> tableKeys) {
         val wireKeys = keysToWireCommand(tableKeys);
-        return execute((state, requestId) -> {
-            val request = new WireCommands.RemoveTableKeys(requestId, this.segmentName, state.getToken(), wireKeys, Long.MIN_VALUE);
+        return this.writeContext.execute((state, requestId) -> {
+            val request = new WireCommands.RemoveTableKeys(requestId, this.segmentName, state.getToken(), wireKeys, WireCommands.NULL_TABLE_SEGMENT_OFFSET);
             return Futures.toVoid(sendRequest(request, state, WireCommands.TableKeysRemoved.class));
         });
     }
@@ -170,7 +177,7 @@ class TableSegmentImpl implements TableSegment {
     }
 
     private CompletableFuture<Void> fetchSlice(GetResultBuilder resultBuilder) {
-        return execute((state, requestId) -> {
+        return this.readContext.execute((state, requestId) -> {
             val request = new WireCommands.ReadTable(requestId, this.segmentName, state.getToken(), resultBuilder.getWireKeys());
 
             return sendRequest(request, state, WireCommands.TableRead.class)
@@ -217,7 +224,7 @@ class TableSegmentImpl implements TableSegment {
             Class<ReplyT> replyClass, Function<ReplyT, ByteBuf> getStateToken, Function<ReplyT, List<ItemT>> getResult) {
         val token = (iteratorState == null) ? IteratorStateImpl.EMPTY : iteratorState;
         val prefixFilter = args.getKeyPrefixFilter() == null ? Unpooled.EMPTY_BUFFER : args.getKeyPrefixFilter();
-        return execute((state, requestId) -> {
+        return this.readContext.execute((state, requestId) -> {
             val request = newIteratorRequest.apply(requestId, this.segmentName, state.getToken(), args.getMaxItemsAtOnce(),
                     IteratorStateImpl.copyOf(token).getToken(), prefixFilter);
             return sendRequest(request, state, replyClass)
@@ -298,7 +305,7 @@ class TableSegmentImpl implements TableSegment {
             // Something unexpected occurred. Reset the connection and throw appropriate exception.
             // WrongHost, ConnectionFailedException and AuthenticationException are already handled by RawClient.
             log.error(request.getRequestId(), "{}: Unexpected reply. Resetting connection. Request={}, Reply={}.", this.segmentName, request, reply);
-            resetState();
+            resetConnections();
             throw new ConnectionFailedException(String.format("Unexpected reply of %s when expecting %s.", reply, expectedReplyType));
         }
     }
@@ -471,68 +478,11 @@ class TableSegmentImpl implements TableSegment {
     }
 
     /**
-     * Executes an action with retries (see {@link #retry} for retry details).
-     *
-     * @param action A {@link BiFunction} representing the action to execute. The first argument is the {@link ConnectionState}
-     *               that should be used, and the second is the request id for this action.
-     * @param <T>    Response type.
-     * @return A CompletableFuture that, when completed, will contain the result of the action. If the operation failed,
-     * the Future will be failed with the appropriate exception.
+     * Closes the current Connections, if any. Any subsequent requests using them will cause them to reinitialize.
      */
-    private <T> CompletableFuture<T> execute(BiFunction<ConnectionState, Long, CompletableFuture<T>> action) {
-        return this.retry.runAsync(
-                () -> getOrCreateState()
-                        .thenCompose(state -> action.apply(state, state.nextRequestId())),
-                this.connectionPool.getInternalExecutor());
-    }
-
-    /**
-     * Attempts to reuse an existing state or creates a new one if necessary.
-     *
-     * @return A CompletableFuture that will contain the {@link ConnectionState} to use. If another invocation of this method has
-     * already initiated the (async) creation of a new {@link ConnectionState}, then this invocation will return
-     * the same CompletableFuture as the other invocation, which will complete when the initialization is done.
-     */
-    private CompletableFuture<ConnectionState> getOrCreateState() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        CompletableFuture<ConnectionState> result;
-        boolean needsInitialization = false;
-        synchronized (this.stateLock) {
-            if (this.state == null
-                    || this.state.isCompletedExceptionally()
-                    || (this.state.isDone() && this.state.join().getConnection().isClosed())) {
-                this.state = new CompletableFuture<>();
-                needsInitialization = true;
-            }
-            result = this.state;
-        }
-
-        if (needsInitialization) {
-            Futures.completeAfter(
-                    () -> this.controller
-                            .getEndpointForSegment(this.segmentName)
-                            .thenCompose(uri -> this.tokenProvider
-                                    .retrieveToken()
-                                    .thenApply(token -> new ConnectionState(new RawClient(uri, this.connectionPool), token))),
-                    result);
-        }
-
-        return result;
-    }
-
-    /**
-     * Closes the current {@link ConnectionState} (if any).
-     */
-    private void resetState() {
-        CompletableFuture<ConnectionState> state;
-        synchronized (this.stateLock) {
-            state = this.state;
-            this.state = null;
-        }
-
-        if (state != null && !state.isCompletedExceptionally()) {
-            state.thenAccept(ConnectionState::close);
-        }
+    private void resetConnections() {
+        this.writeContext.reset();
+        this.readContext.reset();
     }
 
     private static boolean isRetryableException(Throwable ex) {
@@ -621,6 +571,80 @@ class TableSegmentImpl implements TableSegment {
                 this.connection.close();
             } catch (Exception ex) {
                 log.warn("{}: Exception tearing down connection: ", TableSegmentImpl.this.segmentName, ex);
+            }
+        }
+    }
+
+    //endregion
+
+    //region Context
+
+    private class ConnectionContext {
+        @GuardedBy("this")
+        private CompletableFuture<ConnectionState> state;
+
+        /**
+         * Executes an action with retries (see {@link #retry} for retry details).
+         *
+         * @param action A {@link BiFunction} representing the action to execute. The first argument is the
+         *               {@link ConnectionState} that should be used, and the second is the request id for this action.
+         * @param <T>    Response type.
+         * @return A CompletableFuture that, when completed, will contain the result of the action. If the operation failed,
+         * the Future will be failed with the appropriate exception.
+         */
+        <T> CompletableFuture<T> execute(BiFunction<ConnectionState, Long, CompletableFuture<T>> action) {
+            return TableSegmentImpl.this.retry.runAsync(
+                    () -> getOrCreateState()
+                            .thenCompose(state -> action.apply(state, state.nextRequestId())),
+                    TableSegmentImpl.this.connectionPool.getInternalExecutor());
+        }
+
+        /**
+         * Attempts to reuse an existing state or creates a new one if necessary.
+         *
+         * @return A CompletableFuture that will contain the {@link ConnectionState} to use. If another invocation of
+         * this method has already initiated the (async) creation of a new {@link ConnectionState}, then this invocation
+         * will return the same CompletableFuture as the other invocation, which will complete when the initialization
+         * is done.
+         */
+        private CompletableFuture<ConnectionState> getOrCreateState() {
+            Exceptions.checkNotClosed(TableSegmentImpl.this.closed.get(), this);
+            CompletableFuture<ConnectionState> result;
+            boolean needsInitialization = false;
+            synchronized (this) {
+                if (this.state == null
+                        || this.state.isCompletedExceptionally()
+                        || (this.state.isDone() && this.state.join().getConnection().isClosed())) {
+                    this.state = new CompletableFuture<>();
+                    needsInitialization = true;
+                }
+                result = this.state;
+            }
+
+            if (needsInitialization) {
+                Futures.completeAfter(
+                        () -> TableSegmentImpl.this.controller
+                                .getEndpointForSegment(TableSegmentImpl.this.segmentName)
+                                .thenCompose(uri -> TableSegmentImpl.this.tokenProvider
+                                        .retrieveToken()
+                                        .thenApply(token -> new ConnectionState(new RawClient(uri, TableSegmentImpl.this.connectionPool), token))),
+                        result);
+            }
+            return result;
+        }
+
+        /**
+         * Closes the connection. Any subsequent request will cause the {@link ConnectionState} to be reinitialized.
+         */
+        void reset() {
+            CompletableFuture<ConnectionState> state;
+            synchronized (this) {
+                state = this.state;
+                this.state = null;
+            }
+
+            if (state != null && !state.isCompletedExceptionally()) {
+                state.thenAccept(ConnectionState::close);
             }
         }
     }

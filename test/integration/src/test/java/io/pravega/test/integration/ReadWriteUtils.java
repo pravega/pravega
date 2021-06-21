@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration;
 
@@ -22,6 +28,8 @@ import io.pravega.common.util.RetriesExhaustedException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Predicate;
+
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +61,11 @@ public final class ReadWriteUtils {
 
     @SneakyThrows
     public static <T> int readEvents(EventStreamReader<T> reader, int limit,  final int interReadWait) {
+        return readEventsUntil(reader, eventRead -> eventRead.getEvent() != null || eventRead.isCheckpoint(), limit, interReadWait);
+    }
+
+    @SneakyThrows
+    public static <T> int readEventsUntil(EventStreamReader<T> reader, Predicate<EventRead<T>> condition, int limit, final int interReadWait) {
         final int timeout = 1000;
         EventRead<T> event;
         int validEvents = 0;
@@ -63,7 +76,7 @@ public final class ReadWriteUtils {
                 if (event.getEvent() != null) {
                     validEvents++;
                 }
-            } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
+            } while ((condition.test(event)) && validEvents < limit);
         } catch (TruncatedDataException e) {
             throw new TruncatedDataException(e.getCause());
         } catch (RuntimeException e) {

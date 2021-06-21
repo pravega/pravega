@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.client.segment.impl;
 
@@ -15,13 +21,12 @@ import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.connection.impl.ConnectionPool;
 import io.pravega.client.connection.impl.RawClient;
+import io.pravega.client.control.impl.Controller;
 import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;
-import io.pravega.client.control.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.security.auth.AccessOperation;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -37,9 +42,11 @@ import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import io.pravega.shared.security.auth.AccessOperation;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
@@ -67,6 +74,10 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         // The current constructor is used only for testing. Therefore, hard-coding the access operation.
         this(segment, controller, connectionPool,
                 DelegationTokenProviderFactory.create(delegationToken, controller, segment, AccessOperation.READ));
+    }
+    
+    private final ScheduledExecutorService executor() {
+        return connectionPool.getInternalExecutor();
     }
 
     private void closeConnection(Reply badReply) {
@@ -198,30 +209,30 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
 
     @Override
-    public long fetchCurrentSegmentLength() {
+    public CompletableFuture<Long> fetchCurrentSegmentLength() {
         Exceptions.checkNotClosed(closed.get(), this);
         val result = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .run(() -> Futures.getThrowingException(getStreamSegmentInfo()));
-        return result.getWriteOffset();
+                                   .runAsync(this::getStreamSegmentInfo, executor());
+        return result.thenApply(info -> info.getWriteOffset());
     }
 
     @Override
-    public long fetchProperty(SegmentAttribute attribute) {
+    public CompletableFuture<Long> fetchProperty(SegmentAttribute attribute) {
         Exceptions.checkNotClosed(closed.get(), this);
         val result = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .run(() -> Futures.getThrowingException(getPropertyAsync(attribute.getValue())));
-        return result.getValue();
+                                   .runAsync(() -> getPropertyAsync(attribute.getValue()), executor());
+        return result.thenApply(p -> p.getValue());
     }
 
     @Override
-    public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
+    public CompletableFuture<Boolean> compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
         Exceptions.checkNotClosed(closed.get(), this);
         val result = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .run(() -> Futures.getThrowingException(updatePropertyAsync(attribute.getValue(), expectedValue, newValue)));
-        return result.isSuccess();
+                                   .runAsync(() -> updatePropertyAsync(attribute.getValue(), expectedValue, newValue), executor());
+        return result.thenApply(r -> r.isSuccess());
     }
 
     @Override
@@ -233,35 +244,40 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
 
     @Override
-    public SegmentInfo getSegmentInfo() {
-        StreamSegmentInfo info = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                .throwingOn(NoSuchSegmentException.class)
-                .run(() -> Futures.getThrowingException(getStreamSegmentInfo()));
-        return new SegmentInfo(segmentId, info.getStartOffset(), info.getWriteOffset(), info.isSealed(),
-                               info.getLastModified());
+    public CompletableFuture<SegmentInfo> getSegmentInfo() {
+        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+            .throwingOn(NoSuchSegmentException.class)
+            .runAsync(() -> getStreamSegmentInfo(), executor())
+            .thenApply(info -> {
+                return new SegmentInfo(segmentId,
+                        info.getStartOffset(),
+                        info.getWriteOffset(),
+                        info.isSealed(),
+                        info.getLastModified());
+            });
     }
 
     @Override
-    public void truncateSegment(long offset) {
-        RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(NoSuchSegmentException.class).run(() -> {
-            truncateSegmentAsync(segmentId, offset, tokenProvider).exceptionally(t -> {
+    public CompletableFuture<Void> truncateSegment(long offset) {
+        return Futures.toVoid(RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+            .throwingOn(NoSuchSegmentException.class)
+            .runAsync(() -> truncateSegmentAsync(segmentId, offset, tokenProvider).exceptionally(t -> {
                 final Throwable ex = Exceptions.unwrap(t);
                 if (ex.getCause() instanceof SegmentTruncatedException) {
-                    log.debug("Segment already truncated at offset {}. Details: {}", offset, ex.getCause().getMessage());
+                    log.debug("Segment already truncated at offset {}. Details: {}",
+                              offset,
+                              ex.getCause().getMessage());
                     return null;
                 }
                 throw new CompletionException(ex);
-            }).join();
-            return null;
-        });
+            }), executor()));
     }
 
     @Override
-    public void sealSegment() {
-        RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(NoSuchSegmentException.class).run(() -> {
-            sealSegmentAsync(segmentId, tokenProvider).join();
-            return null;
-        });
+    public CompletableFuture<Void> sealSegment() {
+        return Futures.toVoid(RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+            .throwingOn(NoSuchSegmentException.class)
+            .runAsync(() -> sealSegmentAsync(segmentId, tokenProvider), executor()));
     }
 
 }

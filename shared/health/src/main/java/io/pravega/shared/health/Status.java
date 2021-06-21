@@ -1,17 +1,22 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.shared.health;
 
 
 import lombok.Getter;
-import lombok.NonNull;
 
 /**
  * Enumerates the list of potential states that a service or component may be in.
@@ -39,25 +44,39 @@ public enum Status {
     UNKNOWN(0),
 
     /**
-     * Describes a {@link Status} that is considered in an unhealthy and non-operational state.
+     * Describes a {@link Status} that is in a down and non-operational state.
      */
-    DOWN(-1);
+    DOWN(-1),
+
+    /**
+     * Describes a {@link Status} that is unhealthy and has unexpectedly failed.
+     */
+    FAILED(-2);
 
     @Getter
     private final int code;
 
-    Status(int code) {
+    private Status(int code) {
         this.code = code;
     }
 
     /**
      * A {@link Status} represents an *alive* component if it is neither {@link Status#DOWN} nor {@link Status#UNKNOWN}.
-     * @param status The reference {@link Status} object.
-     * @return Whether this {@link Status} can be considered 'alive' or not.
+     * @return Whether this {@link Status} represents an 'alive' state.
      */
-    @NonNull
-    static boolean isAlive(Status status) {
-        return status != DOWN && status != UNKNOWN;
+    public boolean isAlive() {
+        return this.code >= NEW.getCode();
     }
 
+    /**
+     * A {@link Status} can be considered 'ready' if it is {@link Status#UP}.
+     * @return Whether this {@link Status} represents a 'ready' state.
+     */
+    public boolean isReady() {
+        return this.code >= UP.getCode();
+    }
+
+    public static Status min(Status one, Status two) {
+        return one.getCode() < two.getCode() ? one : two;
+    }
 }

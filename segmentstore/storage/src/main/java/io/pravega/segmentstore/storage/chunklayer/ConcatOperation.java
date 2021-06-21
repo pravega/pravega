@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.segmentstore.storage.chunklayer;
 
@@ -25,6 +31,8 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -42,7 +50,8 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     private final long offset;
     private final String sourceSegment;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
-    private final ArrayList<String> chunksToDelete = new ArrayList<>();
+    private final List<String> chunksToDelete = Collections.synchronizedList(new ArrayList<>());
+    private final List<ChunkNameOffsetPair> newReadIndexEntries = Collections.synchronizedList(new ArrayList<>());
     private final Timer timer;
 
     private volatile SegmentMetadata targetSegmentMetadata;
@@ -79,13 +88,19 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     private CompletableFuture<Void> performConcat(MetadataTransaction txn) {
         // Validate preconditions.
         checkState();
-
+        val currentIndexOffset = targetSegmentMetadata.getLastChunkStartOffset();
         // Update list of chunks by appending sources list of chunks.
         return updateMetadata(txn).thenComposeAsync(v -> {
             // Finally defrag immediately.
             final CompletableFuture<Void> f;
             if (shouldDefrag() && null != targetLastChunk) {
-                f = chunkedSegmentStorage.defrag(txn, targetSegmentMetadata, targetLastChunk.getName(), null, chunksToDelete);
+                f = chunkedSegmentStorage.defrag(txn,
+                        targetSegmentMetadata,
+                        targetLastChunk.getName(),
+                        null,
+                        chunksToDelete,
+                        newReadIndexEntries,
+                        currentIndexOffset);
             } else {
                 f = CompletableFuture.completedFuture(null);
             }
@@ -95,7 +110,7 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
                 // Finally commit transaction.
                 return txn.commit()
                         .exceptionally(this::handleException)
-                        .thenComposeAsync(v3 -> postCommit(), chunkedSegmentStorage.getExecutor());
+                        .thenRunAsync(this::postCommit, chunkedSegmentStorage.getExecutor());
             }, chunkedSegmentStorage.getExecutor());
         }, chunkedSegmentStorage.getExecutor());
     }
@@ -110,14 +125,14 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         throw new CompletionException(ex);
     }
 
-    private CompletableFuture<Void> postCommit() {
-        // Collect garbage.
-        return chunkedSegmentStorage.collectGarbage(chunksToDelete)
-                .thenAcceptAsync(v4 -> {
-                    // Update the read index.
-                    chunkedSegmentStorage.getReadIndexCache().remove(sourceSegment);
-                    logEnd();
-                }, chunkedSegmentStorage.getExecutor());
+    private void postCommit() {
+            // Collect garbage.
+            chunkedSegmentStorage.getGarbageCollector().addToGarbage(chunksToDelete);
+            // Update the read index.
+            chunkedSegmentStorage.getReadIndexCache().remove(sourceSegment);
+            chunkedSegmentStorage.getReadIndexCache().addIndexEntries(targetHandle.getSegmentName(), newReadIndexEntries);
+            logEnd();
+
     }
 
     private void logEnd() {
@@ -161,8 +176,12 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
 
                                 targetSegmentMetadata.setChunkCount(targetSegmentMetadata.getChunkCount() + sourceSegmentMetadata.getChunkCount());
 
+                                // Delete read index block entries for source.
+                                chunkedSegmentStorage.deleteBlockIndexEntriesForChunk(txn, sourceSegment, sourceSegmentMetadata.getStartOffset(), sourceSegmentMetadata.getLength());
+
                                 txn.update(targetSegmentMetadata);
                                 txn.delete(sourceSegment);
+
                             }, chunkedSegmentStorage.getExecutor());
                 }, chunkedSegmentStorage.getExecutor());
     }
@@ -176,8 +195,8 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
         sourceSegmentMetadata.checkInvariants();
 
         // This is a critical assumption at this point which should not be broken,
-        Preconditions.checkState(!targetSegmentMetadata.isStorageSystemSegment(), "Storage system segments cannot be concatenated.");
-        Preconditions.checkState(!sourceSegmentMetadata.isStorageSystemSegment(), "Storage system segments cannot be concatenated.");
+        Preconditions.checkState(!targetSegmentMetadata.isStorageSystemSegment(), "Storage system segments cannot be concatenated. Segment=%s", targetSegmentMetadata.getName());
+        Preconditions.checkState(!sourceSegmentMetadata.isStorageSystemSegment(), "Storage system segments cannot be concatenated. Segment=%s", sourceSegmentMetadata.getName());
 
         checkSealed(sourceSegmentMetadata);
         chunkedSegmentStorage.checkOwnership(targetSegmentMetadata.getName(), targetSegmentMetadata);
@@ -192,10 +211,8 @@ class ConcatOperation implements Callable<CompletableFuture<Void>> {
     }
 
     private void checkPreconditions() {
-        Preconditions.checkArgument(null != targetHandle, "targetHandle");
-        Preconditions.checkArgument(!targetHandle.isReadOnly(), "targetHandle");
-        Preconditions.checkArgument(null != sourceSegment, "targetHandle");
-        Preconditions.checkArgument(offset >= 0, "offset");
+        Preconditions.checkArgument(!targetHandle.isReadOnly(), "targetHandle must not be read only. Segment=%s", targetHandle.getSegmentName());
+        Preconditions.checkArgument(offset >= 0, "offset must be non negative. Segment=%s offset=%s", targetHandle.getSegmentName(), offset);
     }
 
     private void checkSealed(SegmentMetadata sourceSegmentMetadata) {

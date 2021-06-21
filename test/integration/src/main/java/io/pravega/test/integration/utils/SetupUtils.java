@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.test.integration.utils;
 
@@ -29,6 +35,9 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
+import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -61,6 +70,7 @@ public final class SetupUtils {
     private EventStreamClientFactory clientFactory = null;
     private ControllerWrapper controllerWrapper = null;
     private PravegaConnectionListener server = null;
+    private AdminConnectionListener adminListener = null;
     @Getter
     private TestingServer zkTestServer = null;
 
@@ -74,6 +84,8 @@ public final class SetupUtils {
     private final int controllerRESTPort = TestUtils.getAvailableListenPort();
     @Getter
     private final int servicePort = TestUtils.getAvailableListenPort();
+    @Getter
+    private final int adminPort = TestUtils.getAvailableListenPort();
     private final ClientConfig clientConfig = ClientConfig.builder().controllerURI(URI.create("tcp://localhost:" + controllerRPCPort)).build();
     
     /**
@@ -110,10 +122,15 @@ public final class SetupUtils {
 
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        this.server = new PravegaConnectionListener(false, servicePort, store, serviceBuilder.createTableStoreService(),
-                serviceBuilder.getLowPriorityExecutor());
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
         this.server.startListening();
         log.info("Started Pravega Service");
+
+        this.adminListener = new AdminConnectionListener(false, false, "localhost", adminPort,
+                store, tableStore, new PassingTokenVerifier(), null, null);
+        this.adminListener.startListening();
+        log.info("AdminConnectionListener started successfully.");
 
         // Start Controller.
         this.controllerWrapper = new ControllerWrapper(
@@ -137,6 +154,7 @@ public final class SetupUtils {
 
         this.controllerWrapper.close();
         this.server.close();
+        this.adminListener.close();
         this.zkTestServer.close();
         this.clientFactory.close();
         this.controller.close();
