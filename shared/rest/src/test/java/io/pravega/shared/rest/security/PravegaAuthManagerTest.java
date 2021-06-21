@@ -32,15 +32,18 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class PravegaAuthManagerTest {
@@ -90,6 +93,15 @@ public class PravegaAuthManagerTest {
 
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+
+    @BeforeClass
+    public static void before() {
+        Map<String, AuthHandler> handlers = AUTH_HANDLER_MANAGER.getHandlerMap();
+        assertTrue("There should be at least two registered handlers.", handlers.size() >= 2);
+        // Make sure that it contains our TestAuthHandler manually registered and the PasswordAuthHandler ('Basic') loaded by the ServiceLoader.
+        assertNotNull("'Basic' AuthHandler not found.", handlers.get("Basic"));
+        assertNotNull("'testHandler' AuthHandler not found.", handlers.get("testHandler"));
+    }
 
     @AfterClass
     public static void tearDown() throws Exception {
