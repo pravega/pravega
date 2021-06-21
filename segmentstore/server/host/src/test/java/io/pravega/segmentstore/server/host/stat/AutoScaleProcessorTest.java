@@ -485,5 +485,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows("NPE should be thrown",
                 () -> new AutoScaleProcessor(null, eventStreamClientFactory, executorService(), simpleCache),
                 e -> e instanceof NullPointerException);
+
+        monitor.close();
     }
 }

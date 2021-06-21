@@ -33,7 +33,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
-
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -317,6 +316,7 @@ public class SimpleCacheTests {
         val key1 = 1L;
         val value1 = value(key1);
         val c = new SimpleCache<>(INFINITE_SIZE, Duration.ofNanos(expirationTimeNanos), evictions::put, currentTime::get);
+
         // PutIfAbsent.
         currentTime.set(0);
         val p1 = c.putIfAbsent(key1, value1);
