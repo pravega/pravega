@@ -27,8 +27,6 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.util.Config;
-import org.apache.curator.RetryPolicy;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -50,10 +48,9 @@ import static org.junit.Assert.assertTrue;
 
 public class SegmentContainerMonitorTest {
 
-    private final static String CLUSTER_NAME = "testcluster";
-    private final static RetryPolicy RETRY_POLICY = new ExponentialBackoffRetry(200, 10, 5000);
     @ClassRule
-    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(RETRY_POLICY);
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
+    private static final String CLUSTER_NAME = "testcluster";
 
     //Ensure each test completes within 30 seconds.
     @Rule

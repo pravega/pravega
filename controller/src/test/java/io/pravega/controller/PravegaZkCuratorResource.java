@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.rules.ExternalResource;
 
@@ -35,6 +36,10 @@ public class PravegaZkCuratorResource extends ExternalResource {
     public RetryPolicy retryPolicy;
     public int sessionTimeoutMs;
     public int connectionTimeoutMs;
+
+    public PravegaZkCuratorResource() {
+       new PravegaZkCuratorResource(new ExponentialBackoffRetry(200, 10, 5000));
+    }
 
     public PravegaZkCuratorResource(RetryPolicy retryPolicy) {
         this.retryPolicy = retryPolicy;
@@ -66,7 +71,7 @@ public class PravegaZkCuratorResource extends ExternalResource {
     @SneakyThrows
     public void after() {
         storeClient.close();
-        zkTestServer.close();
         client.close();
+        zkTestServer.close();
     }
 }

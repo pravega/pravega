@@ -18,16 +18,13 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import org.apache.curator.RetryPolicy;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 public class StreamRequestProcessorWithZkStore extends StreamRequestProcessorTest {
-    private static final RetryPolicy RETRY_POLICY = new ExponentialBackoffRetry(200, 10, 5000);
     @ClassRule
-    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(RETRY_POLICY);
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private StreamMetadataStore store;
 
     @Before

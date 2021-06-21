@@ -73,8 +73,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 
-import org.apache.curator.RetryPolicy;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.After;
 import org.junit.Test;
 import org.junit.ClassRule;
@@ -87,9 +85,8 @@ import static org.mockito.Mockito.*;
  */
 public class PravegaTablesControllerServiceImplTest extends ControllerServiceImplTest {
 
-    private static final RetryPolicy RETRY_POLICY = new ExponentialBackoffRetry(200, 10, 5000);
     @ClassRule
-    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(RETRY_POLICY);
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private StreamMetadataTasks streamMetadataTasks;
     private StreamRequestHandler streamRequestHandler;
     private TaskMetadataStore taskMetadataStore;

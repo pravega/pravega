@@ -47,8 +47,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.RetryPolicy;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -73,9 +71,8 @@ import static org.mockito.Mockito.verify;
 @Slf4j
 public class ControllerClusterListenerTest {
 
-    private static final RetryPolicy RETRY_POLICY = new ExponentialBackoffRetry(200, 10, 5000);
     @ClassRule
-    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(RETRY_POLICY);
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
