@@ -19,6 +19,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.mocks.EventHelperMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -38,7 +39,6 @@ import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
-import io.pravega.test.common.TestingServerStarter;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Arrays;
@@ -53,14 +53,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.RetryPolicy;
 import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.ClassRule;
 import org.junit.rules.Timeout;
 
 import static org.junit.Assert.assertEquals;
@@ -76,18 +75,19 @@ import static org.mockito.Mockito.spy;
 public abstract class RequestSweeperTest {
     private static final String HOSTNAME = "host-1234";
     private static final String SCOPE = "scope";
+    private static final RetryPolicy RETRY_POLICY = new RetryOneTime(2000);
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(RETRY_POLICY);
+
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
-    protected CuratorFramework cli;
 
     private final String stream1 = "stream1";
 
     private StreamMetadataStore streamStore;
 
     private final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-
-    private TestingServer zkServer;
 
     private StreamMetadataTasks streamMetadataTasks;
     private EventStreamWriterMock<ControllerEvent> requestEventWriter;
@@ -98,11 +98,6 @@ public abstract class RequestSweeperTest {
 
     @Before
     public void setUp() throws Exception {
-        zkServer = new TestingServerStarter().start();
-        zkServer.start();
-
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
-        cli.start();
         streamStore = getStream();
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
@@ -129,9 +124,6 @@ public abstract class RequestSweeperTest {
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
         streamStore.close();
-        cli.close();
-        zkServer.stop();
-        zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 

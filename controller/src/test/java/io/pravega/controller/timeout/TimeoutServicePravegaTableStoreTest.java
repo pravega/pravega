@@ -35,7 +35,7 @@ public class TimeoutServicePravegaTableStoreTest extends TimeoutServiceTest {
 
     @Override
     protected StreamMetadataStore getStore() {
-        return StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), client, executor);
+        return StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
     }
 
     @Override
