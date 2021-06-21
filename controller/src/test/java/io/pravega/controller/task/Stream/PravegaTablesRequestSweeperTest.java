@@ -34,11 +34,11 @@ public class PravegaTablesRequestSweeperTest extends RequestSweeperTest {
     
     @Override
     StreamMetadataStore getStream() {
-        return StreamStoreFactory.createPravegaTablesStore(helper, GrpcAuthHelper.getDisabledAuthHelper(), cli, executor);
+        return StreamStoreFactory.createPravegaTablesStore(helper, GrpcAuthHelper.getDisabledAuthHelper(), PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
     }
 
     @Override
     HostIndex getHostIndex() {
-        return new ZKHostIndex(cli, "/hostRequestIndex", executor);
+        return new ZKHostIndex(PRAVEGA_ZK_CURATOR_RESOURCE.client, "/hostRequestIndex", executor);
     }
 }
