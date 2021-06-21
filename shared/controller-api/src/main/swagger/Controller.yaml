@@ -747,7 +747,7 @@ definitions:
       details:
         $ref: "#/definitions/HealthDetails"
       children:
-        type: object
+        type: array
         items:
           $ref: "#/definitions/HealthResult"
   HealthStatus:

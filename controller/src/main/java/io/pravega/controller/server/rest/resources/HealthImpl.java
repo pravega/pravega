@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.server.rest.resources;
 
@@ -16,10 +22,10 @@ import io.pravega.controller.server.rest.generated.model.HealthDetails;
 import io.pravega.controller.server.rest.generated.model.HealthResult;
 import io.pravega.controller.server.rest.generated.model.HealthStatus;
 import io.pravega.controller.server.rest.v1.ApiV1;
-import io.pravega.controller.server.security.auth.RESTAuthHelper;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.shared.rest.security.RESTAuthHelper;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.health.Health;
-import io.pravega.shared.health.HealthService;
+import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.security.auth.AuthorizationResource;
 import io.pravega.shared.security.auth.AuthorizationResourceImpl;
@@ -45,13 +51,13 @@ public class HealthImpl implements ApiV1.HealthApi {
     @Context
     HttpHeaders headers;
 
-    private final HealthService service;
+    private final HealthEndpoint endpoint;
 
     private final RESTAuthHelper restAuthHelper;
     private final AuthorizationResource authorizationResource = new AuthorizationResourceImpl();
 
-    public HealthImpl(AuthHandlerManager pravegaAuthManager, HealthService service) {
-        this.service = service;
+    public HealthImpl(AuthHandlerManager pravegaAuthManager, HealthEndpoint endpoint) {
+        this.endpoint = endpoint;
         this.restAuthHelper = new RESTAuthHelper(pravegaAuthManager);
     }
 
@@ -69,7 +75,7 @@ public class HealthImpl implements ApiV1.HealthApi {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
-            Health health = id == null ? service.getEndpoint().getHealth() : service.getEndpoint().getHealth(id);
+            Health health = id == null ? endpoint.getHealth() : endpoint.getHealth(id);
             Response response = Response.status(Response.Status.OK)
                     .entity(adapter(health))
                     .build();
@@ -97,7 +103,7 @@ public class HealthImpl implements ApiV1.HealthApi {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
-            boolean alive = id == null ? service.getEndpoint().isAlive() : service.getEndpoint().isAlive(id);
+            boolean alive = id == null ? endpoint.isAlive() : endpoint.isAlive(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(alive)
                     .build());
@@ -121,7 +127,7 @@ public class HealthImpl implements ApiV1.HealthApi {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
-            Map<String, Object> details = id == null ? service.getEndpoint().getDetails() : service.getEndpoint().getDetails(id);
+            Map<String, Object> details = id == null ? endpoint.getDetails() : endpoint.getDetails(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(details))
                     .build());
@@ -148,7 +154,7 @@ public class HealthImpl implements ApiV1.HealthApi {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
-            boolean ready = id == null ? service.getEndpoint().isReady() : service.getEndpoint().isReady(id);
+            boolean ready = id == null ? endpoint.isReady() : endpoint.isReady(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(ready)
                     .build());
@@ -177,7 +183,7 @@ public class HealthImpl implements ApiV1.HealthApi {
         long traceId = LoggerHelpers.traceEnter(log, method);
         try {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
-            Status status = id == null ? service.getEndpoint().getStatus() : service.getEndpoint().getStatus(id);
+            Status status = id == null ? endpoint.getStatus() : endpoint.getStatus(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(status))
                     .build());
@@ -189,6 +195,7 @@ public class HealthImpl implements ApiV1.HealthApi {
             LoggerHelpers.traceLeave(log, method, traceId);
         }
     }
+
     /**
      * This is a shortcut for {@code headers.getRequestHeader().get(HttpHeaders.AUTHORIZATION)}.
      *

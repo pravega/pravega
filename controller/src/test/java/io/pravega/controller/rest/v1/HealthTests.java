@@ -1,11 +1,17 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright Pravega Authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package io.pravega.controller.rest.v1;
 
@@ -13,19 +19,20 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.connection.impl.ConnectionFactory;
 import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rest.RESTServer;
-import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.controller.server.rest.resources.HealthImpl;
+import io.pravega.shared.rest.RESTServer;
+import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.generated.model.HealthDependencies;
 import io.pravega.controller.server.rest.generated.model.HealthDetails;
 import io.pravega.controller.server.rest.generated.model.HealthResult;
 import io.pravega.controller.server.rest.generated.model.HealthStatus;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.shared.health.Health;
-import io.pravega.shared.health.HealthService;
 
-import io.pravega.shared.health.HealthServiceFactory;
+import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.test.common.TestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -40,7 +47,11 @@ import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Mockito.mock;
@@ -58,37 +69,35 @@ public class HealthTests {
     @Rule
     public final Timeout globalTimeout = new Timeout(10000, TimeUnit.SECONDS);
 
-    private  HealthServiceFactory healthServiceFactory;
+    private  HealthServiceManager healthServiceManager;
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
     private Client client;
     private ConnectionFactory connectionFactory;
-    private HealthService service;
 
     @Before
     public void setup() throws Exception {
         ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = getServerConfig();
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        healthServiceFactory = new HealthServiceFactory();
-        service = healthServiceFactory.createHealthService();
-        restServer = new RESTServer(null, mockControllerService, null, serverConfig,
-                connectionFactory,  ClientConfig.builder().build(), service);
+        healthServiceManager = new HealthServiceManager(Duration.ofSeconds(1));
+        AuthHandlerManager authHandlerManager = new AuthHandlerManager(serverConfig);
+        restServer = new RESTServer(null, Set.of(new HealthImpl(authHandlerManager, healthServiceManager.getEndpoint())));
+
         restServer.startAsync();
         restServer.awaitRunning();
         client = createJerseyClient();
         // Must provide a HealthIndicator to the HealthComponent(s) defined by the HealthConfig.
-        service.getRoot().register(new StaticHealthyIndicator(IMPLICIT_INDICATOR));
+        healthServiceManager.getRoot().register(new StaticHealthyIndicator(IMPLICIT_INDICATOR));
     }
 
     @After
     public void tearDown() {
-        service.close();
+        healthServiceManager.close();
         client.close();
         restServer.stopAsync();
         restServer.awaitTerminated();
         connectionFactory.close();
-        healthServiceFactory.close();
     }
 
     protected Client createJerseyClient() throws Exception {
@@ -128,7 +137,7 @@ public class HealthTests {
     @Test
     public void testHealth()  {
         // Register the HealthIndicator.
-        service.getRoot().register(new StaticHealthyIndicator());
+        healthServiceManager.getRoot().register(new StaticHealthyIndicator());
 
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health"))
                 .scheme(getURLScheme()).build();
@@ -156,7 +165,7 @@ public class HealthTests {
     public void testContributorHealth() {
         // Register the HealthIndicator.
         StaticHealthyIndicator indicator = new StaticHealthyIndicator();
-        service.getRoot().register(indicator);
+        healthServiceManager.getRoot().register(indicator);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/%s", indicator.getName())))
                 .scheme(getURLScheme()).build();
@@ -173,7 +182,7 @@ public class HealthTests {
     public void testStatus()  {
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        service.getRoot().register(healthyIndicator);
+        healthServiceManager.getRoot().register(healthyIndicator);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
@@ -181,14 +190,14 @@ public class HealthTests {
 
         // Adding an unhealthy indicator should change the Status.
         StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
-        service.getRoot().register(failingIndicator);
+        healthServiceManager.getRoot().register(failingIndicator);
 
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
         assertStatus(streamResourceURI, HealthStatus.DOWN);
 
         // Make sure that even though we have a majority of healthy reports, we still are considered failing.
-        service.getRoot().register(new StaticHealthyIndicator("sample-healthy-indicator-two"));
+        healthServiceManager.getRoot().register(new StaticHealthyIndicator("sample-healthy-indicator-two"));
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
         assertStatus(streamResourceURI, HealthStatus.DOWN);
@@ -200,7 +209,7 @@ public class HealthTests {
     public void testReadiness()  {
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        service.getRoot().register(healthyIndicator);
+        healthServiceManager.getRoot().register(healthyIndicator);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/readiness"))
                 .scheme(getURLScheme()).build();
@@ -208,7 +217,7 @@ public class HealthTests {
 
         // Adding an unhealthy indicator should change the readiness.
         StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
-        service.getRoot().register(failingIndicator);
+        healthServiceManager.getRoot().register(failingIndicator);
 
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/readiness"))
                 .scheme(getURLScheme()).build();
@@ -219,7 +228,7 @@ public class HealthTests {
     public void testLiveness()  {
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        service.getRoot().register(healthyIndicator);
+        healthServiceManager.getRoot().register(healthyIndicator);
 
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/liveness"))
                 .scheme(getURLScheme()).build();
@@ -227,7 +236,7 @@ public class HealthTests {
 
         // Adding an unhealthy indicator should change the readiness.
         StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
-        service.getRoot().register(failingIndicator);
+        healthServiceManager.getRoot().register(failingIndicator);
 
         streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/liveness"))
                 .scheme(getURLScheme()).build();
@@ -238,7 +247,7 @@ public class HealthTests {
     public void testDependencies()  {
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        service.getRoot().register(healthyIndicator);
+        healthServiceManager.getRoot().register(healthyIndicator);
         HealthDependencies  expected = new HealthDependencies();
         expected.add(IMPLICIT_COMPONENT);
         expected.add(healthyIndicator.getName());
@@ -247,7 +256,7 @@ public class HealthTests {
         assertDependencies(streamResourceURI, expected);
         // Add another HealthIndicator.
         StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
-        service.getRoot().register(failingIndicator);
+        healthServiceManager.getRoot().register(failingIndicator);
         expected.add(failingIndicator.getName());
         assertDependencies(streamResourceURI, expected);
     }
@@ -256,7 +265,7 @@ public class HealthTests {
     public void testContributorDependencies() {
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        service.getRoot().register(healthyIndicator);
+        healthServiceManager.getRoot().register(healthyIndicator);
         URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/components/%s", healthyIndicator.getName())))
                 .scheme(getURLScheme()).build();
         // HealthIndicators should not be able to accept other HealthIndicators.
@@ -266,7 +275,7 @@ public class HealthTests {
     @Test
     public void testDetails()  {
         // Register the HealthIndicator.
-        service.getRoot().register(new StaticHealthyIndicator());
+        healthServiceManager.getRoot().register(new StaticHealthyIndicator());
         URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/details"))
                 .scheme(getURLScheme()).build();
         Response response = client.target(streamResourceURI).request().buildGet().invoke();
@@ -278,7 +287,7 @@ public class HealthTests {
     public void testContributorDetails() {
         // Register the HealthIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        service.getRoot().register(healthyIndicator);
+        healthServiceManager.getRoot().register(healthyIndicator);
         URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/details/%s", healthyIndicator.getName())))
                 .scheme(getURLScheme()).build();
         HealthDetails expected = new HealthDetails();

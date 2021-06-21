@@ -43,8 +43,10 @@ import io.pravega.controller.server.bucket.PeriodicRetention;
 import io.pravega.controller.server.bucket.PeriodicWatermarking;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
+import io.pravega.controller.server.rest.resources.HealthImpl;
 import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
+import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
@@ -115,6 +117,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
     private SegmentHelper segmentHelper;
+    private HealthServiceManager healthServiceManager;
     private ControllerService controllerService;
 
     private LocalController localController;
@@ -346,8 +349,6 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 grpcServer.awaitRunning();
             }
 
-            healthService = healthServiceFactory.createHealthService();
-
             // Start REST server.
             if (serviceConfig.getRestServerConfig().isPresent()) {
                 restServer = new RESTServer(serviceConfig.getRestServerConfig().get(),
@@ -356,6 +357,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                                         grpcServer.getAuthHandlerManager(),
                                         connectionFactory,
                                         clientConfig),
+                                new HealthImpl(grpcServer.getAuthHandlerManager(), healthServiceManager.getEndpoint()),
                                 new PingImpl()));
                 restServer.startAsync();
                 log.info("Awaiting start of REST server");
@@ -393,13 +395,13 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
         log.info("Initiating controller service shutDown");
 
         try {
-            if (healthService != null) {
+            if (healthServiceManager != null) {
                 log.info("Stopping the HealthService.");
-                healthService.close();
+                healthServiceManager.close();
             }
 
-            if (healthServiceFactory != null) {
-                healthServiceFactory.close();
+            if (healthServiceManager != null) {
+                healthServiceManager.close();
             }
 
             if (restServer != null) {
