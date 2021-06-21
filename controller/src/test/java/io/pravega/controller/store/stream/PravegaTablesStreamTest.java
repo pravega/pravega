@@ -15,47 +15,39 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.PravegaTablesScope;
 import io.pravega.controller.store.PravegaTablesStoreHelper;
 import io.pravega.controller.store.ZKStoreHelper;
-import io.pravega.test.common.TestingServerStarter;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.RetryPolicy;
 import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
+import org.junit.ClassRule;
 
 import java.time.Duration;
 
 public class PravegaTablesStreamTest extends StreamTestBase {
 
-    private TestingServer zkServer;
-    private CuratorFramework cli;
+    private static final RetryPolicy RETRY_POLICY = new RetryOneTime(2000);
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(8000, 5000, RETRY_POLICY);
     private PravegaTablesStreamMetadataStore store;
     private PravegaTablesStoreHelper storeHelper;
     private ZkOrderedStore orderer;
     @Override
     public void setup() throws Exception {
-        zkServer = new TestingServerStarter().start();
-        zkServer.start();
-        int sessionTimeout = 8000;
-        int connectionTimeout = 5000;
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
-        cli.start();
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         GrpcAuthHelper authHelper = GrpcAuthHelper.getDisabledAuthHelper();
         storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
-        orderer = new ZkOrderedStore("txnOrderer", new ZKStoreHelper(cli, executor), executor);
-        store = new PravegaTablesStreamMetadataStore(segmentHelper, cli, executor, Duration.ofSeconds(1), authHelper);
+        orderer = new ZkOrderedStore("txnOrderer", new ZKStoreHelper(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor), executor);
+        store = new PravegaTablesStreamMetadataStore(segmentHelper, PRAVEGA_ZK_CURATOR_RESOURCE.client, executor, Duration.ofSeconds(1), authHelper);
     }
 
     @Override
     public void tearDown() throws Exception {
         store.close();
-        cli.close();
-        zkServer.close();
         executor.shutdown();
     }
 
