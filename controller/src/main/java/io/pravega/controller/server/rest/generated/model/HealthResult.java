@@ -21,8 +21,9 @@ import io.pravega.controller.server.rest.generated.model.HealthResult;
 import io.pravega.controller.server.rest.generated.model.HealthStatus;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.validation.constraints.*;
 
 /**
@@ -46,7 +47,7 @@ public class HealthResult   {
   private HealthDetails details = null;
 
   @JsonProperty("children")
-  private List<HealthResult> children = null;
+  private Map<String, HealthResult> children = null;
 
   public HealthResult name(String name) {
     this.name = name;
@@ -143,16 +144,16 @@ public class HealthResult   {
     this.details = details;
   }
 
-  public HealthResult children(List<HealthResult> children) {
+  public HealthResult children(Map<String, HealthResult> children) {
     this.children = children;
     return this;
   }
 
-  public HealthResult addChildrenItem(HealthResult childrenItem) {
+  public HealthResult putChildrenItem(String key, HealthResult childrenItem) {
     if (this.children == null) {
-      this.children = new ArrayList<HealthResult>();
+      this.children = new HashMap<String, HealthResult>();
     }
-    this.children.add(childrenItem);
+    this.children.put(key, childrenItem);
     return this;
   }
 
@@ -162,11 +163,11 @@ public class HealthResult   {
    **/
   @JsonProperty("children")
   @ApiModelProperty(value = "")
-  public List<HealthResult> getChildren() {
+  public Map<String, HealthResult> getChildren() {
     return children;
   }
 
-  public void setChildren(List<HealthResult> children) {
+  public void setChildren(Map<String, HealthResult> children) {
     this.children = children;
   }
 

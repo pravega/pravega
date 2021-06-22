@@ -7,7 +7,6 @@ import io.pravega.controller.server.rest.generated.api.factories.HealthApiServic
 import io.swagger.annotations.ApiParam;
 import io.swagger.jaxrs.*;
 
-import io.pravega.controller.server.rest.generated.model.HealthDependencies;
 import io.pravega.controller.server.rest.generated.model.HealthDetails;
 import io.pravega.controller.server.rest.generated.model.HealthResult;
 import io.pravega.controller.server.rest.generated.model.HealthStatus;
@@ -42,7 +41,7 @@ public class HealthApi  {
          String implClass = servletContext.getInitParameter("HealthApi.implementation");
          if (implClass != null && !"".equals(implClass.trim())) {
             try {
-               delegate = (HealthApiService) Class.forName(implClass).getConstructor().newInstance();
+               delegate = (HealthApiService) Class.forName(implClass).newInstance();
             } catch (Exception e) {
                throw new RuntimeException(e);
             }
@@ -56,22 +55,6 @@ public class HealthApi  {
       this.delegate = delegate;
    }
 
-    @GET
-    @Path("/components/{id}")
-    
-    @Produces({ "application/json" })
-    @io.swagger.annotations.ApiOperation(value = "", notes = "Fetch the health dependencies for a specific health contributor.", response = HealthDependencies.class, tags={ "Health", })
-    @io.swagger.annotations.ApiResponses(value = { 
-        @io.swagger.annotations.ApiResponse(code = 200, message = "The list of health dependencies for a specific health contributor.", response = HealthDependencies.class),
-        
-        @io.swagger.annotations.ApiResponse(code = 404, message = "The health dependencies for the contributor with given id was not found.", response = HealthDependencies.class),
-        
-        @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while fetching the health dependencies of a given health contributor.", response = HealthDependencies.class) })
-    public Response getContributorDependencies(@ApiParam(value = "The id of an existing health contributor.",required=true) @PathParam("id") String id
-,@Context SecurityContext securityContext)
-    throws NotFoundException {
-        return delegate.getContributorDependencies(id,securityContext);
-    }
     @GET
     @Path("/details/{id}")
     
@@ -100,10 +83,9 @@ public class HealthApi  {
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while fetching the health for a given contributor.", response = HealthResult.class) })
     public Response getContributorHealth(@ApiParam(value = "The id of an existing health contributor.",required=true) @PathParam("id") String id
-,@ApiParam(value = "Whether or not to include details in response response.", defaultValue="false") @DefaultValue("false") @QueryParam("details") Boolean details
 ,@Context SecurityContext securityContext)
     throws NotFoundException {
-        return delegate.getContributorHealth(id,details,securityContext);
+        return delegate.getContributorHealth(id,securityContext);
     }
     @GET
     @Path("/liveness/{id}")
@@ -154,19 +136,6 @@ public class HealthApi  {
         return delegate.getContributorStatus(id,securityContext);
     }
     @GET
-    @Path("/components")
-    
-    @Produces({ "application/json" })
-    @io.swagger.annotations.ApiOperation(value = "", notes = "Fetch the details of the Controller service.", response = HealthDependencies.class, tags={ "Health", })
-    @io.swagger.annotations.ApiResponses(value = { 
-        @io.swagger.annotations.ApiResponse(code = 200, message = "The list of health dependencies of the Controller.", response = HealthDependencies.class),
-        
-        @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while fetching the health dependencies of the Controller.", response = HealthDependencies.class) })
-    public Response getDependencies(@Context SecurityContext securityContext)
-    throws NotFoundException {
-        return delegate.getDependencies(securityContext);
-    }
-    @GET
     @Path("/details")
     
     @Produces({ "application/json" })
@@ -188,10 +157,9 @@ public class HealthApi  {
         @io.swagger.annotations.ApiResponse(code = 200, message = "The Health result of the Controller.", response = HealthResult.class),
         
         @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error while fetching the Health.", response = HealthResult.class) })
-    public Response getHealth(@ApiParam(value = "Whether or not to provide the details in the health response.", defaultValue="false") @DefaultValue("false") @QueryParam("details") Boolean details
-,@Context SecurityContext securityContext)
+    public Response getHealth(@Context SecurityContext securityContext)
     throws NotFoundException {
-        return delegate.getHealth(details,securityContext);
+        return delegate.getHealth(securityContext);
     }
     @GET
     @Path("/liveness")

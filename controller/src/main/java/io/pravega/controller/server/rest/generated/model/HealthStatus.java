@@ -26,9 +26,13 @@ public enum HealthStatus {
   
   UP("UP"),
   
-  WARNING("WARNING"),
+  STARTING("STARTING"),
+  
+  NEW("NEW"),
   
   UNKNOWN("UNKNOWN"),
+  
+  FAILED("FAILED"),
   
   DOWN("DOWN");
 

@@ -747,15 +747,17 @@ definitions:
       details:
         $ref: "#/definitions/HealthDetails"
       children:
-        type: array
-        items:
+        type: object
+        additionalProperties:
           $ref: "#/definitions/HealthResult"
   HealthStatus:
     type: string
     enum:
       - UP
-      - WARNING
+      - STARTING
+      - NEW
       - UNKNOWN
+      - FAILED
       - DOWN
   HealthDetails:
     type: object
