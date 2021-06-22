@@ -62,12 +62,12 @@ public class HealthImpl implements ApiV1.HealthApi {
     }
 
     @Override
-    public void getContributorHealth(String id, Boolean details, SecurityContext securityContext, AsyncResponse asyncResponse) throws NotFoundException {
+    public void getContributorHealth(String id, SecurityContext securityContext, AsyncResponse asyncResponse) throws NotFoundException {
         getHealth(id, securityContext, asyncResponse, "getContributorHealth");
     }
 
     @Override
-    public void getHealth(Boolean details, SecurityContext securityContext, AsyncResponse asyncResponse) throws NotFoundException {
+    public void getHealth(SecurityContext securityContext, AsyncResponse asyncResponse) throws NotFoundException {
         getHealth(null, securityContext, asyncResponse, "getHealth");
     }
 
@@ -116,6 +116,11 @@ public class HealthImpl implements ApiV1.HealthApi {
         } finally {
             LoggerHelpers.traceLeave(log, method, traceId);
         }
+    }
+
+    @Override
+    public void getContributorDetails(String id, SecurityContext securityContext, AsyncResponse asyncResponse) throws NotFoundException {
+        getDetails(id, securityContext, asyncResponse, "getDetails");
     }
 
     @Override
