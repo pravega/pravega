@@ -24,8 +24,9 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
-import io.pravega.controller.server.rest.RESTServer;
-import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
+import io.pravega.shared.rest.RESTServer;
+import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
@@ -38,8 +39,8 @@ import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
@@ -58,6 +59,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -200,8 +202,7 @@ public class StreamMetaDataTests {
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                         .controllerURI(URI.create("tcp://localhost"))
                                                                         .build());
-        restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,
-                connectionFactory, ClientConfig.builder().build());
+        restServer = new RESTServer(serverConfig, Set.of(new StreamMetadataResourceImpl(controller, mockControllerService, authManager, connectionFactory, ClientConfig.builder().build())));
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();
@@ -742,7 +743,7 @@ public class StreamMetaDataTests {
         final StreamConfiguration streamConfiguration3 = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
-        Map<String, StreamConfiguration> allStreamsList = ImmutableMap.of(stream1, streamConfiguration1, stream2, 
+        Map<String, StreamConfiguration> allStreamsList = ImmutableMap.of(stream1, streamConfiguration1, stream2,
                 streamConfiguration2, NameUtils.getInternalNameForStream("stream3"), streamConfiguration3);
         when(mockControllerService.listStreamsInScope(eq("scope1"), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(allStreamsList));
@@ -963,7 +964,7 @@ public class StreamMetaDataTests {
                 .build();
 
         // Fetch reader groups list.
-        Map<String, StreamConfiguration> streamsList = ImmutableMap.of(stream1, streamconf1, stream2, 
+        Map<String, StreamConfiguration> streamsList = ImmutableMap.of(stream1, streamconf1, stream2,
                 streamconf2, getStreamForReaderGroup("readerGroup1"), readerGroup1,
                 getStreamForReaderGroup("readerGroup2"), readerGroup2);
         when(mockControllerService.listStreamsInScope(eq(scope1), anyLong()))

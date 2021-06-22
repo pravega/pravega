@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.server.rest;
+package io.pravega.shared.rest;
+
+import io.pravega.auth.ServerConfig;
 
 /**
  * Configuration of controller REST server.
  */
-public interface RESTServerConfig {
+public interface RESTServerConfig extends ServerConfig {
     /**
      * Fetches the host ip address to which the controller gRPC server binds.
      *

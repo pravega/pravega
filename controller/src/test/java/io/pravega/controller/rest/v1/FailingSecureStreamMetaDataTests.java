@@ -16,11 +16,12 @@
 package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.StreamState;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.test.common.TestUtils;
 import java.util.Arrays;
 import java.util.Date;
@@ -50,7 +51,7 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
                                                                       .port(1000)
                                                                       .build());
         ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
-        this.authManager.registerInterceptors(server);
+        GrpcAuthHelper.registerInterceptors(authManager.getHandlerMap(), server);
         super.setup();
     }
 
