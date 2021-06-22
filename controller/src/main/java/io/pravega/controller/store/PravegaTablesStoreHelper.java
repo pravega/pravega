@@ -251,17 +251,9 @@ public class PravegaTablesStoreHelper {
         Conditional delete of the specified key with the specified version.
         If the conditional delete fails it is ignored.
      */
-    private CompletableFuture<Void> conditionalDeleteOfKey(String tableName, long requestId, TableSegmentKey key,
+    private CompletableFuture<Void> conditionalDeleteOfKey(String tableName, long requestId, String key,
                                                            TableSegmentKeyVersion keyVersion) {
-        // Compute the list of keys to be deleted.
-        List<TableSegmentKey> conditionalDeleteKeys = Collections.singletonList(TableSegmentKey.versioned(key.getKey(), keyVersion.getSegmentVersion()));
-        Supplier<String> errorMessage = () -> String.format("conditionalDeleteOfKey: table: %s", tableName);
-        // attempt to do a conditional delete of the keys.
-        return withRetries(() -> segmentHelper.removeTableKeys(tableName, conditionalDeleteKeys, authToken.get(), requestId), errorMessage, requestId)
-                .exceptionally(t -> {
-                    log.info(requestId, "Conditional remove table keys failed, ignoring this exception {}", t.getMessage());
-                    return null;
-                }).whenComplete((v, t) -> releaseKeys(conditionalDeleteKeys));
+        return expectingWriteConflict(removeEntry(tableName, key, new Version.LongVersion(keyVersion.getSegmentVersion()), requestId), null);
     }
 
     /**
@@ -294,7 +286,7 @@ public class PravegaTablesStoreHelper {
                                                                       .thenCompose(keyVersions -> {
                                                                           if (shouldAttemptCleanup) {
                                                                               // attempt a conditional delete of the entry since there are zero entries.
-                                                                              return conditionalDeleteOfKey(tableName, requestId, updatedEntry.getKey(), keyVersions.get(0));
+                                                                              return conditionalDeleteOfKey(tableName, requestId, tableKey, keyVersions.get(0));
                                                                           } else {
                                                                               return CompletableFuture.completedFuture(null);
                                                                           }
@@ -712,6 +704,11 @@ public class PravegaTablesStoreHelper {
     public <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
         return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException,
                 toReturn);
+    }
+
+    public <T> CompletableFuture<T> expectingWriteConflict(CompletableFuture<T> future, T toReturn) {
+        return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException,
+                                              toReturn);
     }
 
     <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
