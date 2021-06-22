@@ -13,24 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.rest.v1;
+package io.pravega.shared.rest.impl;
 
-import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.shared.rest.RESTServerConfig;
-import io.pravega.shared.rest.impl.RESTServerConfigImpl;
+import io.pravega.shared.rest.resources.Ping;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.TestUtils;
-import java.net.URI;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import javax.net.ssl.SSLContext;
-import javax.ws.rs.ProcessingException;
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
 import org.glassfish.jersey.SslConfigurator;
 import org.junit.After;
 import org.junit.Before;
@@ -38,14 +28,20 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import javax.net.ssl.SSLContext;
+import javax.ws.rs.ProcessingException;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
+import java.net.URI;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.Assert.assertEquals;
 
-/**
- * Test for ping API.
- */
-public abstract class PingTest {
+public abstract class RESTServerTest {
 
-    //Ensure each test completes within 30 seconds.
     @Rule
     public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
@@ -56,16 +52,11 @@ public abstract class PingTest {
     @Before
     public void setup() throws Exception {
         serverConfig = getServerConfig();
-        restServer = new RESTServer(serverConfig, Set.of(new PingImpl()));
+        restServer = new RESTServer(serverConfig, Set.of(new Ping()));
         restServer.startAsync();
         restServer.awaitRunning();
         client = createJerseyClient();
     }
-
-    protected abstract Client createJerseyClient() throws Exception;
-
-    abstract RESTServerConfig getServerConfig() throws Exception;
-
 
     @After
     public void tearDown() {
@@ -77,33 +68,37 @@ public abstract class PingTest {
     @Test
     public void test() {
         URI streamResourceURI = UriBuilder.fromPath("//localhost:" + serverConfig.getPort() + "/ping")
-                                          .scheme(getURLScheme()).build();
+                .scheme(getURLScheme()).build();
         Response response = client.target(streamResourceURI).request().buildGet().invoke();
         assertEquals(200, response.getStatus());
     }
 
+    protected abstract Client createJerseyClient() throws Exception;
+
     protected abstract String getURLScheme();
 
-    public static class SimplePingTest extends PingTest {
+    abstract RESTServerConfig getServerConfig() throws Exception;
+
+    public static class SimpleRESTServerTest extends RESTServerTest {
 
         @Override
-        protected Client createJerseyClient() {
+        protected Client createJerseyClient() throws Exception {
             return ClientBuilder.newClient();
-        }
-
-        @Override
-        RESTServerConfig getServerConfig() {
-            return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
-                                .build();
         }
 
         @Override
         protected String getURLScheme() {
             return "http";
         }
+
+        @Override
+        RESTServerConfig getServerConfig() throws Exception {
+            return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
+                    .build();
+        }
     }
 
-    public static class SecurePingTest extends PingTest {
+    public static class SecureRESTServerTest  extends RESTServerTest {
 
         protected String getResourcePath(String resource) throws Exception {
             return this.getClass().getClassLoader().getResource(resource).toURI().getPath();
@@ -116,33 +111,34 @@ public abstract class PingTest {
 
             SSLContext sslContext = sslConfig.createSSLContext();
             return ClientBuilder.newBuilder().sslContext(sslContext)
-                                .hostnameVerifier((s1, s2) -> true)
-                                .build();
-        }
-
-        @Override
-        RESTServerConfig getServerConfig() throws Exception {
-            return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
-                                       .tlsEnabled(true)
-                                       .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
-                                       .keyFilePasswordPath(getResourcePath(SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME))
-                                       .build();
+                    .hostnameVerifier((s1, s2) -> true)
+                    .build();
         }
 
         @Override
         protected String getURLScheme() {
             return "https";
         }
-    }
 
-    public static class FailingSecurePingTest extends SecurePingTest {
         @Override
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
-                                       .tlsEnabled(true)
-                                       .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
-                                       .keyFilePasswordPath("Wrong_Path")
-                                       .build();
+                    .tlsEnabled(true)
+                    .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
+                    .keyFilePasswordPath(getResourcePath(SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME))
+                    .build();
+        }
+    }
+
+    public static class FailingSecureRESTServerTest extends SecureRESTServerTest {
+
+        @Override
+        RESTServerConfig getServerConfig() throws Exception {
+            return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
+                    .tlsEnabled(true)
+                    .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
+                    .keyFilePasswordPath("Wrong_Path")
+                    .build();
         }
 
         @Override
@@ -152,6 +148,6 @@ public abstract class PingTest {
                 super.test();
             });
         }
-
     }
+
 }

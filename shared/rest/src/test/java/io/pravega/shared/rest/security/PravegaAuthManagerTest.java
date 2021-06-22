@@ -13,22 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.server.rpc.auth;
+package io.pravega.shared.rest.security;
 
-import io.grpc.ServerBuilder;
 import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TestAuthHandler;
+import io.pravega.shared.rest.RESTServerConfig;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.shared.security.auth.Credentials;
 import io.pravega.shared.security.auth.DefaultCredentials;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
-import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
-import io.pravega.test.common.TestUtils;
+import io.pravega.auth.AuthFileUtils;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -36,72 +32,61 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import io.pravega.test.common.TestUtils;
 import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import static io.pravega.controller.auth.AuthFileUtils.addAuthFileEntry;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class PravegaAuthManagerTest {
     private final static File PWD_AUTH_HANDLER_FILE;
     private final static AuthHandlerManager AUTH_HANDLER_MANAGER;
 
-    private final static ControllerServiceGrpc.ControllerServiceImplBase SERVICE_IMPL = new ControllerServiceGrpc.ControllerServiceImplBase() {
-        @Override
-        public void createScope(io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo request,
-                                io.grpc.stub.StreamObserver<io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus> responseObserver) {
-            responseObserver.onNext(Controller.CreateScopeStatus.newBuilder().build());
-        }
-    };
-
     static {
         try {
             PWD_AUTH_HANDLER_FILE = File.createTempFile("passwd", ".txt");
             StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
             try (FileWriter writer = new FileWriter(PWD_AUTH_HANDLER_FILE.getAbsolutePath())) {
-                addAuthFileEntry(writer, "#:");
-                addAuthFileEntry(writer, ":");
-                addAuthFileEntry(writer, "::");
-                addAuthFileEntry(writer, ":::");
-                addAuthFileEntry(writer, "dummy", "password", new ArrayList<>());
-                addAuthFileEntry(writer, "dummy1", "password", Arrays.asList("prn::/scope:readresource;"));
-                addAuthFileEntry(writer, "dummy2", "password", Arrays.asList(
+                AuthFileUtils.addAuthFileEntry(writer, "#:");
+                AuthFileUtils.addAuthFileEntry(writer, ":");
+                AuthFileUtils.addAuthFileEntry(writer, "::");
+                AuthFileUtils.addAuthFileEntry(writer, ":::");
+                AuthFileUtils.addAuthFileEntry(writer, "dummy", "password", new ArrayList<>());
+                AuthFileUtils.addAuthFileEntry(writer, "dummy1", "password", Arrays.asList("prn::/scope:readresource;"));
+                AuthFileUtils.addAuthFileEntry(writer, "dummy2", "password", Arrays.asList(
                         "prn::/scope:readresource,READ",
                         "prn::/scope:specificresouce,READ",
                         "prn::/scope:totalaccess,READ_UPDATE"));
-                addAuthFileEntry(writer, "dummy3", passwordEncryptor.encryptPassword("password"), Arrays.asList(
+                AuthFileUtils.addAuthFileEntry(writer, "dummy3", passwordEncryptor.encryptPassword("password"), Arrays.asList(
                         "prn::/scope:readresource,READ",
                         "prn::/scope:specificresouce,READ",
                         "prn::/scope:readresource/*,READ",
                         "prn::/scope:totalaccess,READ_UPDATE"));
-                addAuthFileEntry(writer, "dummy4", passwordEncryptor.encryptPassword("password"), Arrays.asList(
+                AuthFileUtils.addAuthFileEntry(writer, "dummy4", passwordEncryptor.encryptPassword("password"), Arrays.asList(
                         "prn::/scope:readresource",
                         "prn::/scope:specificresouce,READ",
                         "prn::*,READ_UPDATE"));
             }
 
             //Test the registration method.
-            GRPCServerConfig config = GRPCServerConfigImpl.builder()
+            RESTServerConfig config = RESTServerConfigImpl.builder()
                     .authorizationEnabled(true)
                     .userPasswordFile(PWD_AUTH_HANDLER_FILE.getAbsolutePath())
-                    .port(1000)
+                    .port(TestUtils.getAvailableListenPort())
+                    .host("localhost")
                     .build();
 
             AUTH_HANDLER_MANAGER = new AuthHandlerManager(config);
-            int port = TestUtils.getAvailableListenPort();
-            ServerBuilder<?> server = ServerBuilder.forPort(port).useTransportSecurity(
-                    new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
-                    new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH));
-
-            server.addService(SERVICE_IMPL);
-            AUTH_HANDLER_MANAGER.registerInterceptors(server);
-            server.build().start();
+            AUTH_HANDLER_MANAGER.registerHandler(new TestAuthHandler());
         } catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {
             throw new RuntimeException(e);
         }
@@ -109,6 +94,15 @@ public class PravegaAuthManagerTest {
 
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
+
+    @BeforeClass
+    public static void before() {
+        Map<String, AuthHandler> handlers = AUTH_HANDLER_MANAGER.getHandlerMap();
+        assertTrue("There should be at least two registered handlers.", handlers.size() >= 2);
+        // Make sure that it contains our TestAuthHandler manually registered and the PasswordAuthHandler ('Basic') loaded by the ServiceLoader.
+        assertNotNull("'Basic' AuthHandler not found.", handlers.get("Basic"));
+        assertNotNull("'testHandler' AuthHandler not found.", handlers.get("testHandler"));
+    }
 
     @AfterClass
     public static void tearDown() throws Exception {

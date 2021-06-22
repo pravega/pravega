@@ -13,13 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.server.rest.impl;
+package io.pravega.shared.rest.impl;
 
 import com.google.common.base.Strings;
+import io.pravega.auth.AuthPluginConfig;
 import io.pravega.common.Exceptions;
-import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.shared.rest.RESTServerConfig;
 import lombok.Builder;
 import lombok.Getter;
+
+import java.util.Properties;
 
 /**
  * REST server config.
@@ -28,12 +31,15 @@ import lombok.Getter;
 public class RESTServerConfigImpl implements RESTServerConfig {
     private final String host;
     private final int port;
+    private final boolean authorizationEnabled;
+    private final String userPasswordFile;
     private final boolean tlsEnabled;
     private final String keyFilePath;
     private final String keyFilePasswordPath;
 
     @Builder
-    RESTServerConfigImpl(final String host, final int port, boolean tlsEnabled, String keyFilePath, String keyFilePasswordPath) {
+    RESTServerConfigImpl(final String host, final int port, boolean authorizationEnabled, String userPasswordFile,
+                         boolean tlsEnabled, String keyFilePath, String keyFilePasswordPath) {
         Exceptions.checkNotNullOrEmpty(host, "host");
         Exceptions.checkArgument(port > 0, "port", "Should be positive integer");
         Exceptions.checkArgument(!tlsEnabled || !Strings.isNullOrEmpty(keyFilePath),
@@ -44,6 +50,8 @@ public class RESTServerConfigImpl implements RESTServerConfig {
         this.tlsEnabled = tlsEnabled;
         this.keyFilePath = keyFilePath;
         this.keyFilePasswordPath = keyFilePasswordPath;
+        this.authorizationEnabled = authorizationEnabled;
+        this.userPasswordFile = userPasswordFile;
     }
 
     @Override
@@ -59,7 +67,29 @@ public class RESTServerConfigImpl implements RESTServerConfig {
                         Strings.isNullOrEmpty(keyFilePath) ? "unspecified" : "specified"))
                 .append(String.format("keyFilePasswordPath is %s",
                         Strings.isNullOrEmpty(keyFilePasswordPath) ? "unspecified" : "specified"))
+                .append(String.format("authorizationEnabled: %b, ", authorizationEnabled))
+                .append(String.format("userPasswordFile is %s, ",
+                        Strings.isNullOrEmpty(userPasswordFile) ? "unspecified" : "specified"))
                 .append(")")
                 .toString();
+    }
+
+    @Override
+    public boolean isAuthorizationEnabled() {
+        return this.authorizationEnabled;
+    }
+
+    @Override
+    public boolean isTlsEnabled() {
+        return this.tlsEnabled;
+    }
+
+    @Override
+    public Properties toAuthHandlerProperties() {
+        Properties props = new Properties();
+        if (this.userPasswordFile != null) {
+            props.setProperty(AuthPluginConfig.BASIC_AUTHPLUGIN_DATABASE, this.userPasswordFile);
+        }
+        return props;
     }
 }

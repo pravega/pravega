@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.server.rest.impl;
+package io.pravega.shared.rest.impl;
 
-import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.shared.rest.RESTServerConfig;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNotNull;
@@ -28,14 +28,14 @@ public class RESTServerConfigImplTests {
 
     @Test
     public void testToStringIsSuccessfulWithAllConfigSpecified() {
-        RESTServerConfig config = new RESTServerConfigImpl("localhost", 2020, true,
+        RESTServerConfig config = new RESTServerConfigImpl("localhost", 2020, true, "/passwd", true,
                 "/rest.keystore.jks", "/keystore.jks.passwd");
         assertNotNull(config.toString());
     }
 
     @Test
     public void testToStringIsSuccessfulWithTlsDisabled() {
-        RESTServerConfig config = new RESTServerConfigImpl("localhost", 2020, false,
+        RESTServerConfig config = new RESTServerConfigImpl("localhost", 2020, false, null, false,
                 null, null);
         assertNotNull(config.toString());
     }
