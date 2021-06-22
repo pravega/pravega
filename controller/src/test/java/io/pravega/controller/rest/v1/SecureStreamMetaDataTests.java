@@ -15,9 +15,8 @@
  */
 package io.pravega.controller.rest.v1;
 
-import io.grpc.ServerBuilder;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;
@@ -32,7 +31,7 @@ import java.util.Collections;
 
 import org.junit.Before;
 
-import static io.pravega.controller.auth.AuthFileUtils.addAuthFileEntry;
+import static io.pravega.auth.AuthFileUtils.addAuthFileEntry;
 
 public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
 
@@ -72,8 +71,6 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
                                                                       .userPasswordFile(file.getAbsolutePath())
                                                                       .port(1000)
                                                                       .build());
-        ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
-        this.authManager.registerInterceptors(server);
         super.setup();
     }
 
