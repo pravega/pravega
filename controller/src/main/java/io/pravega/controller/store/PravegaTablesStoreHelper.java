@@ -278,8 +278,8 @@ public class PravegaTablesStoreHelper {
      * @return A future which completes when the update operation has completed. A conditional update failure will cause
      * the future to complete exceptionally.
      */
-    public CompletableFuture<Void> getAndUpdateValues(final String tableName, final String tableKey, final Function<TableSegmentEntry, TableSegmentEntry> updateFunction,
-                                                        final Predicate<TableSegmentEntry> attemptCleanup, long requestId) {
+    public CompletableFuture<Void> getAndUpdateEntry(final String tableName, final String tableKey, final Function<TableSegmentEntry, TableSegmentEntry> updateFunction,
+                                                     final Predicate<TableSegmentEntry> attemptCleanup, long requestId) {
         Supplier<String> errorMessage = () -> String.format("get and update values: on table: %s for key %s", tableName, tableKey);
         // fetch un-versioned key
         List<TableSegmentKey> keys = Collections.singletonList(TableSegmentKey.unversioned(tableKey.getBytes(StandardCharsets.UTF_8)));
