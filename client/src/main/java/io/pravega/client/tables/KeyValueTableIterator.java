@@ -34,7 +34,9 @@ public interface KeyValueTableIterator {
      * {@link #entries()} if all that is needed is the {@link TableKey}s as less I/O is involved both server-side and
      * between the server and client.
      *
-     * @return An {@link AsyncIterator} that can be used to iterate over Keys in this {@link KeyValueTable}.
+     * @return An {@link AsyncIterator} that can be used to iterate over Keys in this {@link KeyValueTable}. The returned
+     * {@link AsyncIterator} guarantees the serialization of invocations to {@link AsyncIterator#getNext()}.
+     * See {@link AsyncIterator#asSequential}.
      */
     AsyncIterator<IteratorItem<TableKey>> keys();
 
@@ -43,7 +45,9 @@ public interface KeyValueTableIterator {
      * used if both the Keys and their associated Values are needed and is preferred to using {@link #keys()} to get the
      * Keys and then issuing {@link KeyValueTable#get}/{@link KeyValueTable#getAll} to retrieve the Values.
      *
-     * @return An {@link AsyncIterator} that can be used to iterate over Entries in this {@link KeyValueTable}.
+     * @return An {@link AsyncIterator} that can be used to iterate over Entries in this {@link KeyValueTable}. The
+     * returned {@link AsyncIterator} guarantees the serialization of invocations to {@link AsyncIterator#getNext()}.
+     * See {@link AsyncIterator#asSequential}.
      */
     AsyncIterator<IteratorItem<TableEntry>> entries();
 

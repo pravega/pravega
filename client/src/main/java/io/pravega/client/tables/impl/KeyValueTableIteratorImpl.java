@@ -29,12 +29,16 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -132,8 +136,8 @@ class KeyValueTableIteratorImpl implements KeyValueTableIterator {
                 .iterator();
 
         // Return a MergeAsyncIterator with all of them.
-        return new MergeAsyncIterator<>(segmentIterators, getKey, this.maxIterationSize, this.executor);
-
+        return new MergeAsyncIterator<>(segmentIterators, getKey, this.maxIterationSize, this.executor)
+                .asSequential(this.executor); // Ensure that we won't get overlapping requests from the user.
     }
 
     private SegmentIteratorArgs getIteratorArgs() {
@@ -197,7 +201,7 @@ class KeyValueTableIteratorImpl implements KeyValueTableIterator {
                     () -> !segments.isEmpty() && result.size() < this.maxIterationSize,
                     () -> {
                         val first = segments.poll();
-                        result.add(first.current);
+                        result.add(first.getCurrent().getItem());
                         return first.advance()
                                 .thenRun(() -> {
                                     if (first.hasNext()) {
@@ -218,7 +222,7 @@ class KeyValueTableIteratorImpl implements KeyValueTableIterator {
                 moveFirst.put(ss, ss.advance());
             }
 
-            val result = new PriorityQueue<PeekingIterator<T>>((s1, s2) -> COMPARATOR.compare(s1.currentKey, s2.currentKey));
+            val result = new PriorityQueue<PeekingIterator<T>>((s1, s2) -> COMPARATOR.compare(s1.getCurrent().getKey(), s2.getCurrent().getKey()));
             return Futures.allOf(moveFirst.values())
                     .thenApply(v -> {
                         // Clear out those iterators with no values, and add the rest to the heap.
@@ -242,21 +246,21 @@ class KeyValueTableIteratorImpl implements KeyValueTableIterator {
     static class PeekingIterator<T> {
         private final AsyncIterator<IteratorItem<T>> innerIterator;
         private final Function<T, TableKey> getKey;
-        private volatile Iterator<T> currentBatchIterator = null;
-        @Getter
-        private volatile T current = null;
-        @Getter
-        private volatile TableKey currentKey = null;
+        private final AtomicReference<List<PeekingIteratorItem<T>>> currentBatch = new AtomicReference<>();
+        private final AtomicInteger currentBatchIndex = new AtomicInteger();
+
+        PeekingIteratorItem<T> getCurrent() {
+            return this.currentBatch.get() == null ? null : this.currentBatch.get().get(this.currentBatchIndex.get());
+        }
 
         boolean hasNext() {
-            return this.currentBatchIterator != null;
+            return this.currentBatch.get() != null;
         }
 
         CompletableFuture<Void> advance() {
             // See if we have anything in our buffer.
-            val i = this.currentBatchIterator;
-            if (i != null && i.hasNext()) {
-                setCurrent(i.next());
+            if (this.currentBatch.get() != null && this.currentBatchIndex.get() < this.currentBatch.get().size() - 1) {
+                this.currentBatchIndex.incrementAndGet();
                 return CompletableFuture.completedFuture(null);
             }
 
@@ -265,19 +269,22 @@ class KeyValueTableIteratorImpl implements KeyValueTableIterator {
                     .thenAccept(result -> {
                         // Null result means the inner iterator is done - so we must follow suit.
                         if (result == null || result.getItems().isEmpty()) {
-                            this.currentBatchIterator = null;
-                            setCurrent(null);
+                            this.currentBatch.set(null);
                         } else {
-                            this.currentBatchIterator = result.getItems().iterator();
-                            setCurrent(this.currentBatchIterator.next());
+                            this.currentBatch.set(result.getItems().stream()
+                                    .map(i -> new PeekingIteratorItem<>(i, this.getKey.apply(i)))
+                                    .collect(Collectors.toList()));
                         }
+                        this.currentBatchIndex.set(0);
                     });
         }
+    }
 
-        private void setCurrent(T c) {
-            this.current = c;
-            this.currentKey = c == null ? null : this.getKey.apply(c);
-        }
+    @Data
+    @VisibleForTesting
+    static class PeekingIteratorItem<T> {
+        final T item;
+        final TableKey key;
     }
 
     //endregion

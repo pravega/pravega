@@ -304,14 +304,13 @@ public class KeyValueTableIteratorImplTests extends LeakDetectorTestSuite {
         val actualItems = new ArrayList<Integer>();
         fi.advance().join();
         while (fi.hasNext()) {
-            actualItems.add(fi.getCurrent());
-            val expectedKey = toKey.apply(fi.getCurrent());
-            Assert.assertEquals(expectedKey, fi.getCurrentKey());
+            actualItems.add(fi.getCurrent().getItem());
+            val expectedKey = toKey.apply(fi.getCurrent().getItem());
+            Assert.assertEquals(expectedKey, fi.getCurrent().getKey());
             fi.advance().join();
         }
 
         Assert.assertNull(fi.getCurrent());
-        Assert.assertNull(fi.getCurrentKey());
 
         // Compare against expected items (which we get by flattening the provided input ourselves).
         val expectedItems = items.stream().flatMap(List::stream).collect(Collectors.toList());
