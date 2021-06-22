@@ -67,7 +67,15 @@ public class HealthServiceManager implements AutoCloseable {
 
     @VisibleForTesting
     HealthServiceUpdater getHealthServiceUpdater() {
-        return updater;
+        return this.updater;
+    }
+
+    /**
+     * Synchronously starts the {@link HealthServiceUpdater}.
+     */
+    public void start() {
+        this.updater.startAsync();
+        this.updater.awaitRunning();
     }
 
     @Override
@@ -87,6 +95,7 @@ public class HealthServiceManager implements AutoCloseable {
         @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.UP;
+            System.out.println("doHealthCheck Root");
             builder.status(status);
             return status;
         }

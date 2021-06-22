@@ -22,7 +22,6 @@ import io.pravega.common.concurrent.Services;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthServiceUpdater;
-import io.pravega.shared.health.HealthService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

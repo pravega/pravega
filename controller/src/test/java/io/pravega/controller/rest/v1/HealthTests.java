@@ -15,24 +15,24 @@
  */
 package io.pravega.controller.rest.v1;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.connection.impl.ConnectionFactory;
-import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
-import io.pravega.controller.server.ControllerService;
+//import io.pravega.client.ClientConfig;
+//import io.pravega.client.connection.impl.ConnectionFactory;
+//import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.controller.server.rest.resources.HealthImpl;
+import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.shared.rest.RESTServerConfig;
-import io.pravega.controller.server.rest.generated.model.HealthDependencies;
 import io.pravega.controller.server.rest.generated.model.HealthDetails;
 import io.pravega.controller.server.rest.generated.model.HealthResult;
 import io.pravega.controller.server.rest.generated.model.HealthStatus;
 import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.shared.health.Health;
-
+//
 import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
 import io.pravega.shared.rest.security.AuthHandlerManager;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -48,48 +48,72 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import java.net.URI;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.mockito.Mockito.mock;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 public class HealthTests {
 
-    private static final String HOST = "localhost";
+        private static final String HOST = "localhost";
 
-    private static final String IMPLICIT_INDICATOR = "implicit-health-child";
+        private static final String IMPLICIT_INDICATOR = "implicit-health-child";
 
-    private static final String IMPLICIT_COMPONENT = "health-component";
+        private static final String IMPLICIT_COMPONENT = "health-component";
 
-    //Ensure each test completes within 30 seconds.
-    @Rule
-    public final Timeout globalTimeout = new Timeout(10000, TimeUnit.SECONDS);
+        private static final int INTERVAL = 1000;
+        @Rule
+        public final Timeout globalTimeout = new Timeout(10 * INTERVAL, TimeUnit.MILLISECONDS);
 
-    private  HealthServiceManager healthServiceManager;
-    private RESTServerConfig serverConfig;
-    private RESTServer restServer;
-    private Client client;
-    private ConnectionFactory connectionFactory;
+        private RESTServerConfig serverConfig;
+        private RESTServer restServer;
+        private Client client;
+        private  HealthServiceManager healthServiceManager;
 
-    @Before
-    public void setup() throws Exception {
-        ControllerService mockControllerService = mock(ControllerService.class);
-        serverConfig = getServerConfig();
-        connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
-        healthServiceManager = new HealthServiceManager(Duration.ofSeconds(1));
-        AuthHandlerManager authHandlerManager = new AuthHandlerManager(serverConfig);
-        restServer = new RESTServer(null, Set.of(new HealthImpl(authHandlerManager, healthServiceManager.getEndpoint())));
+        @Before
+        public void setup() throws Exception {
+            serverConfig = getServerConfig();
+            healthServiceManager = new HealthServiceManager(Duration.ofSeconds(1));
+            AuthHandlerManager authHandlerManager = new AuthHandlerManager(serverConfig);
+            restServer = new RESTServer(serverConfig,
+                    Set.of(new HealthImpl(null, healthServiceManager.getEndpoint()), new PingImpl()));
 
-        restServer.startAsync();
-        restServer.awaitRunning();
-        client = createJerseyClient();
-        // Must provide a HealthIndicator to the HealthComponent(s) defined by the HealthConfig.
-        healthServiceManager.getRoot().register(new StaticHealthyIndicator(IMPLICIT_INDICATOR));
-    }
+            healthServiceManager.start();
+            restServer.startAsync();
+            restServer.awaitRunning();
+            client = createJerseyClient();
+            //healthServiceManager.getRoot().register(new StaticHealthyIndicator(IMPLICIT_INDICATOR));
+        }
+
+        @Test
+        public void test() {
+            URI streamResourceURI = UriBuilder.fromPath("//localhost:" + serverConfig.getPort() + "/ping")
+                    .scheme(getURLScheme()).build();
+            Response response = client.target(streamResourceURI).request().buildGet().invoke();
+            assertEquals(200, response.getStatus());
+        }
+
+
+        protected Client createJerseyClient() {
+            return ClientBuilder.newClient();
+        }
+
+        RESTServerConfig getServerConfig() {
+            return RESTServerConfigImpl.builder().host(HOST).port(TestUtils.getAvailableListenPort())
+                    .build();
+        }
+
+        protected String getURLScheme() {
+            return "http";
+        }
+
+    //private RESTServerConfig serverConfig;
+    //private RESTServer restServer;
+    //private Client client;
+
 
     @After
     public void tearDown() {
@@ -97,33 +121,21 @@ public class HealthTests {
         client.close();
         restServer.stopAsync();
         restServer.awaitTerminated();
-        connectionFactory.close();
     }
 
-    protected Client createJerseyClient() throws Exception {
-        return ClientBuilder.newClient();
-    }
-
-    RESTServerConfig getServerConfig() throws Exception {
-        return RESTServerConfigImpl.builder().host(HOST).port(TestUtils.getAvailableListenPort())
-                .build();
-    }
-
-    String getURLScheme() {
-        return "http";
-    }
 
     protected URI getURI(String path) {
         return UriBuilder.fromPath(path)
                 .scheme(getURLScheme())
-                .host(HOST)
+                .host(serverConfig.getHost())
                 .port(serverConfig.getPort())
                 .build();
     }
 
     @Test
     public void testHealthNoContributors() {
-        URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/%s", IMPLICIT_COMPONENT)))
+        URI path = getURI(String.format("/v1/health/%s", IMPLICIT_COMPONENT));
+        URI streamResourceURI = UriBuilder.fromUri(path)
                 .scheme(getURLScheme()).build();
 
         Response response = client.target(streamResourceURI).request().buildGet().invoke();
@@ -134,57 +146,74 @@ public class HealthTests {
         Assert.assertEquals("Health Status should be 'UNKNOWN'", HealthStatus.UNKNOWN, healthResult.getStatus());
     }
 
-    @Test
-    public void testHealth()  {
-        // Register the HealthIndicator.
-        healthServiceManager.getRoot().register(new StaticHealthyIndicator());
+    //@Test
+    //public void test() throws InterruptedException {
+    //    URI streamResourceURI = UriBuilder.fromPath("//" + HOST + ":" + serverConfig.getPort() + "/ping")
+    //            .scheme(getURLScheme()).build();
+    //    //while (true) {
+    //    //    Thread.sleep(1000);
+    //    //}
 
-        URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health"))
-                .scheme(getURLScheme()).build();
-        Response response = client.target(streamResourceURI).request().buildGet().invoke();
-        HealthResult healthResult = response.readEntity(HealthResult.class);
+    //    Response response = client.target(streamResourceURI).request().buildGet().invoke();
+    //    assertEquals(200, response.getStatus());
+    //}
 
-        Assert.assertEquals(200, response.getStatus());
-        Assert.assertEquals("HealthService should maintain an 'UP' Status.", HealthStatus.UP, healthResult.getStatus());
-        // Details not requested, so children will not be populated.
-        Assert.assertTrue("HealthService should not provide children.", healthResult.getChildren().isEmpty());
+    //@Test
+    //public void testHealth()  {
+    //    // Register the HealthIndicator.
+    //    healthServiceManager.getRoot().register(new StaticHealthyIndicator());
 
-        // Test *with* details.
-        streamResourceURI = UriBuilder.fromUri(getURI("/v1/health"))
-                .scheme(getURLScheme()).queryParam("details", true).build();
-        response = client.target(streamResourceURI).request().buildGet().invoke();
-        healthResult = response.readEntity(HealthResult.class);
-        boolean found = false;
-        for (HealthResult child : healthResult.getChildren()) {
-            found |= !child.getDetails().isEmpty();
-        }
-        Assert.assertTrue("HealthService should provide details.", found);
-    }
+    //    URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health"))
+    //            .scheme(getURLScheme()).build();
+    //    Response response = client.target(streamResourceURI).request().buildGet().invoke();
+    //    HealthResult healthResult = response.readEntity(HealthResult.class);
 
-    @Test
-    public void testContributorHealth() {
-        // Register the HealthIndicator.
-        StaticHealthyIndicator indicator = new StaticHealthyIndicator();
-        healthServiceManager.getRoot().register(indicator);
+    //    Assert.assertEquals(200, response.getStatus());
+    //    Assert.assertEquals("HealthService should maintain an 'UP' Status.", HealthStatus.UP, healthResult.getStatus());
+    //    // Details not requested, so children will not be populated.
+    //    Assert.assertTrue("HealthService should not provide children.", healthResult.getChildren().isEmpty());
 
-        URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/%s", indicator.getName())))
-                .scheme(getURLScheme()).build();
-        log.info("{}", streamResourceURI);
-        Response response = client.target(streamResourceURI).request().buildGet().invoke();
-        HealthResult healthResult = response.readEntity(HealthResult.class);
-        Assert.assertEquals(200, response.getStatus());
-        Assert.assertEquals("The HealthIndicator should maintain an 'UP' Status.", HealthStatus.UP, healthResult.getStatus());
-        Assert.assertTrue("The HealthIndicator should not provide details.", healthResult.getDetails().isEmpty());
-    }
+    //    // Test *with* details.
+    //    streamResourceURI = UriBuilder.fromUri(getURI("/v1/health"))
+    //            .scheme(getURLScheme()).queryParam("details", true).build();
+    //    response = client.target(streamResourceURI).request().buildGet().invoke();
+    //    healthResult = response.readEntity(HealthResult.class);
+    //    boolean found = false;
+    //    for (HealthResult child : healthResult.getChildren()) {
+    //        found |= !child.getDetails().isEmpty();
+    //    }
+    //    Assert.assertTrue("HealthService should provide details.", found);
+    //}
+
+    //@Test
+    //public void testContributorHealth() {
+    //    // Register the HealthIndicator.
+    //    StaticHealthyIndicator indicator = new StaticHealthyIndicator();
+    //    healthServiceManager.getRoot().register(indicator);
+
+    //    URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/%s", indicator.getName())))
+    //            .scheme(getURLScheme()).build();
+    //    log.info("{}", streamResourceURI);
+    //    Response response = client.target(streamResourceURI).request().buildGet().invoke();
+    //    HealthResult healthResult = response.readEntity(HealthResult.class);
+    //    Assert.assertEquals(200, response.getStatus());
+    //    Assert.assertEquals("The HealthIndicator should maintain an 'UP' Status.", HealthStatus.UP, healthResult.getStatus());
+    //    Assert.assertTrue("The HealthIndicator should not provide details.", healthResult.getDetails().isEmpty());
+    //}
 
     // Be mindful that the results will be dependent on the StatusAggregatorRule used.
     @Test
-    public void testStatus()  {
+    public void testStatus() throws Exception {
+
+        URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
+                .scheme(getURLScheme()).build();
+       assertStatus(streamResourceURI, HealthStatus.UP);
+
         // Start with a HealthyIndicator.
         StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
         healthServiceManager.getRoot().register(healthyIndicator);
 
-        URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
+       streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/status"))
                 .scheme(getURLScheme()).build();
         assertStatus(streamResourceURI, HealthStatus.UP);
 
@@ -203,129 +232,122 @@ public class HealthTests {
         assertStatus(streamResourceURI, HealthStatus.DOWN);
     }
 
-    // Service Readiness is in essence a proxy for the Status as a HealthComponent does not provide its own
-    // `doHealthCheck` logic.
-    @Test
-    public void testReadiness()  {
-        // Start with a HealthyIndicator.
-        StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        healthServiceManager.getRoot().register(healthyIndicator);
+    //// Service Readiness is in essence a proxy for the Status as a HealthComponent does not provide its own
+    //// `doHealthCheck` logic.
+    //@Test
+    //public void testReadiness()  {
+    //    // Start with a HealthyIndicator.
+    //    StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
+    //    healthServiceManager.getRoot().register(healthyIndicator);
 
-        URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/readiness"))
-                .scheme(getURLScheme()).build();
-        assertAliveOrReady(streamResourceURI, true);
+    //    URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/readiness"))
+    //            .scheme(getURLScheme()).build();
+    //    assertAliveOrReady(streamResourceURI, true);
 
-        // Adding an unhealthy indicator should change the readiness.
-        StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
-        healthServiceManager.getRoot().register(failingIndicator);
+    //    // Adding an unhealthy indicator should change the readiness.
+    //    StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
+    //    healthServiceManager.getRoot().register(failingIndicator);
 
-        streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/readiness"))
-                .scheme(getURLScheme()).build();
-        assertAliveOrReady(streamResourceURI, false);
-    }
+    //    streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/readiness"))
+    //            .scheme(getURLScheme()).build();
+    //    assertAliveOrReady(streamResourceURI, false);
+    //}
 
-    @Test
-    public void testLiveness()  {
-        // Start with a HealthyIndicator.
-        StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        healthServiceManager.getRoot().register(healthyIndicator);
+    //@Test
+    //public void testLiveness()  {
+    //    // Start with a HealthyIndicator.
+    //    StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
+    //    healthServiceManager.getRoot().register(healthyIndicator);
 
-        URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/liveness"))
-                .scheme(getURLScheme()).build();
-        assertAliveOrReady(streamResourceURI, true);
+    //    URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/liveness"))
+    //            .scheme(getURLScheme()).build();
+    //    assertAliveOrReady(streamResourceURI, true);
 
-        // Adding an unhealthy indicator should change the readiness.
-        StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
-        healthServiceManager.getRoot().register(failingIndicator);
+    //    // Adding an unhealthy indicator should change the readiness.
+    //    StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
+    //    healthServiceManager.getRoot().register(failingIndicator);
 
-        streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/liveness"))
-                .scheme(getURLScheme()).build();
-        assertAliveOrReady(streamResourceURI, false);
-    }
+    //    streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/liveness"))
+    //            .scheme(getURLScheme()).build();
+    //    assertAliveOrReady(streamResourceURI, false);
+    //}
 
-    @Test
-    public void testDependencies()  {
-        // Start with a HealthyIndicator.
-        StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        healthServiceManager.getRoot().register(healthyIndicator);
-        HealthDependencies  expected = new HealthDependencies();
-        expected.add(IMPLICIT_COMPONENT);
-        expected.add(healthyIndicator.getName());
-        URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/components"))
-                .scheme(getURLScheme()).build();
-        assertDependencies(streamResourceURI, expected);
-        // Add another HealthIndicator.
-        StaticFailingIndicator failingIndicator = new StaticFailingIndicator();
-        healthServiceManager.getRoot().register(failingIndicator);
-        expected.add(failingIndicator.getName());
-        assertDependencies(streamResourceURI, expected);
-    }
+    //@Test
+    //public void testContributorDependencies() {
+    //    // Start with a HealthyIndicator.
+    //    StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
+    //    healthServiceManager.getRoot().register(healthyIndicator);
+    //    URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/components/%s", healthyIndicator.getName())))
+    //            .scheme(getURLScheme()).build();
+    //}
 
-    @Test
-    public void testContributorDependencies() {
-        // Start with a HealthyIndicator.
-        StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        healthServiceManager.getRoot().register(healthyIndicator);
-        URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/components/%s", healthyIndicator.getName())))
-                .scheme(getURLScheme()).build();
-        // HealthIndicators should not be able to accept other HealthIndicators.
-        assertDependencies(streamResourceURI, new HealthDependencies());
-    }
+    //@Test
+    //public void testDetails()  {
+    //    // Register the HealthIndicator.
+    //    healthServiceManager.getRoot().register(new StaticHealthyIndicator());
+    //    URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/details"))
+    //            .scheme(getURLScheme()).build();
+    //    Response response = client.target(streamResourceURI).request().buildGet().invoke();
+    //    HealthDetails details = response.readEntity(HealthDetails.class);
+    //    Assert.assertTrue("HealthService does not provide details itself.", details.isEmpty());
+    //}
 
-    @Test
-    public void testDetails()  {
-        // Register the HealthIndicator.
-        healthServiceManager.getRoot().register(new StaticHealthyIndicator());
-        URI streamResourceURI = UriBuilder.fromUri(getURI("/v1/health/details"))
-                .scheme(getURLScheme()).build();
-        Response response = client.target(streamResourceURI).request().buildGet().invoke();
-        HealthDetails details = response.readEntity(HealthDetails.class);
-        Assert.assertTrue("HealthService does not provide details itself.", details.isEmpty());
-    }
+    //@Test
+    //public void testContributorDetails() {
+    //    // Register the HealthIndicator.
+    //    StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
+    //    healthServiceManager.getRoot().register(healthyIndicator);
+    //    URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/details/%s", healthyIndicator.getName())))
+    //            .scheme(getURLScheme()).build();
+    //    HealthDetails expected = new HealthDetails();
+    //    expected.put(StaticHealthyIndicator.DETAILS_KEY, StaticHealthyIndicator.DETAILS_VAL);
+    //    assertDetails(streamResourceURI, expected);
+    //}
 
-    @Test
-    public void testContributorDetails() {
-        // Register the HealthIndicator.
-        StaticHealthyIndicator healthyIndicator = new StaticHealthyIndicator();
-        healthServiceManager.getRoot().register(healthyIndicator);
-        URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/details/%s", healthyIndicator.getName())))
-                .scheme(getURLScheme()).build();
-        HealthDetails expected = new HealthDetails();
-        expected.put(StaticHealthyIndicator.DETAILS_KEY, StaticHealthyIndicator.DETAILS_VAL);
-        assertDetails(streamResourceURI, expected);
-    }
+    //@Test
+    //public void testContributorNotExists() {
+    //    String unknown = "unknown-indicator";
+    //    // Register the HealthIndicator.
+    //    URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/%s", unknown)))
+    //            .scheme(getURLScheme()).build();
+    //    Response response = client.target(streamResourceURI).request().buildGet().invoke();
+    //    Assert.assertEquals(404, response.getStatus());
+    //}
 
-    @Test
-    public void testContributorNotExists() {
-        String unknown = "unknown-indicator";
-        // Register the HealthIndicator.
-        URI streamResourceURI = UriBuilder.fromUri(getURI(String.format("/v1/health/%s", unknown)))
-                .scheme(getURLScheme()).build();
-        Response response = client.target(streamResourceURI).request().buildGet().invoke();
-        Assert.assertEquals(404, response.getStatus());
-    }
+    private void assertDetails(URI uri, HealthDetails expected) throws Exception {
 
-    private void assertDetails(URI uri, HealthDetails expected) {
-        Response response = client.target(uri).request().buildGet().invoke();
-        HealthDetails details = response.readEntity(HealthDetails.class);
-        Assert.assertEquals(200, response.getStatus());
-        Assert.assertEquals("Size of HealthDetails result should match the expected.", expected.size(), details.size());
+        AssertExtensions.assertEventuallyEquals("Expected a successful (200) response code.",
+                200,
+                () -> client.target(uri).request().buildGet().invoke().getStatus(),
+                INTERVAL,
+                INTERVAL * 3);
+
+        AssertExtensions.assertEventuallyEquals(String.format("Expected %d HealthDetails.", expected.size()),
+                expected.size(),
+                () -> client.target(uri).request().buildGet().invoke().readEntity(HealthDetails.class).size(),
+                INTERVAL,
+                INTERVAL * 3);
+
+        HealthDetails details = client.target(uri).request().buildGet().invoke().readEntity(HealthDetails.class);
+
         details.forEach((key, val) -> {
             if (!expected.get(key).equals(val)) {
-                Assert.assertEquals("Unexpected difference in Detail entry.", expected.get(key), val);
+                Assert.assertEquals("Unexpected value for detail entry.", expected.get(key), val);
             }
         });
-        response.close();
     }
 
-    private void assertStatus(URI uri, HealthStatus expected) {
-        Response response = client.target(uri).request().buildGet().invoke();
-        HealthStatus status = response.readEntity(HealthStatus.class);
-        Assert.assertEquals(200, response.getStatus());
-        Assert.assertEquals(String.format("The StaticHealthyIndicator should be in a '%s' Status.", expected.toString()),
+    private void assertStatus(URI uri, HealthStatus expected) throws Exception {
+        AssertExtensions.assertEventuallyEquals("Expected a successful (200) response code.",
+                200,
+                () -> client.target(uri).request().buildGet().invoke().getStatus(),
+                INTERVAL,
+                INTERVAL * 3);
+        AssertExtensions.assertEventuallyEquals(String.format("Expected a '%s' HealthStatus.", expected.toString()),
                 expected,
-                status);
-        response.close();
+                () -> client.target(uri).request().buildGet().invoke().readEntity(HealthStatus.class),
+                INTERVAL,
+                INTERVAL * 3);
     }
 
     private void assertAliveOrReady(URI uri, boolean expected) {
@@ -337,19 +359,6 @@ public class HealthTests {
                 ready);
         response.close();
     }
-
-    private void assertDependencies(URI uri, HealthDependencies expected) {
-        Response response = client.target(uri).request().buildGet().invoke();
-        HealthDependencies dependencies = response.readEntity(HealthDependencies.class);
-        Assert.assertEquals(200, response.getStatus());
-        Assert.assertEquals("'expected' and 'actual' differ in sizes.", expected.size(), dependencies.size());
-        // Normalize arrays for comparison.
-        Collections.sort(expected);
-        Collections.sort(dependencies);
-        Assert.assertArrayEquals(expected.toArray(), dependencies.toArray());
-        response.close();
-    }
-
 
     private static class StaticHealthyIndicator extends AbstractHealthContributor {
         public static final String DETAILS_KEY = "static-indicator-details-key";
@@ -389,7 +398,7 @@ public class HealthTests {
         }
 
         public Status doHealthCheck(Health.HealthBuilder builder) {
-            Status status = Status.UP;
+            Status status = Status.DOWN;
             Map<String, Object> details = new HashMap<>();
             details.put(DETAILS_KEY, DETAILS_VAL);
             builder.status(status).details(details);
