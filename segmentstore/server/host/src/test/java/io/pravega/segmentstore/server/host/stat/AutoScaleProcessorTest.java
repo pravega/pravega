@@ -486,6 +486,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 () -> new AutoScaleProcessor(null, eventStreamClientFactory, executorService(), simpleCache),
                 e -> e instanceof NullPointerException);
 
+        monitor.notifySealed(streamSegmentName1);
         monitor.close();
     }
 }
