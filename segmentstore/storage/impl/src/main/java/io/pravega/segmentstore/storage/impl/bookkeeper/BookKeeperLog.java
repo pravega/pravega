@@ -44,7 +44,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -182,7 +181,7 @@ class BookKeeperLog implements DurableDataLog {
             }
 
             // Close the write queue and cancel the pending writes.
-            this.writes.close().forEach(w -> w.fail(new CancellationException("BookKeeperLog has been closed."), true));
+            this.writes.close().forEach(w -> w.fail(new ObjectClosedException("BookKeeperLog has been closed."), true));
 
             if (writeLedger != null) {
                 try {
