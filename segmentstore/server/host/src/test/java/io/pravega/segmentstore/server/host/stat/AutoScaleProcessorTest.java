@@ -27,6 +27,7 @@ import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import lombok.Cleanup;
 import lombok.NonNull;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -413,6 +414,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         }).when(simpleCache).put(anyString(), any());
         doAnswer(x -> cleanup.apply(null)).when(simpleCache).cleanUp();
 
+        @Cleanup
         TestAutoScaleProcessor monitor = new TestAutoScaleProcessor(
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
@@ -460,6 +462,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 .with(AutoScalerConfig.TLS_ENABLED, false)
                 .build();
         ClientConfig objectUnderTest = AutoScaleProcessor.prepareClientConfig(config);
+        @Cleanup
         EventStreamClientFactory eventStreamClientFactory = EventStreamClientFactory.withScope(SCOPE, objectUnderTest);
 
         AssertExtensions.assertThrows("NPE should be thrown",
@@ -487,6 +490,5 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 e -> e instanceof NullPointerException);
 
         monitor.notifySealed(streamSegmentName1);
-        monitor.close();
     }
 }
