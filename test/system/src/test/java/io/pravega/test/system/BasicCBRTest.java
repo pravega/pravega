@@ -57,6 +57,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -68,7 +69,6 @@ public class BasicCBRTest extends AbstractReadWriteTest {
     private static final String READER_GROUP = "testCBRReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
 
     private static final int READ_TIMEOUT = 1000;
-    private static final int GROUP_REFRESH_TIME_MILLIS = 1000;
     private static final int MAX = 300;
     private static final int MIN = 30;
 
@@ -144,7 +144,8 @@ public class BasicCBRTest extends AbstractReadWriteTest {
 
         // Read one event and update the retention stream-cut.
         log.info("Reading event e1 from {}/{}", SCOPE, STREAM);
-        reader.readNextEvent(READ_TIMEOUT);
+        EventRead<String> read = reader.readNextEvent(READ_TIMEOUT);
+        assertEquals("e1", read.getEvent());
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(executor);
         EventRead<String> emptyEvent = reader.readNextEvent(100);
@@ -165,7 +166,8 @@ public class BasicCBRTest extends AbstractReadWriteTest {
 
         // Read next event and update the retention stream-cut.
         log.info("Reading event e2 from {}/{}", SCOPE, STREAM);
-        reader.readNextEvent(READ_TIMEOUT);
+        read = reader.readNextEvent(READ_TIMEOUT);
+        assertEquals("e2", read.getEvent());
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup.generateStreamCuts(executor);
         EventRead<String> emptyEvent2 = reader.readNextEvent(100);
