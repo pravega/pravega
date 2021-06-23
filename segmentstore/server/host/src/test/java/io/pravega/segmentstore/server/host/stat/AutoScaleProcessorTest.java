@@ -447,7 +447,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 () -> new AutoScaleProcessor(config, null, simpleCache),
                 e -> e instanceof NullPointerException);
 
-        AssertExtensions.assertThrows("NPE should be thrown",
+        /*AssertExtensions.assertThrows("NPE should be thrown",
                 () -> new AutoScaleProcessor(null, executorService(), simpleCache),
                 e -> e instanceof NullPointerException);
 
@@ -455,7 +455,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 () -> new AutoScaleProcessor(null, config, executorService()),
                 e -> e instanceof NullPointerException);
 
-        /*AutoScalerConfig config = AutoScalerConfig.builder()
+        AutoScalerConfig config = AutoScalerConfig.builder()
                 .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090")
                 .with(AutoScalerConfig.TLS_ENABLED, false)
                 .build();
