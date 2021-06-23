@@ -95,7 +95,6 @@ public class HealthServiceManager implements AutoCloseable {
         @Override
         public Status doHealthCheck(Health.HealthBuilder builder) {
             Status status = Status.UP;
-            System.out.println("doHealthCheck Root");
             builder.status(status);
             return status;
         }

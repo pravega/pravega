@@ -20,6 +20,7 @@ import io.pravega.shared.health.HealthContributor;
 import io.pravega.shared.health.HealthEndpoint;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.HealthServiceUpdater;
+import io.pravega.shared.health.ContributorNotFoundException;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,12 +63,17 @@ public class HealthEndpointImpl implements HealthEndpoint {
     @NonNull
     @Override
     public Health getHealth(String id) {
+        Health health;
         if (id == null || id.equals(root.getName())) {
-            return updater.getLatestHealth();
+            health = updater.getLatestHealth();
         } else {
             List<String> path = Arrays.asList(id.split("/"));
-            return search(path, updater.getLatestHealth());
+            health = search(path, updater.getLatestHealth());
         }
+        if (health == null)  {
+            throw new ContributorNotFoundException(String.format("No HealthContributor found with name '%s'", id), 404);
+        }
+        return health;
     }
 
     @Override

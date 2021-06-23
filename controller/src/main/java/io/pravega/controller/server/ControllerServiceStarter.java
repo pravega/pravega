@@ -163,6 +163,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
         this.streamMetadataStoreRef = Optional.ofNullable(streamStore);
         this.kvtMetaStoreRef = Optional.ofNullable(kvtStore);
         this.storeClientFailureFuture = new CompletableFuture<>();
+        this.healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckFrequency());
     }
 
     @Override
@@ -340,6 +341,9 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 log.info("Starting controller cluster listener");
                 controllerClusterListener.startAsync();
             }
+
+            // Start the Health Service.
+            healthServiceManager.start();
 
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {

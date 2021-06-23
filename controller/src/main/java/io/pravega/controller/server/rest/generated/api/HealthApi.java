@@ -41,7 +41,7 @@ public class HealthApi  {
          String implClass = servletContext.getInitParameter("HealthApi.implementation");
          if (implClass != null && !"".equals(implClass.trim())) {
             try {
-               delegate = (HealthApiService) Class.forName(implClass).newInstance();
+               delegate = (HealthApiService) Class.forName(implClass).getConstructor().newInstance();
             } catch (Exception e) {
                throw new RuntimeException(e);
             }

@@ -53,6 +53,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
 
     private final Optional<RESTServerConfig> restServerConfig;
 
+    private final Duration healthCheckFrequency;
+
     private final Duration retentionFrequency;
     @Getter
     private final Duration shutdownTimeout;
@@ -68,6 +70,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                                 final Optional<GRPCServerConfig> grpcServerConfig,
                                 final Optional<RESTServerConfig> restServerConfig,
                                 final Duration retentionFrequency,
+                                final Duration healthCheckFrequency,
                                 final Duration shutdownTimeout) {
         Exceptions.checkArgument(threadPoolSize > 0, "threadPoolSize", "Should be positive integer");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
@@ -92,6 +95,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         this.restServerConfig = restServerConfig;
         this.retentionFrequency = retentionFrequency == null ? Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES)
                 : retentionFrequency;
+        this.healthCheckFrequency = healthCheckFrequency == null ? Duration.ofSeconds(10) : healthCheckFrequency;
         this.shutdownTimeout = shutdownTimeout == null ? Duration.ofSeconds(10) : shutdownTimeout;
     }
 }
