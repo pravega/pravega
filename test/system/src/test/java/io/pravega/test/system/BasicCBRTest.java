@@ -58,6 +58,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -142,10 +143,13 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         EventStreamReader<String> reader = clientFactory.createReader(READER_GROUP + "-" + String.valueOf(1),
                 READER_GROUP, new JavaSerializer<>(), readerConfig);
 
-        // Read one event and update the retention stream-cut.
+        // Read one event.
         log.info("Reading event e1 from {}/{}", SCOPE, STREAM);
         EventRead<String> read = reader.readNextEvent(READ_TIMEOUT);
-        assertEquals("e1", read.getEvent());
+        assertFalse(read.isCheckpoint());
+        assertEquals("data of size 30", read.getEvent());
+
+        // Update the retention stream-cut.
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(executor);
         EventRead<String> emptyEvent = reader.readNextEvent(100);
@@ -164,10 +168,13 @@ public class BasicCBRTest extends AbstractReadWriteTest {
                 new StreamImpl(SCOPE, STREAM), 0L).join().values().stream().anyMatch(off -> off >= 30),
                 5 * 60 * 1000L);
 
-        // Read next event and update the retention stream-cut.
+        // Read next event.
         log.info("Reading event e2 from {}/{}", SCOPE, STREAM);
         read = reader.readNextEvent(READ_TIMEOUT);
-        assertEquals("e2", read.getEvent());
+        assertFalse(read.isCheckpoint());
+        assertEquals("data of size 30", read.getEvent());
+
+        // Update the retention stream-cut.
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup.generateStreamCuts(executor);
         EventRead<String> emptyEvent2 = reader.readNextEvent(100);
