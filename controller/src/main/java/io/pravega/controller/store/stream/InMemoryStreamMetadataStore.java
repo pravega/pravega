@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -170,7 +171,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> checkStreamExists(final String scopeName, final String streamName, 
+    public CompletableFuture<Boolean> checkStreamExists(final String scopeName, final String streamName,
                                                         final OperationContext context, final Executor executor) {
         return CompletableFuture.completedFuture(streams.containsKey(scopedStreamName(scopeName, streamName)));
     }
@@ -223,7 +224,17 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> addReaderGroupToScope(String scopeName, String rgName, UUID readerGroupId, 
+    public CompletableFuture<Void> addStreamTagsToIndex(String scope, String name, StreamConfiguration config, OperationContext context, Executor executor) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTagsFromIndex(String scope, String name, Set<String> tagsRemoved, OperationContext context, Executor executor) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> addReaderGroupToScope(String scopeName, String rgName, UUID readerGroupId,
                                                          final OperationContext context, final Executor executor) {
         if (scopes.containsKey(scopeName)) {
             return Futures.toVoid(scopes.get(scopeName).addReaderGroupToScope(rgName, readerGroupId));
@@ -266,7 +277,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     public CompletableFuture<Boolean> checkReaderGroupExists(final String scopeName,
-                                                             final String rgName, 
+                                                             final String rgName,
                                                              OperationContext context, Executor executor) {
         return Futures.completeOn(((InMemoryScope) getScope(scopeName, context)).checkReaderGroupExistsInScope(rgName), executor);
     }
@@ -332,7 +343,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken, int limit, Executor executor, 
+    public CompletableFuture<Pair<List<String>, String>> listScopes(String continuationToken, int limit, Executor executor,
                                                                     long requestId) {
         List<String> result = new ArrayList<>();
         String nextToken = continuationToken;
@@ -357,7 +368,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
      */
     @Override
     @Synchronized
-    public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName, 
+    public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName,
                                                                                   final OperationContext ctx,
                                                                                   final Executor executor) {
         OperationContext context = getOperationContext(ctx);

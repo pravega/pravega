@@ -111,6 +111,11 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<StreamConfiguration> getStreamConfiguration(String scopeName, String streamName) {
+        return this.controller.getStream(scopeName, streamName, requestIdGenerator.nextLong());
+    }
+
+    @Override
     public CompletableFuture<Boolean> createScope(final String scopeName) {
         return this.controller.createScope(scopeName, requestIdGenerator.nextLong()).thenApply(x -> {
             switch (x.getStatus()) {
@@ -133,6 +138,19 @@ public class LocalController implements Controller {
     public AsyncIterator<Stream> listStreams(String scopeName) {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
                 controller.listStreams(scopeName, token, PAGE_LIMIT, requestIdGenerator.nextLong())
+                          .thenApply(result -> {
+                              List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m))
+                                                                .collect(Collectors.toList());
+                              return new AbstractMap.SimpleEntry<>(result.getValue(), asStreamList);
+                          });
+
+        return new ContinuationTokenAsyncIterator<>(function, "");
+    }
+
+    @Override
+    public AsyncIterator<Stream> listStreamsForTag(String scopeName, String tag) {
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
+                controller.listStreamsForTag(scopeName, tag, token, requestIdGenerator.nextLong())
                           .thenApply(result -> {
                               List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m))
                                                                 .collect(Collectors.toList());
