@@ -111,7 +111,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -770,7 +769,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 readTableKeys.getSegment(), readTableKeys.getSuggestedKeyCount());
 
         final int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
-        final IteratorArgs args = getIteratorArgs(readTableKeys.getContinuationToken(), readTableKeys.getPrefixFilter());
+        final IteratorArgs args = getIteratorArgs(readTableKeys.getArgs());
 
         val result = new IteratorResult<WireCommands.TableKey>(segment.getBytes().length + WireCommands.TableKeysRead.HEADER_BYTES);
         val timer = new Timer();
@@ -812,7 +811,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 readTableEntries.getSegment(), readTableEntries.getSuggestedEntryCount());
 
         final int suggestedEntryCount = readTableEntries.getSuggestedEntryCount();
-        final IteratorArgs args = getIteratorArgs(readTableEntries.getContinuationToken(), readTableEntries.getPrefixFilter());
+        final IteratorArgs args = getIteratorArgs(readTableEntries.getArgs());
 
         val result = new IteratorResult<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>>(segment.getBytes().length + WireCommands.TableEntriesRead.HEADER_BYTES);
         val timer = new Timer();
@@ -842,15 +841,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
     }
 
-    private IteratorArgs getIteratorArgs(ByteBuf token, ByteBuf prefix) {
-        val args = IteratorArgs.builder().fetchTimeout(TIMEOUT);
-        if (token != null && !token.equals(EMPTY_BUFFER)) {
-            args.serializedState(new ByteBufWrapper(token));
-        }
-        if (prefix != null && !prefix.equals(EMPTY_BUFFER)) {
-            args.prefixFilter(new ByteBufWrapper(prefix));
-        }
-        return args.build();
+    private IteratorArgs getIteratorArgs(WireCommands.TableIteratorArgs rawArgs) {
+        // NOTE: Prefix filter is deprecated, hence it is ignored.
+        return IteratorArgs.builder().fetchTimeout(TIMEOUT)
+                .continuationToken(wrap(rawArgs.getContinuationToken()))
+                .from(wrap(rawArgs.getFromKey()))
+                .to(wrap(rawArgs.getToKey()))
+                .build();
+    }
+
+    private ByteBufWrapper wrap(ByteBuf buf) {
+        return buf == null || buf.equals(EMPTY_BUFFER) ? null : new ByteBufWrapper(buf);
     }
 
     @Override

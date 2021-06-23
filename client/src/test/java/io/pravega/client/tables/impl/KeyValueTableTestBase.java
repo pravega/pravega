@@ -19,8 +19,6 @@ import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.Insert;
-import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.client.tables.Put;
@@ -29,7 +27,6 @@ import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.TableModification;
 import io.pravega.client.tables.Version;
-import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.LeakDetectorTestSuite;
@@ -54,7 +51,6 @@ import lombok.Getter;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -67,6 +63,7 @@ import org.junit.rules.Timeout;
 public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
     private static final Serializer<Long> PK_SERIALIZER = new LongSerializer();
     private static final Serializer<Integer> SK_SERIALIZER = new IntegerSerializer();
+    private static final KeyValueTableIteratorImpl.TableKeyComparator KEY_COMPARATOR = new KeyValueTableIteratorImpl.TableKeyComparator();
     private static final int DEFAULT_SEGMENT_COUNT = 4;
     private static final int DEFAULT_PRIMARY_KEY_COUNT = 100;
     private static final int DEFAULT_SECONDARY_KEY_COUNT = 10; // Per Primary Key
@@ -551,7 +548,7 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
         val rnd = new Random(0);
 
         @Cleanup
-        val kvt = createKeyValueTable(new KeyValueTableInfo("Scope", "KVT_NoSecondaryKeys"), config);
+        val kvt = createKeyValueTable(new KeyValueTableInfo("Scope", "KVTNoSecondaryKeys"), config);
 
         List<ByteBuffer> keys = IntStream.range(0, entryCount)
                 .mapToObj(i -> {
@@ -600,72 +597,120 @@ public abstract class KeyValueTableTestBase extends LeakDetectorTestSuite {
     }
 
     @Test
-    @Ignore("https://github.com/pravega/pravega/issues/5941") // TODO
     public void testIterators() {
-        /*
         @Cleanup
         val kvt = createKeyValueTable();
         val iteration = new AtomicInteger(0);
-cl
+
         // Populate everything.
-        forEveryKey((keyFamily, keyId) -> {
-            val key = getKey(keyId);
-            val value = getValue(keyId, iteration.get());
-            kvt.putIfAbsent(keyFamily, key, value).join();
+        val versions = new Versions();
+        forEveryPrimaryKey((pk, secondaryKeys) -> {
+            List<TableModification> inserts = secondaryKeys.stream()
+                    .map(sk -> new Insert(new TableKey(pk, sk), getValue(pk, sk, iteration.get())))
+                    .collect(Collectors.toList());
+            val keyVersions = kvt.update(inserts).join();
+            for (int i = 0; i < inserts.size(); i++) {
+                versions.add(getUniqueKeyId(pk, inserts.get(i).getKey().getSecondaryKey()), keyVersions.get(i));
+            }
         });
 
-        // Check the key iterator. Keys are returned without versions.
-        checkIterator(kvt, KeyValueTable::keyIterator, k -> k, TableEntry::getKey, this::areEqualExcludingVersion);
+        // Check the Primary Key iterator.
+        checkPrimaryKeyIterator(kvt, versions, iteration.get());
 
-        // Check the entry iterator. Entries are returned with versions.
-        checkIterator(kvt, KeyValueTable::entryIterator, TableEntry::getKey, e -> e, this::areEqual);
-         */
+        // Check the Global iterators.
+        checkGlobalIterator(kvt, versions, iteration.get());
     }
 
-    /*
-    private <ItemT> void checkIterator(KeyValueTable<Integer, String> keyValueTable, InvokeIterator<ItemT> invokeIterator,
-                                       Function<ItemT, TableKey<Integer>> getKeyFromItem,
-                                       Function<TableEntry<Integer, String>, ItemT> getItemFromEntry,
-                                       BiPredicate<ItemT, ItemT> areEqual) {
+    private void checkPrimaryKeyIterator(KeyValueTable keyValueTable, Versions versions, int iteration) {
         val itemsAtOnce = getSecondaryKeyCount() / 5;
 
-        BiPredicate<IteratorItem<ItemT>, IteratorItem<ItemT>> iteratorItemEquals = (e, a) ->
-                AssertExtensions.listEquals(e.getItems(), a.getItems(), areEqual)
-                        && e.getState().toBytes().equals(a.getState().toBytes());
-
-        forEveryPrimaryKey(false, (keyFamily, keyIds) -> {
-            val hint = String.format("(KF=%s)", keyFamily);
-
-            // Collect all the items from the beginning.
-            val iteratorResults = new ArrayList<IteratorItem<ItemT>>();
-            invokeIterator.apply(keyValueTable, keyFamily, itemsAtOnce, null)
-                    .forEachRemaining(iteratorResults::add, executorService()).join();
-
-            // Order them by Key.
-            val keys = keyIds.stream().map(this::getKey).sorted().collect(Collectors.toList());
-            val actualKeys = iteratorResults.stream()
-                    .flatMap(ii -> ii.getItems().stream())
-                    .sorted(Comparator.comparingInt(e -> getKeyFromItem.apply(e).getKey()))
+        forEveryPrimaryKey((pk, secondaryKeys) -> {
+            // Get all Table Keys and sort them.
+            val allKeys = secondaryKeys.stream()
+                    .map(sk -> new TableKey(pk, sk))
+                    .sorted(KEY_COMPARATOR)
                     .collect(Collectors.toList());
-            Assert.assertEquals("Unexpected item count" + hint, keys.size(), actualKeys.size());
-            for (int i = 0; i < keys.size(); i++) {
-                val tableEntry = keyValueTable.get(keyFamily, keys.get(i)).join();
-                val actualItem = getItemFromEntry.apply(tableEntry);
-                Assert.assertTrue("Unexpected entry at position " + i + " " + hint, areEqual.test(actualItem, actualKeys.get(i)));
-            }
+            val allEntries = allKeys.stream()
+                    .map(k -> new TableEntry(k, versions.get(getUniqueKeyId(k.getPrimaryKey(), k.getSecondaryKey())), getValue(k.getPrimaryKey(), k.getSecondaryKey(), iteration)))
+                    .collect(Collectors.toList());
 
-            // Now issue "resumed" iterators. We want to verify that we are recording the correct IteratorState and that
-            // when we issue a new iterator with that state, we are able to resume the iteration.
-            while (!iteratorResults.isEmpty()) {
-                IteratorState requestState = iteratorResults.remove(0).getState();
-                val resumedResults = new ArrayList<IteratorItem<ItemT>>();
-                invokeIterator.apply(keyValueTable, keyFamily, itemsAtOnce, requestState)
-                        .forEachRemaining(resumedResults::add, executorService()).join();
-                AssertExtensions.assertListEquals("Resumed iterators not consistent" + hint, iteratorResults, resumedResults, iteratorItemEquals);
+            // Issue various iterators (range) and verify against expected values.
+            for (int startIndex = 0; startIndex < allKeys.size() / 2; startIndex++) {
+                val endIndex = allKeys.size() - startIndex;
+                val expectedKeys = allKeys.subList(startIndex, endIndex);
+                val iterator = keyValueTable.iterator()
+                        .maxIterationSize(itemsAtOnce)
+                        .forPrimaryKey(pk, expectedKeys.get(0).getSecondaryKey(), expectedKeys.get(expectedKeys.size() - 1).getSecondaryKey());
+
+                val iteratorKeys = new ArrayList<TableKey>();
+                iterator.keys().collectRemaining(ii -> iteratorKeys.addAll(ii.getItems())).join();
+                AssertExtensions.assertListEquals("Unexpected keys returned from iterator.keys()",
+                        expectedKeys, iteratorKeys, this::areEqual);
+
+                val expectedEntries = allEntries.subList(startIndex, endIndex);
+                val iteratorEntries = new ArrayList<TableEntry>();
+                iterator.entries().collectRemaining(ii -> iteratorEntries.addAll(ii.getItems())).join();
+                AssertExtensions.assertListEquals("Unexpected entries returned from iterator.entries()",
+                        expectedEntries, iteratorEntries, (e1, e2) -> areEqual(e1, e2) && e1.getVersion().equals(e2.getVersion()));
             }
         });
     }
-    */
+
+    private void checkGlobalIterator(KeyValueTable keyValueTable, Versions versions, int iteration) {
+        val itemsAtOnce = getSecondaryKeyCount() / 5;
+
+        // All expected Entries, indexed by Keys.
+        val allEntries = new HashMap<TableKey, TableEntry>();
+        forEveryKey((pk, sk) -> {
+            val k = new TableKey(pk, sk);
+            val e = new TableEntry(k, versions.get(getUniqueKeyId(k.getPrimaryKey(), k.getSecondaryKey())), getValue(pk, sk, iteration));
+            allEntries.put(k, e);
+        });
+
+        // All Keys, sorted.
+        val allKeys = allEntries.keySet().stream()
+                .sorted(KEY_COMPARATOR)
+                .collect(Collectors.toList());
+
+        // All unique Primary Keys.
+        val allPrimaryKeys = allKeys.stream().map(TableKey::getPrimaryKey).distinct().sorted(KEY_COMPARATOR::compare).collect(Collectors.toList());
+
+        // Issue various iterators (range) and verify against expected values.
+        for (int startIndex = 0; startIndex < allPrimaryKeys.size() / 2; startIndex++) {
+            val endIndex = allPrimaryKeys.size() - startIndex - 1;
+            val firstPK = allPrimaryKeys.get(startIndex);
+            val lastPK = allPrimaryKeys.get(endIndex);
+            val expectedKeys = allKeys.stream()
+                    .filter(k -> KEY_COMPARATOR.compare(k.getPrimaryKey(), firstPK) >= 0 && KEY_COMPARATOR.compare(k.getPrimaryKey(), lastPK) <= 0)
+                    .collect(Collectors.toList());
+
+            val iterator = keyValueTable.iterator()
+                    .maxIterationSize(itemsAtOnce)
+                    .forRange(firstPK, lastPK);
+
+            val iteratorKeys = new ArrayList<TableKey>();
+            iterator.keys().collectRemaining(ii -> iteratorKeys.addAll(ii.getItems())).join();
+            AssertExtensions.assertListEquals("Unexpected keys returned from iterator.keys()",
+                    expectedKeys, iteratorKeys, this::areEqual);
+
+            val expectedEntries = expectedKeys.stream().map(allEntries::get).collect(Collectors.toList());
+            val iteratorEntries = new ArrayList<TableEntry>();
+            iterator.entries().collectRemaining(ii -> iteratorEntries.addAll(ii.getItems())).join();
+            AssertExtensions.assertListEquals("Unexpected entries returned from iterator.entries()",
+                    expectedEntries, iteratorEntries, (e1, e2) -> areEqual(e1, e2) && e1.getVersion().equals(e2.getVersion()));
+        }
+
+        // Check all() iterator.
+        val allIterator = keyValueTable.iterator()
+                .maxIterationSize(itemsAtOnce)
+                .all();
+        val expectedAllEntries = allKeys.stream().map(allEntries::get).collect(Collectors.toList());
+        val allIteratorEntries = new ArrayList<TableEntry>();
+        allIterator.entries().collectRemaining(ii -> allIteratorEntries.addAll(ii.getItems())).join();
+        AssertExtensions.assertListEquals("Unexpected entries returned from allIterator.entries()",
+                expectedAllEntries, allIteratorEntries, (e1, e2) -> areEqual(e1, e2) && e1.getVersion().equals(e2.getVersion()));
+    }
+
     //endregion
 
     //region Helpers
@@ -826,7 +871,7 @@ cl
     private static class IntegerSerializer implements Serializer<Integer> {
         @Override
         public ByteBuffer serialize(Integer value) {
-            return ByteBuffer.allocate(Integer.BYTES).putInt(0, value).asReadOnlyBuffer();
+            return ByteBuffer.allocate(Integer.BYTES).putInt(0, value);
         }
 
         @Override
@@ -838,18 +883,13 @@ cl
     private static class LongSerializer implements Serializer<Long> {
         @Override
         public ByteBuffer serialize(Long value) {
-            return ByteBuffer.allocate(Long.BYTES).putLong(0, value).asReadOnlyBuffer();
+            return ByteBuffer.allocate(Long.BYTES).putLong(0, value);
         }
 
         @Override
         public Long deserialize(ByteBuffer serializedValue) {
             return serializedValue.duplicate().getLong();
         }
-    }
-
-    @FunctionalInterface
-    private interface InvokeIterator<T> {
-        AsyncIterator<IteratorItem<T>> apply(KeyValueTable kvt, String keyFamily, int itemsAtOnce, IteratorState state);
     }
 
     //endregion

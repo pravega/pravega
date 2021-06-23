@@ -49,7 +49,6 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -59,7 +58,6 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
  *
  */
 @Slf4j
-@Ignore("https://github.com/pravega/pravega/issues/5942") // TODO revert and fix once 5942 and issues leading up to it are done.
 public class KeyValueTableTest extends KeyValueTableTestBase {
     private static final String ENDPOINT = "localhost";
     private static final String SCOPE = "Scope";
@@ -137,13 +135,13 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         for (val s : segments.getSegments()) {
             // We know there's nothing in these segments. But if the segments hadn't been created, then this will throw
             // an exception.
-            this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT).join();
+            this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[DEFAULT_CONFIG.getTotalKeyLength()])), TIMEOUT).join();
         }
 
         // Verify re-creation does not work.
         Assert.assertFalse(this.controller.createKeyValueTable(kvt1.getScope(), kvt1.getKeyValueTableName(), DEFAULT_CONFIG).join());
 
-        // Try to create a KVTable with 0 paritions, and it should fail
+        // Try to create a KVTable with 0 partitions, and it should fail
         val kvtZero = newKeyValueTableName();
         assertThrows(IllegalArgumentException.class, () -> this.controller.createKeyValueTable(kvtZero.getScope(), kvtZero.getKeyValueTableName(),
                 KeyValueTableConfiguration.builder().partitionCount(0).build()).join());
@@ -193,7 +191,7 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
             // We know there's nothing in these segments. But if the segments hadn't been created, then this will throw
             // an exception.
             log.info("Segment Number {}", s.getSegmentId());
-            this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT).join();
+            this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[DEFAULT_CONFIG.getTotalKeyLength()])), TIMEOUT).join();
         }
 
         // Delete and verify segments have been deleted too.
@@ -204,17 +202,10 @@ public class KeyValueTableTest extends KeyValueTableTestBase {
         for (val s : segments.getSegments()) {
             AssertExtensions.assertSuppliedFutureThrows(
                     "Segment " + s + " has not been deleted.",
-                    () -> this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[1])), TIMEOUT),
+                    () -> this.tableStore.get(s.getKVTScopedName(), Collections.singletonList(new ByteArraySegment(new byte[DEFAULT_CONFIG.getTotalKeyLength()])), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
 
-    }
-
-    @Test
-    @Ignore("Reenable/Redesign with https://github.com/pravega/pravega/issues/5941") // TODO Do not merge to master before fixing this.
-    @Override
-    public void testIterators() {
-        super.testIterators();
     }
 
     @Override

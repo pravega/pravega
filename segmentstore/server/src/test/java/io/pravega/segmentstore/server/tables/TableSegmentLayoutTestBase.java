@@ -19,13 +19,11 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
-import io.pravega.segmentstore.contracts.tables.IteratorState;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -126,12 +124,12 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
     protected abstract boolean shouldExpectWriterTableProcessors();
 
     /**
-     * When implemented in a derived class, creates an {@link IteratorState} for an empty Iterator (one that has already
+     * When implemented in a derived class, creates an {@link IteratorArgs} for an empty Iterator (one that has already
      * served all its contents.
      *
-     * @return An {@link IteratorState}.
+     * @return An {@link IteratorArgs}.
      */
-    protected abstract IteratorState createEmptyIteratorState();
+    protected abstract IteratorArgs createEmptyIteratorArgs();
 
     protected abstract void checkTableAttributes(int totalUpdateCount, int totalRemoveCount, int uniqueKeyCount, TableContext context);
 
@@ -165,24 +163,6 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
                 "Segment not deleted.",
                 () -> context.ext.deleteSegment(SEGMENT_NAME, this.supportsDeleteIfEmpty(), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
-    }
-
-    /**
-     * Tests to make sure that any invalid state passed to an iterator during instantiation is handled accordingly.
-     */
-    @Test
-    public void testInvalidIteratorState() {
-        @Cleanup
-        val context = new TableContext(executorService());
-        createSegment(context, SEGMENT_NAME);
-        val iteratorArgs = IteratorArgs
-                .builder()
-                .fetchTimeout(TIMEOUT)
-                .serializedState(new ByteArraySegment("INVALID".getBytes()))
-                .build();
-        AssertExtensions.assertThrows("Invalid entryIterator state.",
-                () -> context.ext.entryIterator(SEGMENT_NAME, iteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
-                ex -> ex instanceof IllegalDataFormatException);
     }
 
     /**
@@ -624,11 +604,7 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
 
     @SneakyThrows
     protected void checkIterators(Map<BufferView, BufferView> expectedEntries, ContainerTableExtension ext) {
-        val emptyIteratorArgs = IteratorArgs
-                .builder()
-                .serializedState(createEmptyIteratorState().serialize())
-                .fetchTimeout(TIMEOUT)
-                .build();
+        val emptyIteratorArgs = createEmptyIteratorArgs();
         // Check that invalid serializer state is handled properly.
         val emptyEntryIterator = ext.entryIterator(SEGMENT_NAME, emptyIteratorArgs).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualEmptyEntries = collectIteratorItems(emptyEntryIterator);

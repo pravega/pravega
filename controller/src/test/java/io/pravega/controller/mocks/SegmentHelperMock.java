@@ -17,9 +17,7 @@ package io.pravega.controller.mocks;
 
 import io.netty.buffer.Unpooled;
 import io.pravega.client.connection.impl.ConnectionPool;
-import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
-import io.pravega.client.tables.impl.IteratorStateImpl;
+import io.pravega.client.tables.impl.HashTableIteratorItem;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -298,7 +296,7 @@ public class SegmentHelperMock {
         doAnswer(x -> {
             String tableName = x.getArgument(0);
             int limit = x.getArgument(1);
-            IteratorState state = x.getArgument(2);
+            HashTableIteratorItem.State state = x.getArgument(2);
             final WireCommandType type = WireCommandType.READ_TABLE;
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (lock) {
@@ -309,7 +307,7 @@ public class SegmentHelperMock {
                                 WireCommandFailedException.Reason.SegmentDoesNotExist);
                     } else {
                         long floor;
-                        if (state.equals(IteratorStateImpl.EMPTY)) {
+                        if (state.equals(HashTableIteratorItem.State.EMPTY)) {
                             floor = 0L;
                         } else {
                             floor = new ByteArraySegment(state.toBytes()).getLong(0);
@@ -325,8 +323,8 @@ public class SegmentHelperMock {
                                                              .limit(limit).collect(Collectors.toList());
                         byte[] continuationToken = new byte[Long.BYTES];
                         BitConverter.writeLong(continuationToken, 0, token.get());
-                        IteratorState newState = IteratorStateImpl.fromBytes(Unpooled.wrappedBuffer(continuationToken));
-                        return new IteratorItem<>(newState, list);
+                        HashTableIteratorItem.State newState = HashTableIteratorItem.State.fromBytes(Unpooled.wrappedBuffer(continuationToken));
+                        return new HashTableIteratorItem<>(newState, list);
                     }
                 }
             }, executor);
@@ -337,7 +335,7 @@ public class SegmentHelperMock {
         doAnswer(x -> {
             String tableName = x.getArgument(0);
             int limit = x.getArgument(1);
-            IteratorState state = x.getArgument(2);
+            HashTableIteratorItem.State state = x.getArgument(2);
             final WireCommandType type = WireCommandType.READ_TABLE;
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (lock) {
@@ -348,7 +346,7 @@ public class SegmentHelperMock {
                                 WireCommandFailedException.Reason.SegmentDoesNotExist);
                     } else {
                         long floor;
-                        if (state.equals(IteratorStateImpl.EMPTY)) {
+                        if (state.equals(HashTableIteratorItem.State.EMPTY)) {
                             floor = 0L;
                         } else {
                             floor = new ByteArraySegment(state.toBytes()).getLong(0);
@@ -364,8 +362,8 @@ public class SegmentHelperMock {
                                                                .limit(limit).collect(Collectors.toList());
                         byte[] continuationToken = new byte[Long.BYTES];
                         BitConverter.writeLong(continuationToken, 0, token.get());
-                        IteratorState newState = IteratorStateImpl.fromBytes(Unpooled.wrappedBuffer(continuationToken));
-                        return new IteratorItem<>(newState, list);
+                        HashTableIteratorItem.State newState = HashTableIteratorItem.State.fromBytes(Unpooled.wrappedBuffer(continuationToken));
+                        return new HashTableIteratorItem<>(newState, list);
                     }
                 }
             }, executor);

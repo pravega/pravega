@@ -225,10 +225,11 @@ class HashTableSegmentLayout extends TableSegmentLayout {
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,
                                                                               @NonNull GetBucketReader<T> createBucketReader) {
-        Preconditions.checkArgument(args.getPrefixFilter() == null, "PrefixFilter not supported.");
+        Preconditions.checkArgument(args.getFrom() == null && args.getTo() == null, "Range Iterators not supported for HashTableSegments.");
         UUID fromHash;
+        BufferView serializedState = args.getContinuationToken();
         try {
-            fromHash = KeyHasher.getNextHash(args.getSerializedState() == null ? null : IteratorStateImpl.deserialize(args.getSerializedState()).getKeyHash());
+            fromHash = KeyHasher.getNextHash(serializedState == null ? null : IteratorStateImpl.deserialize(serializedState).getKeyHash());
         } catch (IOException ex) {
             // Bad IteratorState serialization.
             throw new IllegalDataFormatException("Unable to deserialize `serializedState`.", ex);

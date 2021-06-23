@@ -22,10 +22,13 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.NonNull;
 
 /**
@@ -34,6 +37,8 @@ import lombok.NonNull;
 class SegmentSelector implements AutoCloseable {
     //region Members
 
+    @Getter
+    private final KeyValueTableInfo kvt;
     private final TableSegmentFactory tableSegmentFactory;
     private final KeyValueTableSegments segmentsByRange;
     @GuardedBy("segments")
@@ -52,6 +57,7 @@ class SegmentSelector implements AutoCloseable {
      * @param tableSegmentFactory A {@link TableSegmentFactory} to create {@link TableSegment} instances.
      */
     SegmentSelector(@NonNull KeyValueTableInfo kvt, @NonNull Controller controller, @NonNull TableSegmentFactory tableSegmentFactory) {
+        this.kvt = kvt;
         this.tableSegmentFactory = tableSegmentFactory;
         this.segmentsByRange = initializeSegments(kvt, controller);
         assert this.segmentsByRange != null;
@@ -88,7 +94,10 @@ class SegmentSelector implements AutoCloseable {
     TableSegment getTableSegment(@NonNull ByteBuffer key) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Segment s = this.segmentsByRange.getSegmentForKey(key.duplicate());
+        return getTableSegment(s);
+    }
 
+    private TableSegment getTableSegment(Segment s) {
         synchronized (this.segments) {
             TableSegment ts = this.segments.get(s);
             if (ts == null) {
@@ -98,6 +107,16 @@ class SegmentSelector implements AutoCloseable {
 
             return ts;
         }
+    }
+
+    /**
+     * Gets a Collection of all the {@link TableSegment}s for the KeyValueTable this {@link SegmentSelector} manages.
+     *
+     * @return A Collection of all {@link TableSegment}s in the KeyValueTable.
+     */
+    Collection<TableSegment> getAllTableSegments() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        return this.segmentsByRange.getSegments().stream().map(this::getTableSegment).collect(Collectors.toList());
     }
 
     /**

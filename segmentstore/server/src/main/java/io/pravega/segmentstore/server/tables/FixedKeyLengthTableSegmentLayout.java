@@ -29,7 +29,6 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
@@ -123,7 +122,6 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
     @Override
     Map<AttributeId, Long> getNewSegmentAttributes(@NonNull TableSegmentConfig config) {
         ensureValidKeyLength("", config.getKeyLength());
-        Preconditions.checkArgument(config.getKeyLength() % Long.BYTES == 0, "KeyLength must be a multiple of %s; given %s.", Long.BYTES, config.getKeyLength());
         val result = new HashMap<AttributeId, Long>();
         result.put(Attributes.ATTRIBUTE_ID_LENGTH, (long) config.getKeyLength());
         result.putAll(this.config.getDefaultCompactionAttributes());
@@ -339,27 +337,15 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull DirectSegmentAccess segment,
                                                                               @NonNull GetIteratorItem<T> getItems,
                                                                               @NonNull IteratorArgs args) {
-        Preconditions.checkArgument(args.getPrefixFilter() == null, "PrefixFilter not supported.");
-        IteratorStateImpl state = null;
-        if (args.getSerializedState() != null) {
-            try {
-                state = IteratorStateImpl.deserialize(args.getSerializedState());
-            } catch (IOException ex) {
-                // Bad IteratorState serialization.
-                throw new IllegalDataFormatException("Unable to deserialize `serializedState`.", ex);
-            }
-        }
-
+        Preconditions.checkArgument(args.getContinuationToken() == null, "ContinuationToken not supported for FixedKeyLengthTableSegments.");
         val segmentKeyLength = getSegmentKeyLength(segment.getInfo());
-        val fromId = state == null || state.getLastKey() == null
+        val fromId = args.getFrom() == null
                 ? AttributeId.Variable.minValue(segmentKeyLength)
-                : AttributeId.from(state.getLastKey().getCopy()).nextValue();
-        if (fromId == null) {
-            // We've reached the end.
-            return CompletableFuture.completedFuture(io.pravega.segmentstore.server.tables.TableIterator.empty());
-        }
+                : AttributeId.from(args.getFrom().getCopy());
 
-        val toId = AttributeId.Variable.maxValue(segmentKeyLength);
+        val toId = args.getTo() == null
+                ? AttributeId.Variable.maxValue(segmentKeyLength)
+                : AttributeId.from(args.getTo().getCopy());
         val timer = new TimeoutTimer(args.getFetchTimeout());
         return segment.attributeIterator(fromId, toId, timer.getRemaining())
                 .thenApply(ai -> new TableIterator<>(ai, segment, getItems, timer));

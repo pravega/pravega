@@ -27,9 +27,7 @@ import io.pravega.client.connection.impl.RawClient;
 import io.pravega.client.control.impl.ModelHelper;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ConnectionClosedException;
-import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
-import io.pravega.client.tables.impl.IteratorStateImpl;
+import io.pravega.client.tables.impl.HashTableIteratorItem;
 import io.pravega.client.tables.impl.TableSegmentEntry;
 import io.pravega.client.tables.impl.TableSegmentKey;
 import io.pravega.client.tables.impl.TableSegmentKeyVersion;
@@ -557,29 +555,30 @@ public class SegmentHelper implements AutoCloseable {
 
      * @return A CompletableFuture that will return the next set of {@link TableSegmentKey}s returned from the SegmentStore.
      */
-    public CompletableFuture<IteratorItem<TableSegmentKey>> readTableKeys(final String tableName,
-                                                                          final int suggestedKeyCount,
-                                                                          final IteratorStateImpl state,
-                                                                          final String delegationToken,
-                                                                          final long clientRequestId) {
+    public CompletableFuture<HashTableIteratorItem<TableSegmentKey>> readTableKeys(final String tableName,
+                                                                                   final int suggestedKeyCount,
+                                                                                   final HashTableIteratorItem.State state,
+                                                                                   final String delegationToken,
+                                                                                   final long clientRequestId) {
         final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        final IteratorStateImpl token = (state == null) ? IteratorStateImpl.EMPTY : state;
+        final HashTableIteratorItem.State token = (state == null) ? HashTableIteratorItem.State.EMPTY : state;
 
+        WireCommands.TableIteratorArgs args = new WireCommands.TableIteratorArgs(token.getToken(), Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
         WireCommands.ReadTableKeys request = new WireCommands.ReadTableKeys(requestId, tableName, delegationToken,
-                suggestedKeyCount, token.getToken(), Unpooled.EMPTY_BUFFER);
+                suggestedKeyCount, args);
         return sendRequest(connection, clientRequestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableKeys.class, type);
                     WireCommands.TableKeysRead tableKeysRead = (WireCommands.TableKeysRead) rpl;
-                    final IteratorState newState = IteratorStateImpl.fromBytes(tableKeysRead.getContinuationToken());
+                    final HashTableIteratorItem.State newState = HashTableIteratorItem.State.fromBytes(tableKeysRead.getContinuationToken());
                     final List<TableSegmentKey> keys =
                             tableKeysRead.getKeys().stream().map(k -> TableSegmentKey.versioned(k.getData(),
                                     k.getKeyVersion())).collect(Collectors.toList());
-                    return new IteratorItem<>(newState, keys);
+                    return new HashTableIteratorItem<>(newState, keys);
                 });
     }
 
@@ -594,19 +593,19 @@ public class SegmentHelper implements AutoCloseable {
      * @return A CompletableFuture that will return the next set of {@link TableSegmentEntry} instances returned from the
      * SegmentStore.
      */
-    public CompletableFuture<IteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
+    public CompletableFuture<HashTableIteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
                                                                                final int suggestedEntryCount,
-                                                                               final IteratorStateImpl state,
+                                                                               final HashTableIteratorItem.State state,
                                                                                final String delegationToken,
                                                                                final long clientRequestId) {
         return readTableEntries(tableName, ModelHelper.encode(getTableUri(tableName)), suggestedEntryCount, state,
                 delegationToken, clientRequestId);
     }
 
-    public CompletableFuture<IteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
+    public CompletableFuture<HashTableIteratorItem<TableSegmentEntry>> readTableEntries(final String tableName,
                                                                                final PravegaNodeUri uri,
                                                                                final int suggestedEntryCount,
-                                                                               final IteratorStateImpl state,
+                                                                               final HashTableIteratorItem.State state,
                                                                                final String delegationToken,
                                                                                final long clientRequestId) {
 
@@ -614,15 +613,16 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(uri, connectionPool);
         final long requestId = connection.getFlow().asLong();
 
-        final IteratorStateImpl token = (state == null) ? IteratorStateImpl.EMPTY : state;
+        final HashTableIteratorItem.State token = (state == null) ? HashTableIteratorItem.State.EMPTY : state;
 
+        WireCommands.TableIteratorArgs args = new WireCommands.TableIteratorArgs(token.getToken(), Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER);
         WireCommands.ReadTableEntries request = new WireCommands.ReadTableEntries(requestId, tableName, delegationToken,
-                suggestedEntryCount, token.getToken(), Unpooled.EMPTY_BUFFER);
+                suggestedEntryCount, args);
         return sendRequest(connection, clientRequestId, request)
                 .thenApply(rpl -> {
                     handleReply(clientRequestId, rpl, connection, tableName, WireCommands.ReadTableEntries.class, type);
                     WireCommands.TableEntriesRead tableEntriesRead = (WireCommands.TableEntriesRead) rpl;
-                    final IteratorState newState = IteratorStateImpl.fromBytes(tableEntriesRead.getContinuationToken());
+                    final HashTableIteratorItem.State newState = HashTableIteratorItem.State.fromBytes(tableEntriesRead.getContinuationToken());
                     final List<TableSegmentEntry> entries =
                             tableEntriesRead.getEntries().getEntries().stream()
                                             .map(e -> {
@@ -631,7 +631,7 @@ public class SegmentHelper implements AutoCloseable {
                                                         e.getValue().getData(),
                                                         k.getKeyVersion());
                                             }).collect(Collectors.toList());
-                    return new IteratorItem<>(newState, entries);
+                    return new HashTableIteratorItem<>(newState, entries);
                 });
     }
 

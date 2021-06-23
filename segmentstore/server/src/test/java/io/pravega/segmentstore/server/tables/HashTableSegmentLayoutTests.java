@@ -19,7 +19,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.SegmentType;
-import io.pravega.segmentstore.contracts.tables.IteratorState;
+import io.pravega.segmentstore.contracts.tables.IteratorArgs;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -86,10 +86,13 @@ public class HashTableSegmentLayoutTests extends TableSegmentLayoutTestBase {
     }
 
     @Override
-    protected IteratorState createEmptyIteratorState() {
-        return new HashTableSegmentLayout.IteratorStateImpl(KeyHasher.MAX_HASH);
+    protected IteratorArgs createEmptyIteratorArgs() {
+        return IteratorArgs
+                .builder()
+                .fetchTimeout(TIMEOUT)
+                .continuationToken(new HashTableSegmentLayout.IteratorStateImpl(KeyHasher.MAX_HASH).serialize())
+                .build();
     }
-
 
     @Override
     protected void checkTableAttributes(int totalUpdateCount, int totalRemoveCount, int uniqueKeyCount, TableContext context) {

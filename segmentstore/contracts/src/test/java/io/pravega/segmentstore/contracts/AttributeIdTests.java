@@ -42,25 +42,6 @@ public class AttributeIdTests {
     }
 
     /**
-     * Tests {@link AttributeId#nextValue()} for {@link AttributeId.UUID}.
-     */
-    @Test
-    public void testUUIDNextValue() {
-        val uuid1 = AttributeId.uuid(10, 20);
-        val uuid2 = uuid1.nextValue();
-        Assert.assertTrue(uuid2.isUUID());
-        Assert.assertEquals(uuid1.getBitGroup(0), uuid2.getBitGroup(0));
-        Assert.assertEquals(uuid1.getBitGroup(1) + 1, uuid2.getBitGroup(1));
-
-        val uuid3 = AttributeId.uuid(10, Long.MAX_VALUE);
-        val uuid4 = AttributeId.uuid(11, Long.MIN_VALUE);
-        Assert.assertEquals(uuid4, uuid3.nextValue());
-
-        val maxUUID = AttributeId.uuid(Long.MAX_VALUE, Long.MAX_VALUE);
-        Assert.assertNull(maxUUID.nextValue());
-    }
-
-    /**
      * Tests {@link AttributeId#equals}, {@link AttributeId#hashCode()} and {@link AttributeId#compareTo} for {@link AttributeId.UUID}.
      */
     @Test
@@ -110,25 +91,6 @@ public class AttributeIdTests {
                 }
             }
         }
-    }
-
-    /**
-     * Tests {@link AttributeId#nextValue()} for {@link AttributeId.Variable}.
-     */
-    @Test
-    public void testVariableNextValue() {
-        val id1 = AttributeId.from(new byte[]{1});
-        val id2 = id1.nextValue();
-        Assert.assertFalse(id2.isUUID());
-        Assert.assertEquals(id1.byteCount(), id2.byteCount());
-        Assert.assertEquals(id1.toBuffer().get(0) + 1, id2.toBuffer().get(0));
-
-        val id3 = AttributeId.from(new byte[]{1, BufferViewComparator.MAX_VALUE});
-        val id4 = AttributeId.from(new byte[]{2, BufferViewComparator.MIN_VALUE});
-        Assert.assertEquals(id4, id3.nextValue());
-
-        val maxID = AttributeId.from(new byte[]{BufferViewComparator.MAX_VALUE, BufferViewComparator.MAX_VALUE});
-        Assert.assertNull(maxID.nextValue());
     }
 
     /**

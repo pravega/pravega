@@ -49,9 +49,9 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
     @Override
     protected KeyValueTable createKeyValueTable(KeyValueTableInfo kvt, KeyValueTableConfiguration config) {
         this.controller.createKeyValueTable(kvt.getScope(), kvt.getKeyValueTableName(), config);
-        int segmentKeyLength = config.getPrimaryKeyLength() + config.getSecondaryKeyLength();
+        int segmentKeyLength = config.getTotalKeyLength();
         val segmentFactory = new MockTableSegmentFactory(getSegmentCount(), segmentKeyLength, executorService());
-        return new KeyValueTableImpl(kvt, config, segmentFactory, this.controller);
+        return new KeyValueTableImpl(kvt, segmentFactory, this.controller, executorService());
     }
 
     @Before
@@ -59,7 +59,7 @@ public class KeyValueTableImplTests extends KeyValueTableTestBase {
         super.setup();
         this.connectionFactory = new MockConnectionFactoryImpl();
         this.controller = new MockController("localhost", 0, this.connectionFactory, false);
-        boolean isScopeCreated = this.controller.createScope(KVT.getScope()).get().booleanValue();
+        boolean isScopeCreated = this.controller.createScope(KVT.getScope()).get();
         Assert.assertTrue(isScopeCreated);
         this.defaultConfig = KeyValueTableConfiguration.builder()
                 .partitionCount(getSegmentCount())

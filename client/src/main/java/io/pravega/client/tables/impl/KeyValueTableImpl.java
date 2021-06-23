@@ -18,25 +18,19 @@ package io.pravega.client.tables.impl;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.pravega.client.admin.KeyValueTableInfo;
 import io.pravega.client.control.impl.Controller;
-import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.ConditionalTableUpdateException;
-import io.pravega.client.tables.IteratorArgs;
-import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableConfiguration;
-import io.pravega.client.tables.Put;
 import io.pravega.client.tables.Remove;
 import io.pravega.client.tables.TableEntry;
+import io.pravega.client.tables.TableEntryUpdate;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.TableModification;
-import io.pravega.client.tables.TableEntryUpdate;
 import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.AsyncIterator;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,15 +40,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import lombok.Data;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -65,12 +57,12 @@ import lombok.val;
 public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
     //region Members
 
-    private final KeyValueTableInfo kvt;
     private final SegmentSelector selector;
     private final String logTraceId;
     private final AtomicBoolean closed;
     private final KeyValueTableConfiguration config;
-    private final int totalKeyLength;
+    private final TableEntryHelper entryHelper;
+    private final Executor executor;
 
     //endregion
 
@@ -80,21 +72,27 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
      * Creates a new instance of the {@link KeyValueTableImpl} class.
      *
      * @param kvt                 A {@link KeyValueTableInfo} containing information about the Key-Value Table.
-     * @param config              A {@link KeyValueTableConfiguration} representing the config for the Key-Value Table.
      * @param tableSegmentFactory Factory to create {@link TableSegment} instances.
      * @param controller          Controller client.
+     * @param executor            An Executor for async operations.
      */
-    KeyValueTableImpl(@NonNull KeyValueTableInfo kvt, @NonNull KeyValueTableConfiguration config,
-                      @NonNull TableSegmentFactory tableSegmentFactory, @NonNull Controller controller) {
-        this.kvt = kvt;
-        this.config = config;
-        this.selector = new SegmentSelector(this.kvt, controller, tableSegmentFactory);
-        this.logTraceId = String.format("KeyValueTable[%s]", this.kvt.getScopedName());
+    KeyValueTableImpl(@NonNull KeyValueTableInfo kvt, @NonNull TableSegmentFactory tableSegmentFactory,
+                      @NonNull Controller controller, @NonNull Executor executor) {
+        this.executor = executor;
+        this.selector = new SegmentSelector(kvt, controller, tableSegmentFactory);
+        this.config = getConfig(kvt, controller);
+        this.entryHelper = new TableEntryHelper(this.selector, this.config);
+        this.logTraceId = String.format("KeyValueTable[%s]", kvt.getScopedName());
         this.closed = new AtomicBoolean(false);
         Preconditions.checkArgument(config.getPartitionCount() == this.selector.getSegmentCount(),
                 "Inconsistent Segment Count. Expected %s, actual %s.", config.getPartitionCount(), this.selector.getSegmentCount());
         log.info("{}: Initialized. Config: {}.", this.logTraceId, this.config);
-        this.totalKeyLength = this.config.getPrimaryKeyLength() + this.config.getSecondaryKeyLength();
+    }
+
+    private KeyValueTableConfiguration getConfig(KeyValueTableInfo kvt, Controller controller) {
+        return Futures.getAndHandleExceptions(
+                controller.getKeyValueTableConfiguration(kvt.getScope(), kvt.getKeyValueTableName()),
+                RuntimeException::new);
     }
 
     //endregion
@@ -117,10 +115,12 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
     public CompletableFuture<Version> update(@NonNull TableModification update) {
         val s = this.selector.getTableSegment(update.getKey().getPrimaryKey());
         if (update.isRemoval()) {
-            val removeArgs = new UpdateArg<TableSegmentKey>(update.getKey().getPrimaryKey(), s, Iterators.singletonIterator(toTableSegmentKey(s, (Remove) update)));
+            val removeArgs = new UpdateArg<TableSegmentKey>(update.getKey().getPrimaryKey(), s,
+                    Iterators.singletonIterator(this.entryHelper.toTableSegmentKey(s, (Remove) update)));
             return removeFromSegment(removeArgs.getTableSegment(), removeArgs.getAllArgs()).thenApply(r -> null);
         } else {
-            val updateArgs = new UpdateArg<>(update.getKey().getPrimaryKey(), s, Iterators.singletonIterator(toTableSegmentEntry(s, (TableEntryUpdate) update)));
+            val updateArgs = new UpdateArg<>(update.getKey().getPrimaryKey(), s,
+                    Iterators.singletonIterator(this.entryHelper.toTableSegmentEntry(s, (TableEntryUpdate) update)));
             return updateToSegment(updateArgs.getTableSegment(), updateArgs.getAllArgs()).thenApply(r -> r.get(0));
         }
     }
@@ -136,10 +136,12 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
         val firstInput = inputIterator.next();
         val ts = this.selector.getTableSegment(firstInput.getKey().getPrimaryKey());
         if (firstInput.isRemoval()) {
-            val args = toArg(firstInput, inputIterator, ts, u -> toTableSegmentKey(ts, (Remove) u));
+            val args = toArg(firstInput, inputIterator, ts,
+                    u -> this.entryHelper.toTableSegmentKey(ts, (Remove) u));
             return removeFromSegment(args.getTableSegment(), args.getAllArgs()).thenApply(r -> Collections.emptyList());
         } else {
-            val args = toArg(firstInput, inputIterator, ts, u -> toTableSegmentEntry(ts, (TableEntryUpdate) u));
+            val args = toArg(firstInput, inputIterator, ts,
+                    u -> this.entryHelper.toTableSegmentEntry(ts, (TableEntryUpdate) u));
             return updateToSegment(args.getTableSegment(), args.getAllArgs());
         }
     }
@@ -176,7 +178,7 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
         keys.forEach(k -> {
             TableSegment ts = this.selector.getTableSegment(k.getPrimaryKey());
             KeyGroup g = bySegment.computeIfAbsent(ts, t -> new KeyGroup());
-            g.add(serializeKey(k), count.getAndIncrement());
+            g.add(this.entryHelper.serializeKey(k), count.getAndIncrement());
         });
 
         val futures = new HashMap<TableSegment, CompletableFuture<List<TableSegmentEntry>>>();
@@ -191,7 +193,7 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
                         assert segmentResult.size() == kg.ordinals.size() : "segmentResult count mismatch";
                         for (int i = 0; i < kg.ordinals.size(); i++) {
                             assert r[kg.ordinals.get(i)] == null : "overlapping ordinals";
-                            r[kg.ordinals.get(i)] = fromTableSegmentEntry(ts, segmentResult.get(i));
+                            r[kg.ordinals.get(i)] = this.entryHelper.fromTableSegmentEntry(ts, segmentResult.get(i));
                         }
                     });
                     return Arrays.asList(r);
@@ -199,15 +201,9 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
     }
 
     @Override
-    public AsyncIterator<IteratorItem<TableKey>> keyIterator(int maxIterationSize, @NonNull IteratorArgs args) {
+    public KeyValueTableIteratorImpl.Builder iterator() {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public AsyncIterator<IteratorItem<TableEntry>> entryIterator(int maxIterationSize, @Nullable IteratorArgs args) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
+        return new KeyValueTableIteratorImpl.Builder(this.config, this.entryHelper, this.executor);
     }
 
     //endregion
@@ -238,96 +234,9 @@ public class KeyValueTableImpl implements KeyValueTable, AutoCloseable {
         return segment.remove(tableSegmentKeys);
     }
 
-    private TableSegmentKey toTableSegmentKey(ByteBuf key, Version keyVersion) {
-        return new TableSegmentKey(key, toTableSegmentVersion(keyVersion));
-    }
-
-    private TableSegmentKey toTableSegmentKey(TableSegment tableSegment, Remove removal) {
-        validateKeyVersionSegment(tableSegment, removal.getVersion());
-        return toTableSegmentKey(serializeKey(removal.getKey()), removal.getVersion());
-    }
-
-    private TableSegmentEntry toTableSegmentEntry(TableSegment tableSegment, TableEntryUpdate update) {
-        TableKey key = update.getKey();
-        if (update instanceof Put) {
-            validateKeyVersionSegment(tableSegment, update.getVersion());
-        }
-        return new TableSegmentEntry(toTableSegmentKey(serializeKey(key), update.getVersion()), serializeValue(update.getValue()));
-    }
-
-    private TableSegmentKeyVersion toTableSegmentVersion(Version version) {
-        return version == null ? TableSegmentKeyVersion.NO_VERSION : TableSegmentKeyVersion.from(version.asImpl().getSegmentVersion());
-    }
-
-    private TableEntry fromTableSegmentEntry(TableSegment s, TableSegmentEntry e) {
-        if (e == null) {
-            return null;
-        }
-
-        DeserializedKey rawKey = deserializeKey(e.getKey().getKey());
-        Version version = new VersionImpl(s.getSegmentId(), e.getKey().getVersion());
-        TableKey key = new TableKey(rawKey.primaryKey, rawKey.secondaryKey);
-        ByteBuffer value = deserializeValue(e.getValue());
-        return new TableEntry(key, version, value);
-    }
-
-    private ByteBuf serializeKey(TableKey k) {
-        Preconditions.checkArgument(k.getPrimaryKey().remaining() == this.config.getPrimaryKeyLength(),
-                "Invalid Primary Key Length. Expected %s, actual %s.", this.config.getPrimaryKeyLength(), k.getPrimaryKey().remaining());
-        if (this.config.getSecondaryKeyLength() == 0) {
-            Preconditions.checkArgument(k.getSecondaryKey() == null || k.getSecondaryKey().remaining() == this.config.getSecondaryKeyLength(),
-                    "Not expecting a Secondary Key.");
-            return Unpooled.wrappedBuffer(k.getPrimaryKey());
-        } else {
-            Preconditions.checkArgument(k.getSecondaryKey().remaining() == this.config.getSecondaryKeyLength(),
-                    "Invalid Secondary Key Length. Expected %s, actual %s.", this.config.getSecondaryKeyLength(), k.getSecondaryKey().remaining());
-            return Unpooled.wrappedBuffer(k.getPrimaryKey(), k.getSecondaryKey());
-        }
-    }
-
-    private DeserializedKey deserializeKey(ByteBuf keySerialization) {
-        Preconditions.checkArgument(keySerialization.readableBytes() == this.totalKeyLength,
-                "Unexpected key length read back. Expected %s, found %s.", this.totalKeyLength, keySerialization.readableBytes());
-        val pk = keySerialization.slice(0, this.config.getPrimaryKeyLength()).copy().nioBuffer();
-        val sk = keySerialization.slice(this.config.getPrimaryKeyLength(), this.config.getSecondaryKeyLength()).copy().nioBuffer();
-        keySerialization.release(); // Safe to do so now - we made copies of the original buffer.
-        return new DeserializedKey(pk, sk);
-    }
-
-    private ByteBuf serializeValue(ByteBuffer v) {
-        Preconditions.checkArgument(v.remaining() <= KeyValueTable.MAXIMUM_VALUE_LENGTH,
-                "Value Too Long. Expected at most %s, actual %s.", KeyValueTable.MAXIMUM_VALUE_LENGTH, v.remaining());
-        return Unpooled.wrappedBuffer(v);
-    }
-
-    private ByteBuffer deserializeValue(ByteBuf s) {
-        val result = s.copy().nioBuffer();
-        s.release();
-        return result;
-    }
-
-    @SneakyThrows(BadKeyVersionException.class)
-    private void validateKeyVersionSegment(TableSegment ts, Version version) {
-        if (version == null) {
-            return;
-        }
-
-        VersionImpl impl = version.asImpl();
-        boolean valid = impl.getSegmentId() == VersionImpl.NO_SEGMENT_ID || ts.getSegmentId() == impl.getSegmentId();
-        if (!valid) {
-            throw new BadKeyVersionException(this.kvt.getScopedName(), "Wrong TableSegment.");
-        }
-    }
-
     //endregion
 
     //region Helper classes
-
-    @RequiredArgsConstructor
-    private static class DeserializedKey {
-        final ByteBuffer primaryKey;
-        final ByteBuffer secondaryKey;
-    }
 
     private static class KeyGroup {
         final ArrayList<ByteBuf> keys = new ArrayList<>();

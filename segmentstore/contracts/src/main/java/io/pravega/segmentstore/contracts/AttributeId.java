@@ -19,7 +19,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.util.AbstractBufferView;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
@@ -118,15 +117,6 @@ public abstract class AttributeId implements Comparable<AttributeId> {
     public abstract long getBitGroup(int position);
 
     /**
-     * Gets a new {@link AttributeId} of the same types as this one that, when compared with {@link #compareTo}, is
-     * immediately after this one (there are no other {@link AttributeId} instances in between the two.
-     *
-     * @return The next {@link AttributeId} after this one, or null if no such value exists (i.e., this is the highest
-     * possible {@link AttributeId} in its class.
-     */
-    public abstract AttributeId nextValue();
-
-    /**
      * Serializes this {@link AttributeId} into a {@link ByteArraySegment}. This should be appropriate for most cases
      * where it will be later needed to deserialize back into an {@link AttributeId}. For {@link AttributeId.UUID} instances,
      * this will use signed Long serialization, which may not be appropriate for comparison using {@link BufferViewComparator}.
@@ -178,25 +168,6 @@ public abstract class AttributeId implements Comparable<AttributeId> {
                     throw new IllegalArgumentException(this.getClass().getName() + " only supports bit groups 0 and 1. Requested: " + position);
             }
         }
-
-        @Override
-        public AttributeId nextValue() {
-            long msb = this.mostSignificantBits;
-            long lsb = this.leastSignificantBits;
-            if (lsb == Long.MAX_VALUE) {
-                if (msb == Long.MAX_VALUE) {
-                    return null;
-                }
-
-                msb++;
-                lsb = Long.MIN_VALUE;
-            } else {
-                lsb++;
-            }
-
-            return new AttributeId.UUID(msb, lsb);
-        }
-
 
         /**
          * Gets a {@link java.util.UUID} representation of this {@link AttributeId}.
@@ -278,17 +249,6 @@ public abstract class AttributeId implements Comparable<AttributeId> {
         @Override
         public long getBitGroup(int position) {
             return BitConverter.readLong(this.data, position << 3); // This will do necessary checks for us.
-        }
-
-        @Override
-        public AttributeId nextValue() {
-            ArrayView next = BufferViewComparator.getNextItemOfSameLength(new ByteArraySegment(this.data));
-            if (next == null) {
-                return null;
-            } else {
-                assert next.arrayOffset() == 0 && next.getLength() == next.array().length;
-                return new AttributeId.Variable(next.array());
-            }
         }
 
         @Override
