@@ -437,12 +437,14 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         assertNotNull(simpleCache.get(streamSegmentName1));
         assertTrue(evicted.isEmpty());
 
+        AutoScalerConfig config = AutoScalerConfig.builder()
+                .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090")
+                .with(AutoScalerConfig.TLS_ENABLED, false)
+                .build();
+        ClientConfig objectUnderTest = AutoScaleProcessor.prepareClientConfig(config);
+
         AssertExtensions.assertThrows("NPE should be thrown",
-                () -> new AutoScaleProcessor(AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
-                        .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
-                        .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
-                        .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 150)
-                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), null, simpleCache),
+                () -> new AutoScaleProcessor(config, null, simpleCache),
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("NPE should be thrown",
@@ -450,11 +452,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 e -> e instanceof NullPointerException);
 
         AssertExtensions.assertThrows("NPE should be thrown",
-                () -> new AutoScaleProcessor(null, AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
-                        .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
-                        .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
-                        .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 150)
-                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), executorService()),
+                () -> new AutoScaleProcessor(null, config, executorService()),
                 e -> e instanceof NullPointerException);
 
         /*AutoScalerConfig config = AutoScalerConfig.builder()
