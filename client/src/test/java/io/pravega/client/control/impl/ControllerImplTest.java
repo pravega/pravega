@@ -132,6 +132,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static io.pravega.client.control.impl.ModelHelper.decode;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -301,6 +302,26 @@ public class ControllerImplTest {
             }
 
             @Override
+            public void getStreamConfiguration(StreamInfo request, StreamObserver<StreamConfig> responseObserver) {
+                StreamConfiguration cfg = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3))
+                                                             .tag("tx")
+                                                             .build();
+                if (request.getStream().equals("stream1")) {
+                    responseObserver.onNext(decode(request.getScope(), request.getStream(), cfg));
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream2")) {
+                    responseObserver.onNext(decode(request.getScope(), request.getStream(), cfg.toBuilder().clearTags().build()));
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream3")) {
+                    responseObserver.onError(Status.NOT_FOUND.asRuntimeException());
+                } else if (request.getStream().equals("deadline")) {
+                    // do not send any response.
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
             public void updateStream(StreamConfig request,
                     StreamObserver<UpdateStreamStatus> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
@@ -455,7 +476,7 @@ public class ControllerImplTest {
                 if (request.getReaderGroup().equals("rg1")) {
                     responseObserver.onNext(ReaderGroupConfigResponse.newBuilder()
                             .setStatus(ReaderGroupConfigResponse.Status.SUCCESS)
-                            .setConfig(ModelHelper.decode("scope1", "rg1", rgConfig))
+                            .setConfig(decode("scope1", "rg1", rgConfig))
                             .build());
                     responseObserver.onCompleted();
                 } else if (request.getReaderGroup().equals("rg2")) {
@@ -1128,7 +1149,47 @@ public class ControllerImplTest {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
             }
-            
+
+            @Override
+            public void listStreamsInScopeForTag(Controller.StreamsInScopeWithTagRequest request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
+                if (request.getScope().getScope().equals(NON_EXISTENT)) {
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                                                    .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND)
+                                                    .build());
+                    responseObserver.onCompleted();
+                } else if (request.getScope().getScope().equals("deadline")) {
+                    // dont send any response
+                } else if (request.getScope().getScope().equals(FAILING)) {
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                                                    .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.FAILURE)
+                                                    .build());
+                    responseObserver.onCompleted();
+                } else if (Strings.isNullOrEmpty(request.getContinuationToken().getToken())) {
+                    List<StreamInfo> list1 = new LinkedList<>();
+                    list1.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream1").build());
+                    list1.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream2").build());
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                                                    .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS).addAllStreams(list1)
+                                                    .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("chunk0").build()).build());
+                    responseObserver.onCompleted();
+                } else if (request.getContinuationToken().getToken().equals("chunk0")) {
+                    List<StreamInfo> list2 = new LinkedList<>();
+                    list2.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream3").build());
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                                                    .newBuilder().addAllStreams(list2).setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS)
+                                                    .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("chunk1").build()).build());
+                    responseObserver.onCompleted();
+                } else if (request.getContinuationToken().getToken().equals("chunk1")) {
+                    List<StreamInfo> list3 = new LinkedList<>();
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                                                    .newBuilder().addAllStreams(list3).setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS)
+                                                    .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("chunk24").build()).build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
             @Override
             public void isStreamCutValid(Controller.StreamCut request, StreamObserver<Controller.StreamCutValidityResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("deadline")) {
@@ -1150,7 +1211,7 @@ public class ControllerImplTest {
                     responseObserver.onCompleted();
                 }
             }
-            
+
             @Override
             public void noteTimestampFromWriter(Controller.TimestampFromWriter request, StreamObserver<Controller.TimestampResponse> responseObserver) {
                 if (request.getWriter().equals("deadline")) {
@@ -1529,6 +1590,27 @@ public class ControllerImplTest {
                                                                   .build());
         AssertExtensions.assertFutureThrows("Should throw Exception",
                 updateStreamStatus, throwable -> true);
+    }
+
+    @Test
+    public void testGetStreamConfiguration() {
+        CompletableFuture<StreamConfiguration> streamConfig;
+        streamConfig = controllerClient.getStreamConfiguration("scope1", "stream1");
+        assertEquals(Collections.singleton("tx"), streamConfig.join().getTags());
+
+        streamConfig = controllerClient.getStreamConfiguration("scope1", "stream2");
+        assertEquals(0, streamConfig.join().getTags().size());
+
+        // not found.
+        streamConfig = controllerClient.getStreamConfiguration("scope1", "stream3");
+        AssertExtensions.assertFutureThrows("Server should throw exception", streamConfig,
+                                            t -> (t instanceof StatusRuntimeException) && ((StatusRuntimeException) t).getStatus().equals(Status.NOT_FOUND));
+
+        // internal error, which will cause the client to retry.
+        streamConfig = controllerClient.getStreamConfiguration("scope1", "streamError");
+        AssertExtensions.assertFutureThrows("Server should throw exception", streamConfig,
+                                            t -> t instanceof RetriesExhaustedException);
+
     }
 
     @Test
@@ -2018,6 +2100,27 @@ public class ControllerImplTest {
     }
 
     @Test
+    public void testStreamsInScopeForTag() {
+        String scope = "scopeList";
+        AsyncIterator<Stream> iterator = controllerClient.listStreamsForTag(scope, "tx");
+
+        Stream m = iterator.getNext().join();
+        assertEquals("stream1", m.getStreamName());
+        m = iterator.getNext().join();
+        assertEquals("stream2", m.getStreamName());
+        m = iterator.getNext().join();
+        assertEquals("stream3", m.getStreamName());
+
+        AssertExtensions.assertFutureThrows("Non existent scope",
+                                            controllerClient.listStreamsForTag(NON_EXISTENT, "tx").getNext(),
+                                            e -> Exceptions.unwrap(e) instanceof NoSuchScopeException);
+
+        AssertExtensions.assertFutureThrows("failing request",
+                                            controllerClient.listStreamsForTag(FAILING, "tx").getNext(),
+                                            e -> Exceptions.unwrap(e) instanceof RuntimeException);
+    }
+
+    @Test
     public void testDeleteScope() {
         CompletableFuture<Boolean> deleteStatus;
         String scope1 = "scope1";
@@ -2139,6 +2242,12 @@ public class ControllerImplTest {
 
         CompletableFuture<Void> listFuture = controller.listStreams(deadline).collectRemaining(x -> true);
         AssertExtensions.assertFutureThrows("", listFuture, deadlinePredicate);
+
+        CompletableFuture<Void> listWithTagFuture = controller.listStreamsForTag(deadline, "tx").collectRemaining(x -> true);
+        AssertExtensions.assertFutureThrows("", listWithTagFuture, deadlinePredicate);
+
+        CompletableFuture<StreamConfiguration> getStreamCfgFuture = controller.getStreamConfiguration(deadline, deadline);
+        AssertExtensions.assertFutureThrows("", getStreamCfgFuture, deadlinePredicate);
         // endregion
 
         CompletableFuture<String> tokenFuture = controller.getOrRefreshDelegationTokenFor(deadline, deadline,
