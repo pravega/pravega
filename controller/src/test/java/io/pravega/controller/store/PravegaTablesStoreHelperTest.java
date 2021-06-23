@@ -118,7 +118,10 @@ public class PravegaTablesStoreHelperTest {
         // check delete non empty table
         AssertExtensions.assertFutureThrows("Not Empty", storeHelper.deleteTable(table, true, 0L), 
             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException);
-        
+
+        // conditional remove entry.
+        AssertExtensions.assertFutureThrows("", storeHelper.removeEntry(table, key, new Version.LongVersion(123L), 0L),
+                                            e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
         // remove entry
         storeHelper.removeEntry(table, key, 0L).join();
         AssertExtensions.assertFutureThrows("", storeHelper.getEntry(table, key, String::new, 0L), 
