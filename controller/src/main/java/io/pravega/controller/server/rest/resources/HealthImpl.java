@@ -17,7 +17,6 @@ package io.pravega.controller.server.rest.resources;
 
 import io.pravega.auth.AuthException;
 import io.pravega.controller.server.rest.generated.api.NotFoundException;
-import io.pravega.controller.server.rest.generated.model.HealthDependencies;
 import io.pravega.controller.server.rest.generated.model.HealthDetails;
 import io.pravega.controller.server.rest.generated.model.HealthResult;
 import io.pravega.controller.server.rest.generated.model.HealthStatus;
@@ -288,12 +287,6 @@ public class HealthImpl implements ApiV1.HealthApi {
 
     private static HealthStatus adapter(Status status) {
         return HealthStatus.fromValue(status.name());
-    }
-
-    private static HealthDependencies adapter(List<String> dependencies) {
-        HealthDependencies result = new HealthDependencies();
-        result.addAll(dependencies);
-        return result;
     }
 
 }

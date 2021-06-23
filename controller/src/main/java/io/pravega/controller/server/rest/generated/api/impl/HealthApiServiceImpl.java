@@ -3,7 +3,6 @@ package io.pravega.controller.server.rest.generated.api.impl;
 import io.pravega.controller.server.rest.generated.api.*;
 import io.pravega.controller.server.rest.generated.model.*;
 
-import io.pravega.controller.server.rest.generated.model.HealthDependencies;
 import io.pravega.controller.server.rest.generated.model.HealthDetails;
 import io.pravega.controller.server.rest.generated.model.HealthResult;
 import io.pravega.controller.server.rest.generated.model.HealthStatus;
