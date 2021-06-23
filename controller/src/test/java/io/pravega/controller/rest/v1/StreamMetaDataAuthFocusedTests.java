@@ -25,8 +25,10 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
-import io.pravega.controller.server.rest.RESTServer;
-import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.shared.rest.RESTServer;
+import io.pravega.shared.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
@@ -34,8 +36,8 @@ import io.pravega.controller.server.rest.generated.model.ScalingConfig;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.security.crypto.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -50,6 +52,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -70,7 +73,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString;
+import static io.pravega.auth.AuthFileUtils.credentialsAndAclAsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -185,7 +188,7 @@ public class StreamMetaDataAuthFocusedTests {
                 .port(1000)
                 .build());
         ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
-        authManager.registerInterceptors(server);
+        GrpcAuthHelper.registerInterceptors(authManager.getHandlerMap(), server);
 
         mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
@@ -193,8 +196,12 @@ public class StreamMetaDataAuthFocusedTests {
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
-        restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,
-                connectionFactory, ClientConfig.builder().build());
+        restServer = new RESTServer(serverConfig,
+                Set.of(new StreamMetadataResourceImpl(controller,
+                        mockControllerService,
+                        authManager,
+                        connectionFactory,
+                        ClientConfig.builder().build())));
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();
