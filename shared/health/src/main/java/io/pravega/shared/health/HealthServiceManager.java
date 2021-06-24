@@ -70,6 +70,14 @@ public class HealthServiceManager implements AutoCloseable {
         return updater;
     }
 
+    /**
+     * Synchronously starts the {@link HealthServiceUpdater}.
+     */
+    public void start() {
+        this.updater.startAsync();
+        this.updater.awaitRunning();
+    }
+
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
