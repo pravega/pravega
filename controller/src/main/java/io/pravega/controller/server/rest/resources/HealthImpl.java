@@ -73,28 +73,14 @@ public class HealthImpl implements ApiV1.HealthApi {
 
     private void getHealth(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
-        try {
+        processRequest(() -> {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             Health health = endpoint.getHealth(id);
             Response response = Response.status(Response.Status.OK)
                     .entity(adapter(health))
                     .build();
             asyncResponse.resume(response);
-        } catch (AuthException e) {
-            processException(e.getResponseCode(),
-                    asyncResponse,
-                    method,
-                    traceId,
-                    authenticationFailure(id, "Health"));
-        } catch (ContributorNotFoundException e) {
-            processException(e.getResponseCode(),
-                    asyncResponse,
-                    method,
-                    traceId,
-                    contributorNotFound(id));
-        } finally {
-            LoggerHelpers.traceLeave(log, method, traceId);
-        }
+        }, asyncResponse, method, traceId, id);
     }
 
     @Override
@@ -109,29 +95,13 @@ public class HealthImpl implements ApiV1.HealthApi {
 
     private void getLiveness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
-        try {
+        processRequest(() -> {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             boolean alive = endpoint.isAlive(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(alive)
                     .build());
-        } catch (AuthException e) {
-            processException(e.getResponseCode(),
-                    asyncResponse,
-                    method,
-                    traceId,
-                    authenticationFailure(id, "Liveness"));
-        } catch (ContributorNotFoundException e) {
-            processException(e.getResponseCode(),
-                    asyncResponse,
-                    method,
-                    traceId,
-                    contributorNotFound(id));
-        } catch (RuntimeException e) {
-            asyncResponse.resume(Response.status(Response.Status.INTERNAL_SERVER_ERROR).build());
-        } finally {
-            LoggerHelpers.traceLeave(log, method, traceId);
-        }
+        }, asyncResponse, method, traceId, id);
     }
 
     @Override
@@ -146,27 +116,13 @@ public class HealthImpl implements ApiV1.HealthApi {
 
     private void getDetails(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
-        try {
+        processRequest(() -> {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             Map<String, Object> details = endpoint.getDetails(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(details))
                     .build());
-        } catch (AuthException e) {
-            processException(e.getResponseCode(),
-                    asyncResponse,
-                    method,
-                    traceId,
-                    authenticationFailure(id, "Details"));
-        } catch (ContributorNotFoundException e) {
-            processException(e.getResponseCode(),
-                    asyncResponse,
-                    method,
-                    traceId,
-                    contributorNotFound(id));
-        } finally {
-            LoggerHelpers.traceLeave(log, method, traceId);
-        }
+        }, asyncResponse, method, traceId, id);
     }
 
     @Override
@@ -181,27 +137,13 @@ public class HealthImpl implements ApiV1.HealthApi {
 
     private void getReadiness(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
-        try {
+        processRequest(() -> {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             boolean ready = endpoint.isReady(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(ready)
                     .build());
-        } catch (AuthException e) {
-            processException(e.getResponseCode(),
-                    asyncResponse,
-                    method,
-                    traceId,
-                    authenticationFailure(id, "Readiness"));
-        } catch (ContributorNotFoundException e) {
-            processException(e.getResponseCode(),
-                    asyncResponse,
-                    method,
-                    traceId,
-                    contributorNotFound(id));
-        } finally {
-            LoggerHelpers.traceLeave(log, method, traceId);
-        }
+        }, asyncResponse, method, traceId, id);
     }
 
     @Override
@@ -216,27 +158,13 @@ public class HealthImpl implements ApiV1.HealthApi {
 
     private void getStatus(String id, SecurityContext securityContext, AsyncResponse asyncResponse, String method) {
         long traceId = LoggerHelpers.traceEnter(log, method);
-        try {
+        processRequest(() -> {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(), authorizationResource.ofScopes(), READ_UPDATE);
             Status status = endpoint.getStatus(id);
             asyncResponse.resume(Response.status(Response.Status.OK)
                     .entity(adapter(status))
                     .build());
-        } catch (AuthException e) {
-            processException(e.getResponseCode(),
-                    asyncResponse,
-                    method,
-                    traceId,
-                    authenticationFailure(id, "Status"));
-        } catch (ContributorNotFoundException e) {
-            processException(e.getResponseCode(),
-                    asyncResponse,
-                    method,
-                    traceId,
-                    contributorNotFound(id));
-        } finally {
-            LoggerHelpers.traceLeave(log, method, traceId);
-        }
+        }, asyncResponse, method, traceId, id);
     }
 
     /**
@@ -249,18 +177,20 @@ public class HealthImpl implements ApiV1.HealthApi {
         return headers.getRequestHeader(HttpHeaders.AUTHORIZATION);
     }
 
-    private static String contributorNotFound(String id) {
-        return String.format("No HealthContributor was found with name '%s'.", id);
-    }
-
-    private static String authenticationFailure(String id, String request) {
-        return String.format("Failed to retrieve %s for '%s' due to authentication failure.");
-    }
-
-    private void processException(int responseCode, AsyncResponse response, String method,  long traceId, String msg) {
-        log.warn(msg);
-        response.resume(Response.status(Response.Status.fromStatusCode(responseCode)).build());
-        LoggerHelpers.traceLeave(log, method, traceId);
+    private void processRequest(Runnable request, AsyncResponse response, String method, long traceId, String id) {
+        try {
+            request.run();
+        } catch (AuthException e) {
+            log.warn("Failed to complete Health request for '{}' due to authentication failure.", id);
+            response.resume(Response.status(Response.Status.fromStatusCode(e.getResponseCode())).build());
+            LoggerHelpers.traceLeave(log, method, traceId);
+        } catch (ContributorNotFoundException e) {
+            log.warn("No HealthContributor found with name '{}'.", id);
+            response.resume(Response.status(Response.Status.fromStatusCode(e.getResponseCode())).build());
+            LoggerHelpers.traceLeave(log, method, traceId);
+        } finally {
+            LoggerHelpers.traceLeave(log, method, traceId);
+        }
     }
 
     // The follow methods provide a means to cast the HealthService framework models, to the generated models.
