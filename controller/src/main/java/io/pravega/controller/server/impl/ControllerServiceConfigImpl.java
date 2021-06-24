@@ -84,6 +84,16 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                     "If controllerCluster is enabled, store type should be Zookeeper");
         }
 
+        if (eventProcessorConfig.isPresent()) {
+            Preconditions.checkNotNull(eventProcessorConfig.get());
+        }
+        if (grpcServerConfig.isPresent()) {
+            Preconditions.checkNotNull(grpcServerConfig.get());
+        }
+        if (restServerConfig.isPresent()) {
+            Preconditions.checkNotNull(restServerConfig.get());
+        }
+
         this.threadPoolSize = threadPoolSize;
         this.storeClientConfig = storeClientConfig;
         this.hostMonitorConfig = hostMonitorConfig;
@@ -95,7 +105,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         this.restServerConfig = restServerConfig;
         this.retentionFrequency = retentionFrequency == null ? Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES)
                 : retentionFrequency;
-        this.healthCheckFrequency = healthCheckFrequency == null ? Duration.ofSeconds(10) : healthCheckFrequency;
+        this.healthCheckFrequency = healthCheckFrequency == null ? Duration.ofSeconds(Config.HEALTH_CHECK_FREQUENCY) : healthCheckFrequency;
         this.shutdownTimeout = shutdownTimeout == null ? Duration.ofSeconds(10) : shutdownTimeout;
     }
 }

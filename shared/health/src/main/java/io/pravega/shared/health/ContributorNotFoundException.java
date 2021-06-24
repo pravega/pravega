@@ -15,6 +15,10 @@
  */
 package io.pravega.shared.health;
 
+/**
+ * A 'ContributorNotFoundException' indicates that the {@link HealthEndpoint} was unable to find a {@link HealthContributor}
+ * with the provided id.
+ */
 public class ContributorNotFoundException extends RuntimeException {
 
     private final int responseCode;

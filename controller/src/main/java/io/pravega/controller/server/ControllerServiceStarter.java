@@ -404,10 +404,6 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
                 healthServiceManager.close();
             }
 
-            if (healthServiceManager != null) {
-                healthServiceManager.close();
-            }
-
             if (restServer != null) {
                 restServer.stopAsync();
             }
