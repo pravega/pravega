@@ -1,22 +1,7 @@
-package io.pravega.controller.server.rest.generated.api;
-
-import io.pravega.controller.server.rest.generated.api.*;
-import io.pravega.controller.server.rest.generated.model.*;
-
-import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
-
-import io.pravega.controller.server.rest.generated.model.HealthDetails;
-import io.pravega.controller.server.rest.generated.model.HealthResult;
-import io.pravega.controller.server.rest.generated.model.HealthStatus;
-
-import java.util.List;
-import io.pravega.controller.server.rest.generated.api.NotFoundException;
-
-import java.io.InputStream;
+package io.pravega.shared.health.bindings.api;
 
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.SecurityContext;
-import javax.validation.constraints.*;
 
 public abstract class HealthApiService {
     public abstract Response getContributorDetails(String id,SecurityContext securityContext) throws NotFoundException;

@@ -11,11 +11,7 @@
  */
 
 
-package io.pravega.controller.server.rest.generated.model;
-
-import java.util.Objects;
-import com.fasterxml.jackson.annotation.JsonValue;
-import javax.validation.constraints.*;
+package io.pravega.shared.health.bindings.model;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 

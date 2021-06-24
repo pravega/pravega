@@ -1,30 +1,19 @@
-package io.pravega.controller.server.rest.generated.api;
+package io.pravega.shared.health.bindings.api;
 
-import io.pravega.controller.server.rest.generated.model.*;
-import io.pravega.controller.server.rest.generated.api.HealthApiService;
-import io.pravega.controller.server.rest.generated.api.factories.HealthApiServiceFactory;
-
+import io.pravega.shared.health.bindings.api.factories.HealthApiServiceFactory;
+import io.pravega.shared.health.bindings.model.HealthDetails;
+import io.pravega.shared.health.bindings.model.HealthResult;
+import io.pravega.shared.health.bindings.model.HealthStatus;
 import io.swagger.annotations.ApiParam;
-import io.swagger.jaxrs.*;
-
-import io.pravega.controller.server.rest.generated.model.HealthDetails;
-import io.pravega.controller.server.rest.generated.model.HealthResult;
-import io.pravega.controller.server.rest.generated.model.HealthStatus;
-
-import java.util.List;
-import io.pravega.controller.server.rest.generated.api.NotFoundException;
-
-import java.io.InputStream;
-
-import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
-import org.glassfish.jersey.media.multipart.FormDataParam;
 
 import javax.servlet.ServletConfig;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.SecurityContext;
-import javax.ws.rs.*;
-import javax.validation.constraints.*;
 
 @Path("/health")
 

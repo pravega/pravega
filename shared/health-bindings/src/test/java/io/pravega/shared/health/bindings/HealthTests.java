@@ -13,30 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.rest.v1;
+package io.pravega.shared.health.bindings;
 
-import io.pravega.controller.server.rest.resources.HealthImpl;
-import io.pravega.controller.server.rest.resources.PingImpl;
-import io.pravega.shared.rest.RESTServer;
-import io.pravega.shared.rest.RESTServerConfig;
-import io.pravega.controller.server.rest.generated.model.HealthDetails;
-import io.pravega.controller.server.rest.generated.model.HealthResult;
-import io.pravega.controller.server.rest.generated.model.HealthStatus;
-import io.pravega.shared.rest.impl.RESTServerConfigImpl;
+import io.pravega.shared.health.bindings.model.HealthDetails;
+import io.pravega.shared.health.bindings.model.HealthResult;
+import io.pravega.shared.health.bindings.model.HealthStatus;
+import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.shared.health.Health;
-//
 import io.pravega.shared.health.HealthServiceManager;
 import io.pravega.shared.health.Status;
 import io.pravega.shared.health.impl.AbstractHealthContributor;
+import io.pravega.shared.rest.RESTServer;
+import io.pravega.shared.rest.RESTServerConfig;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.Assert;
 import org.junit.rules.Timeout;
 
 import javax.ws.rs.client.Client;
@@ -75,23 +73,13 @@ public class HealthTests {
         serverConfig = getServerConfig();
         healthServiceManager = new HealthServiceManager(Duration.ofSeconds(1));
         restServer = new RESTServer(serverConfig,
-                Set.of(new HealthImpl(null, healthServiceManager.getEndpoint()),
-                       new PingImpl()));
+                Set.of(new HealthImpl(null, healthServiceManager.getEndpoint())));
 
         healthServiceManager.start();
         restServer.startAsync();
         restServer.awaitRunning();
         client = createJerseyClient();
     }
-
-    @Test
-    public void test() {
-        URI streamResourceURI = UriBuilder.fromPath("//localhost:" + serverConfig.getPort() + "/ping")
-                .scheme(getURLScheme()).build();
-        Response response = client.target(streamResourceURI).request().buildGet().invoke();
-        assertEquals(200, response.getStatus());
-    }
-
 
     protected Client createJerseyClient() {
         return ClientBuilder.newClient();

@@ -341,6 +341,29 @@ project ('shared:health') {
     }
 }
 
+project ('shared:health-bindings') {
+    dependencies {
+        compile project(':shared:health')
+        compile project(':shared:rest')
+        compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
+        compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
+        compile(group: 'io.swagger', name: 'swagger-jersey2-jaxrs', version: swaggerJersey2JaxrsVersion) {
+            exclude group: 'com.google.guava', module: 'guava'
+        }
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
+        compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+        testCompile project(':test:testcommon')
+
+    }
+
+    javadoc {
+        exclude 'io/pravega/shared/*'
+        dependsOn delombok
+        source = delombok.outputDir
+        failOnError = true
+    }
+}
+
 project('client') {
     dependencies {
         compile project(':common')
@@ -486,6 +509,7 @@ project('segmentstore:server') {
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
+        compile project(':shared:rest')
         testCompile project(':test:testcommon')
     }
     javadoc {
@@ -529,7 +553,10 @@ project('segmentstore:server:host') {
         compile project(':client')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
+        compile project(':shared:health')
+        compile project(':shared:rest')
         compile project(':bindings')
+        compile project(':shared:health-bindings')
         compile project(':segmentstore:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
@@ -759,6 +786,7 @@ project('controller') {
         compile project(":shared:metrics")
         compile project(":shared:rest")
         compile project(":shared:health")
+        compile project(":shared:health-bindings")
         runtimeOnly group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {

@@ -11,12 +11,10 @@
  */
 
 
-package io.pravega.controller.server.rest.generated.model;
+package io.pravega.shared.health.bindings.model;
 
-import java.util.Objects;
 import java.util.HashMap;
-import java.util.Map;
-import javax.validation.constraints.*;
+import java.util.Objects;
 
 /**
  * HealthDetails
@@ -25,7 +23,7 @@ import javax.validation.constraints.*;
 public class HealthDetails extends HashMap<String, String>  {
 
   @Override
-  public boolean equals(java.lang.Object o) {
+  public boolean equals(Object o) {
     if (this == o) {
       return true;
     }
@@ -54,7 +52,7 @@ public class HealthDetails extends HashMap<String, String>  {
    * Convert the given object to string with each line indented by 4 spaces
    * (except the first line).
    */
-  private String toIndentedString(java.lang.Object o) {
+  private String toIndentedString(Object o) {
     if (o == null) {
       return "null";
     }
