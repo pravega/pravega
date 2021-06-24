@@ -291,7 +291,7 @@ public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
             return waitForIt1;
         });
 
-        TestEvent2 event2 = new TestEvent2(scope, stream, () -> Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "Failing processing")));
+        TestEvent2 event2 = new TestEvent2(scope, stream, () -> Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Failing processing")));
 
         // 1. start test event1 processing on processor 1. Don't let this complete.
         CompletableFuture<Void> processing11 = requestProcessor1.process(event1, () -> false);
