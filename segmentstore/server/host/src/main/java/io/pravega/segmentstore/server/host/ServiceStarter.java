@@ -107,16 +107,16 @@ public final class ServiceStarter {
             statsProvider.start();
         }
 
+        log.info("Initializing HealthService ...");
+        healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckInterval());
+        healthServiceManager.start();
+
         log.info("Initializing RESTServer ...");
         restServer = new RESTServer(serviceConfig.getRestServerConfig(), Set.of(new HealthImpl(
                 new AuthHandlerManager(serviceConfig.getRestServerConfig()),
                 healthServiceManager.getEndpoint())));
         restServer.startAsync();
         restServer.awaitRunning();
-
-        log.info("Initializing HealthService ...");
-        healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckInterval());
-        healthServiceManager.start();
 
         log.info("Initializing ZooKeeper Client ...");
         this.zkClient = createZKClient();
