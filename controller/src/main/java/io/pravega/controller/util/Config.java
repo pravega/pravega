@@ -198,9 +198,7 @@ public final class Config {
             "scale.request.readerGroup.name", "scaleGroup", "scale.ReaderGroup");
 
     public static final Property<Integer> PROPERTY_HEALTH_CHECK_FREQUENCY = Property.named(
-            "health.frequency.seconds",
-            10
-    );
+            "health.frequency.seconds", 10);
 
     public static final String COMPONENT_CODE = "controller";
 
