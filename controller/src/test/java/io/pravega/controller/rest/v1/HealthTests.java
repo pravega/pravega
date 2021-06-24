@@ -308,7 +308,7 @@ public class HealthTests {
         });
     }
 
-    private void assertResponseSucess(URI uri) throws Exception {
+    private void assertResponseSuccess(URI uri) throws Exception {
         AssertExtensions.assertEventuallyEquals("Expected a successful (200) response code.",
                 200,
                 () -> client.target(uri).request().buildGet().invoke().getStatus(),
@@ -317,7 +317,7 @@ public class HealthTests {
     }
 
     private void assertStatus(URI uri, HealthStatus expected) throws Exception {
-        assertResponseSucess(uri);
+        assertResponseSuccess(uri);
         AssertExtensions.assertEventuallyEquals(String.format("Expected a '%s' HealthStatus.", expected.toString()),
                 expected,
                 () -> client.target(uri).request().buildGet().invoke().readEntity(HealthStatus.class),
@@ -326,7 +326,7 @@ public class HealthTests {
     }
 
     private void assertAliveOrReady(URI uri, boolean expected) throws Exception {
-        assertResponseSucess(uri);
+        assertResponseSuccess(uri);
         AssertExtensions.assertEventuallyEquals(String.format("The StaticHealthyContributor was expected to be %s", expected ? "alive/ready" : "dead/not-ready"),
                 expected,
                 () -> client.target(uri).request().buildGet().invoke().readEntity(Boolean.class),
