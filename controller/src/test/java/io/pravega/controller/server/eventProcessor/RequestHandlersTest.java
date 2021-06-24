@@ -1060,8 +1060,7 @@ public abstract class RequestHandlersTest {
         assertEquals(State.SEALED, streamStore.getState(fairness, fairness, true, null, executor).join());
 
         DeleteStreamEvent event = new DeleteStreamEvent(fairness, fairness, 0L, createTimestamp);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        streamRequestHandler.process(event, () -> false).join();
 
         verify(segmentHelper, atLeastOnce())
                 .deleteSegment(anyString(), anyString(), anyLong(), anyString(), anyLong());
