@@ -1,9 +1,9 @@
-package io.pravega.shared.health.bindings.api;
+package io.pravega.shared.health.bindings.generated.api;
 
-import io.pravega.shared.health.bindings.api.factories.HealthApiServiceFactory;
-import io.pravega.shared.health.bindings.model.HealthDetails;
-import io.pravega.shared.health.bindings.model.HealthResult;
-import io.pravega.shared.health.bindings.model.HealthStatus;
+import io.pravega.shared.health.bindings.generated.api.factories.HealthApiServiceFactory;
+import io.pravega.shared.health.bindings.generated.model.HealthDetails;
+import io.pravega.shared.health.bindings.generated.model.HealthResult;
+import io.pravega.shared.health.bindings.generated.model.HealthStatus;
 import io.swagger.annotations.ApiParam;
 
 import javax.servlet.ServletConfig;

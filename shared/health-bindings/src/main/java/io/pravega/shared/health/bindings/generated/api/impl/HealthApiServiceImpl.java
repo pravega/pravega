@@ -1,8 +1,8 @@
-package io.pravega.shared.health.bindings.api.impl;
+package io.pravega.shared.health.bindings.generated.api.impl;
 
-import io.pravega.shared.health.bindings.api.ApiResponseMessage;
-import io.pravega.shared.health.bindings.api.NotFoundException;
-import io.pravega.shared.health.bindings.api.HealthApiService;
+import io.pravega.shared.health.bindings.generated.api.ApiResponseMessage;
+import io.pravega.shared.health.bindings.generated.api.NotFoundException;
+import io.pravega.shared.health.bindings.generated.api.HealthApiService;
 
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.SecurityContext;

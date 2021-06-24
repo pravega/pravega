@@ -17,10 +17,10 @@ package io.pravega.shared.health.bindings.resources;
 
 import io.pravega.auth.AuthException;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.shared.health.bindings.api.NotFoundException;
-import io.pravega.shared.health.bindings.model.HealthDetails;
-import io.pravega.shared.health.bindings.model.HealthResult;
-import io.pravega.shared.health.bindings.model.HealthStatus;
+import io.pravega.shared.health.bindings.generated.api.NotFoundException;
+import io.pravega.shared.health.bindings.generated.model.HealthDetails;
+import io.pravega.shared.health.bindings.generated.model.HealthResult;
+import io.pravega.shared.health.bindings.generated.model.HealthStatus;
 import io.pravega.shared.health.bindings.v1.ApiV1;
 import io.pravega.shared.health.ContributorNotFoundException;
 import io.pravega.shared.health.Health;

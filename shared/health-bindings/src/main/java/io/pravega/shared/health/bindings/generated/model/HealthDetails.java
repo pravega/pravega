@@ -11,7 +11,7 @@
  */
 
 
-package io.pravega.shared.health.bindings.model;
+package io.pravega.shared.health.bindings.generated.model;
 
 import java.util.HashMap;
 import java.util.Objects;

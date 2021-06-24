@@ -15,9 +15,9 @@
  */
 package io.pravega.shared.health.bindings;
 
-import io.pravega.shared.health.bindings.model.HealthDetails;
-import io.pravega.shared.health.bindings.model.HealthResult;
-import io.pravega.shared.health.bindings.model.HealthStatus;
+import io.pravega.shared.health.bindings.generated.model.HealthDetails;
+import io.pravega.shared.health.bindings.generated.model.HealthResult;
+import io.pravega.shared.health.bindings.generated.model.HealthStatus;
 import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.shared.health.Health;
 import io.pravega.shared.health.HealthServiceManager;
@@ -48,16 +48,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.assertEquals;
-
 @Slf4j
 public class HealthTests {
 
     private static final String HOST = "localhost";
-
-    private static final String IMPLICIT_INDICATOR = "implicit-health-child";
-
-    private static final String IMPLICIT_COMPONENT = "health-component";
 
     private static final int INTERVAL = 1000;
     @Rule

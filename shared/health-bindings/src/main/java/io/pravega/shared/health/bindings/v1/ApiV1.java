@@ -15,10 +15,10 @@
  */
 package io.pravega.shared.health.bindings.v1;
 
-import io.pravega.shared.health.bindings.api.NotFoundException;
-import io.pravega.shared.health.bindings.model.HealthDetails;
-import io.pravega.shared.health.bindings.model.HealthResult;
-import io.pravega.shared.health.bindings.model.HealthStatus;
+import io.pravega.shared.health.bindings.generated.api.NotFoundException;
+import io.pravega.shared.health.bindings.generated.model.HealthDetails;
+import io.pravega.shared.health.bindings.generated.model.HealthResult;
+import io.pravega.shared.health.bindings.generated.model.HealthStatus;
 import io.swagger.annotations.ApiParam;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;

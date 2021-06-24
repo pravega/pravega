@@ -11,7 +11,7 @@
  */
 
 
-package io.pravega.shared.health.bindings.model;
+package io.pravega.shared.health.bindings.generated.model;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 

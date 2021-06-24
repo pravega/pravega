@@ -1,4 +1,4 @@
-package io.pravega.shared.health.bindings.api;
+package io.pravega.shared.health.bindings.generated.api;
 
 import javax.xml.bind.annotation.XmlTransient;
 

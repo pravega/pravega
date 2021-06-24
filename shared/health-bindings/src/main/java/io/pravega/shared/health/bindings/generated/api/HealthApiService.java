@@ -1,4 +1,4 @@
-package io.pravega.shared.health.bindings.api;
+package io.pravega.shared.health.bindings.generated.api;
 
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.SecurityContext;
