@@ -278,10 +278,8 @@ public abstract class Command {
                         .put(KeyValueTableCommand.PutIf::descriptor, KeyValueTableCommand.PutIf::new)
                         .put(KeyValueTableCommand.PutIfAbsent::descriptor, KeyValueTableCommand.PutIfAbsent::new)
                         .put(KeyValueTableCommand.PutAll::descriptor, KeyValueTableCommand.PutAll::new)
-                        //.put(KeyValueTableCommand.PutRange::descriptor, KeyValueTableCommand.PutRange::new) TODO https://github.com/pravega/pravega/issues/5942
                         .put(KeyValueTableCommand.Remove::descriptor, KeyValueTableCommand.Remove::new)
-                        //.put(KeyValueTableCommand.ListKeys::descriptor, KeyValueTableCommand.ListKeys::new) TODO https://github.com/pravega/pravega/issues/5942
-                        //.put(KeyValueTableCommand.ListEntries::descriptor, KeyValueTableCommand.ListEntries::new) TODO https://github.com/pravega/pravega/issues/5942
+                        .put(KeyValueTableCommand.ListEntries::descriptor, KeyValueTableCommand.ListEntries::new)
                         .build());
 
         /**
