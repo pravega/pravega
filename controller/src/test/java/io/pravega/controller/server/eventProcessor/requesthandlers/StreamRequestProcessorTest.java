@@ -291,7 +291,7 @@ public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
             return waitForIt1;
         });
 
-        TestEvent2 event2 = new TestEvent2(scope, stream, () -> Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Failing processing")));
+        TestEvent2 event2 = new TestEvent2(scope, stream, () -> Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "Failing processing")));
 
         // 1. start test event1 processing on processor 1. Don't let this complete.
         CompletableFuture<Void> processing11 = requestProcessor1.process(event1, () -> false);
@@ -299,8 +299,7 @@ public abstract class StreamRequestProcessorTest extends ThreadPooledTestSuite {
         started1.join();
 
         // 2. start test event2 processing on processor 2. Make this fail with OperationNotAllowed and verify that it gets postponed.
-        AssertExtensions.assertFutureThrows("Fail first processing with operation not allowed", requestProcessor2.process(event2, () -> false),
-                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        requestProcessor2.process(event2, () -> false).join();
         // also verify that store has set the processor name of processor 2.
         String waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
         assertEquals(TestRequestProcessor2.class.getSimpleName(), waitingProcessor);
