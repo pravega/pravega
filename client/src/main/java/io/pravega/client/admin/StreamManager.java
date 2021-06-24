@@ -23,6 +23,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import java.net.URI;
+import java.util.Collection;
 import java.util.Iterator;
 
 /**
@@ -138,6 +139,25 @@ public interface StreamManager extends AutoCloseable {
     Iterator<Stream> listStreams(String scopeName);
 
     /**
+     * Gets an iterator to list all streams with the provided tag.
+     *
+     * @param scopeName The name of the scope for which to list streams in.
+     * @param tagName The name of the tag.
+     *
+     * @return Iterator of Stream to iterator over all streams in scope with the provided tag.
+     */
+    Iterator<Stream> listStreams(String scopeName, String tagName);
+
+    /**
+     * Gets the Tags associated with a stream.
+     *
+     * @param scopeName Scope name.
+     * @param streamName Stream name.
+     * @return Tags associated with the stream.
+     */
+    Collection<String> getStreamTags(String scopeName, String streamName);
+
+    /**
      * Checks if a stream exists in scope. 
      *
      * @param scopeName  The name of the scope to check the stream in.
@@ -169,7 +189,8 @@ public interface StreamManager extends AutoCloseable {
 
     /**
      * Get information about a given Stream, {@link StreamInfo}.
-     * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream.
+     * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream and the current
+     * {@link StreamConfiguration}
      *
      * @param scopeName The scope of the stream.
      * @param streamName The stream name.

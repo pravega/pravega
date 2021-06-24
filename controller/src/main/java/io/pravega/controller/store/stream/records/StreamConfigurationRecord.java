@@ -27,15 +27,17 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
+import lombok.Singular;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 @Data
 @Builder
 @Slf4j
-@AllArgsConstructor
 public class StreamConfigurationRecord {
 
     public static final ConfigurationRecordSerializer SERIALIZER = new ConfigurationRecordSerializer();
@@ -46,10 +48,18 @@ public class StreamConfigurationRecord {
     private final String streamName;
     private final StreamConfiguration streamConfiguration;
     private final boolean updating;
+    private final boolean tagOnlyUpdate; // new entry into the StreamConfigurationRecord to indicate that only tags are updated.
+    @Singular
+    private final Set<String> removeTags;
 
-    public static StreamConfigurationRecord update(String scope, String streamName, StreamConfiguration streamConfig) {
+    public static StreamConfigurationRecord update(String scope, String streamName, StreamConfiguration streamConfig, Set<String> tagsToBeRemoved) {
         return StreamConfigurationRecord.builder().scope(scope).streamName(streamName).streamConfiguration(streamConfig)
-                                        .updating(true).build();
+                                        .updating(true).tagOnlyUpdate(false).removeTags(tagsToBeRemoved).build();
+    }
+
+    public static StreamConfigurationRecord updateTag(String scope, String streamName, StreamConfiguration streamConfig, Set<String> tagsToBeRemoved) {
+        return StreamConfigurationRecord.builder().scope(scope).streamName(streamName).streamConfiguration(streamConfig)
+                                        .updating(true).tagOnlyUpdate(true).removeTags(tagsToBeRemoved).build();
     }
 
     public static StreamConfigurationRecord complete(String scope, String streamName, StreamConfiguration streamConfig) {
@@ -221,7 +231,8 @@ public class StreamConfigurationRecord {
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00)
-                      .revision(1, this::write01, this::read01);
+                      .revision(1, this::write01, this::read01)
+                      .revision(2, this::write02, this::read02);
         }
 
         @Override
@@ -266,6 +277,28 @@ public class StreamConfigurationRecord {
         private void write01(StreamConfigurationRecord streamConfigurationRecord, RevisionDataOutput revisionDataOutput)
                 throws IOException {
             revisionDataOutput.writeLong(streamConfigurationRecord.streamConfiguration.getTimestampAggregationTimeout());
+        }
+
+        private void read02(RevisionDataInput revisionDataInput,
+                            StreamConfigurationRecordBuilder configurationRecordBuilder)
+                throws IOException {
+            RevisionDataInput.ElementDeserializer<String> stringDeserializer = RevisionDataInput::readUTF;
+            StreamConfiguration.StreamConfigurationBuilder streamConfigurationBuilder = StreamConfiguration.builder();
+            streamConfigurationBuilder.scalingPolicy(configurationRecordBuilder.streamConfiguration.getScalingPolicy())
+                                      .retentionPolicy(configurationRecordBuilder.streamConfiguration.getRetentionPolicy())
+                                      .timestampAggregationTimeout(configurationRecordBuilder.streamConfiguration.getTimestampAggregationTimeout())
+                                      .tags(revisionDataInput.readCollection(stringDeserializer, HashSet::new));
+            configurationRecordBuilder.streamConfiguration(streamConfigurationBuilder.build());
+            configurationRecordBuilder.tagOnlyUpdate(revisionDataInput.readBoolean());
+            configurationRecordBuilder.removeTags(revisionDataInput.readCollection(stringDeserializer, HashSet::new));
+        }
+
+        private void write02(StreamConfigurationRecord streamConfigurationRecord, RevisionDataOutput revisionDataOutput)
+                throws IOException {
+            RevisionDataOutput.ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
+            revisionDataOutput.writeCollection(streamConfigurationRecord.streamConfiguration.getTags(), stringSerializer);
+            revisionDataOutput.writeBoolean(streamConfigurationRecord.isTagOnlyUpdate());
+            revisionDataOutput.writeCollection(streamConfigurationRecord.removeTags, stringSerializer);
         }
 
         @Override
