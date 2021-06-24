@@ -34,6 +34,12 @@ public class ScaleMetadata   {
   @JsonProperty("segmentList")
   private List<Segment> segmentList = null;
 
+  @JsonProperty("splits")
+  private Long splits = null;
+
+  @JsonProperty("merges")
+  private Long merges = null;
+
   public ScaleMetadata timestamp(Long timestamp) {
     this.timestamp = timestamp;
     return this;
@@ -80,6 +86,44 @@ public class ScaleMetadata   {
     this.segmentList = segmentList;
   }
 
+  public ScaleMetadata splits(Long splits) {
+    this.splits = splits;
+    return this;
+  }
+
+  /**
+   * Get splits
+   * @return splits
+   **/
+  @JsonProperty("splits")
+  @ApiModelProperty(value = "")
+  public Long getSplits() {
+    return splits;
+  }
+
+  public void setSplits(Long splits) {
+    this.splits = splits;
+  }
+
+  public ScaleMetadata merges(Long merges) {
+    this.merges = merges;
+    return this;
+  }
+
+  /**
+   * Get merges
+   * @return merges
+   **/
+  @JsonProperty("merges")
+  @ApiModelProperty(value = "")
+  public Long getMerges() {
+    return merges;
+  }
+
+  public void setMerges(Long merges) {
+    this.merges = merges;
+  }
+
 
   @Override
   public boolean equals(java.lang.Object o) {
@@ -91,12 +135,14 @@ public class ScaleMetadata   {
     }
     ScaleMetadata scaleMetadata = (ScaleMetadata) o;
     return Objects.equals(this.timestamp, scaleMetadata.timestamp) &&
-        Objects.equals(this.segmentList, scaleMetadata.segmentList);
+        Objects.equals(this.segmentList, scaleMetadata.segmentList) &&
+        Objects.equals(this.splits, scaleMetadata.splits) &&
+        Objects.equals(this.merges, scaleMetadata.merges);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(timestamp, segmentList);
+    return Objects.hash(timestamp, segmentList, splits, merges);
   }
 
 
@@ -107,6 +153,8 @@ public class ScaleMetadata   {
     
     sb.append("    timestamp: ").append(toIndentedString(timestamp)).append("\n");
     sb.append("    segmentList: ").append(toIndentedString(segmentList)).append("\n");
+    sb.append("    splits: ").append(toIndentedString(splits)).append("\n");
+    sb.append("    merges: ").append(toIndentedString(merges)).append("\n");
     sb.append("}");
     return sb.toString();
   }
