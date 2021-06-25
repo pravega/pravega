@@ -73,8 +73,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
     protected static final Predicate<Throwable> NON_RETRYABLE_EXCEPTIONS = ILLEGAL_STATE_PREDICATE.or(DATA_NOT_FOUND_PREDICATE)
                                                                             .or(SEGMENT_NOT_FOUND_PREDICATE)
                                                                             .or(e -> Exceptions.unwrap(e) instanceof IllegalArgumentException)
-                                                                            .or(e -> Exceptions.unwrap(e) instanceof NullPointerException)
-                                                                            .negate();
+                                                                            .or(e -> Exceptions.unwrap(e) instanceof NullPointerException);
     protected static final Predicate<Throwable> EVENT_RETRY_PREDICATE = NON_RETRYABLE_EXCEPTIONS.negate();
     protected static final Predicate<Throwable> SCALE_EVENT_RETRY_PREDICATE = NON_RETRYABLE_EXCEPTIONS.or(e -> e instanceof EpochTransitionOperationExceptions.ConditionInvalidException)
                                                                                 .or(e -> e instanceof EpochTransitionOperationExceptions.InputInvalidException)
