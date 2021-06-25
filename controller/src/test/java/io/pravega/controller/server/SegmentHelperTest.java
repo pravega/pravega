@@ -80,7 +80,7 @@ public class SegmentHelperTest extends ThreadPooledTestSuite {
     private final byte[] value = "v".getBytes();
     private final ByteBuf token1 = wrappedBuffer(new byte[]{0x01});
     private final ByteBuf token2 = wrappedBuffer(new byte[]{0x02});
-    
+
     @Test
     public void getSegmentUri() {
         MockConnectionFactory factory = new MockConnectionFactory();

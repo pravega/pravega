@@ -40,6 +40,7 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.util.RetryHelper;
 
+import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,8 +54,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
 import org.apache.curator.shaded.com.google.common.base.Charsets;
 import org.slf4j.LoggerFactory;
 
@@ -241,6 +244,54 @@ public class PravegaTablesStoreHelper {
                     return version;
                 }, executor)
                 .whenComplete((r, ex) -> releaseEntries(entries));
+    }
+
+    /*
+        Conditional delete of the specified key with the specified version.
+        If the conditional delete fails it is ignored.
+     */
+    private CompletableFuture<Void> conditionalDeleteOfKey(String tableName, long requestId, String key,
+                                                           TableSegmentKeyVersion keyVersion) {
+        return expectingWriteConflict(removeEntry(tableName, key, new Version.LongVersion(keyVersion.getSegmentVersion()), requestId), null);
+    }
+
+    /**
+     * Method to get and conditionally update value for the specified key.
+     *
+     * This method fetches the latest version of the value for the specified key and applies the update function and
+     * updates the value.
+     *
+     * @param tableName Table Name.
+     * @param tableKey Key to update.
+     * @param updateFunction A function which updates the values.
+     * @param attemptCleanup A Predicate which decides if a cleanup should be invoked.
+     * @param requestId Request id.
+     * @return A future which completes when the update operation has completed. A conditional update failure will cause
+     * the future to complete exceptionally.
+     */
+    public CompletableFuture<Void> getAndUpdateEntry(final String tableName, final String tableKey, final Function<TableSegmentEntry, TableSegmentEntry> updateFunction,
+                                                     final Predicate<TableSegmentEntry> attemptCleanup, long requestId) {
+        Supplier<String> errorMessage = () -> String.format("get and update values: on table: %s for key %s", tableName, tableKey);
+        // fetch un-versioned key
+        List<TableSegmentKey> keys = Collections.singletonList(TableSegmentKey.unversioned(tableKey.getBytes(StandardCharsets.UTF_8)));
+        return withRetries(() -> segmentHelper.readTable(tableName, keys, authToken.get(), requestId)
+                                              .whenComplete((v, ex) -> releaseKeys(keys))
+                                              .thenCompose(entries -> {
+                                                  // apply update.
+                                                  TableSegmentEntry updatedEntry = updateFunction.apply(entries.get(0));
+                                                  // check if a conditional delete should be performed post updation.
+                                                  boolean shouldAttemptCleanup = attemptCleanup.test(updatedEntry);
+                                                  return segmentHelper.updateTableEntries(tableName, Collections.singletonList(updatedEntry), authToken.get(), requestId)
+                                                                      .thenCompose(keyVersions -> {
+                                                                          if (shouldAttemptCleanup) {
+                                                                              // attempt a conditional delete of the entry since there are zero entries.
+                                                                              return conditionalDeleteOfKey(tableName, requestId, tableKey, keyVersions.get(0));
+                                                                          } else {
+                                                                              return CompletableFuture.completedFuture(null);
+                                                                          }
+                                                                      }).whenComplete((v, ex) -> releaseEntries(Collections.singletonList(updatedEntry)));
+                                              }), errorMessage, true, requestId);
+
     }
 
     /**
@@ -654,6 +705,11 @@ public class PravegaTablesStoreHelper {
                 toReturn);
     }
 
+    public <T> CompletableFuture<T> expectingWriteConflict(CompletableFuture<T> future, T toReturn) {
+        return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException,
+                                              toReturn);
+    }
+
     <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
         return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException,
                 toReturn);
@@ -747,7 +803,7 @@ public class PravegaTablesStoreHelper {
                 });
     }
 
-    private byte[] getArray(ByteBuf buf) {
+    byte[] getArray(ByteBuf buf) {
         final byte[] bytes = new byte[buf.readableBytes()];
         final int readerIndex = buf.readerIndex();
         buf.getBytes(readerIndex, bytes);

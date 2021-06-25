@@ -176,6 +176,11 @@ public abstract class ControllerServiceImplTest {
     @Test
     public void streamsInScopeTest() {
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build();
+        final StreamConfiguration cfgWithTags = StreamConfiguration.builder()
+                                                                   .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                   .tag("tag1")
+                                                                   .tag("tag2")
+                                                                   .build();
 
         ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
         ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(SCOPE1).build();
@@ -193,7 +198,7 @@ public abstract class ControllerServiceImplTest {
         Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
 
         ResultObserver<CreateStreamStatus> createStreamStatus3 = new ResultObserver<>();
-        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM3, configuration), createStreamStatus3);
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM3, cfgWithTags), createStreamStatus3);
         status = createStreamStatus3.get();
         Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
 
@@ -452,6 +457,7 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM2, configuration2), result2);
         status = result2.get();
         Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
+
         // endregion
 
         // region duplicate create stream
@@ -490,6 +496,28 @@ public abstract class ControllerServiceImplTest {
 
         final StreamConfiguration configuration2 = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(3)).build();
+        ResultObserver<UpdateStreamStatus> result2 = new ResultObserver<>();
+        this.controllerService.updateStream(ModelHelper.decode(SCOPE1, STREAM1, configuration2), result2);
+        UpdateStreamStatus updateStreamStatus = result2.get();
+        Assert.assertEquals(updateStreamStatus.getStatus(), UpdateStreamStatus.Status.SUCCESS);
+
+        // Update stream for non-existent stream.
+        ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
+        final StreamConfiguration configuration3 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        this.controllerService.updateStream(ModelHelper.decode(SCOPE1, "unknownstream", configuration3), result3);
+        updateStreamStatus = result3.get();
+        Assert.assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStreamStatus.getStatus());
+    }
+
+    @Test
+    public void updateStreamTestsWithTags() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+
+        final StreamConfiguration configuration2 = StreamConfiguration.builder()
+                                                                      .scalingPolicy(ScalingPolicy.fixed(2))
+                                                                      .tag("tag1")
+                                                                      .tag("tag2")
+                                                                      .build();
         ResultObserver<UpdateStreamStatus> result2 = new ResultObserver<>();
         this.controllerService.updateStream(ModelHelper.decode(SCOPE1, STREAM1, configuration2), result2);
         UpdateStreamStatus updateStreamStatus = result2.get();

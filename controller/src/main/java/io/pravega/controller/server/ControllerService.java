@@ -833,12 +833,30 @@ public class ControllerService {
      * @param requestId request id
      * @return List of streams in scope.
      */
-    public CompletableFuture<Pair<List<String>, String>> listStreams(final String scope, final String token, final int limit, 
+    public CompletableFuture<Pair<List<String>, String>> listStreams(final String scope, final String token, final int limit,
                                                                      final long requestId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         OperationContext context = streamStore.createScopeContext(scope, requestId);
 
         return streamStore.listStream(scope, token, limit, executor, context);
+    }
+
+    /**
+     * List streams matching the provided tag in a scope.
+     *
+     * @param scope Name of the scope.
+     * @param tag Tag name.
+     * @param token continuation token
+     * @param requestId request id
+     * @return List of streams in scope.
+     */
+    public CompletableFuture<Pair<List<String>, String>> listStreamsForTag(final String scope, final String tag,
+                                                                           final String token, final long requestId) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(tag, "tag");
+        OperationContext context = streamStore.createScopeContext(scope, requestId);
+
+        return streamStore.listStreamsForTag(scope, tag, token, executor, context);
     }
 
     /**

@@ -13,21 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.server.security.auth.handler;
+package io.pravega.shared.rest.security;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.grpc.ServerBuilder;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ServiceLoader;
 import javax.annotation.concurrent.GuardedBy;
 
+import io.pravega.auth.ServerConfig;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -38,14 +38,41 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class AuthHandlerManager {
-    private final GRPCServerConfig serverConfig;
 
     @GuardedBy("this")
     private final Map<String, AuthHandler> handlerMap;
 
-    public AuthHandlerManager(GRPCServerConfig serverConfig) {
-        this.serverConfig = serverConfig;
+    /**
+     * If the {@link ServiceLoader} fails to load a {@link AuthHandler} class, any future authorization/authentication
+     * attempts that rely on that {@link AuthHandler} being registered will fail with an {@link AuthenticationException}.
+     * This maintains the previous behavior where the initialization was done via an explicit method call outside of the constructor.
+     *
+     * @param serverConfig The {@link ServerConfig} config object.
+     */
+    public AuthHandlerManager(ServerConfig serverConfig) {
         this.handlerMap = new HashMap<>();
+        if (serverConfig != null && serverConfig.isAuthorizationEnabled()) {
+            try {
+                ServiceLoader<AuthHandler> loader = ServiceLoader.load(AuthHandler.class);
+                for (AuthHandler handler : loader) {
+                    try {
+                        handler.initialize(serverConfig);
+                        if (handlerMap.putIfAbsent(handler.getHandlerName(), handler) != null) {
+                            log.warn("Handler with name {} already exists. Not replacing it with the latest handler");
+                            continue;
+                        }
+                    } catch (Exception e) {
+                        log.warn("Exception while initializing auth handler {}", handler, e);
+                    }
+                }
+            } catch (Throwable e) {
+                log.warn("Exception while loading the auth handlers", e);
+            }
+        }
+    }
+
+    public Map<String, AuthHandler> getHandlerMap() {
+        return ImmutableMap.copyOf(handlerMap);
     }
 
     private AuthHandler getHandler(String handlerName) throws AuthenticationException {
@@ -150,34 +177,5 @@ public class AuthHandlerManager {
     public synchronized void registerHandler(AuthHandler authHandler) {
         Preconditions.checkNotNull(authHandler, "authHandler");
         this.handlerMap.put(authHandler.getHandlerName(), authHandler);
-    }
-
-    /**
-     * Loads the custom implementations of the AuthHandler interface dynamically. Registers the interceptors with grpc.
-     * Stores the implementation in a local map for routing the REST auth request.
-     * @param builder The grpc service builder to register the interceptors.
-     */
-    public void registerInterceptors(ServerBuilder<?> builder) {
-        try {
-            if (serverConfig.isAuthorizationEnabled()) {
-                ServiceLoader<AuthHandler> loader = ServiceLoader.load(AuthHandler.class);
-                for (AuthHandler handler : loader) {
-                    try {
-                        handler.initialize(serverConfig);
-                        synchronized (this) {
-                            if (handlerMap.putIfAbsent(handler.getHandlerName(), handler) != null) {
-                                log.warn("Handler with name {} already exists. Not replacing it with the latest handler");
-                                continue;
-                            }
-                        }
-                        builder.intercept(new AuthInterceptor(handler));
-                    } catch (Exception e) {
-                        log.warn("Exception while initializing auth handler {}", handler, e);
-                    }
-                }
-            }
-        } catch (Throwable e) {
-            log.warn("Exception while loading the auth handlers", e);
-        }
     }
 }

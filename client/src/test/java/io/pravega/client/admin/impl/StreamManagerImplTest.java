@@ -48,6 +48,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -63,6 +64,7 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -327,6 +329,7 @@ public class StreamManagerImplTest {
         
         streamManager.createStream(scope, stream1, StreamConfiguration.builder()
                                                                         .scalingPolicy(ScalingPolicy.fixed(3))
+                                                                        .tag("t1")
                                                                         .build());
         streamManager.createStream(scope, stream2, StreamConfiguration.builder()
                                                                         .scalingPolicy(ScalingPolicy.fixed(3))
@@ -348,6 +351,14 @@ public class StreamManagerImplTest {
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream1)));
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream2)));
         assertTrue(streams.stream().anyMatch(x -> x.getStreamName().equals(stream3)));
+        assertEquals(Collections.singleton("t1"), streamManager.getStreamTags(scope, stream1));
+        assertEquals(Collections.singletonList(Stream.of(scope, stream1)), newArrayList(streamManager.listStreams(scope, "t1")));
+
+        streamManager.updateStream(scope, stream1, StreamConfiguration.builder()
+                                                                     .scalingPolicy(ScalingPolicy.fixed(3))
+                                                                     .build());
+        assertEquals(Collections.emptySet(), streamManager.getStreamTags(scope, stream1));
+
     }
     
     @Test(timeout = 10000)

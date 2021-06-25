@@ -20,6 +20,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
@@ -28,8 +29,6 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.security.auth.GrpcAuthHelper;
 import io.pravega.controller.store.Version;
-import io.pravega.controller.store.client.StoreClient;
-import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -52,7 +51,6 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestingServerStarter;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -61,15 +59,15 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.ClassRule;
 import org.junit.rules.Timeout;
 import org.mockito.Mock;
 
@@ -79,6 +77,9 @@ import org.mockito.Mock;
 @Slf4j
 public abstract class TimeoutServiceTest {
 
+    private static final  RetryPolicy RETRY_POLICY = new RetryOneTime(2000);
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource(RETRY_POLICY);
     private final static String SCOPE = "SCOPE";
     private final static String STREAM = "STREAM";
 
@@ -94,10 +95,8 @@ public abstract class TimeoutServiceTest {
     private StreamMetadataStore streamStore;
     private TimerWheelTimeoutService timeoutService;
     private ControllerService controllerService;
-    private TestingServer zkTestServer;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private StoreClient storeClient;
     private RequestTracker requestTracker = new RequestTracker(true);
     @Mock
     private KVTableMetadataStore kvtStore;
@@ -108,28 +107,18 @@ public abstract class TimeoutServiceTest {
     public void setUp() throws Exception {
         final String hostId = "host";
 
-        // Instantiate test ZK service.
-        zkTestServer = new TestingServerStarter().start();
-        String connectionString = zkTestServer.getConnectString();
-
         // Initialize the executor service.
         executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "test");
-        // Initialize ZK client.
-        client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
-        client.start();
-
-        // Create STREAM store, host store, and task metadata store.
-        storeClient = StoreClientFactory.createZKStoreClient(client);
         segmentHelper = getSegmentHelper();
         streamStore = getStore();
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(PRAVEGA_ZK_CURATOR_RESOURCE.storeClient, executor);
 
         StreamMetrics.initialize();
         TransactionMetrics.initialize();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore,
                 SegmentHelperMock.getSegmentHelperMock(), executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 SegmentHelperMock.getSegmentHelperMock(), executor, hostId, TimeoutServiceConfig.defaultConfig(),
                 new LinkedBlockingQueue<>(5), GrpcAuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
@@ -148,7 +137,7 @@ public abstract class TimeoutServiceTest {
                 .scalingPolicy(ScalingPolicy.fixed(1)).build();
 
         streamStore.createStream(SCOPE, STREAM, streamConfiguration, System.currentTimeMillis(), null, executor)
-                   .thenCompose(x -> streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor)).join();
+                .thenCompose(x -> streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor)).join();
     }
 
     abstract SegmentHelper getSegmentHelper();
@@ -163,9 +152,6 @@ public abstract class TimeoutServiceTest {
         ExecutorServiceHelpers.shutdown(executor);
         timeoutService.stopAsync();
         timeoutService.awaitTerminated();
-        client.close();
-        storeClient.close();
-        zkTestServer.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();
     }
@@ -196,11 +182,11 @@ public abstract class TimeoutServiceTest {
     public void testControllerTimeout() throws InterruptedException {
         long begin = System.currentTimeMillis();
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, 0L)
-                                      .thenApply(x -> x.getKey())
-                                      .join();
+                .thenApply(x -> x.getKey())
+                .join();
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue()
-                                                   .poll((long) (1.3 * LEASE), TimeUnit.MILLISECONDS);
+                .poll((long) (1.3 * LEASE), TimeUnit.MILLISECONDS);
         long end = System.currentTimeMillis();
         Assert.assertNotNull(result);
 
@@ -245,8 +231,8 @@ public abstract class TimeoutServiceTest {
     @Test(timeout = 10000)
     public void testControllerPingSuccess() throws InterruptedException {
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, 9L)
-                                      .thenApply(x -> x.getKey())
-                                      .join();
+                .thenApply(x -> x.getKey())
+                .join();
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
         Assert.assertNull(result);
@@ -275,7 +261,7 @@ public abstract class TimeoutServiceTest {
         StreamMetadataStore streamStore2 = getStore();
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(PRAVEGA_ZK_CURATOR_RESOURCE.storeClient, executor);
 
         SegmentHelper helperMock = SegmentHelperMock.getSegmentHelperMock();
         @Cleanup
@@ -294,8 +280,8 @@ public abstract class TimeoutServiceTest {
                 streamTransactionMetadataTasks2, helperMock, executor, null, requestTracker);
 
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, 9L)
-                                       .thenApply(x -> x.getKey())
-                                       .join();
+                .thenApply(x -> x.getKey())
+                .join();
 
         VersionedTransactionData txnData = streamStore.getTransactionData(SCOPE, STREAM, txnId, null, executor).join();
         Assert.assertEquals(txnData.getVersion(), getVersion(0));
@@ -356,8 +342,8 @@ public abstract class TimeoutServiceTest {
     public void testControllerPingLeaseTooLarge() {
         int lease = 10;
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, lease, 9L)
-                                      .thenApply(x -> x.getKey())
-                                      .join();
+                .thenApply(x -> x.getKey())
+                .join();
 
         PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, Config.MAX_LEASE_VALUE + 1, 9L).join();
         Assert.assertEquals(PingTxnStatus.Status.LEASE_TOO_LARGE, pingStatus.getStatus());
@@ -408,8 +394,8 @@ public abstract class TimeoutServiceTest {
     public void testControllerPingFailureMaxExecutionTimeExceeded() throws InterruptedException {
         int lease = 10;
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, lease, 9L)
-                                      .thenApply(x -> x.getKey())
-                                      .join();
+                .thenApply(x -> x.getKey())
+                .join();
 
         TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId, 9L).join();
         Assert.assertEquals(TxnState.State.OPEN, txnState.getState());
@@ -454,8 +440,8 @@ public abstract class TimeoutServiceTest {
     public void testControllerPingFailureDisconnected() throws InterruptedException {
 
         UUID txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, 0L)
-                                      .thenApply(x -> x.getKey())
-                                      .join();
+                .thenApply(x -> x.getKey())
+                .join();
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
         Assert.assertNull(result);

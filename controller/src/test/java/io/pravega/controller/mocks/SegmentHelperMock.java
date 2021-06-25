@@ -274,7 +274,7 @@ public class SegmentHelperMock {
                             ByteBuffer key = requestKey.getKey().copy().nioBuffer();
                             TableSegmentEntry existingEntry = table.get(key);
                             if (existingEntry == null) {
-                                resultList.add(TableSegmentEntry.notExists(new byte[1], new byte[1]));
+                                resultList.add(TableSegmentEntry.notExists(key.array(), new byte[0]));
                             } else if (existingEntry.getKey().getVersion().equals(requestKey.getVersion())
                                     || requestKey.getVersion() == null
                                     || requestKey.getVersion().equals(TableSegmentKeyVersion.NO_VERSION)) {

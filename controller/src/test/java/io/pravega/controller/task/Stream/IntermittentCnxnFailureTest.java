@@ -26,6 +26,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -49,7 +50,6 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.SerializedClassRunner;
-import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -57,15 +57,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.ClassRule;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -81,6 +79,8 @@ import static org.mockito.Mockito.*;
 @RunWith(SerializedClassRunner.class)
 public class IntermittentCnxnFailureTest {
 
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private static final String SCOPE = "scope";
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
@@ -88,9 +88,6 @@ public class IntermittentCnxnFailureTest {
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
 
     private ControllerService controllerService;
-
-    private CuratorFramework zkClient;
-    private TestingServer zkServer;
 
     private StreamMetadataStore streamStore;
     private BucketStore bucketStore;
@@ -118,15 +115,9 @@ public class IntermittentCnxnFailureTest {
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.startWithoutExporting();
 
-        zkServer = new TestingServerStarter().start();
-        zkServer.start();
-        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
-                new ExponentialBackoffRetry(200, 10, 5000));
-        zkClient.start();
-
-        streamStore = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
+        streamStore = spy(StreamStoreFactory.createZKStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor));
+        bucketStore = StreamStoreFactory.createZKBucketStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         connectionPool = new ConnectionPoolImpl(ClientConfig.builder().build(), new SocketConnectionFactoryImpl(ClientConfig.builder().build()));
 
@@ -153,8 +144,6 @@ public class IntermittentCnxnFailureTest {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         streamStore.close();
-        zkClient.close();
-        zkServer.close();
         connectionPool.close();
         StreamMetrics.reset();
         ExecutorServiceHelpers.shutdown(executor);

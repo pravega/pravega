@@ -13,17 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.server.rpc.auth;
-
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static io.pravega.auth.AuthHandler.Permissions.*;
+package io.pravega.shared.rest.impl;
 
 import io.pravega.auth.AuthException;
-import io.pravega.controller.mocks.FakeAuthHandler;
-import io.pravega.controller.server.security.auth.RESTAuthHelper;
+import io.pravega.shared.rest.RESTServerConfig;
+import io.pravega.auth.FakeAuthHandler;
+import io.pravega.shared.rest.security.RESTAuthHelper;
+import io.pravega.shared.rest.security.AuthHandlerManager;
 import io.pravega.shared.security.auth.UserPrincipal;
-import io.pravega.controller.server.security.auth.handler.AuthHandlerManager;
+import io.pravega.test.common.TestUtils;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -31,6 +29,11 @@ import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+
+import static io.pravega.auth.AuthHandler.Permissions.READ;
+import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Unit tests for the RESTAuthHelper class.
@@ -41,7 +44,15 @@ public class RESTAuthHelperTest {
 
     @Before
     public void init() {
-        AuthHandlerManager authManager = new AuthHandlerManager(null);
+        RESTServerConfig config = RESTServerConfigImpl.builder()
+                .host("localhost")
+                .port(TestUtils.getAvailableListenPort())
+                .authorizationEnabled(true)
+                .userPasswordFile("passwd")
+                .tlsEnabled(false)
+                .build();
+
+        AuthHandlerManager authManager = new AuthHandlerManager(config);
         authManager.registerHandler(new FakeAuthHandler());
         authHelper = new RESTAuthHelper(authManager);
     }
