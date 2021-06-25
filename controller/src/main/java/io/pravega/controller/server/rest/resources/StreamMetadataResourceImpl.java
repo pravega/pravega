@@ -545,7 +545,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
      * @param asyncResponse       AsyncResponse provides means for asynchronous server side response processing.
      */
     @Override
-    public void listStreams(final String scopeName, final String showInternalStreams,
+    public void listStreams(final String scopeName, final String filterType, final String filterValue,
                             final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "listStreams");
         long requestId =  requestIdGenerator.nextLong();
@@ -563,7 +563,10 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             LoggerHelpers.traceLeave(log, "listStreams", traceId);
             return;
         }
-        boolean showOnlyInternalStreams = showInternalStreams != null && showInternalStreams.equals("true");
+        boolean showOnlyInternalStreams = filterType != null && filterType.equals("showInternalStreams");
+        String tag;
+        if (filterType.equals("tag") && filterValue != null)
+            tag = filterValue;
         controllerService.listStreamsInScope(scopeName, requestId)
                 .thenApply(streamsList -> {
                     StreamsList streams = new StreamsList();
