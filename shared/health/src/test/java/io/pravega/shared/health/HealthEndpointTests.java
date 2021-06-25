@@ -40,14 +40,11 @@ public class HealthEndpointTests {
     @Before
     public void before() {
         service = new HealthServiceManager(Duration.ofSeconds(1));
-        service.getHealthServiceUpdater().startAsync();
-        service.getHealthServiceUpdater().awaitRunning();
+        service.start();
     }
 
     @After
     public void after() {
-        service.getHealthServiceUpdater().stopAsync();
-        service.getHealthServiceUpdater().awaitTerminated();
         service.close();
     }
 

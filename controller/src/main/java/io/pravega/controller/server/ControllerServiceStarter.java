@@ -163,7 +163,6 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
         this.streamMetadataStoreRef = Optional.ofNullable(streamStore);
         this.kvtMetaStoreRef = Optional.ofNullable(kvtStore);
         this.storeClientFailureFuture = new CompletableFuture<>();
-        this.healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckFrequency());
     }
 
     @Override
@@ -343,6 +342,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
             }
 
             // Start the Health Service.
+            healthServiceManager = new HealthServiceManager(serviceConfig.getHealthCheckFrequency());
             healthServiceManager.start();
 
             // Start RPC server.

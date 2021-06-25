@@ -39,16 +39,12 @@ public class HealthServiceUpdaterTests {
     @Before
     public void before() {
         service = new HealthServiceManager(Duration.ofSeconds(1));
-        service.getHealthServiceUpdater().startAsync();
-        healthServiceUpdater = service.getHealthServiceUpdater();
-        healthServiceUpdater.awaitRunning();
+        service.start();
     }
 
     @After
     public void after() {
         service.close();
-        healthServiceUpdater.stopAsync();
-        healthServiceUpdater.awaitTerminated();
     }
 
     @Test
