@@ -75,7 +75,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         return 1;
     }
 
-    @Test(timeout = 10000)
+    @Test (timeout = 10000)
     public void writerCreationTest() throws Exception {
         EventStreamClientFactory clientFactory = mock(EventStreamClientFactory.class);
         CompletableFuture<Void> createWriterLatch = new CompletableFuture<>();
@@ -137,8 +137,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         processor.close();
 
         // create third writer, this time supply the writer directly
-        EventStreamWriter<AutoScaleEvent> writer = spy(createWriter(e -> {
-        }));
+        EventStreamWriter<AutoScaleEvent> writer = spy(createWriter(e -> { }));
 
         // verify that when writer is set, we are able to get the processor initialized
         TestAutoScaleProcessor processor2 = new TestAutoScaleProcessor(writer,
@@ -157,7 +156,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         verify(writer, times(1)).close();
     }
 
-    @Test(timeout = 10000)
+    @Test (timeout = 10000)
     public void scaleTest() {
         CompletableFuture<Void> result = new CompletableFuture<>();
         CompletableFuture<Void> result2 = new CompletableFuture<>();
