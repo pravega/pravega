@@ -2243,10 +2243,7 @@ public abstract class PersistentStreamBase implements Stream {
         AtomicInteger till = new AtomicInteger(Math.min(limit, txnIds.size()));
         return Futures.loop(() -> from.get() < txnIds.size() && transactionsMap.size() < limit, 
                 () -> getTransactionRecords(epoch, txnIds.subList(from.get(), till.get()), context).thenAccept(txns -> {
-            for (int i = 0; i < txns.size(); i++) {
-                if (transactionsMap.size() >= limit) {
-                    break;
-                }
+            for (int i = 0; i < txns.size() && transactionsMap.size() < limit; i++) {
                 ActiveTxnRecord txnRecord = txns.get(i);
                 int index = from.get() + i;
                 UUID txnId = UUID.fromString(txnIds.get(index));
