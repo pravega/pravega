@@ -2256,9 +2256,6 @@ public abstract class PersistentStreamBase implements Stream {
                         if (txnRecord.getCommitOrder() == order) {
                             // if entry matches record's position then include it
                             transactionsMap.put(txnId, txnRecord);
-                            if (transactionsMap.size() >= limit) {
-                                break;
-                            }
                         } else {
                             log.debug(context.getRequestId(), "duplicate txn {} at position {}. removing {}",
                                     txnId, txnRecord.getCommitOrder(), order);
