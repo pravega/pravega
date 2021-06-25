@@ -27,16 +27,15 @@ import io.pravega.client.admin.KeyValueTableManager;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.Insert;
-import io.pravega.client.tables.IteratorItem;
 import io.pravega.client.tables.KeyValueTable;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.client.tables.KeyValueTableIterator;
 import io.pravega.client.tables.TableEntry;
 import io.pravega.client.tables.TableKey;
 import io.pravega.client.tables.TableModification;
 import io.pravega.client.tables.Version;
 import io.pravega.common.Exceptions;
-import io.pravega.common.util.AsyncIterator;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -44,6 +43,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.Data;
 import lombok.NonNull;
 import lombok.val;
 
@@ -72,24 +72,25 @@ public abstract class KeyValueTableCommand extends Command {
     }
 
     protected String[] toArray(TableEntry e) {
+        KeyInfo k = new KeyInfo(SERIALIZER.deserialize(e.getKey().getPrimaryKey().duplicate()),
+                e.getKey().getSecondaryKey() == null ? "[null]" : SERIALIZER.deserialize(e.getKey().getSecondaryKey().duplicate()));
         return new String[]{
-                SERIALIZER.deserialize(e.getKey().getPrimaryKey()),
-                e.getKey().getSecondaryKey() == null ? "[null]" : SERIALIZER.deserialize(e.getKey().getSecondaryKey()),
+                k.toString(),
                 e.getVersion().toString(),
-                SERIALIZER.deserialize(e.getValue())};
+                SERIALIZER.deserialize(e.getValue().duplicate())};
     }
 
     protected String[] toArray(TableKey k) {
         return new String[]{
-                SERIALIZER.deserialize(k.getPrimaryKey()),
-                k.getSecondaryKey() == null ? "[null]" : SERIALIZER.deserialize(k.getSecondaryKey())};
+                SERIALIZER.deserialize(k.getPrimaryKey().duplicate()),
+                k.getSecondaryKey() == null ? "[null]" : SERIALIZER.deserialize(k.getSecondaryKey().duplicate())};
     }
 
     protected List<TableModification> toUpdates(String[][] rawEntries) {
         return Arrays.stream(rawEntries).map(e -> {
             Preconditions.checkArgument(e.length == 2 || e.length == 1,
                     "TableEntry must have 2 or 3 elements ('[key, value]' or '[key, version, value]'). Found  %s.", e.length);
-            val key = e[0];
+            val key = KeyInfo.parse(e[0]);
             Version ver = Version.NO_VERSION;
             String value;
             if (e.length == 2) {
@@ -99,14 +100,15 @@ public abstract class KeyValueTableCommand extends Command {
                 value = e[2];
             }
 
-            return new io.pravega.client.tables.Put(new TableKey(SERIALIZER.serialize(key)), SERIALIZER.serialize(value), ver);
+            return new io.pravega.client.tables.Put(key.toTableKey(), SERIALIZER.serialize(value), ver);
         }).collect(Collectors.toList());
     }
 
     protected List<TableModification> toRemovals(String[][] rawKeys) {
         return Arrays.stream(rawKeys).map(k -> {
-            Preconditions.checkArgument(k.length == 1, "TableKey must have 1. Found: %s.", k.length);
-            return new io.pravega.client.tables.Remove(new TableKey(SERIALIZER.serialize(k[0])));
+            val key = KeyInfo.parse(k[0]);
+            Preconditions.checkArgument(k.length == 1, "TableKey must have 1 element. Found: %s.", k.length);
+            return new io.pravega.client.tables.Remove(key.toTableKey());
         }).collect(Collectors.toList());
     }
 
@@ -115,6 +117,35 @@ public abstract class KeyValueTableCommand extends Command {
                 .component(COMPONENT)
                 .name(name)
                 .description(description);
+    }
+
+    @Data
+    protected static class KeyInfo {
+        private final String primaryKey;
+        private final String secondaryKey;
+
+        static KeyInfo parse(String key) {
+            int pos = key.indexOf(':');
+            if (pos < 0) {
+                return new KeyInfo(key, null);
+            } else if (pos > 0 && pos < key.length() - 1) {
+                return new KeyInfo(key.substring(0, pos), key.substring(pos + 1));
+            }
+            throw new IllegalArgumentException("Invalid key serialization: " + key);
+        }
+
+        TableKey toTableKey() {
+            if (this.secondaryKey == null) {
+                return new TableKey(SERIALIZER.serialize(this.primaryKey));
+            } else {
+                return new TableKey(SERIALIZER.serialize(this.primaryKey), SERIALIZER.serialize(this.secondaryKey));
+            }
+        }
+
+        @Override
+        public String toString() {
+            return this.secondaryKey == null ? this.primaryKey : String.format("%s:%s", this.primaryKey, this.secondaryKey);
+        }
     }
 
     //region Create
@@ -126,27 +157,31 @@ public abstract class KeyValueTableCommand extends Command {
 
         @Override
         public void execute() {
-            ensureMinArgCount(1);
+            ensureArgCount(3);
+            val s = getScopedNameArg(0);
+            val pkLength = getIntArg(1);
+            val skLength = getIntArg(2);
             @Cleanup
             val m = createManager();
             val kvtConfig = KeyValueTableConfiguration.builder()
                     .partitionCount(getConfig().getDefaultSegmentCount())
+                    .primaryKeyLength(pkLength)
+                    .secondaryKeyLength(skLength)
                     .build();
-            for (int i = 0; i < getCommandArgs().getArgs().size(); i++) {
-                val s = getScopedNameArg(i);
-                val success = m.createKeyValueTable(s.getScope(), s.getName(), kvtConfig);
-                if (success) {
-                    output("Key-Value Table '%s/%s' created successfully.", s.getScope(), s.getName());
-                } else {
-                    output("Key-Value Table '%s/%s' could not be created.", s.getScope(), s.getName());
-                }
+            val success = m.createKeyValueTable(s.getScope(), s.getName(), kvtConfig);
+            if (success) {
+                output("Key-Value Table '%s/%s' created successfully.", s.getScope(), s.getName());
+            } else {
+                output("Key-Value Table '%s/%s' could not be created.", s.getScope(), s.getName());
             }
         }
 
         public static CommandDescriptor descriptor() {
             return createDescriptor("create", "Creates one or more Key-Value Tables.")
-                    .withArg("scoped-kvt-names", "Name of the Scoped Key-Value Tables to create.")
-                    .withSyntaxExample("scope1/kvt1 scope1/kvt2 scope2/kvt3", "Creates kvt1 and kvt2 in scope1 and kvt3 in scope2.")
+                    .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to create.")
+                    .withArg("primary-key-length", "Length of primary keys (positive integer, less than 255).")
+                    .withArg("secondary-key-length", "Length of secondary keys (non-negative integer, less than 255).")
+                    .withSyntaxExample("scope1/kvt1 8 4", "Creates kvt1 in scope1 with primary key length 8 and secondary key length 4.")
                     .build();
         }
     }
@@ -294,7 +329,10 @@ public abstract class KeyValueTableCommand extends Command {
         protected void executeInternal(ScopedName kvtName, KeyValueTable kvt) throws Exception {
             val keys = getJsonArg(1, String[].class);
             Preconditions.checkArgument(keys.length > 0, "Expected at least one key.");
-            val tableKeys = Arrays.stream(keys).map(k -> new TableKey(SERIALIZER.serialize(k))).collect(Collectors.toList());
+            val tableKeys = Arrays.stream(keys)
+                    .map(KeyInfo::parse)
+                    .map(KeyInfo::toTableKey)
+                    .collect(Collectors.toList());
             val result = kvt.getAll(tableKeys).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
 
             output("Get %s Key(s) from %s:", keys.length, kvtName);
@@ -322,7 +360,8 @@ public abstract class KeyValueTableCommand extends Command {
             return createDescriptor("get", "Gets the values of keys from a Key-Value Table.")
                     .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to get from.")
                     .withArg("keys", "A JSON Array representing the keys to get. Example: \"{[key1, key2, key3]}\".")
-                    .withSyntaxExample("scope1/kvt1 {[key1, \"key2:escape\"]}", "Gets 'key1' and 'key2:escape' from scope1/kvt1 (no Key Family).")
+                    .withSyntaxExample("scope1/kvt1 {[key1, key2]}", "Gets 'key1' and 'key2' from scope1/kvt1 (where kvt1 has no secondary keys).")
+                    .withSyntaxExample("scope1/kvt1 {[\"pk1:sk1\", \"pk2:sk2\"]}", "Gets 'pk1:sk1' and 'pk2:sk2' from scope1/kvt1.")
                     .build();
         }
     }
@@ -343,10 +382,11 @@ public abstract class KeyValueTableCommand extends Command {
 
         @Override
         protected void executeInternal(ScopedName kvtName, KeyValueTable kvt) throws Exception {
-            val key = getArg(1);
+            val rawKey = getArg(1);
             val value = getArg(2);
 
-            val version = kvt.update(new io.pravega.client.tables.Put(new TableKey(SERIALIZER.serialize(key)), SERIALIZER.serialize(value))).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+            val key = KeyInfo.parse(rawKey);
+            val version = kvt.update(new io.pravega.client.tables.Put(key.toTableKey(), SERIALIZER.serialize(value))).get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
             output("Key '%s' updated successfully. New version: '%s'.", key, version);
         }
 
@@ -355,7 +395,8 @@ public abstract class KeyValueTableCommand extends Command {
                     .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to update.")
                     .withArg("key", "The key.")
                     .withArg("value", "The value.")
-                    .withSyntaxExample("scope1/kvt1 key1 value1", "Sets 'key1:=value1' in 'scope1/kvt1'.")
+                    .withSyntaxExample("scope1/kvt1 key1 value1", "Sets 'key1:=value1' in 'scope1/kvt1' (where kvt1 has no secondary keys).")
+                    .withSyntaxExample("scope1/kvt1 \"pk1:sk1\" value1", "Sets '[pk1, sk1]:=value1' in 'scope1/kvt1'.")
                     .build();
         }
     }
@@ -372,11 +413,12 @@ public abstract class KeyValueTableCommand extends Command {
 
         @Override
         protected void executeInternal(ScopedName kvtName, KeyValueTable kvt) throws Exception {
-            val key = getArg(1);
+            val rawKey = getArg(1);
             val version = Version.fromString(getArg(2));
             val value = getArg(3);
 
-            val newVersion = kvt.update(new io.pravega.client.tables.Put(new TableKey(SERIALIZER.serialize(key)), SERIALIZER.serialize(value), version))
+            val key = KeyInfo.parse(rawKey);
+            val newVersion = kvt.update(new io.pravega.client.tables.Put(key.toTableKey(), SERIALIZER.serialize(value), version))
                     .get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
             output("Key '%s' updated successfully. New version: '%s'.", key, newVersion);
         }
@@ -389,6 +431,8 @@ public abstract class KeyValueTableCommand extends Command {
                     .withArg("value", "The value.")
                     .withSyntaxExample("scope1/kvt1 key1 s1:1 value1", "Inserts 'key1:=value1' in 'scope1/kvt1', " +
                             "only if the current version of 'key1' is 's1:1'.")
+                    .withSyntaxExample("scope1/kvt1 \"pk1:sk1\" s1:1 value1", "Inserts '[pk1, sk1]:=value1' in 'scope1/kvt1', " +
+                            "only if the current version of '[pk1, sk1]' is 's1:1'.")
                     .build();
         }
     }
@@ -405,10 +449,11 @@ public abstract class KeyValueTableCommand extends Command {
 
         @Override
         protected void executeInternal(ScopedName kvtName, KeyValueTable kvt) throws Exception {
-            val key = getArg(1);
+            val rawKey = getArg(1);
             val value = getArg(2);
 
-            val version = kvt.update(new Insert(new TableKey(SERIALIZER.serialize(key)), SERIALIZER.serialize(value)))
+            val key = KeyInfo.parse(rawKey);
+            val version = kvt.update(new Insert(key.toTableKey(), SERIALIZER.serialize(value)))
                     .get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
             output("Key '%s' inserted successfully. New version: '%s'.", key, version);
         }
@@ -419,6 +464,7 @@ public abstract class KeyValueTableCommand extends Command {
                     .withArg("key", "The key.")
                     .withArg("value", "The value.")
                     .withSyntaxExample("scope1/kvt1 key1 value1", "Inserts 'key1:=value1' in 'scope1/kvt1', only if not already present.")
+                    .withSyntaxExample("scope1/kvt1 \"pk1:sk1\" value1", "Inserts '[pk1, sk1]:=value1' in 'scope1/kvt1', only if not already present.")
                     .build();
         }
     }
@@ -460,7 +506,8 @@ public abstract class KeyValueTableCommand extends Command {
             return createDescriptor("put-all", "Updates one or more Keys in a Key-Value table.")
                     .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to update.")
                     .withArg("entries", "A JSON Array representing the keys to get.")
-                    .withSyntaxExample("scope1/kvt1 {[[key1, value1]]}", "Unconditionally updates 'key1' to 'value1' in 'scope1/kvt1'.")
+                    .withSyntaxExample("scope1/kvt1 {[[key1, value1]]}", "Unconditionally updates 'key1' to 'value1' in 'scope1/kvt1' (where kvt1 has no secondary keys).")
+                    .withSyntaxExample("scope1/kvt1 {[[\"pk1:sk1\", value1]]}", "Unconditionally updates '[pk1, sk1]' to 'value1' in 'scope1/kvt1'.")
                     .withSyntaxExample("scope1/kvt1 {[[key1, \"seg1:ver1\", value1]]}",
                             "Conditionally updates 'key1' to 'value1' in 'scope1/kvt1' using 'seg1:ver1' as condition version.")
                     .build();
@@ -499,10 +546,11 @@ public abstract class KeyValueTableCommand extends Command {
                     .withArg("[key-family]", "(Optional) Key Family to remove Keys for.")
                     .withArg("entries", "A JSON Array representing the keys to remove.")
                     .withSyntaxExample("scope1/kvt1 {[[key1]]}", "Unconditionally removes 'key1' from 'scope1/kvt1'.")
+                    .withSyntaxExample("scope1/kvt1 {[[\"pk1:sk1\"]]}", "Unconditionally removes '[pk1, sk1]' from 'scope1/kvt1'.")
                     .withSyntaxExample("scope1/kvt1 {[[key1, \"s1:ver1\"]]}",
                             "Conditionally removes 'key1' from 'scope1/kvt1' using 'seg1:ver1' as condition version.")
-                    .withSyntaxExample("scope1/kvt1 key-family-1 {[[key1, \"seg1:ver1\"], [key2]]}",
-                            "Conditionally removes 'key1' and 'key2' from 'scope1/kvt1' with key family 'key-family-1' " +
+                    .withSyntaxExample("scope1/kvt1 {[[key1, \"seg1:ver1\"], [key2]]}",
+                            "Conditionally removes 'key1' and 'key2' from 'scope1/kvt1' " +
                                     "conditioned on `key1` having version 'seg1:ver1'.")
                     .build();
         }
@@ -512,36 +560,75 @@ public abstract class KeyValueTableCommand extends Command {
 
     //region Key/Entry iterators
 
-    private static abstract class ListCommand<T> extends DataCommand {
+    public static class ListEntries extends DataCommand {
         private static final String[] RESULT_HEADER = new String[]{"Key", "Version", "Value"};
-        ListCommand(@NonNull CommandArgs commandArgs) {
+        private static final String PK = "pk";
+        private static final String GLOBAL_PREFIX = "prefix";
+        private static final String GLOBAL_RANGE = "range";
+
+        public ListEntries(@NonNull CommandArgs commandArgs) {
             super(commandArgs);
         }
 
-        protected abstract AsyncIterator<IteratorItem<T>> getIterator(KeyValueTable kvt, String keyFamily);
-
-        protected abstract String[] convertToArray(T item);
-
         @Override
         protected void ensurePreconditions() {
-            ensureArgCount(2);
+            ensureMinArgCount(1);
+        }
+
+        @Override
+        protected int getResultColumnCount() {
+            return RESULT_HEADER.length;
         }
 
         @Override
         protected void executeInternal(ScopedName kvtName, KeyValueTable kvt) throws Exception {
-            val keyFamily = getArg(1);
-            val iterator = getIterator(kvt, keyFamily);
-            outputResultHeader(Arrays.copyOf(RESULT_HEADER, getResultColumnCount()));
+            val builder = kvt.iterator().maxIterationSize(10);
+            KeyValueTableIterator iterator = null;
+            val argCount = getCommandArgs().getArgs().size();
+            if (argCount <= 1) {
+                // Global iterator.
+                iterator = builder.all();
+            } else {
+                String type = getArg(1);
+                if (type.equalsIgnoreCase(PK)) {
+                    val pk = SERIALIZER.serialize(getArg(2));
+                    if (argCount == 3) {
+                        iterator = builder.forPrimaryKey(pk);
+                    } else if (argCount == 4) {
+                        val skPrefix = SERIALIZER.serialize(getArg(3));
+                        iterator = builder.forPrimaryKey(pk, skPrefix);
+                    } else if (argCount == 5) {
+                        val sk1 = SERIALIZER.serialize(getArg(3));
+                        val sk2 = SERIALIZER.serialize(getArg(4));
+                        iterator = builder.forPrimaryKey(pk, sk1, sk2);
+                    }
+                } else if (type.equalsIgnoreCase(GLOBAL_PREFIX)) {
+                    ensureArgCount(3);
+                    val prefix = SERIALIZER.serialize(getArg(2));
+                    iterator = builder.forPrefix(prefix);
+                } else if (type.equalsIgnoreCase(GLOBAL_RANGE)) {
+                    ensureArgCount(4);
+                    val pk1 = SERIALIZER.serialize(getArg(2));
+                    val pk2 = SERIALIZER.serialize(getArg(3));
+                    iterator = builder.forRange(pk1, pk2);
+                }
+            }
+            if (iterator == null) {
+                throw new IllegalArgumentException("Invalid syntax.");
+            }
+
+            val entryIterator = iterator.entries();
+            outputResultHeader(RESULT_HEADER);
             int count = 0;
             while (count < getConfig().getMaxListItems()) {
-                val batch = iterator.getNext().get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
+                val batch = entryIterator.getNext().get(getConfig().getTimeoutMillis(), TimeUnit.MILLISECONDS);
                 if (batch == null) {
                     break; // We're done.
                 }
 
                 int maxCount = Math.min(getConfig().getMaxListItems() - count, batch.getItems().size());
                 for (int i = 0; i < maxCount; i++) {
-                    outputResult(convertToArray(batch.getItems().get(i)));
+                    outputResult(toArray(batch.getItems().get(i)));
                 }
 
                 count += maxCount;
@@ -553,70 +640,21 @@ public abstract class KeyValueTableCommand extends Command {
 
             output("Total: %s item(s).", count);
         }
-    }
-
-    /* TODO fix in https://github.com/pravega/pravega/issues/5941
-    public static class ListKeys extends ListCommand<TableKey> {
-        public ListKeys(@NonNull CommandArgs commandArgs) {
-            super(commandArgs);
-        }
-
-        @Override
-        protected int[] getTableFormatColumnLengths() {
-            return new int[]{Arrays.stream(super.getTableFormatColumnLengths()).sum()};
-        }
-
-        @Override
-        protected int getResultColumnCount() {
-            return 1;
-        }
-
-        @Override
-        protected AsyncIterator<IteratorItem<TableKey>> getIterator(KeyValueTable kvt, String keyFamily) {
-            return kvt.keyIterator(keyFamily, 100, null);
-        }
-
-        @Override
-        protected String[] convertToArray(TableKey item) {
-            return new String[]{item.getKey()};
-        }
-
-        public static CommandDescriptor descriptor() {
-            return createDescriptor("list-keys", "Lists all keys in a Key-Value Table.")
-                    .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to list keys from.")
-                    .withArg("key-family", "Name of the Key Family to list keys from.")
-                    .build();
-        }
-    }
-
-    public static class ListEntries extends ListCommand<TableEntry> {
-        public ListEntries(@NonNull CommandArgs commandArgs) {
-            super(commandArgs);
-        }
-
-        @Override
-        protected int getResultColumnCount() {
-            return 3;
-        }
-
-        @Override
-        protected AsyncIterator<IteratorItem<TableEntry>> getIterator(KeyValueTable kvt, String keyFamily) {
-            return kvt.entryIterator(keyFamily, 100, null);
-        }
-
-        @Override
-        protected String[] convertToArray(TableEntry item) {
-            return toArray(item);
-        }
 
         public static CommandDescriptor descriptor() {
             return createDescriptor("list-entries", "Lists all entries in a Key-Value Table.")
                     .withArg("scoped-kvt-name", "Name of the Scoped Key-Value Table to list entries from.")
                     .withArg("key-family", "Name of the Key Family to list entries from.")
+                    .withArg("[type]", String.format("Type of iterator ('%s', '%s', '%s').", PK, GLOBAL_PREFIX, GLOBAL_RANGE))
+                    .withSyntaxExample("scope1/kvt1 pk pk1", "Lists all entries 'scope1/kvt1' with primary key 'pk1'.")
+                    .withSyntaxExample("scope1/kvt1 pk pk1 sk1 sk2", "Lists all entries 'scope1/kvt1' with primary key 'pk1' and secondary keys between 'sk1' and 'sk2'.")
+                    .withSyntaxExample("scope1/kvt1 pk pk1 s", "Lists all entries 'scope1/kvt1' with primary key 'pk1' and secondary keys starting with 's'.")
+                    .withSyntaxExample("scope1/kvt1 prefix p", "Lists all entries 'scope1/kvt1' with primary keys starting with 'p'.")
+                    .withSyntaxExample("scope1/kvt1 range p1 p2", "Lists all entries 'scope1/kvt1' with primary keys between 'p1' and 'p2'.")
+                    .withSyntaxExample("scope1/kvt1", "Lists all entries 'scope1/kvt1'.")
                     .build();
         }
     }
-    */
 
     //endregion
 
