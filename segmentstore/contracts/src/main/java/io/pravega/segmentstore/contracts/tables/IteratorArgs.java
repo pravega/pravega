@@ -15,7 +15,6 @@
  */
 package io.pravega.segmentstore.contracts.tables;
 
-import com.google.common.annotations.Beta;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BufferView;
 import java.time.Duration;
@@ -30,19 +29,20 @@ import lombok.NonNull;
 @Builder
 public class IteratorArgs {
     /**
-     * EXPERIMENTAL!
-     * (Optional) A filter to apply to all returned Iterator Entries. If specified, only those entries whose keys begin
-     * with this prefix will be included.
-     * This option only applies to Sorted Table Segments (see {@link TableStore}. An attempt to use it on a non-Sorted
-     * Table Segment will result in an {@link IllegalArgumentException}.
+     * (Optional) A token that indicates the current state of the iterator. This is used for Hash Table Segments.
      */
-    @Beta
-    private final BufferView prefixFilter;
+    private final BufferView continuationToken;
     /**
-     * (Optional) The serialized form of the State. This can be obtained from {@link IteratorItem#getState()}.
-     * If provided, the iteration will resume from where it left off, otherwise it will start from the beginning.
+     * (Optional) Where the iterator should start at. This is used in conjunction with {@link #getTo()} for
+     * Fixed-Key-Length Table Segments.
      */
-    private BufferView serializedState;
+    private final BufferView from;
+
+    /**
+     * (Optional) Where the iterator should end at. This is used in conjunction with {@link #getTo()} for
+     * Fixed-Key-Length Table Segments.
+     */
+    private final BufferView to;
     /**
      * Timeout for each invocation to {@link AsyncIterator#getNext()}.
      */

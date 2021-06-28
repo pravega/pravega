@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import lombok.NonNull;
+import lombok.val;
 
 /**
  * Defines an Iterator for which every invocation results in an async call with a delayed response.
@@ -138,5 +139,16 @@ public interface AsyncIterator<T> {
      */
     default Iterator<T> asIterator() {
         return new BlockingAsyncIterator<>(this);
+    }
+
+    /**
+     * Returns an {@link AsyncIterator} with exactly one item.
+     * @param item The Item to return
+     * @param <T> Item type.
+     * @return A singleton {@link AsyncIterator}.
+     */
+    static <T> AsyncIterator<T> singleton(T item) {
+        val returned = new AtomicBoolean(false);
+        return () -> CompletableFuture.completedFuture(returned.getAndSet(true) ? null : item);
     }
 }

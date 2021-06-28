@@ -117,7 +117,7 @@ public abstract class TableMetadataTasksTest {
     public void testCreateKeyValueTable() throws ExecutionException, InterruptedException {
         Assert.assertTrue(isScopeCreated);
         long creationTime = System.currentTimeMillis();
-        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).build();
+        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
         CompletableFuture<Controller.CreateKeyValueTableStatus.Status> createOperationFuture
                 = kvtMetadataTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime, 0L);
 
@@ -146,7 +146,7 @@ public abstract class TableMetadataTasksTest {
     public void testDeleteKeyValueTable() throws ExecutionException, InterruptedException {
         Assert.assertTrue(isScopeCreated);
         long creationTime = System.currentTimeMillis();
-        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).build();
+        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
         CompletableFuture<Controller.CreateKeyValueTableStatus.Status> createOperationFuture
                 = kvtMetadataTasks.createKeyValueTable(SCOPE, kvtable1, kvtConfig, creationTime, 0L);
 
@@ -181,7 +181,7 @@ public abstract class TableMetadataTasksTest {
         // Create a new KVTable
         String tableName = "kvtable2";
         long creationTime = System.currentTimeMillis();
-        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).build();
+        KeyValueTableConfiguration kvtConfig = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
         CompletableFuture<Controller.CreateKeyValueTableStatus.Status> createOperationFuture
                 = kvtMetadataTasks.createKeyValueTable(SCOPE, tableName, kvtConfig, creationTime, 0L);
         assertTrue(Futures.await(processEvent((TableMetadataTasksTest.WriterMock) requestEventWriter)));

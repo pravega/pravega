@@ -16,13 +16,12 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.common.util.BufferView;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeId;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -42,7 +41,7 @@ public interface DirectSegmentAccess {
      * Appends a range of bytes at the end of the Segment and atomically updates the given attributes. The byte range
      * will be appended as a contiguous block, however there is no guarantee of ordering between different calls to this
      * method.
-     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#append(String, BufferView, Collection, Duration)
+     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#append(String, BufferView, AttributeUpdateCollection, Duration)
      *
      * @param data             The data to add.
      * @param attributeUpdates A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
@@ -55,13 +54,13 @@ public interface DirectSegmentAccess {
      *                                  check if the Segment does not exist - that exception will be set in the
      *                                  returned CompletableFuture).
      */
-    CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+    CompletableFuture<Long> append(BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout);
 
     /**
      * Appends a range of bytes at the end of the Segment and atomically updates the given attributes. The byte range
      * will be appended as a contiguous block, however there is no guarantee of ordering between different calls to this
      * method.
-     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#append(String, BufferView, Collection, Duration)
+     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#append(String, BufferView, AttributeUpdateCollection, Duration)
      *
      * @param data             The data to add.
      * @param attributeUpdates A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
@@ -76,12 +75,12 @@ public interface DirectSegmentAccess {
      *                                  check if the Segment does not exist - that exception will be set in the
      *                                  returned CompletableFuture).
      */
-    CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, long offset, Duration timeout);
+    CompletableFuture<Long> append(BufferView data, AttributeUpdateCollection attributeUpdates, long offset, Duration timeout);
 
     /**
      * Performs an attribute update operation on the Segment.
      *
-     *  @see io.pravega.segmentstore.contracts.StreamSegmentStore#append(String, BufferView, Collection, Duration)
+     *  @see io.pravega.segmentstore.contracts.StreamSegmentStore#append(String, BufferView, AttributeUpdateCollection, Duration)
      *
      * @param attributeUpdates A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                         See Notes about AttributeUpdates in the interface Javadoc.
@@ -92,7 +91,7 @@ public interface DirectSegmentAccess {
      * @throws IllegalArgumentException If the Segment Name is invalid (NOTE: this doesn't check if the Segment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Void> updateAttributes(Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+    CompletableFuture<Void> updateAttributes(AttributeUpdateCollection attributeUpdates, Duration timeout);
 
     /**
      * Gets the values of the given Attributes (Core or Extended).
@@ -110,7 +109,7 @@ public interface DirectSegmentAccess {
      * @throws IllegalArgumentException If the Segment Name is invalid (NOTE: this doesn't check if the Segment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Map<UUID, Long>> getAttributes(Collection<UUID> attributeIds, boolean cache, Duration timeout);
+    CompletableFuture<Map<AttributeId, Long>> getAttributes(Collection<AttributeId> attributeIds, boolean cache, Duration timeout);
 
     /**
      * Initiates a Read operation on the Segment and returns a ReadResult which can be used to consume the read data.
@@ -127,14 +126,14 @@ public interface DirectSegmentAccess {
 
     /**
      * Gets information about the Segment.
-     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#getStreamSegmentInfo(String, Duration)
      *
      * @return The requested Segment Info. Note that this result will only contain those attributes that
      * are loaded in memory (if any) or Core Attributes. To ensure that Extended Attributes are also included, you must use
      * getAttributes(), which will fetch all attributes, regardless of where they are currently located.
      * @throws IllegalArgumentException If any of the arguments are invalid.
+     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#getStreamSegmentInfo(String, Duration)
      */
-    SegmentProperties getInfo();
+    SegmentMetadata getInfo();
 
     /**
      * Seals the Segment.
@@ -161,12 +160,23 @@ public interface DirectSegmentAccess {
     CompletableFuture<Void> truncate(long offset, Duration timeout);
 
     /**
-     * Gets an iterator for the Segment's Attributes in the given range (using natural ordering based on {@link UUID#compareTo}.
-     * @param fromId  A UUID representing the first Attribute Id to include.
-     * @param toId    A UUID representing the last Attribute Id to include.
+     * Gets an iterator for the Segment's Attributes in the given range (using natural ordering based on {@link AttributeId#compareTo}.
+     *
+     * @param fromId  An AttributeId representing the first Attribute Id to include.
+     * @param toId    An AttributeId representing the last Attribute Id to include.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will return an {@link AttributeIterator} that can be used to iterate
      * through the Segment's Attributes.
      */
-    CompletableFuture<AttributeIterator> attributeIterator(UUID fromId, UUID toId, Duration timeout);
+    CompletableFuture<AttributeIterator> attributeIterator(AttributeId fromId, AttributeId toId, Duration timeout);
+
+    /**
+     * Gets the number of Extended (non-Core) Attributes for this segment that have been persisted into the index.
+     * This may not include recently updated or removed Attributes (only those that are stored in the index).
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will return the number of Extended Attributes for this Segment.
+     * If such statistics are not maintained on the Segment (for example, a legacy segment), this will be completed with -1.
+     */
+    CompletableFuture<Long> getExtendedAttributeCount(Duration timeout);
 }

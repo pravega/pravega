@@ -15,17 +15,12 @@
  */
 package io.pravega.client.tables.impl;
 
-import com.google.common.collect.ImmutableList;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
 import io.pravega.test.common.AssertExtensions;
-import java.nio.ByteBuffer;
-import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.val;
@@ -38,45 +33,54 @@ import org.junit.Test;
 public class TableSegmentIteratorTests {
     @Test
     public void testIterator() {
-        val orderedItems = ImmutableList.<Map.Entry<IteratorState, List<Integer>>>builder()
-                .add(new AbstractMap.SimpleImmutableEntry<>(newIteratorState(), Arrays.asList(1, 2, 3)))
-                .add(new AbstractMap.SimpleImmutableEntry<>(newIteratorState(), Arrays.asList(4, 5, 6)))
-                .add(new AbstractMap.SimpleImmutableEntry<>(newIteratorState(), Arrays.asList(7, 8, 9)))
-                .build();
-        val iteratorItems = new HashMap<IteratorState, Integer>();
-        for (int i = 0; i < orderedItems.size(); i++) {
-            iteratorItems.put(orderedItems.get(i).getKey(), i);
+        val items = new TreeMap<ByteBuf, ByteBuf>();
+        for (int i = 0; i < 256; i++) {
+            val value = Unpooled.wrappedBuffer(new byte[]{(byte) i});
+            items.put(value, value);
         }
 
-        val tsi = new TableSegmentIterator<Integer>(
-                s -> CompletableFuture.completedFuture(getIteratorItem(s, iteratorItems, orderedItems)),
-                null);
+        val initialArgs = new SegmentIteratorArgs(items.firstKey(), items.lastKey(), 2);
+        val tsi = new TableSegmentIterator<>(
+                args -> CompletableFuture.completedFuture(new IteratorItem<>(
+                        items.subMap(args.getFromKey(), true, args.getToKey(), true)
+                                .keySet().stream()
+                                .limit(args.getMaxItemsAtOnce())
+                                .collect(Collectors.toList()))),
+                r -> r,
+                initialArgs);
 
-        val result = new ArrayList<Integer>();
-        tsi.collectRemaining(i -> result.addAll(i.getItems()));
+        val result = new ArrayList<ByteBuf>();
+        tsi.collectRemaining(i -> {
+            Assert.assertEquals(initialArgs.getMaxItemsAtOnce(), i.getItems().size());
+            result.addAll(i.getItems());
+            return true;
+        }).join();
 
-        val expectedResult = orderedItems.stream().flatMap(i -> i.getValue().stream()).collect(Collectors.toList());
-        AssertExtensions.assertListEquals("Unexpected result.", expectedResult, result, Integer::equals);
-
+        val expectedResult = new ArrayList<>(items.keySet());
+        AssertExtensions.assertListEquals("Unexpected result.", expectedResult, result, ByteBuf::equals);
         Assert.assertNull("Not expecting any more items.", tsi.getNext().join());
     }
 
-    private IteratorItem<Integer> getIteratorItem(IteratorState state, Map<IteratorState, Integer> iteratorItems,
-                                                  List<Map.Entry<IteratorState, List<Integer>>> orderedItems) {
-        int index = state == null ? 0 : iteratorItems.getOrDefault(state, -1);
-        if (index < 0) {
-            return null;
+    @Test
+    public void testSegmentIteratorArgs() {
+        val fromKey = Unpooled.wrappedBuffer(new byte[]{0, 0, 0});
+        val toKey = Unpooled.wrappedBuffer(new byte[]{3, (byte) 0xFF, 94});
+
+        // We calculate the number of iterations we'd need in order to get from fromKey to toKey by incrementing one bit at a time.
+        val expectedCount = 3 * 256 * 256 + 255 * 256 + 94 + 1; // We add 1 to account for the last iteration (firstKey==lastKey).
+
+        SegmentIteratorArgs args = new SegmentIteratorArgs(fromKey, toKey, 1);
+        Assert.assertNull(args.next(null)); // Check the end-of-iteration.
+
+        int count = 0;
+        while (args != null) {
+            args = args.next(args.getFromKey());
+            count++;
+            if (count > expectedCount) {
+                Assert.fail("Too many iterations."); // Just in case this ends up in an infinite loop...
+            }
         }
 
-        val contents = orderedItems.get(index).getValue();
-        val nextState = index < orderedItems.size() - 1 ? orderedItems.get(index + 1).getKey() : IteratorStateImpl.EMPTY;
-        return new IteratorItem<>(nextState, contents);
+        Assert.assertEquals(expectedCount, count);
     }
-
-    private IteratorState newIteratorState() {
-        byte[] contents = new byte[10];
-        return IteratorState.fromBytes(ByteBuffer.wrap(contents));
-    }
-
-
 }
