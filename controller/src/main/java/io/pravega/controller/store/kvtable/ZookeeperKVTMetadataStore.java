@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.ZKScope;
 import io.pravega.controller.store.ZKStoreHelper;
@@ -29,6 +30,8 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
+
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -60,20 +63,21 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
     }
 
     @Override
-    public CompletableFuture<Boolean> checkScopeExists(String scope) {
+    public CompletableFuture<Boolean> checkScopeExists(String scope, OperationContext context, Executor executor) {
         String scopePath = ZKPaths.makePath(SCOPE_ROOT_PATH, scope);
         return storeHelper.checkExists(scopePath);
     }
 
     @Override
-    public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt) {
-        return Futures.completeOn(((ZKScope) getScope(scopeName)).checkKeyValueTableExistsInScope(kvt), executor);
+    public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt, OperationContext context, Executor executor) {
+        return Futures.completeOn(((ZKScope) getScope(scopeName, context)).checkKeyValueTableExistsInScope(kvt), executor);
     }
 
     @Override
-    public CompletableFuture<Void> createEntryForKVTable(String scopeName, String kvtName, byte[] id,  Executor executor) {
+    public CompletableFuture<Void> createEntryForKVTable(String scopeName, String kvtName, UUID id, OperationContext context,
+                                                         Executor executor) {
         return Futures.completeOn(
-                CompletableFuture.completedFuture((ZKScope) getScope(scopeName))
+                CompletableFuture.completedFuture((ZKScope) getScope(scopeName, context))
                  .thenCompose(scope -> {
                      scope.addKVTableToScope(kvtName, id);
                      return CompletableFuture.completedFuture(null);
@@ -87,22 +91,22 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
 
     @Override
     public CompletableFuture<CreateKVTableResponse> createKeyValueTable(String scope, String name, KeyValueTableConfiguration configuration,
-                                                                long createTimestamp, KVTOperationContext context, Executor executor) {
+                                                                long createTimestamp, OperationContext context, Executor executor) {
         return super.createKeyValueTable(scope, name, configuration, createTimestamp, context, executor);
     }
 
     @Override
     public CompletableFuture<Void> deleteFromScope(final String scope,
                                                    final String name,
-                                                   final KVTOperationContext context,
+                                                   final OperationContext context,
                                                    final Executor executor) {
-        return Futures.completeOn(((ZKScope) getScope(scope)).removeKVTableFromScope(name),
+        return Futures.completeOn(((ZKScope) getScope(scope, context)).removeKVTableFromScope(name),
                 executor);
     }
 
 
     @Override
-    CompletableFuture<Void> recordLastKVTableSegment(String scope, String kvtable, int lastActiveSegment, KVTOperationContext context, Executor executor) {
+    CompletableFuture<Void> recordLastKVTableSegment(String scope, String kvtable, int lastActiveSegment, OperationContext context, Executor executor) {
         final String deletePath = String.format(DELETED_KVTABLES_PATH, getScopedKVTName(scope, kvtable));
         byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
         BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
@@ -129,7 +133,8 @@ public class ZookeeperKVTMetadataStore extends AbstractKVTableMetadataStore impl
     }
 
     @Override
-    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
+    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName, 
+                                                                      OperationContext operationContext, Executor executor) {
         return storeHelper.getData(String.format(DELETED_KVTABLES_PATH, getScopedKVTName(scopeName, streamName)), x -> BitConverter.readInt(x, 0))
                           .handleAsync((data, ex) -> {
                               if (ex == null) {

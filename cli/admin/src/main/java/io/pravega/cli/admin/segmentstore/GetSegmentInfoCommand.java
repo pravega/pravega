@@ -49,7 +49,7 @@ public class GetSegmentInfoCommand extends SegmentStoreCommand {
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
         CompletableFuture<WireCommands.StreamSegmentInfo> reply = segmentHelper.getSegmentInfo(fullyQualifiedSegmentName,
-                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
+                new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "", 0L);
         output("StreamSegmentInfo: %s", reply.join().toString());
     }
 

@@ -21,13 +21,15 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.retryable.RetryableException;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.CreateReaderGroupEvent;
 import io.pravega.shared.controller.event.RGStreamCutRecord;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.UUID;
@@ -38,8 +40,8 @@ import java.util.stream.Collectors;
 /**
  * Request handler for executing a create operation for a ReaderGroup.
  */
-@Slf4j
 public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupEvent> {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(CreateReaderGroupTask.class));
 
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
@@ -62,17 +64,20 @@ public class CreateReaderGroupTask implements ReaderGroupTask<CreateReaderGroupE
         String readerGroup = request.getRgName();
         UUID readerGroupId = request.getReaderGroupId();
         ReaderGroupConfig config = getConfigFromEvent(request);
-        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup)
-                .thenCompose(rgId -> {
+        long requestId = request.getRequestId();
+        OperationContext context = streamMetadataStore.createRGContext(scope, readerGroup, requestId);
+
+        return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getReaderGroupId(scope, readerGroup, context, executor)
+                          .thenCompose(rgId -> {
                     if (!rgId.equals(readerGroupId)) {
-                        log.warn("Skipping processing of CreateReaderGroupEvent with stale UUID.");
+                        log.warn(requestId, "Skipping processing of CreateReaderGroupEvent with stale UUID.");
                         return CompletableFuture.completedFuture(null);
                     }
-                    return streamMetadataTasks.isRGCreationComplete(scope, readerGroup)
+                    return streamMetadataTasks.isRGCreationComplete(scope, readerGroup, context)
                             .thenCompose(complete -> {
                                 if (!complete) {
                                     return Futures.toVoid(streamMetadataTasks.createReaderGroupTasks(scope, readerGroup,
-                                            config, request.getCreateTimeStamp()));
+                                            config, request.getCreateTimeStamp(), context));
                                 }
                                 return CompletableFuture.completedFuture(null);
                             });

@@ -17,18 +17,19 @@ package io.pravega.controller.server.eventProcessor.requesthandlers.kvtable;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.store.kvtable.KVTableMetadataStore;
 import io.pravega.controller.store.kvtable.CreateKVTableResponse;
 import io.pravega.controller.store.kvtable.KVTableState;
 import io.pravega.controller.store.kvtable.KeyValueTable;
-import io.pravega.controller.store.kvtable.KVTOperationContext;
 import io.pravega.client.tables.KeyValueTableConfiguration;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.kvtable.CreateTableEvent;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -39,8 +40,8 @@ import java.util.stream.IntStream;
 /**
  * Request handler for executing a create operation for a KeyValueTable.
  */
-@Slf4j
 public class CreateTableTask implements TableTask<CreateTableEvent> {
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(CreateTableTask.class));
 
     private final KVTableMetadataStore kvtMetadataStore;
     private final TableMetadataTasks kvtMetadataTasks;
@@ -68,13 +69,15 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
         KeyValueTableConfiguration config = KeyValueTableConfiguration.builder()
                                             .partitionCount(partitionCount).build();
 
+        final OperationContext context = kvtMetadataStore.createContext(scope, kvt, requestId);
         return RetryHelper.withRetriesAsync(() -> getKeyValueTable(scope, kvt)
-                .thenCompose(table -> table.getId()).thenCompose(id -> {
+                .thenCompose(table -> table.getId(context)).thenCompose(id -> {
             if (!id.equals(kvTableId)) {
-                log.debug("Skipped processing create event for KeyValueTable {}/{} with Id:{} as UUIDs did not match.", scope, kvt, id);
+                log.debug(requestId, "Skipped processing create event for KeyValueTable {}/{} with Id:{} as UUIDs did not match.", scope, kvt, id);
                 return CompletableFuture.completedFuture(null);
             } else {
-                return this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, null, executor)
+
+                return this.kvtMetadataStore.createKeyValueTable(scope, kvt, config, creationTime, context, executor)
                         .thenComposeAsync(response -> {
                             // only if its a new kvtable or an already existing non-active kvtable then we will create
                             // segments and change the state of the kvtable to active.
@@ -88,7 +91,6 @@ public class CreateTableTask implements TableTask<CreateTableEvent> {
                                         .collect(Collectors.toList());
                                 kvtMetadataTasks.createNewSegments(scope, kvt, newSegments, requestId)
                                         .thenCompose(y -> {
-                                            final KVTOperationContext context = kvtMetadataStore.createContext(scope, kvt);
                                             kvtMetadataStore.getVersionedState(scope, kvt, context, executor)
                                                     .thenCompose(state -> {
                                                         if (state.getObject().equals(KVTableState.CREATING)) {

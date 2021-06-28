@@ -74,6 +74,9 @@ import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryI
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationPriority;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
@@ -130,6 +133,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -1898,7 +1902,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * additional code in StreamSegmentService. This will invoke the StreamSegmentContainer code as well.
      */
     @Test
-    public void testForSegment() throws Exception {
+    public void testForSegment() {
         UUID attributeId1 = UUID.randomUUID();
         UUID attributeId2 = UUID.randomUUID();
         UUID attributeId3 = UUID.randomUUID();
@@ -1944,6 +1948,57 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
+    /**
+     * Tests {@link StreamSegmentContainer#forSegment(String, OperationPriority, Duration)}.
+     */
+    @Test
+    public void testForSegmentPriority() throws Exception {
+        val segmentName = "Test";
+        @Cleanup
+        val context = new TestContext(DEFAULT_CONFIG, NO_TRUNCATIONS_DURABLE_LOG_CONFIG, INFREQUENT_FLUSH_WRITER_CONFIG, null);
+        val durableLog = new AtomicReference<OperationLog>();
+        val durableLogFactory = new WatchableOperationLogFactory(context.operationLogFactory, durableLog::set);
+        @Cleanup
+        val container = new StreamSegmentContainer(CONTAINER_ID, DEFAULT_CONFIG, durableLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, new NoOpWriterFactory(), context.storageFactory,
+                context.getDefaultExtensions(), executorService());
+        container.startAsync().awaitRunning();
+
+        container.createStreamSegment(segmentName, SegmentType.STREAM_SEGMENT, null, TIMEOUT)
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Create a few operations using the forSegment with desired priority.
+        val s1 = container.forSegment(segmentName, OperationPriority.Critical, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val futures = new ArrayList<CompletableFuture<Void>>();
+        futures.add(Futures.toVoid(s1.append(new ByteArraySegment(new byte[1]), null, TIMEOUT)));
+        futures.add(s1.updateAttributes(Collections.singletonList(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.Replace, 1)), TIMEOUT));
+        futures.add(s1.truncate(1, TIMEOUT));
+        futures.add(Futures.toVoid(s1.seal(TIMEOUT)));
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Await all operations to be added to the durable log, then fetch them all. We stop when we encounter the Seal we just added.
+        val ops = readDurableLog(durableLog.get(), op -> op instanceof StreamSegmentSealOperation);
+
+        // For those operations that we do care about, verify they have the right priority.
+        int count = 0;
+        for (val op : ops) {
+            if (op instanceof SegmentOperation && ((SegmentOperation) op).getStreamSegmentId() == s1.getSegmentId()) {
+                count++;
+                Assert.assertEquals("Unexpected priority for " + op, OperationPriority.Critical, op.getDesiredPriority());
+            }
+        }
+
+        AssertExtensions.assertGreaterThan("Expected at least one operation to be verified.", 0, count);
+    }
+
+    private List<Operation> readDurableLog(OperationLog log, Predicate<Operation> stop) throws Exception {
+        val result = new ArrayList<Operation>();
+        while (result.size() == 0 || !stop.test(result.get(result.size() - 1))) {
+            val r = log.read(1000, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            result.addAll(r);
+        }
+        return result;
+    }
 
     /**
      * Tests the ability to save and read {@link SnapshotInfo}
@@ -2733,6 +2788,37 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
     }
+
+    private static class NoOpWriterFactory implements WriterFactory {
+        @Override
+        public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex,
+                                   ContainerAttributeIndex attributeIndex, Storage storage, CreateProcessors createProcessors) {
+            return new NoOpWriter();
+        }
+
+        private static class NoOpWriter extends AbstractService implements Writer {
+            @Override
+            protected void doStart() {
+                notifyStarted();
+            }
+
+            @Override
+            protected void doStop() {
+                notifyStopped();
+            }
+
+            @Override
+            public void close() {
+                stopAsync().awaitTerminated();
+            }
+
+            @Override
+            public CompletableFuture<Boolean> forceFlush(long upToSequenceNumber, Duration timeout) {
+                return CompletableFuture.completedFuture(true);
+            }
+        }
+    }
+
 
     private static class RefCountByteArraySegment extends ByteArraySegment {
         private final AtomicInteger refCount = new AtomicInteger();

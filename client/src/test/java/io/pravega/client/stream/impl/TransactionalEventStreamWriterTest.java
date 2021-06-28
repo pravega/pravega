@@ -48,6 +48,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
 
 public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
     @Rule
@@ -125,12 +127,17 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(bad);
 
         // Create a transactional event Writer
-        @Cleanup
         TransactionalEventStreamWriter<String> writer = new TransactionalEventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService());
         writer.beginTxn();
+        writer.close();
 
-        Transaction<String> txn = writer.getTxn(txnId);
+        //Create a new transactional eventWriter
+        @Cleanup
+        TransactionalEventStreamWriter<String> writer1 = new TransactionalEventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
+                                                                                                  EventWriterConfig.builder().transactionTimeoutTime(10000).build(),
+                                                                                                  executorService());
+        Transaction<String> txn = writer1.getTxn(txnId);
         txn.writeEvent("Foo");
         assertTrue(bad.unacked.isEmpty());
         assertEquals(1, outputStream.unacked.size());
@@ -138,6 +145,8 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         txn.flush();
         assertTrue(bad.unacked.isEmpty());
         assertTrue(outputStream.unacked.isEmpty());
+        // verify pings was invoked for the transaction with the specified transactionTimeout.
+        verify(controller, timeout(10_000).atLeastOnce()).pingTransaction(eq(stream), eq(txnId), eq(10000L));
     }
 
     @Test(expected = TxnFailedException.class)

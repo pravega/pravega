@@ -25,7 +25,9 @@ import io.pravega.shared.controller.event.RequestProcessor;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.Getter;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,6 +44,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.assertTrue;
 
 public class ConcurrentEPSerializedRHTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
 
     private LinkedBlockingQueue<ControllerEvent> requestStream = new LinkedBlockingQueue<>();
     private List<ControllerEvent> history = Collections.synchronizedList(new ArrayList<>());

@@ -74,14 +74,14 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         TxnStatus txnStatus = TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
         doReturn(CompletableFuture.completedFuture(txnStatus)).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(txnStatus)).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any());
+        doReturn(CompletableFuture.completedFuture(0L)).when(helper).commitTransaction(
+                anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());
@@ -89,8 +89,9 @@ public class SegmentHelperMock {
         doReturn(CompletableFuture.completedFuture(null)).when(helper).truncateSegment(
                 anyString(), anyString(), anyLong(), anyLong(), any(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(0L, "", true, true, false, 0L, 0L, 0L))).when(helper).getSegmentInfo(
-                anyString(), anyString(), anyLong(), anyString());
+        doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(
+                0L, "", true, true, false, 0L, 0L, 0L)))
+                .when(helper).getSegmentInfo(anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(null)).when(helper).createTableSegment(
                 anyString(), anyString(), anyLong(), anyBoolean());
@@ -116,13 +117,13 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any());
+                anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());
@@ -275,7 +276,7 @@ public class SegmentHelperMock {
                             ByteBuffer key = requestKey.getKey().copy().nioBuffer();
                             TableSegmentEntry existingEntry = table.get(key);
                             if (existingEntry == null) {
-                                resultList.add(TableSegmentEntry.notExists(new byte[1], new byte[1]));
+                                resultList.add(TableSegmentEntry.notExists(key.array(), new byte[0]));
                             } else if (existingEntry.getKey().getVersion().equals(requestKey.getVersion())
                                     || requestKey.getVersion() == null
                                     || requestKey.getVersion().equals(TableSegmentKeyVersion.NO_VERSION)) {

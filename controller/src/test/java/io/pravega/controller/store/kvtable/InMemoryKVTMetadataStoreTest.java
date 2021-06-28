@@ -25,7 +25,7 @@ public class InMemoryKVTMetadataStoreTest extends KVTableMetadataStoreTest {
 
     @Override
     public void setupStore() throws Exception {
-        this.streamStore = StreamStoreFactory.createInMemoryStore(executor);
+        this.streamStore = StreamStoreFactory.createInMemoryStore();
         store = KVTableStoreFactory.createInMemoryStore(this.streamStore, executor);
     }
 
@@ -36,6 +36,6 @@ public class InMemoryKVTMetadataStoreTest extends KVTableMetadataStoreTest {
 
     @Override
     Controller.CreateScopeStatus createScope(String scopeName) throws Exception {
-        return streamStore.createScope(scopeName).get();
+        return streamStore.createScope(scopeName, null, executor).get();
     }
 }

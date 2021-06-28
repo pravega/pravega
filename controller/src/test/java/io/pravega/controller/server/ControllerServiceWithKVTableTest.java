@@ -21,6 +21,7 @@ import io.pravega.client.connection.impl.SocketConnectionFactoryImpl;
 import io.pravega.client.tables.KeyValueTableConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.PravegaZkCuratorResource;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
@@ -48,17 +49,17 @@ import io.pravega.controller.task.EventHelper;
 import io.pravega.controller.task.KeyValueTable.TableMetadataTasks;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.test.common.TestingServerStarter;
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.ClassRule;
+import org.junit.rules.Timeout;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.mockito.Mockito.spy;
@@ -68,13 +69,15 @@ import static org.mockito.Mockito.spy;
  */
 @Slf4j
 public abstract class ControllerServiceWithKVTableTest {
+    @ClassRule
+    public static final PravegaZkCuratorResource PRAVEGA_ZK_CURATOR_RESOURCE = new PravegaZkCuratorResource();
     private static final String SCOPE = "scope";
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
     protected final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "test");
-    protected CuratorFramework zkClient;
     protected SegmentHelper segmentHelperMock;
 
     private ControllerService consumer;
-    private TestingServer zkServer;
     private StreamMetadataTasks streamMetadataTasks;
 
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
@@ -87,19 +90,11 @@ public abstract class ControllerServiceWithKVTableTest {
 
     @Before
     public void setup() {
-        try {
-            zkServer = new TestingServerStarter().start();
-        } catch (Exception e) {
-            log.error("Error starting ZK server", e);
-        }
-        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
-                new ExponentialBackoffRetry(200, 10, 5000));
-        zkClient.start();
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         streamStore = spy(getStore());
-        BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
+        BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(PRAVEGA_ZK_CURATOR_RESOURCE.client, executor);
         connectionFactory = new SocketConnectionFactoryImpl(ClientConfig.builder()
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
@@ -108,8 +103,9 @@ public abstract class ControllerServiceWithKVTableTest {
         TransactionMetrics.initialize();
         EventHelper helperMock = EventHelperMock.getEventHelperMock(executor, "host", ((AbstractStreamMetadataStore) streamStore).getHostTaskIndex());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", disabledAuthHelper, requestTracker, helperMock);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host", disabledAuthHelper);
+                executor, "host", disabledAuthHelper, helperMock);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor,
+                "host", disabledAuthHelper);
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
@@ -126,10 +122,10 @@ public abstract class ControllerServiceWithKVTableTest {
 
         kvtStore = spy(getKVTStore());
         kvtMetadataTasks = spy(new TableMetadataTasks(kvtStore, segmentHelperMock, executor, executor,
-                "host", GrpcAuthHelper.getDisabledAuthHelper(),
-                requestTracker, helperMock));
+                "host", GrpcAuthHelper.getDisabledAuthHelper(), helperMock));
 
-        consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks, segmentHelperMock, executor, null);
+        consumer = new ControllerService(kvtStore, kvtMetadataTasks, streamStore, bucketStore, streamMetadataTasks, 
+                streamTransactionMetadataTasks, segmentHelperMock, executor, null, requestTracker);
     }
 
     abstract StreamMetadataStore getStore();
@@ -143,8 +139,6 @@ public abstract class ControllerServiceWithKVTableTest {
         streamStore.close();
         kvtMetadataTasks.close();
         kvtStore.close();
-        zkClient.close();
-        zkServer.close();
         connectionFactory.close();
         StreamMetrics.reset();
         TransactionMetrics.reset();
@@ -153,7 +147,8 @@ public abstract class ControllerServiceWithKVTableTest {
 
     @Test(timeout = 5000)
     public void createKeyValueTableTest() {
-        assertThrows(IllegalArgumentException.class, () -> consumer.createKeyValueTable(SCOPE, "kvtzero", KeyValueTableConfiguration.builder().partitionCount(0).build(), System.currentTimeMillis()).join());
+        assertThrows(IllegalArgumentException.class, () -> consumer.createKeyValueTable(SCOPE, "kvtzero", 
+                KeyValueTableConfiguration.builder().partitionCount(0).build(), System.currentTimeMillis(), 0L).join());
     }
 
 
