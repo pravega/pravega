@@ -54,7 +54,12 @@ public class FailingRequestProcessor implements RequestProcessor {
     public void readSegment(ReadSegment readSegment) {
         throw new IllegalStateException("Unexpected operation");
     }
-    
+
+    @Override
+    public void flushStorage(WireCommands.FlushStorage flushStorage) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
     @Override
     public void updateSegmentAttribute(UpdateSegmentAttribute updateSegmentAttribute) {
         throw new IllegalStateException("Unexpected operation");

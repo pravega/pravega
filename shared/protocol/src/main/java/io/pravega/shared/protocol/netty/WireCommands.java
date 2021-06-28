@@ -823,6 +823,52 @@ public final class WireCommands {
         }
     }
 
+    @Data
+    public static final class FlushStorage implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.FLUSH_TO_STORAGE;
+        @ToString.Exclude
+        final String delegationToken;
+        final long requestId;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.flushStorage(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            String delegationToken = in.readUTF();
+            long requestId = in.available()  >= Long.BYTES ? in.readLong() : -1L;
+            return new FlushStorage(delegationToken, requestId);
+        }
+    }
+
+    @Data
+    public static final class StorageFlushed implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.FLUSHED_TO_STORAGE;
+        final long requestId;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.storageFlushed(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+        }
+
+        public static WireCommand readFrom(EnhancedByteBufInputStream in, int length) throws IOException {
+            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            return new StorageFlushed(requestId);
+        }
+    }
+
     @RequiredArgsConstructor
     @Getter
     @ToString

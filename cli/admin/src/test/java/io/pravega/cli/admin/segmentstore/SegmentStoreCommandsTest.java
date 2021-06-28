@@ -34,7 +34,6 @@ import java.util.Arrays;
 import java.util.UUID;
 
 public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
-
     @Test
     public void testGetSegmentInfoCommand() throws Exception {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getinfo", StreamConfiguration.builder().build());
@@ -74,6 +73,22 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         Assert.assertTrue(commandResult.contains("ReadSegment:"));
         AssertExtensions.assertThrows(WireCommandFailedException.class, () -> TestUtils.executeCommand("segmentstore read-segment not/exists/0 0 1 localhost", STATE.get()));
         Assert.assertNotNull(ReadSegmentRangeCommand.descriptor());
+    }
+
+    @Test
+    public void testFlushToStorageCommand() throws Exception {
+        TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "flushToStorage", StreamConfiguration.builder().build());
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(SETUP_UTILS.getControllerUri()).build();
+        @Cleanup
+        EventStreamClientFactory factory = EventStreamClientFactory.withScope("segmentstore", clientConfig);
+        @Cleanup
+        EventStreamWriter<String> writer = factory.createEventWriter("flushToStorage", new JavaSerializer<>(), EventWriterConfig.builder().build());
+        writer.writeEvents("rk", Arrays.asList("a", "2", "3"));
+        writer.flush();
+
+        String commandResult = TestUtils.executeCommand("segmentstore flushToStorage localhost", STATE.get());
+        Assert.assertTrue(commandResult.contains("Flushed"));
+        Assert.assertNotNull(FlushToStorageCommand.descriptor());
     }
 
     @Test

@@ -86,6 +86,11 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
+    public void storageFlushed(WireCommands.StorageFlushed storageFlushed) {
+        getNextReplyProcessor().storageFlushed(storageFlushed);
+    }
+
+    @Override
     public void segmentCreated(WireCommands.SegmentCreated streamsSegmentCreated) {
         getNextReplyProcessor().segmentCreated(streamsSegmentCreated);
     }

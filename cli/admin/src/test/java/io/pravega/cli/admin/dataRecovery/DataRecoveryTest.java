@@ -29,6 +29,8 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
+import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -44,8 +46,8 @@ import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import lombok.Cleanup;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
@@ -85,18 +87,32 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
+    @Getter
+    private final int adminPort = io.pravega.test.common.TestUtils.getAvailableListenPort();
 
+    private AdminConnectionListener adminListener = null;
+    @Getter
+    private PravegaRunner pravegaRunner = null;
     /**
      * A directory for FILESYSTEM storage as LTS.
      */
     private File baseDir = null;
     private FileSystemStorageConfig adapterConfig;
+    @Getter
     private StorageFactory storageFactory = null;
 
+    @Getter
+    @Setter
+    private int instanceId;
+    @Getter
+    private int bookieCount;
+    @Getter
+    private int containerCount;
     /**
      * A directory for storing logs and CSV files generated during the test..
      */
     private File logsDir = null;
+    @Getter
     private BookKeeperLogFactory factory = null;
 
     @Override
@@ -114,10 +130,21 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
                 .build();
 
         this.storageFactory = new FileSystemStorageFactory(adapterConfig, executorService());
+        this.instanceId = 0;
+        this.bookieCount = 3;
+        this.containerCount = 1;
+        this.pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
+
+        this.adminListener = new AdminConnectionListener(false, false, "localhost", getAdminPort(),
+                getPravegaRunner().getSegmentStoreRunner().getStreamSegmentStore(),
+                getPravegaRunner().getSegmentStoreRunner().getTableStore(), new PassingTokenVerifier(), null, null);
+        this.adminListener.startListening();
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
+        this.pravegaRunner.close();
+        this.adminListener.close();
         STATE.get().close();
         if (this.factory != null) {
             this.factory.close();
@@ -132,31 +159,14 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
      */
     @Test
     public void testDataRecoveryCommand() throws Exception {
-        int instanceId = 0;
-        int bookieCount = 3;
-        int containerCount = 1;
-        @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
         String streamName = "testDataRecoveryCommand";
 
-        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
-        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+        TestUtils.createScopeStream(getPravegaRunner().getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new ClientRunner(getPravegaRunner().getControllerRunner())) {
             // Write events to the streams.
             TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
-        pravegaRunner.shutDownControllerRunner(); // Shut down the controller
-
-        // Flush all Tier 1 to LTS
-        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.getSegmentStoreRunner().getServiceBuilder());
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
-        }
-
-        pravegaRunner.shutDownSegmentStoreRunner(); // Shutdown SegmentStore
-        pravegaRunner.shutDownBookKeeperRunner(); // Shutdown BookKeeper & ZooKeeper
-
-        // start a new BookKeeper and ZooKeeper.
-        pravegaRunner.startBookKeeperRunner(instanceId++);
+        getPravegaRunner().shutDownControllerRunner(); // Shut down the controller
 
         // set pravega properties for the test
         STATE.set(new AdminCommandState());
@@ -165,22 +175,39 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
         pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
         pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
-        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + pravegaRunner.getBookKeeperRunner().getBkPort());
-        pravegaProperties.setProperty("bookkeeper.ledger.path", pravegaRunner.getBookKeeperRunner().getLedgerPath());
-        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", pravegaRunner.getBookKeeperRunner().getLogMetaNamespace());
-        pravegaProperties.setProperty("pravegaservice.clusterName", pravegaRunner.getBookKeeperRunner().getBaseNamespace());
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + getPravegaRunner().getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", getPravegaRunner().getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", getPravegaRunner().getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", getPravegaRunner().getBookKeeperRunner().getBaseNamespace());
+        pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(getAdminPort()));
         STATE.get().getConfigBuilder().include(pravegaProperties);
 
+        // Flush all Tier 1 to LTS
+        TestUtils.executeCommand("segmentstore flushToStorage localhost", STATE.get());
+
+        getPravegaRunner().shutDownSegmentStoreRunner(); // Shutdown SegmentStore
+        getPravegaRunner().shutDownBookKeeperRunner(); // Shutdown BookKeeper & ZooKeeper
+
+        // start a new BookKeeper and ZooKeeper.
+        setInstanceId(getInstanceId() + 1);
+        getPravegaRunner().startBookKeeperRunner(getInstanceId());
+
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + getPravegaRunner().getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", getPravegaRunner().getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", getPravegaRunner().getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", getPravegaRunner().getBookKeeperRunner().getBaseNamespace());
+        STATE.get().getConfigBuilder().include(pravegaProperties);
         // Command under test
         TestUtils.executeCommand("storage durableLog-recovery", STATE.get());
 
         // Start a new segment store and controller
-        this.factory = new BookKeeperLogFactory(pravegaRunner.getBookKeeperRunner().getBkConfig().get(), pravegaRunner.getBookKeeperRunner().getZkClient().get(),
+        this.factory = new BookKeeperLogFactory(getPravegaRunner().getBookKeeperRunner().getBkConfig().get(),
+                getPravegaRunner().getBookKeeperRunner().getZkClient().get(),
                 executorService());
-        pravegaRunner.restartControllerAndSegmentStore(this.storageFactory, this.factory);
+        getPravegaRunner().restartControllerAndSegmentStore(getStorageFactory(), getFactory());
         log.info("Started a controller and segment store.");
         // Create the client with new controller.
-        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+        try (val clientRunner = new ClientRunner(getPravegaRunner().getControllerRunner())) {
             // Try reading all events to verify that the recovery was successful.
             TestUtils.readAllEvents(SCOPE, streamName, clientRunner.getClientFactory(), clientRunner.getReaderGroupManager(), "RG", "R");
             log.info("Read all events again to verify that segments were recovered.");
@@ -194,28 +221,14 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
      */
     @Test
     public void testListSegmentsCommand() throws Exception {
-        int instanceId = 0;
-        int bookieCount = 3;
-        int containerCount = 1;
-        @Cleanup
-        PravegaRunner pravegaRunner = new PravegaRunner(instanceId++, bookieCount, containerCount, this.storageFactory);
         String streamName = "testListSegmentsCommand";
 
-        TestUtils.createScopeStream(pravegaRunner.getControllerRunner().getController(), SCOPE, streamName, config);
-        try (val clientRunner = new ClientRunner(pravegaRunner.getControllerRunner())) {
+        TestUtils.createScopeStream(getPravegaRunner().getControllerRunner().getController(), SCOPE, streamName, config);
+        try (val clientRunner = new ClientRunner(getPravegaRunner().getControllerRunner())) {
             // Write events to the streams.
             TestUtils.writeEvents(streamName, clientRunner.getClientFactory());
         }
-        pravegaRunner.shutDownControllerRunner(); // Shut down the controller
-
-        // Flush all Tier 1 to LTS
-        ServiceBuilder.ComponentSetup componentSetup = new ServiceBuilder.ComponentSetup(pravegaRunner.getSegmentStoreRunner().getServiceBuilder());
-        for (int containerId = 0; containerId < containerCount; containerId++) {
-            componentSetup.getContainerRegistry().getContainer(containerId).flushToStorage(TIMEOUT).join();
-        }
-
-        pravegaRunner.shutDownSegmentStoreRunner(); // Shutdown SegmentStore
-        pravegaRunner.shutDownBookKeeperRunner(); // Shutdown BookKeeper & ZooKeeper
+        getPravegaRunner().shutDownControllerRunner(); // Shut down the controller
 
         // set pravega properties for the test
         STATE.set(new AdminCommandState());
@@ -224,7 +237,18 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         pravegaProperties.setProperty("pravegaservice.storage.impl.name", "FILESYSTEM");
         pravegaProperties.setProperty("pravegaservice.storage.layout", "ROLLING_STORAGE");
         pravegaProperties.setProperty("filesystem.root", this.baseDir.getAbsolutePath());
+        pravegaProperties.setProperty("pravegaservice.zk.connect.uri", "localhost:" + getPravegaRunner().getBookKeeperRunner().getBkPort());
+        pravegaProperties.setProperty("bookkeeper.ledger.path", getPravegaRunner().getBookKeeperRunner().getLedgerPath());
+        pravegaProperties.setProperty("bookkeeper.zk.metadata.path", getPravegaRunner().getBookKeeperRunner().getLogMetaNamespace());
+        pravegaProperties.setProperty("pravegaservice.clusterName", getPravegaRunner().getBookKeeperRunner().getBaseNamespace());
+        pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(getAdminPort()));
         STATE.get().getConfigBuilder().include(pravegaProperties);
+
+        // Flush all Tier 1 to LTS
+        TestUtils.executeCommand("segmentstore flushToStorage localhost", STATE.get());
+
+        getPravegaRunner().shutDownSegmentStoreRunner(); // Shutdown SegmentStore
+        getPravegaRunner().shutDownBookKeeperRunner(); // Shutdown BookKeeper & ZooKeeper
 
         // Execute the command for list segments
         TestUtils.executeCommand("storage list-segments " + this.logsDir.getAbsolutePath(), STATE.get());
@@ -324,7 +348,9 @@ public class DataRecoveryTest extends ThreadPooledTestSuite {
         @Getter
         private final ServiceBuilder serviceBuilder;
         private final PravegaConnectionListener server;
+        @Getter
         private final StreamSegmentStore streamSegmentStore;
+        @Getter
         private final TableStore tableStore;
 
         SegmentStoreRunner(StorageFactory storageFactory, BookKeeperLogFactory dataLogFactory, int containerCount)

@@ -143,14 +143,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final String EMPTY_STACK_TRACE = "";
-    private final StreamSegmentStore segmentStore;
+    protected final StreamSegmentStore segmentStore;
+    @Getter(AccessLevel.PROTECTED)
+    protected final TrackedConnection connection;
     private final TableStore tableStore;
     private final SegmentStatsRecorder statsRecorder;
     private final TableSegmentStatsRecorder tableStatsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
-    @Getter(AccessLevel.PROTECTED)
-    private final TrackedConnection connection;
 
     //endregion
 
@@ -930,7 +930,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     //endregion
 
-    private Void handleException(long requestId, String segment, String operation, Throwable u) {
+    Void handleException(long requestId, String segment, String operation, Throwable u) {
         // use offset as -1L to handle exceptions when offset data is not available.
         return handleException(requestId, segment, -1L, operation, u);
     }

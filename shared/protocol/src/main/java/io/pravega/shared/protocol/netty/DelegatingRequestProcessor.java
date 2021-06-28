@@ -52,6 +52,11 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     }
 
     @Override
+    public void flushStorage(WireCommands.FlushStorage flushToStorage) {
+        getNextRequestProcessor().flushStorage(flushToStorage);
+    }
+
+    @Override
     public void updateSegmentAttribute(UpdateSegmentAttribute updateSegmentAttribute) {
         getNextRequestProcessor().updateSegmentAttribute(updateSegmentAttribute);
     }

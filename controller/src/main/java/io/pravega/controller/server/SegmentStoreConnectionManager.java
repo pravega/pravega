@@ -304,6 +304,11 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         }
 
         @Override
+        public void storageFlushed(WireCommands.StorageFlushed storageFlushed) {
+            execute(ReplyProcessor::storageFlushed, storageFlushed);
+        }
+
+        @Override
         public void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated) {
             execute(ReplyProcessor::segmentAttributeUpdated, segmentAttributeUpdated);
         }
