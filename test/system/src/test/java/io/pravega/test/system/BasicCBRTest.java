@@ -36,7 +36,9 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
@@ -56,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -75,6 +78,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
 
     private final ReaderConfig readerConfig = ReaderConfig.builder().build();
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
+    private final ScheduledExecutorService streamCutExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "streamCutExecutor");
     private URI controllerURI = null;
     private StreamManager streamManager = null;
     private Controller controller = null;
@@ -151,9 +155,11 @@ public class BasicCBRTest extends AbstractReadWriteTest {
 
         // Update the retention stream-cut.
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
-        CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(executor);
-        EventRead<String> emptyEvent = reader.readNextEvent(100);
-        Map<Stream, StreamCut> streamCuts = futureCuts.get();
+        CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(streamCutExecutor);
+        Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
+        assertTrue("Stream-cut generation did not complete", Futures.await(futureCuts, 10_000));
+
+        Map<Stream, StreamCut> streamCuts = futureCuts.join();
         log.info("{} updating its retention stream-cut to {}", READER_GROUP, streamCuts);
         readerGroup.updateRetentionStreamCut(streamCuts);
 
@@ -176,9 +182,11 @@ public class BasicCBRTest extends AbstractReadWriteTest {
 
         // Update the retention stream-cut.
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
-        CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup.generateStreamCuts(executor);
-        EventRead<String> emptyEvent2 = reader.readNextEvent(100);
-        Map<Stream, StreamCut> streamCuts2 = futureCuts2.get();
+        CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup.generateStreamCuts(streamCutExecutor);
+        Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
+        assertTrue("Stream-cut generation did not complete", Futures.await(futureCuts2, 10_000));
+
+        Map<Stream, StreamCut> streamCuts2 = futureCuts2.join();
         log.info("{} updating its retention stream-cut to {}", READER_GROUP, streamCuts2);
         readerGroup.updateRetentionStreamCut(streamCuts2);
 
