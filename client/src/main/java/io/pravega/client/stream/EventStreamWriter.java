@@ -34,8 +34,11 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * maximum size of the serialized event supported is defined at {@link Serializer#MAX_EVENT_SIZE}.
      *
      * Note that the implementation provides retry logic to handle connection failures and service host
-     * failures. Internal retries will not violate the exactly once semantic so it is better to rely on them
+     * failures. The number of retries is as specified in {@link EventWriterConfig#getRetryAttempts()}.
+     * Internal retries will not violate the exactly once semantic so it is better to rely on them
      * than to wrap this with custom retry logic.
+     * If all the retries fail the returned completableFuture(s) will we completed with a {@link io.pravega.common.util.RetriesExhaustedException}
+     * post which no new writes can happen with this writer.
      *
      * @param event The event to be written to the stream (Null is disallowed)
      * @return A completableFuture that will complete when the event has been durably stored on the configured
@@ -53,8 +56,11 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * {@link Serializer#MAX_EVENT_SIZE}.
      *
      * Note that the implementation provides retry logic to handle connection failures and service
-     * host failures. Internal retries will not violate the exactly once semantic so it is better to
+     * host failures. The number of retries is as specified in {@link EventWriterConfig#getRetryAttempts()}.
+     * Internal retries will not violate the exactly once semantic so it is better to
      * rely on this than to wrap this method with custom retry logic.
+     * If all the retries fail the returned completableFuture(s) will we completed with a {@link io.pravega.common.util.RetriesExhaustedException}
+     * post which no new writes can happen with this writer.
      * 
      * @param routingKey A free form string that is used to route messages to readers. Two events written with
      *        the same routingKey are guaranteed to be read in order. Two events with different routing keys
@@ -75,8 +81,11 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * collective batch should be less than twice the {@link Serializer#MAX_EVENT_SIZE}. 
      *
      * Note that the implementation provides retry logic to handle connection failures and service
-     * host failures. Internal retries will not violate the exactly once semantic so it is better to
+     * host failures. The number of retries is as specified in {@link EventWriterConfig#getRetryAttempts()}.
+     * Internal retries will not violate the exactly once semantic so it is better to
      * rely on this than to wrap this method with custom retry logic.
+     * If all the retries fail the returned completableFuture(s) will we completed with a {@link io.pravega.common.util.RetriesExhaustedException}
+     * post which no new writes can happen with this writer.
      *
      * @param routingKey A free form string that is used to route messages to readers. Two events written with
      *        the same routingKey are guaranteed to be read in order. Two events with different routing keys
@@ -116,6 +125,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
 
     /**
      * Block until all events that have been passed to writeEvent's corresponding futures have completed.
+     * This method will throw a {@link io.pravega.common.util.RetriesExhaustedException} if all internal retries fail.
      */
     void flush();
 
