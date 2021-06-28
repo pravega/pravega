@@ -78,6 +78,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static io.pravega.segmentstore.contracts.Attributes.CORE_ATTRIBUTE_ID_PREFIX;
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.recoverAllSegments;
 import static io.pravega.segmentstore.server.containers.ContainerRecoveryUtils.updateCoreAttributes;
 
@@ -322,18 +323,20 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     public void testDataRecoveryContainerLevel() throws Exception {
         int attributesUpdatesPerSegment = 50;
         int segmentsCount = 10;
-        final UUID attributeReplace = UUID.randomUUID();
+        final UUID attributeReplace = new UUID(CORE_ATTRIBUTE_ID_PREFIX, RANDOM.nextInt(10));
         final long expectedAttributeValue = attributesUpdatesPerSegment;
         int containerId = 0;
         int containerCount = 1;
         int maxDataSize = 1024 * 1024; // 1MB
+
+        StorageFactory storageFactory = new InMemoryStorageFactory(executorService());
 
         @Cleanup
         TestContext context = createContext(executorService());
         OperationLogFactory localDurableLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
         @Cleanup
         MetadataCleanupContainer container = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, storageFactory,
                 context.getDefaultExtensions(), executorService());
         container.startAsync().awaitRunning();
 
@@ -381,26 +384,28 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Get the storage instance
         @Cleanup
-        Storage storage = context.storageFactory.createStorageAdapter();
+        Storage storage = storageFactory.createStorageAdapter();
 
         // 4. Move container metadata and its attribute segment to back up segments.
         Map<Integer, String> backUpMetadataSegments = ContainerRecoveryUtils.createBackUpMetadataSegments(storage, containerCount,
-                executorService(), TIMEOUT);
+                executorService(), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         OperationLogFactory localDurableLogFactory2 = new DurableLogFactory(NO_TRUNCATIONS_DURABLE_LOG_CONFIG,
                 new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), executorService());
         // Starts a DebugSegmentContainer with new Durable Log
         @Cleanup
+        TestContext context1 = createContext(executorService());
+
+        @Cleanup
         MetadataCleanupContainer container2 = new MetadataCleanupContainer(containerId, CONTAINER_CONFIG, localDurableLogFactory2,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory,
-                context.getDefaultExtensions(), executorService());
+                context1.readIndexFactory, context1.attributeIndexFactory, context1.writerFactory, storageFactory,
+                context1.getDefaultExtensions(), executorService());
         container2.startAsync().awaitRunning();
         Map<Integer, DebugStreamSegmentContainer> debugStreamSegmentContainersMap = new HashMap<>();
         debugStreamSegmentContainersMap.put(containerId, container2);
 
         // 4. Recover all segments.
         recoverAllSegments(storage, debugStreamSegmentContainersMap, executorService(), TIMEOUT);
-
         // 5. Update core attributes using back up segments.
         updateCoreAttributes(backUpMetadataSegments, debugStreamSegmentContainersMap, executorService(), TIMEOUT);
 
@@ -417,7 +422,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected length for " + sc.getKey(), expectedData.length, si.getLength());
 
             // Attributes.
-            val attributes = container2.getAttributes(sc.getKey(), Collections.singleton(attributeReplace), false, TIMEOUT).join();
+            val attributes = container2.getAttributes(sc.getKey(), Collections.singleton(attributeReplace),
+                    false, TIMEOUT).join();
             Assert.assertEquals("Unexpected attribute for " + sc.getKey(), expectedAttributeValue, (long) attributes.get(attributeReplace));
         }
     }

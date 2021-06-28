@@ -23,6 +23,15 @@ import java.util.Properties;
 public interface ServerConfig {
 
     /**
+     * Fetches the settings which indicates whether authorization is enabled.
+     *
+     * @return Whether this deployment has auth enabled.
+     */
+    default boolean isAuthorizationEnabled() {
+        return false;
+    }
+
+    /**
      * Returns the configuration items related to {@link io.pravega.auth.AuthHandler}
      * in this object in a {@link Properties} format.
      *

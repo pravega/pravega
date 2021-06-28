@@ -745,8 +745,10 @@ public class K8sClient {
         public void onFailure(ApiException e, int responseCode, Map<String, List<String>> responseHeaders) {
             if (CONFLICT.getStatusCode() == responseCode || NOT_FOUND.getStatusCode() == responseCode) {
                 log.warn("Exception observed for method {} with response code {}", method, responseCode);
+                log.warn("ResponseBody: {}", e.getResponseBody());
             } else {
                 log.error("Exception observed for method {} with response code {}", method, responseCode, e);
+                log.error("ResponseBody: {}", e.getResponseBody());
             }
             future.completeExceptionally(e);
         }

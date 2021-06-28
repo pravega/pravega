@@ -26,7 +26,7 @@ public class InMemoryStoreBucketServiceTest extends BucketServiceTest {
 
     @Override
     public StreamMetadataStore createStreamStore(ScheduledExecutorService executor) {
-        return StreamStoreFactory.createInMemoryStore(executor);
+        return StreamStoreFactory.createInMemoryStore();
     }
 
     @Override

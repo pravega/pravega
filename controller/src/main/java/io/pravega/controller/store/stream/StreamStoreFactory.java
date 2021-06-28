@@ -36,11 +36,12 @@ public class StreamStoreFactory {
                                                   final GrpcAuthHelper authHelper, final ScheduledExecutorService executor) {
         switch (storeClient.getType()) {
             case InMemory:
-                return new InMemoryStreamMetadataStore(executor);
+                return new InMemoryStreamMetadataStore();
             case Zookeeper:
                 return new ZKStreamMetadataStore((CuratorFramework) storeClient.getClient(), executor);
             case PravegaTable:
-                return new PravegaTablesStreamMetadataStore(segmentHelper, (CuratorFramework) storeClient.getClient(), executor, authHelper);
+                return new PravegaTablesStreamMetadataStore(segmentHelper, (CuratorFramework) storeClient.getClient(),
+                        executor, authHelper);
             default:
                 throw new NotImplementedException(storeClient.getType().toString());
         }
@@ -58,8 +59,8 @@ public class StreamStoreFactory {
     }
     
     @VisibleForTesting
-    public static StreamMetadataStore createInMemoryStore(final Executor executor) {
-        return new InMemoryStreamMetadataStore(executor);
+    public static StreamMetadataStore createInMemoryStore() {
+        return new InMemoryStreamMetadataStore();
     }
 
     public static BucketStore createBucketStore(final StoreClient storeClient, final Executor executor) {

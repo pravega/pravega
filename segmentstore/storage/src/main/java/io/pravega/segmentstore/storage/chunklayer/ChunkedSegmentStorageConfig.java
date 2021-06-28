@@ -43,7 +43,7 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Boolean> APPENDS_ENABLED = Property.named("appends.enable", true);
     public static final Property<Boolean> LAZY_COMMIT_ENABLED = Property.named("commit.lazy.enable", true);
     public static final Property<Boolean> INLINE_DEFRAG_ENABLED = Property.named("defrag.inline.enable", true);
-    public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", SegmentRollingPolicy.MAX_CHUNK_LENGTH);
+    public static final Property<Long> DEFAULT_ROLLOVER_SIZE = Property.named("metadata.rollover.size.bytes.max", 128 * 1024 * 1024L);
     public static final Property<Integer> SELF_CHECK_LATE_WARNING_THRESHOLD = Property.named("self.check.late", 100);
     public static final Property<Integer> GARBAGE_COLLECTION_DELAY = Property.named("garbage.collection.delay.seconds", 60);
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_CONCURRENCY = Property.named("garbage.collection.concurrency.max", 10);
@@ -65,7 +65,7 @@ public class ChunkedSegmentStorageConfig {
     public static final ChunkedSegmentStorageConfig DEFAULT_CONFIG = ChunkedSegmentStorageConfig.instanceBuilder()
             .minSizeLimitForConcat(0L)
             .maxSizeLimitForConcat(Long.MAX_VALUE)
-            .defaultRollingPolicy(SegmentRollingPolicy.NO_ROLLING)
+            .storageMetadataRollingPolicy(new SegmentRollingPolicy(128 * 1024 * 1024L))
             .maxBufferSizeForChunkDataTransfer(1024 * 1024)
             .maxIndexedSegments(1024)
             .maxIndexedChunksPerSegment(1024)
@@ -105,11 +105,11 @@ public class ChunkedSegmentStorageConfig {
     final private long maxSizeLimitForConcat;
 
     /**
-     * A SegmentRollingPolicy to apply to every StreamSegment that does not have its own policy defined.
+     * A SegmentRollingPolicy to apply to storage metadata segments.
      */
     @Getter
     @NonNull
-    final private SegmentRollingPolicy defaultRollingPolicy;
+    final private SegmentRollingPolicy storageMetadataRollingPolicy;
 
     /**
      * Maximum size for the buffer used while copying of data from one chunk to other.
@@ -255,8 +255,7 @@ public class ChunkedSegmentStorageConfig {
         this.maxIndexedSegments = properties.getInt(MAX_INDEXED_SEGMENTS);
         this.maxIndexedChunksPerSegment = properties.getInt(MAX_INDEXED_CHUNKS_PER_SEGMENTS);
         this.maxIndexedChunks = properties.getInt(MAX_INDEXED_CHUNKS);
-        long defaultMaxLength = properties.getLong(DEFAULT_ROLLOVER_SIZE);
-        this.defaultRollingPolicy = new SegmentRollingPolicy(defaultMaxLength);
+        this.storageMetadataRollingPolicy = new SegmentRollingPolicy(properties.getLong(DEFAULT_ROLLOVER_SIZE));
         this.lateWarningThresholdInMillis = properties.getInt(SELF_CHECK_LATE_WARNING_THRESHOLD);
         this.garbageCollectionDelay = Duration.ofSeconds(properties.getInt(GARBAGE_COLLECTION_DELAY));
         this.garbageCollectionMaxConcurrency = properties.getInt(GARBAGE_COLLECTION_MAX_CONCURRENCY);

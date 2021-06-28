@@ -50,12 +50,13 @@ public interface WriterSegmentProcessor extends AutoCloseable {
      * Adds the given {@link SegmentOperation} to the Processor.
      *
      * @param operation the SegmentOperation to add.
-     * @throws DataCorruptionException  If the validation of the given Operation indicates a possible data corruption in
-     *                                  the code (offset gaps, out-of-order operations, etc.)
+     * @throws ServiceHaltException     If the validation of the given Operation indicates a possible data corruption in
+     *                                  the code (offset gaps, out-of-order operations, etc.) or state in which the
+     *                                  operation has been already acknowledged.
      * @throws IllegalArgumentException If the validation of the given Operation indicates a possible non-corrupting bug
      *                                  in the code.
      */
-    void add(SegmentOperation operation) throws DataCorruptionException;
+    void add(SegmentOperation operation) throws ServiceHaltException;
 
     /**
      * Flushes the contents of the Processor.
