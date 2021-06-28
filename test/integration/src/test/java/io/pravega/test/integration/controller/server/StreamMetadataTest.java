@@ -77,7 +77,7 @@ public class StreamMetadataTest {
         final String streamName2 = "stream2";
 
         assertEquals(CreateScopeStatus.Status.SUCCESS,
-                     controllerWrapper.getControllerService().createScope(scope1).get().getStatus());
+                     controllerWrapper.getControllerService().createScope(scope1, 0L).get().getStatus());
         final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
         final StreamConfiguration config1 = StreamConfiguration.builder()
                                                                .scalingPolicy(scalingPolicy)
@@ -89,7 +89,7 @@ public class StreamMetadataTest {
         assertTrue(controller.createStream(scope1, streamName1, config1).get());
 
         // Seal a stream given a streamName and scope.
-        controllerWrapper.getControllerService().createScope(scopeSeal).get();
+        controllerWrapper.getControllerService().createScope(scopeSeal, 0L).get();
 
         final StreamConfiguration configSeal = StreamConfiguration.builder()
                                                                   .scalingPolicy(scalingPolicy)
@@ -116,7 +116,7 @@ public class StreamMetadataTest {
         assertFalse(controller.createStream(scope1, streamName1, config1).get());
 
         // CS3:create a stream with same stream name in different scopes
-        controllerWrapper.getControllerService().createScope(scope2).get();
+        controllerWrapper.getControllerService().createScope(scope2, 0L).get();
 
         final StreamConfiguration config2 = StreamConfiguration.builder()
                                                                .scalingPolicy(scalingPolicy)
@@ -156,6 +156,8 @@ public class StreamMetadataTest {
                                                                .build();
         assertTrue(controller.updateStream(scope1, streamName1, config9).get());
 
+        // the number of segments in the stream should now be 3. 
+        
         // AS7:Update configuration of non-existent stream.
         final StreamConfiguration config = StreamConfiguration.builder()
                                                               .scalingPolicy(ScalingPolicy.fixed(2))
@@ -195,8 +197,10 @@ public class StreamMetadataTest {
 
         // PS5:Get position at time before stream creation
         segments = controller.getSegmentsAtTime(stream1, System.currentTimeMillis() - 36000);
+        assertEquals(segments.join().size(), 2);
+
         assertEquals(controller.getCurrentSegments(scope1, streamName1).get().getSegments().size(),
-                     segments.get().size());
+                     3);
 
         // PS6:Get positions at a time in future after stream creation
         segments = controller.getSegmentsAtTime(stream1, System.currentTimeMillis() + 3600);

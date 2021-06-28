@@ -16,7 +16,6 @@
 package io.pravega.controller.server;
 
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
@@ -24,16 +23,22 @@ import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
+import io.pravega.shared.rest.impl.RESTServerConfigImpl;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Tests for ControllerServiceConfig.
  */
 public class ControllerServiceConfigTest {
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.HOURS);
 
     @Test
     public void configTests() {

@@ -20,8 +20,8 @@ import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.AbstractDrainingQueue;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
-import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndexFactory;
+import io.pravega.segmentstore.server.ServiceHaltException;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
@@ -107,7 +107,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
     //region RecoveryProcessor Overrides
 
     @Override
-    protected void recoverOperation(DataFrameRecord<Operation> dataFrameRecord, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
+    protected void recoverOperation(DataFrameRecord<Operation> dataFrameRecord, OperationMetadataUpdater metadataUpdater) throws ServiceHaltException {
         if (this.callbacks.beginRecoverOperation != null) {
             Callbacks.invokeSafely(this.callbacks.beginRecoverOperation, dataFrameRecord.getItem(), dataFrameRecord.getFrameEntries(), null);
         }

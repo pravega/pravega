@@ -21,6 +21,7 @@ import io.pravega.controller.store.InMemoryScope;
 import io.pravega.controller.store.Scope;
 import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.store.stream.InMemoryStreamMetadataStore;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import lombok.SneakyThrows;
 import lombok.Synchronized;
@@ -30,9 +31,9 @@ import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * In-memory stream store.
@@ -44,12 +45,10 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     private final Map<String, Integer> deletedKVTables = new HashMap<>();
 
     private final InMemoryStreamMetadataStore streamStore;
-    private final ScheduledExecutorService executor;
 
-    public InMemoryKVTMetadataStore(StreamMetadataStore streamStore, ScheduledExecutorService executor) {
+    public InMemoryKVTMetadataStore(StreamMetadataStore streamStore) {
         super(new InMemoryHostIndex());
         this.streamStore = (InMemoryStreamMetadataStore) streamStore;
-        this.executor = executor;
     }
 
     @Override
@@ -60,15 +59,15 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
 
     @Override
     public Scope newScope(String scopeName) {
-        return getScope(scopeName);
+        return getScope(scopeName, null);
     }
 
     @SneakyThrows
     @Override
     @Synchronized
-    public KeyValueTable getKVTable(String scope, final String name, KVTOperationContext context) {
+    public KeyValueTable getKVTable(String scope, final String name, OperationContext context) {
         if (this.streamStore.scopeExists(scope)) {
-            InMemoryScope kvtScope = (InMemoryScope) this.streamStore.getScope(scope);
+            InMemoryScope kvtScope = (InMemoryScope) this.streamStore.getScope(scope, context);
             if (kvtScope.checkTableExists(name)) {
                 return kvtScope.getKeyValueTable(name);
             }
@@ -79,14 +78,14 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     @Override
     public CompletableFuture<Void> deleteFromScope(final String scope,
                                                    final String name,
-                                                   final KVTOperationContext context,
+                                                   final OperationContext context,
                                                    final Executor executor) {
-        return Futures.completeOn(((InMemoryScope) getScope(scope)).removeKVTableFromScope(name),
+        return Futures.completeOn(((InMemoryScope) getScope(scope, context)).removeKVTableFromScope(name),
                 executor);
     }
 
     @Override
-    CompletableFuture<Void> recordLastKVTableSegment(String scope, String kvtable, int lastActiveSegment, KVTOperationContext context, Executor executor) {
+    CompletableFuture<Void> recordLastKVTableSegment(String scope, String kvtable, int lastActiveSegment, OperationContext context, Executor executor) {
         Integer oldLastActiveSegment = deletedKVTables.put(getScopedKVTName(scope, kvtable), lastActiveSegment);
         Preconditions.checkArgument(oldLastActiveSegment == null || lastActiveSegment >= oldLastActiveSegment);
         log.debug("Recording last segment {} for kvtable {}/{} on deletion.", lastActiveSegment, scope, kvtable);
@@ -95,16 +94,16 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> checkScopeExists(String scope) {
+    public CompletableFuture<Boolean> checkScopeExists(String scope, OperationContext context, Executor executor) {
         return Futures.completeOn(CompletableFuture.completedFuture(this.streamStore.scopeExists(scope)), executor);
     }
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt) {
-        return Futures.completeOn(checkScopeExists(scopeName).thenCompose(exists -> {
+    public CompletableFuture<Boolean> checkTableExists(String scopeName, String kvt, OperationContext context, Executor executor) {
+        return Futures.completeOn(checkScopeExists(scopeName, context, executor).thenCompose(exists -> {
             if (exists) {
-                return CompletableFuture.completedFuture(((InMemoryScope) getScope(scopeName)).checkTableExists(kvt));
+                return CompletableFuture.completedFuture(((InMemoryScope) getScope(scopeName, context)).checkTableExists(kvt));
             }
             return CompletableFuture.completedFuture(Boolean.FALSE);
         }), executor);
@@ -112,9 +111,9 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
 
     @Override
     @Synchronized
-    public Scope getScope(final String scopeName) {
+    public Scope getScope(final String scopeName, OperationContext context) {
         if (this.streamStore.scopeExists(scopeName)) {
-            return this.streamStore.getScope(scopeName);
+            return this.streamStore.getScope(scopeName, context);
         } else {
             return new InMemoryScope(scopeName);
         }
@@ -122,7 +121,8 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String kvtName) {
+    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String kvtName, 
+                                                                      OperationContext context, Executor executor) {
         final Integer safeStartingSegmentNumber = deletedKVTables.get(scopedKVTName(scopeName, kvtName));
         return CompletableFuture.completedFuture((safeStartingSegmentNumber != null) ? safeStartingSegmentNumber + 1 : 0);
     }
@@ -131,11 +131,13 @@ public class InMemoryKVTMetadataStore extends AbstractKVTableMetadataStore {
     public void close() throws IOException {
     }
 
+    @Override
     public CompletableFuture<Void> createEntryForKVTable(final String scopeName,
                                                          final String kvtName,
-                                                         final byte[] id,
+                                                         final UUID id,
+                                                         OperationContext context, 
                                                          final Executor executor) {
-        return Futures.completeOn(((InMemoryScope) this.streamStore.getScope(scopeName))
+        return Futures.completeOn(((InMemoryScope) this.streamStore.getScope(scopeName, context))
                                         .addKVTableToScope(kvtName, id), executor);
     }
 
