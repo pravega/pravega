@@ -16,10 +16,12 @@
 package io.pravega.controller.server.security.auth;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.grpc.ServerBuilder;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.AuthorizationException;
 import io.pravega.controller.server.security.auth.handler.AuthContext;
+import io.pravega.controller.server.security.auth.handler.AuthInterceptor;
 import io.pravega.shared.security.token.JsonWebToken;
 
 import java.util.HashMap;
@@ -133,5 +135,11 @@ public class GrpcAuthHelper {
 
         return new JsonWebToken("segmentstoreresource", "segmentstore", tokenSigningKey.getBytes(),
                 customClaims, null).toCompactString();
+    }
+
+    public static void registerInterceptors(Map<String, AuthHandler> handlers, ServerBuilder<?> builder) {
+        for (Map.Entry<String, AuthHandler> handler : handlers.entrySet()) {
+            builder.intercept(new AuthInterceptor(handler.getValue()));
+        }
     }
 }

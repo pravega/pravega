@@ -310,9 +310,9 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                             "Write did not fail correctly.",
                             () -> f.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
                             ex -> {
-                                cancellationEncountered.set(cancellationEncountered.get() || ex instanceof CancellationException);
+                                cancellationEncountered.set(cancellationEncountered.get() || ex instanceof ObjectClosedException);
                                 if (cancellationEncountered.get()) {
-                                    return ex instanceof CancellationException;
+                                    return ex instanceof ObjectClosedException;
                                 } else {
                                     return ex instanceof RetriesExhaustedException
                                             || ex instanceof DurableDataLogException;

@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -285,6 +286,31 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                 executor);
     }
 
+    @Override
+    public CompletableFuture<Void> addStreamTagsToIndex(String scope, String streamName, StreamConfiguration config,
+                                                        OperationContext ctx, Executor executor) {
+        OperationContext context = getOperationContext(ctx);
+        if (streamName.startsWith(NameUtils.INTERNAL_NAME_PREFIX) || config.getTags().isEmpty()) {
+            // Tags are not allowed on internal streams.
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return Futures.completeOn(((PravegaTablesScope) getScope(scope, context))
+                                              .addTagsUnderScope(streamName, config.getTags(), context), executor);
+        }
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTagsFromIndex(String scope, String streamName, Set<String> tagsRemoved,
+                                                       OperationContext ctx, Executor executor) {
+        OperationContext context = getOperationContext(ctx);
+        if (streamName.startsWith(NameUtils.INTERNAL_NAME_PREFIX) || tagsRemoved.isEmpty()) {
+            // Tags are not allowed on internal streams.
+            return CompletableFuture.completedFuture(null);
+        } else {
+            return Futures.completeOn(((PravegaTablesScope) getScope(scope, context))
+                                              .removeTagsUnderScope(streamName, tagsRemoved, context), executor);
+        }
+    }
 
     @Override
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,

@@ -13,21 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.controller.auth;
+package io.pravega.auth;
 
-import io.pravega.auth.AuthHandler;
 import io.pravega.shared.security.auth.UserPrincipal;
 
 import java.security.Principal;
 
-public class TestAuthHandler implements AuthHandler {
+public class FakeAuthHandler implements AuthHandler {
 
-    public static final String DUMMY_USER = "dummy";
-    public static final String ADMIN_USER = "admin";
+    public static final String UNPRIVILEGED_USER = "unPrivilegedUser";
+    public static final String PRIVILEGED_USER = "privilegedUser";
 
     @Override
     public String getHandlerName() {
-        return "testHandler";
+        return "Basic";
     }
 
     @Override
@@ -37,10 +36,10 @@ public class TestAuthHandler implements AuthHandler {
 
     @Override
     public Permissions authorize(String resource, Principal principal) {
-        if (principal.getName().contains(DUMMY_USER)) {
-            return Permissions.NONE;
-        } else {
+        if (principal.getName().contains(PRIVILEGED_USER)) {
             return Permissions.READ_UPDATE;
+        } else {
+            return Permissions.NONE;
         }
     }
 
