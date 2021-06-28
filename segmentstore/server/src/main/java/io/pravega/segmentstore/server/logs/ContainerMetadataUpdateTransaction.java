@@ -22,6 +22,7 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -53,7 +54,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -501,7 +501,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         }
 
         metadata.updateAttributes(mapping.getAttributes());
-        metadata.refreshType();
+        metadata.refreshDerivedProperties();
     }
 
     //endregion
@@ -727,7 +727,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             output.writeLong(sm.getStartOffset());
 
             // We only serialize Core Attributes. Extended Attributes can be retrieved from the AttributeIndex.
-            output.writeMap(Attributes.getCoreNonNullAttributes(sm.getAttributes()), RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+            output.writeMap(Attributes.getCoreNonNullAttributes(sm.getAttributes()), this::writeAttributeId00, RevisionDataOutput::writeLong);
         }
 
         private UpdateableSegmentMetadata readSegmentMetadata00(RevisionDataInput input, ContainerMetadataUpdateTransaction t) throws IOException {
@@ -767,9 +767,19 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             metadata.setLastModified(lastModified);
             metadata.setStartOffset(input.readLong());
 
-            val attributes = input.readMap(RevisionDataInput::readUUID, RevisionDataInput::readLong);
+            val attributes = input.readMap(this::readAttributeId00, RevisionDataInput::readLong);
             metadata.updateAttributes(attributes);
             return metadata;
+        }
+
+        private void writeAttributeId00(RevisionDataOutput out, AttributeId attributeId) throws IOException {
+            assert attributeId.isUUID();
+            out.writeLong(attributeId.getBitGroup(0));
+            out.writeLong(attributeId.getBitGroup(1));
+        }
+
+        private AttributeId readAttributeId00(RevisionDataInput in) throws IOException {
+            return AttributeId.uuid(in.readLong(), in.readLong());
         }
 
         protected UpdateableSegmentMetadata getSegmentMetadata(String name, long segmentId, ContainerMetadataUpdateTransaction t) {
@@ -883,7 +893,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             }
 
             @Override
-            public void updateAttributes(Map<UUID, Long> attributeValues) {
+            public void updateAttributes(Map<AttributeId, Long> attributeValues) {
                 // Not relevant here.
             }
 
@@ -898,7 +908,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             }
 
             @Override
-            public void refreshType() {
+            public void refreshDerivedProperties() {
                 // Not relevant here.
             }
 
@@ -939,18 +949,23 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             }
 
             @Override
-            public Map<UUID, Long> getAttributes() {
+            public Map<AttributeId, Long> getAttributes() {
                 return Collections.emptyMap();
             }
 
             @Override
-            public Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter) {
+            public Map<AttributeId, Long> getAttributes(BiPredicate<AttributeId, Long> filter) {
                 return Collections.emptyMap();
             }
 
             @Override
             public SegmentType getType() {
                 return null;
+            }
+
+            @Override
+            public int getAttributeIdLength() {
+                return 0;
             }
 
             //endregion

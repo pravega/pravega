@@ -52,8 +52,8 @@ public abstract class KVTableMetadataStoreTest {
     protected final String scope = "storescope";
     protected final String kvtable1 = "kvt1";
     protected final String kvtable2 = "kvt2";
-    protected final KeyValueTableConfiguration configuration1 = KeyValueTableConfiguration.builder().partitionCount(2).build();
-    protected final KeyValueTableConfiguration configuration2 = KeyValueTableConfiguration.builder().partitionCount(3).build();
+    protected final KeyValueTableConfiguration configuration1 = KeyValueTableConfiguration.builder().partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
+    protected final KeyValueTableConfiguration configuration2 = KeyValueTableConfiguration.builder().partitionCount(3).primaryKeyLength(4).secondaryKeyLength(4).build();
 
     @Before
     public abstract void setupStore() throws Exception;
@@ -140,7 +140,7 @@ public abstract class KVTableMetadataStoreTest {
     public void deleteKeyValueTableTest() throws Exception {
         final String scopeName = "ScopeDelete";
         final String kvtName = "KVTableDelete";
-        KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(3).build();
+        KeyValueTableConfiguration config = KeyValueTableConfiguration.builder().partitionCount(3).primaryKeyLength(4).secondaryKeyLength(4).build();
 
         // create KeyValueTable in scope
         Controller.CreateScopeStatus scopeCreateStatus = createScope(scopeName);

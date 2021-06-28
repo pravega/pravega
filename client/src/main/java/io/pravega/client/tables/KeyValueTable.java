@@ -17,11 +17,8 @@ package io.pravega.client.tables;
 
 import com.google.common.annotations.Beta;
 import io.pravega.client.tables.impl.TableSegment;
-import io.pravega.common.util.AsyncIterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import javax.annotation.Nullable;
 import lombok.NonNull;
 
 /**
@@ -34,58 +31,76 @@ import lombok.NonNull;
  * enables the Key-Value Table to be distributed across the Pravega cluster but also introduces some constraints for
  * certain operations (such as multi-key/entry atomic updates). See below for details.
  * <p>
- * Key Families are used to group related Keys together in the same Table Partition, which allows multiple
- * keys/entries belonging to the same Key Family to be updated/removed atomically.
+ * {@link TableKey}s are made up of two components: Primary Key and Secondary Key.
  * <ul>
- * <li> Multiple Keys/Entries in the same Key Family can be updated or removed atomically (either all changes will be
- * applied or none will).
- * <li> Iterating through all Keys/Entries in the same Key Family is possible.
- * <li> The same Key may exist in multiple Key Families or even not be associated with any Key Family at all. Such keys
- * are treated as distinct keys and will not interfere with each other (i.e., if key K1 exists in Key Families F1 and F2,
- * then F1.K1 is different from F2.K1 and both are different from K1 (no Key Family association).
- * <li> Keys that do not belong to any Key Family will be uniformly distributed across the Key-Value Table Partitions and
- * cannot be used for multi-key/entry atomic updates or removals or be iterated on.
- * <li> Keys belonging to the same Key Family are grouped into the same Table Segment; as such, the choice of Key Families
- * can have performance implications. An ideally balanced Key-Value Table is one where no Key is part of any Key Family
- * or the number of Keys in each Key Family is approximately the same. To enable a uniform distribution of Keys over the
- * Key-Value Table, it is highly recommended not to use Key Families at all. If this situation cannot be avoided (i.e.,
- * multi-entry atomic updates or iterators are required), then it is recommended that Key Families themselves be
- * diversified and Keys be equally distributed across them. Such approaches will ensure that the Key-Value Table load
- * will be spread across all its Table Segments. An undesirable situation is an extreme case where all the Keys in the
- * Key-Value Table are associated with a single Key Family; in this case the entire Key-Value Table load will be placed
- * on a single backing Table Segment instead of spreading it across many Table Segments, leading to eventual performance
- * degradation.
+ * <li> The Primary Key is mandatory and is used to group all {@link TableKey}s with the same Primary Key together in the
+ * same Table Partition; this allows multiple keys/entries sharing the same Primary Key to be updated/removed atomically.
+ * The Primary Keys must all have the same length throughout the Key-Value Table. This needs to be configured when the
+ * Key-Value Table is created (See {@link KeyValueTableConfiguration#getPrimaryKeyLength()} and must be greater than 0.
+ *
+ * <li> The Secondary Key is optional. The Secondary Keys must all have the same length throughout the Key-Value Table.
+ * This needs to be configured when the Key-Value Table is created (See {@link KeyValueTableConfiguration#getSecondaryKeyLength()}
+ * and must be at least 0. For Key-Value Tables with no Secondary Keys, set this value to 0. It is important to note that
+ * if specifying a non-zero value, then all {@link TableKey}s must have both the Primary Key and Secondary Key set; so
+ * we may not have {@link TableKey}s without Secondary Keys in this case. The Secondary Key is optional at the Table
+ * level, not at the Key level.
+ *
+ * <li> Two {@link TableKey} instances are considered equal if they have the same Primary Key and same Secondary Key.
+ * The same Secondary Key may be "associated" with different Primary Keys, in which case the resulting {@link TableKey}s
+ * will be distinct. For example, if we consider Primary Keys PK1 != PK2 and Secondary Key SK1, then key PK1.SK1 is
+ * different from key PK2.SK1.
+ *
+ * <li> Multiple {@link TableKey}/{@link TableEntry} instances with the same Primary Key can be updated or removed
+ * atomically (either all changes will be applied or none will). However, it is important to note that it is not possible
+ * to mix updates  with removals in the same atomic operation.
+ *
+ * <li> {@link TableKey}s that do not share the same Primary Key may be hashed to different Key-Value Table Partitions
+ * and cannot be used for multi-key/entry atomic updates or removals.
+ *
+ * <li> {@link TableKey}s sharing the same Primary Key are grouped into the same Table Segment; as such, the choice of
+ * Table Key can have performance implications. As Primary Keys are hashed to Table Segments, a large number of Primary
+ * Keys (larger than the number of Table Segments) and a uniform distribution of operations across keys leads to an even
+ * distribution of load across Table Segments. Many realistic workloads are skewed, however, and can lead to an uneven
+ * load distribution across Table Segments.
+ *
+ * The use of Secondary Keys also has implications to the load balance. All keys containing a given Primary Key map to
+ * the same Table Segment independent of Secondary Key. In the presence of Secondary Keys, the total load for a given
+ * Primary Key depends on the load aggregate across all of its Secondary Keys. When the load distribution is highly
+ * skewed, one option to consider is eliminating Secondary Keys and only using Primary Keys. The application must be
+ * able to encode the key into a single one rather than split into two parts. To illustrate, if we have two Table Keys
+ * "A.B" and "A.C", "." representing the separation between Primary and Secondary Keys, then they map to the same Table
+ * Segment because they have the same Primary Key "A". If instead, we use "AB" and "AC" as keys, eliminating the Secondary
+ * Keys but retaining the necessary information in the Primary Key, then we should be able to map those keys to different
+ * Table Segments depending on the hashing.
  * </ul>
  * <p>
  * Types of Updates:
  * <ul>
- * <li> Unconditional Updates will insert and/or overwrite any existing values for the given Key, regardless of whether
- * that Key previously existed or not, and regardless of what that Key's version is. Such updates can be performed using
- * {@link #put(String, Object, Object)} or {@link #putAll(String, Iterable)}.
- * <li> Conditional Updates will only overwrite an existing value if the specified {@link Version} matches the one that
- * is currently present on the server. Conditional inserts can be performed using {@link #putIfAbsent(String, Object, Object)}
- * and will only succeed if the given Key does not already exist in the given Key Family. Conditional updates can be
- * performed using {@link #replace(String, Object, Object, Version)}.
- * <li> Unconditional Removals will remove a Key regardless of what that Key's version is. The operation will also
- * succeed (albeit with no effect) if the Key does not exist. Such removals can be performed using
- * {@link #remove(String, Object)}.
- * <li> Conditional Removals will remove a Key only if the specified {@link Version} matches the one that is currently
- * present on the server. Such removals can be performed using {@link #remove(String, Object, Version)}.
- * <li> Multi-key updates allow mixing different types of updates in the same update batch. Some entries may be conditioned
- * on their Keys not existing at all ({@link TableEntry#getKey()}{@link TableKey#getVersion()} equals
- * {@link Version#NOT_EXISTS}), some may be conditioned on specific versions and some may not have condition attached at
- * all ({@link TableEntry#getKey()}{@link TableKey#getVersion()} equals {@link Version#NO_VERSION}). All the conditions
- * that are present in the update batch must be satisfied in order for the update batch to be accepted - the condition
- * checks and updates are performed atomically. Use {@link #replaceAll(String, Iterable)} for such an update.
- * <li> Multi-key removals allow mixing different types of removals in the same removal batch. Some removals may be
- * conditioned on their affected Keys having a specific version and some may not have a condition attached at all
- * ({@link TableKey#getVersion()} equals {@link Version#NO_VERSION}). Although unusual, it is possible to have a removal
- * conditioned on a Key not existing ({@link TableKey#getVersion()} equals {@link Version#NOT_EXISTS}); such an update
- * will have no effect on that Key if it doesn't exist but it will  prevent the rest of the removals from the same batch
- * from being applied - this can be used in scenarios where a set of Keys must be removed only if a particular Key is not
- * present. All the conditions that are present in the removal batch must be satisfied in order for the removal batch to
- * be accepted - the condition checks and updates are performed atomically. Use {@link #removeAll(String, Iterable)} for
- * such a removal.
+ * <li> Unconditional Updates will update a value associated with a {@link TableKey}, regardless of whether that
+ * {@link TableKey} previously existed or not, or what what its {@link Version} is. Note that Unconditional Updates will
+ * either update an existing value or insert a new {@link TableEntry} into the table if the specified {@link TableKey}
+ * does not already exist. Unconditional Updates can be performed using {@link #update} by passing {@link Put} instances
+ * with a null ({@link Put#getVersion()}.
+ *
+ * <li> Conditional Updates will only overwrite an existing value if the specified {@link Put#getVersion()} matches the
+ * one that is currently present on the server. Conditional updates can performed using {@link #update} by passing
+ * {@link Put} instances with a non-null {@link Put#getVersion()}. Conditional inserts can be performed using the same
+ * methods by passing an {@link Insert} instance and will only succeed if the associated {@link TableKey} does not already
+ * exist.
+ *
+ * <li> Unconditional Removals will remove a {@link TableKey} if it exists. Such removals can be performed using
+ * {@link #update} by passing a {@link Remove} having {@link Remove#getVersion()} be null. The operation will also succeed
+ * (albeit with no effect) if the {@link Remove#getKey()} does not exist.
+ *
+ * <li> Conditional Removals will remove a {@link TableKey} only if the specified {@link Remove#getVersion()} matches the
+ * one that is currently present on the server. Such removals can be performed using {@link #update} by passing a
+ * {@link Remove} having {@link Remove#getVersion()} non-null.
+ *
+ * <li> Multi-key updates allow any number of conditions to be specified (including no conditions) in the same atomic
+ * batch. All the conditions that are present in the update batch must be satisfied in order for the update batch to be
+ * accepted - the condition checks and updates are performed atomically. {@link Insert}s may be mixed with {@link Put}
+ * having {@link Put#getVersion()} either null or non-null. {@link Remove}s may not be mixed with anything else (i.e.,
+ * {@link Insert} or {@link Remove}). Use {@link #update(Iterable)} for such an update.
  * </ul>
  * <p>
  * Conditional Update Responses:
@@ -98,197 +113,99 @@ import lombok.NonNull;
  * <li> {@link BadKeyVersionException}: the update or removal has been conditioned on a specific version (different from
  * {@link Version#NO_VERSION} but the Key exists in the {@link KeyValueTable} with a different version.
  * </ul>
- *
- * @param <KeyT>   Table Key Type.
- * @param <ValueT> Table Value Type.
+
  */
 @Beta
-public interface KeyValueTable<KeyT, ValueT> extends AutoCloseable {
+public interface KeyValueTable extends AutoCloseable {
     /**
-     * The maximum serialization length of a Table Segment Key.
+     * The maximum length of a Table Segment Value.
      */
-    int MAXIMUM_SERIALIZED_KEY_LENGTH = TableSegment.MAXIMUM_KEY_LENGTH / 2;
+    int MAXIMUM_VALUE_LENGTH = TableSegment.MAXIMUM_VALUE_LENGTH;
 
     /**
-     * The maximum serialized length of a Table Segment Value.
-     */
-    int MAXIMUM_SERIALIZED_VALUE_LENGTH = TableSegment.MAXIMUM_VALUE_LENGTH;
-
-    /**
-     * Unconditionally inserts a new or updates an existing Entry in the {@link KeyValueTable}.
-     *
-     * @param keyFamily (Optional) The Key Family for the Entry. If null, this Entry will not be associated with any
-     *                  Key Family.
-     * @param key       The Key to insert or update.
-     * @param value     The Value to be associated with the Key.
-     * @return A CompletableFuture that, when completed, will contain the {@link Version} associated with the newly
-     * inserted or updated entry.
-     */
-    CompletableFuture<Version> put(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value);
-
-    /**
-     * Conditionally inserts a new Entry in the {@link KeyValueTable} if the given Key is not already present.
-     *
-     * @param keyFamily (Optional) The Key Family for the Entry. If null, this Entry will not be associated with any
-     *                  Key Family.
-     * @param key       The Key to insert.
-     * @param value     The Value to be associated with the Key.
-     * @return A CompletableFuture that, when completed, will contain the {@link Version} associated with the newly
-     * inserted or updated entry. Notable exceptions:
+     * Performs a specific {@link TableModification} to the {@link KeyValueTable}, as described below:
      * <ul>
-     * <li>{@link ConditionalTableUpdateException} If the Key is already present in the {@link KeyValueTable} for the
-     * provided Key Family.
-     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
+     * <li> If {@code update} is a {@link Insert}, this will be interpreted as a Conditional Insert, so the
+     * {@link Insert#getValue()} will only be inserted (and associated with {@link Insert#getKey()} if there doesn't
+     * already exist a {@link TableKey} in the {@link KeyValueTable} that matches {@link Insert#getKey()}.
+     *
+     * <li> If {@code update} is a {@link Put}, this will be an update. If {@link Put#getVersion()} is null, this will
+     * be interpreted as an Unconditional Update, and the {@link Put#getValue()} will be associated with {@link Put#getKey()}
+     * in the {@link KeyValueTable} regardless of whether the Key existed before or not. If {@link Put#getVersion()} is
+     * non-null, this will be interpreted as a Conditional Update, and the {@link Put#getValue()} will only be associated
+     * with {@link Put#getKey()} if there exists a {@link TableKey} in the {@link KeyValueTable} whose {@link Version}
+     * matches {@link Put#getVersion()}. NOTE: if {@link Put#getVersion()} equals {@link Version#NOT_EXISTS}, this is
+     * equivalent to {@link Insert} (i.e., it will be a Conditional Insert).
+     *
+     * <li> If {@code update} is a {@link Remove}, this will remove the {@link Remove#getKey()} from the {@link KeyValueTable}.
+     * If {@link Remove#getVersion()} is null, this will be interpreted as an Unconditional Removal, so the Key will be
+     * removed regardless of its {@link Version} (and the operation will also be successful if the {@link Remove#getKey()}
+     * does not exist). If {@link Remove#getVersion()} is non-null, this will be interpreted as a Conditional Removal,
+     * and the Key will only be removed if it exists and its {@link Version} matches {@link Remove#getVersion()}.
      * </ul>
+     *
+     * @param update The {@link TableModification} to apply to the {@link KeyValueTable}.
+     * @return A CompletableFuture that, when completed, will contain the {@link Version} associated with any newly
+     * updated or inserted entry (for {@link Insert} or {@link Put}) or {@code null} for {@link Remove}.
      */
-    CompletableFuture<Version> putIfAbsent(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value);
+    CompletableFuture<Version> update(@NonNull TableModification update);
 
     /**
-     * Unconditionally inserts new or updates existing {@link TableEntry} instances that belong to the same Key Family
-     * into this {@link KeyValueTable}. All changes are performed atomically (either all or none will be accepted).
+     * Performs a batch of {@link TableModification}s to the {@link KeyValueTable} for {@link TableKey}s that have the
+     * same {@link TableKey#getPrimaryKey()}. All changes are performed atomically (either all or none will be accepted).
+     * <p>
+     * See {@link #update(TableModification)} for details on Conditional/Unconditional Updates. Conditional and unconditional
+     * updates may be mixed together in this call. Each individual {@link TableModification} will be individually assessed
+     * (from a conditional point of view) and will prevent the entire batch from committing if it fails to meet the condition.
      *
-     * @param keyFamily The Key Family for the all provided Table Entries.
-     * @param entries   An {@link Iterable} of {@link java.util.Map.Entry} instances to insert or update.
+     * @param updates An {@link Iterable} of {@link TableModification}s to apply to the {@link KeyValueTable}. Note that
+     *                {@link Remove} instances may not be mixed together with {@link Insert} or {@link Put} instances,
+     *                but {@link Insert}s and {@link Put}s may be mixed together.
      * @return A CompletableFuture that, when completed, will contain a List of {@link Version} instances which
-     * represent the versions for the inserted/updated keys. The size of this list will be the same as the number of
-     * items in entries and the versions will be in the same order as the entries.
+     * represent the versions for the updated or inserted keys. The size of this list will be the same as the number of
+     * items in {@code updates} and the versions will be in the same order as the {@code updates}. This list will be
+     * empty if {@code updates} contains only {@link Remove} instances.
+     * @throws IllegalArgumentException If there exist two or more {@link TableModification}s in {@code updates} that
+     *                                  refer to {@link TableKey}s with different {@link TableKey#getPrimaryKey()}.
+     * @throws IllegalArgumentException If {@code updates} contains at least one {@link Remove} instance and at least one
+     *                                  {@link TableModification} that is not {@link Remove}.
      */
-    CompletableFuture<List<Version>> putAll(@NonNull String keyFamily, @NonNull Iterable<Map.Entry<KeyT, ValueT>> entries);
+    CompletableFuture<List<Version>> update(@NonNull Iterable<TableModification> updates);
 
     /**
-     * Conditionally updates an existing Entry in the {@link KeyValueTable} if the given Key exists and its
-     * version matches the given {@link Version}.
+     * Determines if the given {@link TableKey} exists or not.
      *
-     * @param keyFamily (Optional) The Key Family for the Entry. If null, this Entry will not be associated with any
-     *                  Key Family.
-     * @param key       The Key to update.
-     * @param value     The new Value to be associated with the Key.
-     * @param version   A {@link Version} representing the version that this Key must have in order to replace it.
-     * @return A CompletableFuture that, when completed, will contain the {@link Version} associated with the
-     * updated entry. Notable exceptions:
-     * <ul>
-     * <li>{@link ConditionalTableUpdateException} If the Key is not present present in the {@link KeyValueTable} for the
-     * provided Key Family or it is and has a different {@link Version}.
-     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
-     * </ul>
+     * @param key The {@link TableKey} to check.
+     * @return A CompletableFuture that, when completed, will contain a {@link Boolean} representing the result.
      */
-    CompletableFuture<Version> replace(@Nullable String keyFamily, @NonNull KeyT key, @NonNull ValueT value,
-                                       @NonNull Version version);
+    CompletableFuture<Boolean> exists(@NonNull TableKey key);
 
     /**
-     * Inserts new or updates existing {@link TableEntry} instances that belong to the same Key Family into this
-     * {@link KeyValueTable}. All changes are performed atomically (either all or none will be accepted).
+     * Gets the latest value for a {@link TableKey}.
      *
-     * @param keyFamily The Key Family for the all provided {@link TableEntry} instances.
-     * @param entries   An {@link Iterable} of {@link TableEntry} instances to insert or update. If for at least one
-     *                  such entry, {@link TableEntry#getKey()}{@link TableKey#getVersion()} indicates a conditional
-     *                  update, this will perform an atomic Conditional Update conditioned on the server-side versions
-     *                  matching the provided ones (for all {@link TableEntry} instances that have one); otherwise an
-     *                  Unconditional Update will be performed.
-     *                  See {@link KeyValueTable} doc for more details on Types of Updates.
-     * @return A CompletableFuture that, when completed, will contain a List of {@link Version} instances which
-     * represent the versions for the inserted/updated keys. The size of this list will be the same as entries.size()
-     * and the versions will be in the same order as the entries. Notable exceptions:
-     * <ul>
-     * <li>{@link ConditionalTableUpdateException} If this is a Conditional Update and the condition was not satisfied.
-     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
-     * </ul>
+     * @param key The {@link TableKey} to get the value for.
+     * @return A CompletableFuture that, when completed, will contain the requested result. If no such {@link TableKey}
+     * exists, this will be completed with a null value.
      */
-    CompletableFuture<List<Version>> replaceAll(@NonNull String keyFamily, @NonNull Iterable<TableEntry<KeyT, ValueT>> entries);
+    CompletableFuture<TableEntry> get(@NonNull TableKey key);
 
     /**
-     * Unconditionally removes a Key from this Table Segment. If the Key does not exist, no action will be taken.
+     * Gets the latest values for a set of {@link TableKey}s.
      *
-     * @param keyFamily (Optional) The Key Family for the Key to remove.
-     * @param key       The Key to remove.
-     * @return A CompletableFuture that, when completed, will indicate the Key has been removed.
-     */
-    CompletableFuture<Void> remove(@Nullable String keyFamily, @NonNull KeyT key);
-
-    /**
-     * Conditionally Removes a Key from this Table Segment.
-     *
-     * @param keyFamily (Optional) The Key Family for the Key to remove.
-     * @param key       The Key to remove.
-     * @param version   A {@link Version} representing the version that this Key must have in order to remove it.
-     * @return A CompletableFuture that, when completed, will indicate the Key has been removed. Notable exceptions:
-     * <ul>
-     * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
-     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
-     * </ul>
-     */
-    CompletableFuture<Void> remove(@Nullable String keyFamily, @NonNull KeyT key, @NonNull Version version);
-
-    /**
-     * Removes one or more {@link TableKey} instances that belong to the same Key Family from this Table Segment.
-     * All removals are performed atomically (either all keys or no key will be removed).
-     *
-     * @param keyFamily The Key Family for the {@link TableKey}.
-     * @param keys      An {@link Iterable} of keys to remove. If for at least one such key, {@link TableKey#getVersion()}
-     *                  indicates a conditional update, this will perform an atomic Conditional Remove conditioned on the
-     *                  server-side versions matching the provided ones (for all {@link TableKey} instances that have one);
-     *                  otherwise an Unconditional Remove will be performed.
-     *                  See {@link KeyValueTable} doc for more details on Types of Updates.
-     * @return A CompletableFuture that, when completed, will indicate that the keys have been removed. Notable exceptions:
-     * <ul>
-     * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
-     * See the {@link KeyValueTable} doc for more details on Conditional Update Responses.
-     * </ul>
-     */
-    CompletableFuture<Void> removeAll(@Nullable String keyFamily, @NonNull Iterable<TableKey<KeyT>> keys);
-
-    /**
-     * Gets the latest value for the a Key that belong to a specific Key Family.
-     *
-     * @param keyFamily (Optional) The Key Family for the Key to get.
-     * @param key       The Key to get the value for.
-     * @return A CompletableFuture that, when completed, will contain the requested result. If no such Key exists, this
-     * will be completed with a null value.
-     */
-    CompletableFuture<TableEntry<KeyT, ValueT>> get(@Nullable String keyFamily, @NonNull KeyT key);
-
-    /**
-     * Gets the latest values for a set of Keys that do belong to the same Key Family.
-     *
-     * @param keyFamily (Optional) The Key Family for all requested Keys.
-     * @param keys      An {@link Iterable} of Keys to get values for.
+     * @param keys An {@link Iterable} of @link TableKey} to get values for.
      * @return A CompletableFuture that, when completed, will contain a List of {@link TableEntry} instances for the
-     * requested keys. The size of the list will be the same as keys.size() and the results will be in the same order
-     * as the requested keys. Any keys which do not have a value will have a null entry at their index.
+     * requested keys. The size of the list will be the same as {@code keys.size()} and the results will be in the same
+     * order as the requested keys. Any keys which do not have a value will have a null entry at their index.
      */
-    CompletableFuture<List<TableEntry<KeyT, ValueT>>> getAll(@Nullable String keyFamily, @NonNull Iterable<KeyT> keys);
+    CompletableFuture<List<TableEntry>> getAll(@NonNull Iterable<TableKey> keys);
 
     /**
-     * Creates a new Iterator over all the {@link TableKey}s in this {@link KeyValueTable} that belong to a specific
-     * Key Family.
+     * Creates a new {@link KeyValueTableIterator.Builder} that can be used to construct and execute an Iterator over
+     * the {@link TableKey}/{@link TableEntry} instances in this {@link KeyValueTable}.
      *
-     * @param keyFamily     The Key Family for which to iterate over keys.
-     * @param maxKeysAtOnce The maximum number of {@link TableKey}s to return with each call to
-     *                      {@link AsyncIterator#getNext()}.
-     * @param state         (Optional) An {@link IteratorState} that represents a continuation token that can be used to
-     *                      resume a previously interrupted iteration. This can be obtained by invoking
-     *                      {@link IteratorItem#getState()}. A null value will create an iterator that lists all keys.
-     * @return An {@link AsyncIterator} that can be used to iterate over all the Keys in this {@link KeyValueTable} that
-     * belong to a specific Key Family.
+     * @return A new instance of a {@link KeyValueTableIterator.Builder}.
      */
-    AsyncIterator<IteratorItem<TableKey<KeyT>>> keyIterator(@NonNull String keyFamily, int maxKeysAtOnce,
-                                                            @Nullable IteratorState state);
-
-    /**
-     * Creates a new Iterator over all the {@link TableEntry} instances in this {@link KeyValueTable} that belong to a
-     * specific Key Family.
-     *
-     * @param keyFamily        The Key Family for which to iterate over entries.
-     * @param maxEntriesAtOnce The maximum number of {@link TableEntry} instances to return with each call to
-     *                         {@link AsyncIterator#getNext()}.
-     * @param state            (Optional) An {@link IteratorState} that represents a continuation token that can be used
-     *                         to resume a previously interrupted iteration. This can be obtained by invoking
-     *                         {@link IteratorItem#getState()}. A null value will create an iterator that lists all entries.
-     * @return An {@link AsyncIterator} that can be used to iterate over all the Entries in this {@link KeyValueTable}
-     * that belong to a specific Key Family.
-     */
-    AsyncIterator<IteratorItem<TableEntry<KeyT, ValueT>>> entryIterator(@NonNull String keyFamily, int maxEntriesAtOnce,
-                                                                        @Nullable IteratorState state);
+    KeyValueTableIterator.Builder iterator();
 
     /**
      * Closes the {@link KeyValueTable}. No more updates, removals, retrievals or iterators may be performed using it.
@@ -297,19 +214,4 @@ public interface KeyValueTable<KeyT, ValueT> extends AutoCloseable {
      */
     @Override
     void close();
-
-    /**
-     * Exposes this {@link KeyValueTable} instance as a {@link Map}. Please refer to the {@link KeyValueTableMap}
-     * documentation for special cases and limitations.
-     * <p>
-     * This is useful for integrating code that expects to deal with a {@link Map}. Not all the {@link KeyValueTable}
-     * functionality can be implemented using a {@link Map}, however the {@link Map} interface is fully implemented.
-     *
-     * @param keyFamily (Optional) The Key Family to create the {@link KeyValueTableMap} for. Any operations on the
-     *                  returned {@link KeyValueTableMap} will only affect this Key Family. If no Key Family is
-     *                  provided (null), then certain {@link KeyValueTableMap} APIs may not be supported. Refer to
-     *                  {@link KeyValueTableMap} documentation for more details.
-     * @return A new {@link KeyValueTableMap} instance bound to this {@link KeyValueTable} and Key Family.
-     */
-    KeyValueTableMap<KeyT, ValueT> getMapFor(@Nullable String keyFamily);
 }
