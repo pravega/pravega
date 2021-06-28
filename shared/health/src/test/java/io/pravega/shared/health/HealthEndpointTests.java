@@ -15,7 +15,7 @@
  */
 package io.pravega.shared.health;
 
-import io.pravega.test.common.TestUtils;
+import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -61,18 +61,15 @@ public class HealthEndpointTests {
         service.getRoot().register(second);
 
         // Wait for the HealthServiceUpdater to update the Health state.
-        TestUtils.await(() -> service.getEndpoint().getHealth("parent/child") != null,
-                (int) service.getHealthServiceUpdater().getInterval().toMillis(),
-                service.getHealthServiceUpdater().getInterval().toMillis() * 2);
-        TestUtils.await(() -> service.getEndpoint().getHealth("child") != null,
-                (int) service.getHealthServiceUpdater().getInterval().toMillis(),
-                service.getHealthServiceUpdater().getInterval().toMillis() * 2);
+        TestHealthContributors.awaitHealthContributor(service, "parent/child");
+        TestHealthContributors.awaitHealthContributor(service, "child");
         // Now request the health objects from the endpoint and ensure the right child is returned.
         Assert.assertEquals(false, service.getEndpoint().getHealth("parent/child").getStatus().isAlive());
         Assert.assertEquals(true, service.getEndpoint().getHealth("child").getStatus().isAlive());
 
         // Assert that requesting a non-existent health contributor returns null.
-        Assert.assertNull("Requesting a non-existent HealthContributor did not throw an exception.",
-                service.getEndpoint().getHealth("unknown"));
+        AssertExtensions.assertThrows("Requesting a non-existent HealthContributor did not throw an exception.",
+                () -> service.getEndpoint().getHealth("unknown"),
+                e -> e instanceof ContributorNotFoundException);
     }
 }

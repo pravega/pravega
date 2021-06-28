@@ -15,7 +15,7 @@
  */
 package io.pravega.shared.health;
 
-import io.pravega.test.common.TestUtils;
+import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -31,6 +31,8 @@ import java.util.concurrent.TimeoutException;
 import org.junit.rules.Timeout;
 
 import io.pravega.shared.health.TestHealthContributors.HealthyContributor;
+
+import static io.pravega.shared.health.TestHealthContributors.awaitHealthContributor;
 
 /**
  * The {@link HealthManagerTests} encapsulates much of the same processes that {@link HealthEndpoint} performs, so
@@ -77,8 +79,9 @@ public class HealthManagerTests {
      */
     @Test
     public void testHealthInvalidName() {
-        Assert.assertNull("An exception should be thrown given an unregistered contributor.",
-                service.getEndpoint().getHealth("unknown-contributor-name"));
+        AssertExtensions.assertThrows("An exception should be thrown given an unregistered contributor.",
+                () -> TestHealthContributors.awaitHealthContributor(service, "unknown-contributor-name"),
+                e -> e instanceof TimeoutException);
     }
 
     /**
@@ -168,9 +171,4 @@ public class HealthManagerTests {
         Assert.assertEquals("The SampleIndicator should produce a 'ready' result.", true, ready);
     }
 
-    public static void awaitHealthContributor(HealthServiceManager service, String id) throws TimeoutException {
-        TestUtils.await(() -> service.getEndpoint().getHealth(id) != null,
-                (int) service.getHealthServiceUpdater().getInterval().toMillis(),
-                service.getHealthServiceUpdater().getInterval().toMillis() * 3);
-    }
 }
