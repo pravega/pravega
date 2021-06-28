@@ -16,26 +16,25 @@
 package io.pravega.cli.user.kvs;
 
 import io.pravega.cli.user.CommandArgs;
-import io.pravega.cli.user.TestUtils;
 import io.pravega.cli.user.config.InteractiveConfig;
 import io.pravega.cli.user.scope.ScopeCommand;
 import io.pravega.shared.NameUtils;
 import io.pravega.test.integration.demo.ClusterWrapper;
-import lombok.SneakyThrows;
+import java.util.Collections;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.util.Collections;
-
+import static io.pravega.cli.user.TestUtils.createCLIConfig;
 import static io.pravega.cli.user.TestUtils.createPravegaCluster;
 import static io.pravega.cli.user.TestUtils.getCLIControllerUri;
-import static io.pravega.cli.user.TestUtils.createCLIConfig;
 
 public class KVTCommandsTest extends SecureKVTCommandsTest {
     private static final ClusterWrapper CLUSTER = createPravegaCluster(false, false);
     private static final InteractiveConfig CONFIG = createCLIConfig(getCLIControllerUri(CLUSTER.controllerUri()), false, false);
+    private static final int PK_LENGTH = 2;
+    private static final int SK_LENGTH = 2;
 
     @Override
     protected InteractiveConfig cliConfig() {
@@ -54,54 +53,77 @@ public class KVTCommandsTest extends SecureKVTCommandsTest {
         }
     }
 
+    @Test
+    public void testDescriptors() {
+        Assert.assertNotNull(KeyValueTableCommand.Create.descriptor());
+        Assert.assertNotNull(KeyValueTableCommand.Delete.descriptor());
+        Assert.assertNotNull(KeyValueTableCommand.ListKVTables.descriptor());
+        Assert.assertNotNull(KeyValueTableCommand.Put.descriptor());
+        Assert.assertNotNull(KeyValueTableCommand.Put.descriptor());
+        Assert.assertNotNull(KeyValueTableCommand.PutIf.descriptor());
+        Assert.assertNotNull(KeyValueTableCommand.PutIfAbsent.descriptor());
+        Assert.assertNotNull(KeyValueTableCommand.PutAll.descriptor());
+        Assert.assertNotNull(KeyValueTableCommand.Get.descriptor());
+        Assert.assertNotNull(KeyValueTableCommand.Remove.descriptor());
+        Assert.assertNotNull(KeyValueTableCommand.ListEntries.descriptor());
+    }
+
     @Test(timeout = 60000)
-    @SneakyThrows
-    public void testPutAndGetKVT() {
-        final String scope = "putAndGetKVTable";
+    public void testKVTNoSecondaryKey() {
+        final String scope = "kvTableNoSecondaryKey";
         final String table = NameUtils.getScopedStreamName(scope, "kvt1");
         CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), cliConfig());
         new ScopeCommand.Create(commandArgs).execute();
-        commandArgs = new CommandArgs(Collections.singletonList(table), cliConfig());
-        new KeyValueTableCommand.Create(commandArgs).execute();
+
+        checkCommand(String.format("kvt create %s %s %s", table, PK_LENGTH, 0), "created successfully");
 
         // Exercise puts first.
-        String commandResult = TestUtils.executeCommand("kvt put " + table + " key-family-1 key1 value1", cliConfig());
-        Assert.assertTrue(commandResult.contains("updated successfully"));
-        Assert.assertNotNull(KeyValueTableCommand.Put.descriptor());
-
-        commandResult = TestUtils.executeCommand("kvt put-if " + table + " key-family-1 key1 0:0 value2", cliConfig());
-        Assert.assertTrue(commandResult.contains("BadKeyVersionException"));
-        Assert.assertNotNull(KeyValueTableCommand.PutIf.descriptor());
-
-        commandResult = TestUtils.executeCommand("kvt put-if-absent " + table + " key-family-1 key2 value1", cliConfig());
-        Assert.assertTrue(commandResult.contains("inserted successfully"));
-        Assert.assertNotNull(KeyValueTableCommand.PutIfAbsent.descriptor());
-
-        commandResult = TestUtils.executeCommand("kvt put-all " + table + " key-family-1 {[[key3, value2]]}", cliConfig());
-        Assert.assertTrue(commandResult.contains("Updated"));
-        Assert.assertNotNull(KeyValueTableCommand.PutAll.descriptor());
-
-        commandResult = TestUtils.executeCommand("kvt put-range " + table + " key-family-1 1 2", cliConfig());
-        Assert.assertTrue(commandResult.contains("Bulk-updated"));
-        Assert.assertNotNull(KeyValueTableCommand.PutRange.descriptor());
+        checkCommand(String.format("kvt put %s 00 value1", table), "updated successfully");
+        checkCommand(String.format("kvt put-if %s 00 0:1 value2", table), "BadKeyVersionException");
+        checkCommand(String.format("kvt put-if-absent %s 01 value3", table), "inserted successfully");
+        checkCommand(String.format("kvt put-if-absent %s 11 value4", table), "inserted successfully");
 
         // Exercise list commands.
-        commandResult = TestUtils.executeCommand("kvt list-keys " + table + " key-family-1", cliConfig());
-        Assert.assertTrue(commandResult.contains("key1"));
-        Assert.assertNotNull(KeyValueTableCommand.ListKeys.descriptor());
-
-        commandResult = TestUtils.executeCommand("kvt list-entries " + table + " key-family-1", cliConfig());
-        Assert.assertTrue(commandResult.contains("value1"));
-        Assert.assertNotNull(KeyValueTableCommand.ListEntries.descriptor());
+        checkCommand(String.format("kvt list-entries %s prefix 0 ", table), "value1", "value3");
+        checkCommand(String.format("kvt list-entries %s range 00 09 ", table), "value1", "value3");
+        checkCommand(String.format("kvt list-entries %s", table), "value1", "value3", "value4");
 
         // Exercise Get command.
-        commandResult = TestUtils.executeCommand("kvt get " + table + " key-family-1 \"{[key1, key2]}\"", cliConfig());
-        Assert.assertTrue(commandResult.contains("Get"));
-        Assert.assertNotNull(KeyValueTableCommand.Get.descriptor());
+        checkCommand(String.format("kvt get %s {[00, 01, 11]}", table), "Get");
 
         // Exercise Remove commands.
-        commandResult = TestUtils.executeCommand("kvt remove " + table + " key-family-1 {[[key1]]}", cliConfig());
-        Assert.assertTrue(commandResult.contains("Removed"));
-        Assert.assertNotNull(KeyValueTableCommand.Remove.descriptor());
+        checkCommand(String.format("kvt remove %s {[[00]]}", table), "Removed");
+        checkCommand(String.format("kvt delete %s", table), "deleted successfully");
+    }
+
+    @Test(timeout = 60000)
+    public void testKVTWithSecondaryKey() {
+        final String scope = "kvTableSecondaryKey";
+        final String table = NameUtils.getScopedStreamName(scope, "kvt1");
+        CommandArgs commandArgs = new CommandArgs(Collections.singletonList(scope), cliConfig());
+        new ScopeCommand.Create(commandArgs).execute();
+
+        checkCommand(String.format("kvt create %s %s %s", table, PK_LENGTH, SK_LENGTH), "created successfully");
+
+        // Exercise puts first.
+        checkCommand(String.format("kvt put %s \"00:01\" value1", table), "updated successfully");
+        checkCommand(String.format("kvt put-if %s \"00:01\" 0:1 value2", table), "BadKeyVersionException");
+        checkCommand(String.format("kvt put-if-absent %s \"01:00\" value3", table), "inserted successfully");
+        checkCommand(String.format("kvt put-if-absent %s \"11:10\" value4", table), "inserted successfully");
+        checkCommand(String.format("kvt put-all %s {[[\"00:01\", value5], [\"00:03\", value6]]}", table), "Updated");
+
+        // Exercise list commands.
+        checkCommand(String.format("kvt list-entries %s pk 00 01 09", table), "value5", "value6");
+        checkCommand(String.format("kvt list-entries %s pk 00 0 ", table), "value5", "value6");
+        checkCommand(String.format("kvt list-entries %s prefix 0 ", table), "value5", "value3", "value6");
+        checkCommand(String.format("kvt list-entries %s range 00 09 ", table), "value5", "value3", "value6");
+        checkCommand(String.format("kvt list-entries %s", table), "value3", "value4", "value5", "value6");
+
+        // Exercise Get command.
+        checkCommand(String.format("kvt get %s {[\"00:01\", \"01:00\", \"11:10\"]}", table), "Get");
+
+        // Exercise Remove commands.
+        checkCommand(String.format("kvt remove %s {[[\"00:01\"], [\"00:03\"]]}", table), "Removed");
+        checkCommand(String.format("kvt delete %s", table), "deleted successfully");
     }
 }

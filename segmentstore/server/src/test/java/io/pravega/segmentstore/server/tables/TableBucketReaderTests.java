@@ -132,7 +132,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
                 executorService());
 
         val deletedResult = reader.find(deletedKey.getKey(), 0L, new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        Assert.assertNull("Expecting a TableEntry with null value for deleted key..", deletedResult.getValue());
+        Assert.assertNull("Expecting a TableEntry with null value for deleted key.", deletedResult.getValue());
 
         // Inexistent key (that did not exist previously).
         val inexistentKey = entries.get(1).getKey();

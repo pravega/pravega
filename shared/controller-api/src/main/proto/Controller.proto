@@ -58,6 +58,7 @@ service ControllerService {
     rpc createKeyValueTable(KeyValueTableConfig) returns (CreateKeyValueTableStatus);
     rpc getCurrentSegmentsKeyValueTable(KeyValueTableInfo) returns (SegmentRanges);
     rpc listKeyValueTablesInScope(KVTablesInScopeRequest) returns (KVTablesInScopeResponse);
+    rpc getKeyValueTableConfiguration(KeyValueTableInfo) returns (KeyValueTableConfigResponse);
     rpc deleteKeyValueTable(KeyValueTableInfo) returns (DeleteKVTableStatus);
     rpc listSubscribers(StreamInfo) returns (SubscribersResponse);
     rpc updateSubscriberStreamCut(SubscriberStreamCut) returns (UpdateSubscriberStatus);
@@ -157,6 +158,18 @@ message KeyValueTableConfig {
     string scope = 1;
     string kvtName = 2;
     int32 partitionCount = 3;
+    int32 primaryKeyLength = 4;
+    int32 secondaryKeyLength = 5;
+}
+
+message KeyValueTableConfigResponse {
+    KeyValueTableConfig config = 1;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        TABLE_NOT_FOUND = 2;
+    }
+    Status status = 2;
 }
 
 message KeyValueTableInfo {

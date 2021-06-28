@@ -21,6 +21,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
@@ -34,7 +35,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
@@ -58,12 +58,14 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final long streamSegmentId;
     @Getter
     private final int containerId;
+    @Getter
+    private volatile SegmentType type;
+    @Getter
+    private volatile int attributeIdLength;
     @GuardedBy("this")
-    private SegmentType type;
+    private final Map<AttributeId, Long> coreAttributes;
     @GuardedBy("this")
-    private final Map<UUID, Long> coreAttributes;
-    @GuardedBy("this")
-    private final Map<UUID, ExtendedAttributeValue> extendedAttributes;
+    private final Map<AttributeId, ExtendedAttributeValue> extendedAttributes;
     @GuardedBy("this")
     private long storageLength;
     @GuardedBy("this")
@@ -124,6 +126,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.lastUsed = 0;
         this.active = true;
         this.type = SegmentType.STREAM_SEGMENT; // Uninitialized.
+        this.attributeIdLength = -1;
     }
 
     //endregion
@@ -185,20 +188,15 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized Map<UUID, Long> getAttributes() {
+    public synchronized Map<AttributeId, Long> getAttributes() {
         return new AttributesView();
     }
 
     @Override
-    public synchronized Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter) {
+    public synchronized Map<AttributeId, Long> getAttributes(BiPredicate<AttributeId, Long> filter) {
         return getAttributes().entrySet().stream()
                 .filter(e -> filter.test(e.getKey(), e.getValue()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
-
-    @Override
-    public synchronized SegmentType getType() {
-        return this.type;
     }
 
     @Override
@@ -296,7 +294,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized void updateAttributes(Map<UUID, Long> attributes) {
+    public synchronized void updateAttributes(Map<AttributeId, Long> attributes) {
         attributes.forEach((id, value) -> {
             if (Attributes.isCoreAttribute(id)) {
                 this.coreAttributes.put(id, value);
@@ -307,11 +305,13 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized void refreshType() {
+    public synchronized void refreshDerivedProperties() {
         this.type = SegmentType.fromAttributes(this.coreAttributes);
         if (this.type.intoAttributes(this.coreAttributes)) {
             log.info("{}: Updated Segment Type '{}' into Core Attributes.", this.traceObjectId, this.type);
         }
+
+        this.attributeIdLength = (int) (long) this.coreAttributes.getOrDefault(Attributes.ATTRIBUTE_ID_LENGTH, -1L);
     }
 
     @Override
@@ -327,7 +327,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         setStartOffset(base.getStartOffset());
         setLastModified(base.getLastModified());
         updateAttributes(base.getAttributes());
-        refreshType();
+        refreshDerivedProperties();
 
         if (base.isSealed()) {
             markSealed();
@@ -470,7 +470,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     /**
      * Read-only view of this SegmentMetadata's Attributes (combines Core and Extended Attributes into one single Map).
      */
-    private class AttributesView implements Map<UUID, Long> {
+    private class AttributesView implements Map<AttributeId, Long> {
         @Override
         public int size() {
             synchronized (StreamSegmentMetadata.this) {
@@ -508,7 +508,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         }
 
         @Override
-        public Set<UUID> keySet() {
+        public Set<AttributeId> keySet() {
             synchronized (StreamSegmentMetadata.this) {
                 return CollectionHelpers.joinSets(coreAttributes.keySet(), extendedAttributes.keySet());
             }
@@ -524,7 +524,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         }
 
         @Override
-        public Set<Map.Entry<UUID, Long>> entrySet() {
+        public Set<Map.Entry<AttributeId, Long>> entrySet() {
             synchronized (StreamSegmentMetadata.this) {
                 return CollectionHelpers.joinSets(
                         coreAttributes.entrySet(), Callbacks::identity,
@@ -548,7 +548,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         }
 
         @Override
-        public Long put(UUID uuid, Long aLong) {
+        public Long put(AttributeId attributeId, Long aLong) {
             throw new UnsupportedOperationException();
         }
 
@@ -558,7 +558,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         }
 
         @Override
-        public void putAll(Map<? extends UUID, ? extends Long> map) {
+        public void putAll(Map<? extends AttributeId, ? extends Long> map) {
             throw new UnsupportedOperationException();
         }
 

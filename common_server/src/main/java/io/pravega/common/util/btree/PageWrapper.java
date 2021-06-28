@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Wraps a BTreePage by adding additional metadata, such as parent information and offset.
@@ -39,6 +40,9 @@ class PageWrapper {
     private final AtomicLong offset;
     private final AtomicLong minOffset;
     private final AtomicBoolean needsFirstKeyUpdate;
+    @Getter
+    @Setter
+    private volatile int entryCountDelta;
 
     //endregion
 
@@ -52,6 +56,7 @@ class PageWrapper {
         this.offset = new AtomicLong(this.pointer == null ? PagePointer.NO_OFFSET : this.pointer.getOffset());
         this.minOffset = new AtomicLong(this.pointer == null ? PagePointer.NO_OFFSET : this.pointer.getMinOffset());
         this.needsFirstKeyUpdate = new AtomicBoolean(false);
+        this.entryCountDelta = 0;
     }
 
     /**
@@ -87,13 +92,6 @@ class PageWrapper {
      */
     BTreePage getPage() {
         return this.page.get();
-    }
-
-    /**
-     * Gets a value indicating whether the wrapped BTreePage is new or has been modified since it was loaded.
-     */
-    boolean isModified() {
-        return isNewPage() || getOffset() != (this.pointer == null ? PagePointer.NO_OFFSET : this.pointer.getOffset());
     }
 
     /**
