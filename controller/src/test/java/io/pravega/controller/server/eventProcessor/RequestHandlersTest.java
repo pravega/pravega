@@ -797,8 +797,7 @@ public abstract class RequestHandlersTest {
         ScaleOpEvent scaleEvent = new ScaleOpEvent(fairness, fairness, Collections.singletonList(0L), 
                 Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), 
                 false, System.currentTimeMillis(), 0L);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        streamRequestHandler.process(scaleEvent, () -> false).join();
         // verify that scale was started
         assertEquals(State.SCALING, streamStore.getState(fairness, fairness, true, null, executor).join());
 
@@ -819,8 +818,7 @@ public abstract class RequestHandlersTest {
         ScaleOpEvent scaleEvent2 = new ScaleOpEvent(fairness, fairness, Collections.singletonList(NameUtils.computeSegmentId(1, 1)),
                 Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0)),
                 false, System.currentTimeMillis(), 0L);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent2, () -> false),
-                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        streamRequestHandler.process(scaleEvent2, () -> false).join();
         streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
     }
     
