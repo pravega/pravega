@@ -202,7 +202,6 @@ public final class Config {
 
     public static final String COMPONENT_CODE = "controller";
 
-
     //endregion
 
     //#region Properties

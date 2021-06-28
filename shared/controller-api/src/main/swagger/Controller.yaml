@@ -18,7 +18,7 @@
 
 swagger: "2.0"
 info:
-  description: "List of admin REST APIs for the pravega controller service."
+  description: "List of admin REST APIs for the Pravega controller service."
   version: "0.0.1"
   title: Pravega Controller APIs
   license:
@@ -29,23 +29,23 @@ tags:
   - name: "Scopes"
     description: "Scope related APIs"
     externalDocs:
-      description: "Find out more about pravega"
+      description: "Find out more about Pravega"
       url: "https://pravega.io"
   - name: "Streams"
     description: "Stream related APIs"
     externalDocs:
-      description: "Find out more about pravega"
+      description: "Find out more about Pravega"
       url: "https://pravega.io"
   - name: "ReaderGroups"
     description: "Reader group related APIs"
     externalDocs:
-      description: "Find out more about pravega"
+      description: "Find out more about Pravega"
       url: "https://pravega.io"
   - name: "Health"
     description: "Health check related APIs"
     externalDocs:
-      description: "Find out more about pravega"
-      url: "https://pravega.io"
+      description: "Find out more about Pravega"
+      url: "https://pravega.io/docs/nightly/pravega-concepts/"
 schemes:
   - http
 paths:
@@ -54,7 +54,7 @@ paths:
       tags:
         - "Scopes"
       operationId: listScopes
-      description: List all available scopes in pravega
+      description: List all available scopes in Pravega
       produces:
         - application/json
       responses:
