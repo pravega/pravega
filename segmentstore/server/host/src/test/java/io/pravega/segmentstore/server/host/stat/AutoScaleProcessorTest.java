@@ -21,28 +21,45 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.SimpleCache;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import lombok.Cleanup;
+import lombok.NonNull;
+import org.apache.commons.lang3.NotImplementedException;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.junit.Test;
+
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
-import lombok.NonNull;
-import org.apache.commons.lang3.NotImplementedException;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.junit.Test;
-
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
@@ -76,14 +93,14 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         assertFalse(failingWriterProcessor.isInitializeStarted());
         AtomicReference<EventStreamWriter<AutoScaleEvent>> w = new AtomicReference<>();
 
-        AssertExtensions.assertThrows("Bootstrap should not be initiated until isInitializeStarted is true", 
+        AssertExtensions.assertThrows("Bootstrap should not be initiated until isInitializeStarted is true",
                 () -> failingWriterProcessor.bootstrapOnce(clientFactory, w),
                 e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         // report but since the cooldown time hasnt elapsed, no scale event should be attempted. So no writer should be initialized yet. 
         failingWriterProcessor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
         assertFalse(failingWriterProcessor.isInitializeStarted());
-        
+
         failingWriterProcessor.setTimeMillis(20 * 60000L);
         failingWriterProcessor.report(segmentStreamName, 1, 0L, 10.0, 10.0, 10.0, 10.0);
         // the above should initiate the bootstrap.
@@ -107,7 +124,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         doAnswer(x -> writerMock).when(clientFactory).createEventWriter(any(), any(), any());
 
         processor.notifyCreated(segmentStreamName);
-        
+
         // report a low rate to trigger a scale down 
         processor.setTimeMillis(21 * 60000L);
         processor.report(segmentStreamName, 10, 0L, 1.0, 1.0, 1.0, 1.0);
@@ -116,17 +133,17 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         AssertExtensions.assertEventuallyEquals(writerMock, () -> processor.getWriterFuture().join(), 10000L);
         AutoScaleEvent event = queue.take();
         assertEquals(event.getDirection(), AutoScaleEvent.DOWN);
-        
+
         processor.close();
-        
+
         // create third writer, this time supply the writer directly
         EventStreamWriter<AutoScaleEvent> writer = spy(createWriter(e -> { }));
-        
+
         // verify that when writer is set, we are able to get the processor initialized
         TestAutoScaleProcessor processor2 = new TestAutoScaleProcessor(writer,
                 AutoScalerConfig.builder().with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090").build(),
                 executorService());
-        
+
         processor2.notifyCreated(segmentStreamName);
         assertFalse(processor2.isInitializeStarted());
         processor2.setTimeMillis(20 * 60000L);
@@ -138,7 +155,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         processor2.close();
         verify(writer, times(1)).close();
     }
-    
+
     @Test (timeout = 10000)
     public void scaleTest() {
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -337,17 +354,13 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
             @Override
             public void noteTime(long timestamp) {
-                
+
             }
         };
     }
 
     private static class TestAutoScaleProcessor extends AutoScaleProcessor {
         private AtomicLong timeMillis = new AtomicLong();
-        
-        TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor) {
-            super(configuration, executor);
-        }
 
         TestAutoScaleProcessor(@NonNull EventStreamWriter<AutoScaleEvent> writer, @NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor) {
             super(writer, configuration, executor);
@@ -355,6 +368,10 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
         TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory, @NonNull ScheduledExecutorService executor) {
             super(configuration, clientFactory, executor);
+        }
+
+        TestAutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory, @NonNull ScheduledExecutorService executor, SimpleCache<String, Pair<Long, Long>> testSimpleCache) {
+            super(configuration, clientFactory, executor, testSimpleCache);
         }
 
         @Override
@@ -367,4 +384,94 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         }
     }
 
+    @Test
+    public void testSteadyStateExpiry() {
+        HashMap<String, Pair<Long, Long>> map = new HashMap<>();
+        HashMap<String, Long> lastAccessedTime = new HashMap<>();
+        List<String> evicted = new ArrayList<>();
+        SimpleCache<String, Pair<Long, Long>> simpleCache = mock(SimpleCache.class);
+        AtomicLong clock = new AtomicLong(0L);
+        Function<Void, Void> cleanup = m -> {
+            for (Map.Entry<String, Long> e : lastAccessedTime.entrySet()) {
+                if (e.getValue() < clock.get()) {
+                    lastAccessedTime.remove(e.getKey());
+                    map.remove(e.getKey());
+                    evicted.add(e.getKey());
+                }
+            }
+            // remove all that should have expired.
+            return null;
+        };
+        doAnswer(x -> {
+            cleanup.apply(null);
+            return map.get(x.getArgument(0));
+        }).when(simpleCache).get(anyString());
+        doAnswer(x -> {
+            cleanup.apply(null);
+            map.put(x.getArgument(0), x.getArgument(1));
+            return map.get(x.getArgument(0));
+        }).when(simpleCache).put(anyString(), any());
+        doAnswer(x -> cleanup.apply(null)).when(simpleCache).cleanUp();
+
+        AutoScalerConfig config = AutoScalerConfig.builder()
+                .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:9090")
+                .with(AutoScalerConfig.TLS_ENABLED, false)
+                .build();
+        ClientConfig objectUnderTest = AutoScaleProcessor.prepareClientConfig(config);
+        @Cleanup
+        EventStreamClientFactory eventStreamClientFactory = EventStreamClientFactory.withScope(SCOPE, objectUnderTest);
+
+        @Cleanup
+        TestAutoScaleProcessor monitor = new TestAutoScaleProcessor(
+                AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
+                        .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 150)
+                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), eventStreamClientFactory,
+                executorService(), simpleCache);
+        String streamSegmentName1 = NameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM1, 0L);
+        monitor.setTimeMillis(0L);
+        clock.set(0L);
+        monitor.notifyCreated(streamSegmentName1);
+        monitor.put(streamSegmentName1, new ImmutablePair<>(5L, 5L));
+        monitor.setTimeMillis(30 * 1000L);
+        clock.set(30L);
+        monitor.report(streamSegmentName1, 10L, 0L, 10D, 10D, 10D, 10D);
+        monitor.setTimeMillis(80 * 1000L);
+        clock.set(80L);
+        simpleCache.cleanUp();
+        assertNotNull(monitor.get(streamSegmentName1));
+        assertNotNull(simpleCache.get(streamSegmentName1));
+        assertTrue(evicted.isEmpty());
+
+        AssertExtensions.assertThrows("NPE should be thrown",
+                () -> new AutoScaleProcessor(null, config, executorService()),
+                e -> e instanceof NullPointerException);
+
+        AssertExtensions.assertThrows("NPE should be thrown",
+                () -> new AutoScaleProcessor(null, eventStreamClientFactory, executorService()),
+                e -> e instanceof NullPointerException);
+
+        AssertExtensions.assertThrows("NPE should be thrown",
+                () -> new AutoScaleProcessor(AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
+                        .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 150)
+                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), eventStreamClientFactory, null),
+                e -> e instanceof NullPointerException);
+
+        AssertExtensions.assertThrows("NPE should be thrown",
+                () -> new AutoScaleProcessor(AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                        .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
+                        .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 150)
+                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 60).build(), eventStreamClientFactory, null, simpleCache),
+                e -> e instanceof NullPointerException);
+
+        AssertExtensions.assertThrows("NPE should be thrown",
+                () -> new AutoScaleProcessor(null, eventStreamClientFactory, executorService(), simpleCache),
+                e -> e instanceof NullPointerException);
+
+        monitor.notifySealed(streamSegmentName1);
+    }
 }
