@@ -363,6 +363,3 @@ jobs:
         run: ./gradlew assemble --parallel ${{env.GRADLE_OPTS}}
       - name: Publish to GitHub Packages
         run: ./gradlew publish -PpublishUrl=https://maven.pkg.github.com/${{github.repository}} -PpublishUsername=${{github.actor}} -PpublishPassword=${{secrets.GITHUB_TOKEN}} ${{env.GRADLE_OPTS}}
-      - name: Publish to JCenter
-        run: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=${{secrets.BINTRAY_USER}} -PpublishPassword=${{secrets.BINTRAY_KEY}} ${{env.GRADLE_OPTS}}
-
