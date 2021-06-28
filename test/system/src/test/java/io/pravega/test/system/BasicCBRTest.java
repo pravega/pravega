@@ -144,7 +144,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
                 .stream(Stream.of(SCOPE, STREAM)).build());
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP);
         @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader(READER_GROUP + "-" + String.valueOf(1),
+        EventStreamReader<String> reader = clientFactory.createReader(READER_GROUP + "-" + 1,
                 READER_GROUP, new JavaSerializer<>(), readerConfig);
 
         // Read one event.
@@ -157,6 +157,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(streamCutExecutor);
         Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
+        EventRead<String> emptyEvent = reader.readNextEvent(100);
         assertTrue("Stream-cut generation did not complete", Futures.await(futureCuts, 10_000));
 
         Map<Stream, StreamCut> streamCuts = futureCuts.join();
@@ -184,6 +185,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup.generateStreamCuts(streamCutExecutor);
         Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
+        EventRead<String> emptyEvent2 = reader.readNextEvent(100);
         assertTrue("Stream-cut generation did not complete", Futures.await(futureCuts2, 10_000));
 
         Map<Stream, StreamCut> streamCuts2 = futureCuts2.join();
