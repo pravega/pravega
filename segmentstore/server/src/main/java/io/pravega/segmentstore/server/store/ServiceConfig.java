@@ -54,7 +54,7 @@ public class ServiceConfig {
     public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zk.connect.security.tls.trustStore.location", "", "zkTrustStore");
     public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zk.connect.security.tls.trustStore.pwd.location", "", "zkTrustStorePasswordPath");
     public static final Property<String> REST_LISTENING_HOST = Property.named("rest.listener.host", "localhost");
-    public static final Property<Integer> REST_LISTENING_PORT = Property.named("rest.listener.port", 9091);
+    public static final Property<Integer> REST_LISTENING_PORT = Property.named("rest.listener.port", 6061);
     public static final Property<Integer> HEALTH_CHECK_INTERVAL = Property.named("health.interval", 10);
 
     // Not changing this configuration property (to "cluster.name"), as it is set by Pravega operator, and changing this
