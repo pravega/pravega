@@ -55,6 +55,7 @@ public class ServiceConfig {
     public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zk.connect.security.tls.trustStore.pwd.location", "", "zkTrustStorePasswordPath");
     public static final Property<String> REST_LISTENING_HOST = Property.named("rest.listener.host", "localhost");
     public static final Property<Integer> REST_LISTENING_PORT = Property.named("rest.listener.port", 6061);
+    public static final Property<Boolean> REST_LISTENING_ENABLE = Property.named("rest.listener.enable", true);
     public static final Property<Integer> HEALTH_CHECK_INTERVAL = Property.named("health.interval", 10);
 
     // Not changing this configuration property (to "cluster.name"), as it is set by Pravega operator, and changing this
@@ -331,6 +332,9 @@ public class ServiceConfig {
     private final RESTServerConfig restServerConfig;
 
     @Getter
+    private final boolean restServerEnabled;
+
+    @Getter
     private final Duration healthCheckInterval;
     //endregion
 
@@ -404,6 +408,7 @@ public class ServiceConfig {
                 .keyFilePath(properties.get(KEY_FILE))
                 .keyFilePasswordPath(properties.get(KEY_PASSWORD_FILE))
                 .build();
+        this.restServerEnabled = properties.getBoolean(REST_LISTENING_ENABLE);
         this.healthCheckInterval = Duration.ofSeconds(properties.getInt(HEALTH_CHECK_INTERVAL));
         this.enableAdminGateway = properties.getBoolean(ENABLE_ADMIN_GATEWAY);
         this.adminGatewayPort = properties.getInt(ADMIN_GATEWAY_PORT);
@@ -461,6 +466,7 @@ public class ServiceConfig {
                 .append(String.format("healthCheckInterval: %d", healthCheckInterval.getSeconds()))
                 .append(String.format("restListeningPort: %d", restListeningPort))
                 .append(String.format("restListeningIPAddress: %s", restListeningIPAddress))
+                .append(String.format("restServerEnabled: %b", restServerEnabled))
                 .append(")")
                 .toString();
     }
