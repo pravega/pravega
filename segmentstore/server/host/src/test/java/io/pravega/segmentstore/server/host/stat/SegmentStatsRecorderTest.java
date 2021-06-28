@@ -18,6 +18,7 @@ package io.pravega.segmentstore.server.host.stat;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -230,7 +231,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
             CompletableFuture<SegmentProperties> toBeReturned = CompletableFuture.completedFuture(
                     StreamSegmentInformation.builder()
                             .name(segmentName)
-                            .attributes(ImmutableMap.<UUID, Long>builder()
+                            .attributes(ImmutableMap.<AttributeId, Long>builder()
                                     .put(Attributes.SCALE_POLICY_TYPE, 0L)
                                     .put(Attributes.SCALE_POLICY_RATE, 10L).build())
                             .build());

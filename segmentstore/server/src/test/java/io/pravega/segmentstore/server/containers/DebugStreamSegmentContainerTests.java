@@ -18,7 +18,9 @@ package io.pravega.segmentstore.server.containers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.SegmentType;
@@ -66,14 +68,12 @@ import org.junit.rules.Timeout;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -323,7 +323,7 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
     public void testDataRecoveryContainerLevel() throws Exception {
         int attributesUpdatesPerSegment = 50;
         int segmentsCount = 10;
-        final UUID attributeReplace = new UUID(CORE_ATTRIBUTE_ID_PREFIX, RANDOM.nextInt(10));
+        final AttributeId attributeReplace = AttributeId.uuid(CORE_ATTRIBUTE_ID_PREFIX, RANDOM.nextInt(10));
         final long expectedAttributeValue = attributesUpdatesPerSegment;
         int containerId = 0;
         int containerCount = 1;
@@ -368,8 +368,8 @@ public class DebugStreamSegmentContainerTests extends ThreadPooledTestSuite {
             segmentContents.put(segmentName, appendData);
 
             for (int i = 0; i < attributesUpdatesPerSegment; i++) {
-                Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
-                attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
+                AttributeUpdateCollection attributeUpdates = AttributeUpdateCollection.from(
+                        new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
                 opFutures.add(container.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
             }
         }

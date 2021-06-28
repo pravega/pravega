@@ -51,6 +51,15 @@ public class AsyncIteratorTests extends ThreadPooledTestSuite {
         return 1;
     }
 
+    @Test
+    public void testSingleton() {
+        val item = 1;
+        val iterator = AsyncIterator.singleton(item);
+        val retrievedItem = iterator.getNext().join();
+        Assert.assertEquals(item, (int) retrievedItem);
+        Assert.assertNull(iterator.getNext().join());
+    }
+
     /**
      * Tests the {@link AsyncIterator#forEachRemaining(Consumer, Executor)} method.
      */

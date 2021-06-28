@@ -82,6 +82,11 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
     }
 
     @Override
+    public int getRemaining() {
+        return ((BoundedInputStream) this.in).getRemaining();
+    }
+
+    @Override
     public long readCompactLong() throws IOException {
         // This uses the DataInput APIs, which will handle throwing EOFExceptions for us, so we don't need to do any more checking.
         // Read first byte and determine how many other bytes are used.

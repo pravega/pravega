@@ -19,6 +19,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -71,13 +72,12 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testTableAttributes() {
-        val ir = newReader();
         Assert.assertEquals("Unexpected value for INDEX_OFFSET when attribute is not present.",
-                0, ir.getLastIndexedOffset(StreamSegmentInformation.builder().name("s").build()));
+                0, IndexReader.getLastIndexedOffset(StreamSegmentInformation.builder().name("s").build()));
         Assert.assertEquals("Unexpected value for ENTRY_COUNT when attribute is not present.",
-                0, ir.getEntryCount(StreamSegmentInformation.builder().name("s").build()));
+                0, IndexReader.getEntryCount(StreamSegmentInformation.builder().name("s").build()));
         val si = StreamSegmentInformation.builder().name("s")
-                                         .attributes(ImmutableMap.<UUID, Long>builder()
+                                         .attributes(ImmutableMap.<AttributeId, Long>builder()
                                                  .put(TableAttributes.INDEX_OFFSET, 123456L)
                                                  .put(TableAttributes.ENTRY_COUNT, 2345L)
                                                  .put(TableAttributes.TOTAL_ENTRY_COUNT, 4567L)
@@ -85,13 +85,13 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                                                  .build())
                                          .build();
         Assert.assertEquals("Unexpected value for INDEX_OFFSET when attribute present.",
-                123456, ir.getLastIndexedOffset(si));
+                123456, IndexReader.getLastIndexedOffset(si));
         Assert.assertEquals("Unexpected value for ENTRY_COUNT when attribute present.",
-                2345, ir.getEntryCount(si));
+                2345, IndexReader.getEntryCount(si));
         Assert.assertEquals("Unexpected value for TOTAL_ENTRY_COUNT when attribute present.",
-                4567, ir.getTotalEntryCount(si));
+                4567, IndexReader.getTotalEntryCount(si));
         Assert.assertEquals("Unexpected value for BUCKET_COUNT when attribute present.",
-                3456, ir.getBucketCount(si));
+                3456, IndexReader.getBucketCount(si));
     }
 
     //endregion
@@ -389,8 +389,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
         // Fetch existing keys.
         val oldOffsets = new ArrayList<Long>();
-        val entryCount = new AtomicLong(w.getEntryCount(segment.getInfo()));
-        long initialTotalEntryCount = w.getTotalEntryCount(segment.getInfo());
+        val entryCount = new AtomicLong(IndexReader.getEntryCount(segment.getInfo()));
+        long initialTotalEntryCount = IndexReader.getTotalEntryCount(segment.getInfo());
         int totalEntryCountDelta = 0;
         val bucketUpdates = new ArrayList<BucketUpdate>();
         for (val builder : builders) {
@@ -419,8 +419,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         // Apply the updates.
         val attrCount = w.updateBuckets(segment, bucketUpdates, firstKeyOffset, postIndexOffset, totalEntryCountDelta, TIMEOUT).join();
         AssertExtensions.assertGreaterThan("Expected at least one attribute to be modified.", 0, attrCount);
-        checkEntryCount(entryCount.get(), segment, w);
-        checkTotalEntryCount(initialTotalEntryCount + totalEntryCountDelta, segment, w);
+        checkEntryCount(entryCount.get(), segment);
+        checkTotalEntryCount(initialTotalEntryCount + totalEntryCountDelta, segment);
 
         // Record the key as being updated.
         oldOffsets.forEach(existingKeys::remove);
@@ -485,20 +485,20 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             }
         }
 
-        checkEntryCount(existingKeysByOffset.size(), segment, w);
-        checkBucketCount(existentBucketCount, segment, w);
+        checkEntryCount(existingKeysByOffset.size(), segment);
+        checkBucketCount(existentBucketCount, segment);
     }
 
-    private void checkEntryCount(long expectedCount, SegmentMock segment, IndexReader ir) {
-        Assert.assertEquals("Unexpected number of entries.", expectedCount, ir.getEntryCount(segment.getInfo()));
+    private void checkEntryCount(long expectedCount, SegmentMock segment) {
+        Assert.assertEquals("Unexpected number of entries.", expectedCount, IndexReader.getEntryCount(segment.getInfo()));
     }
 
-    private void checkTotalEntryCount(long expectedCount, SegmentMock segment, IndexReader ir) {
-        Assert.assertEquals("Unexpected total number of entries.", expectedCount, ir.getTotalEntryCount(segment.getInfo()));
+    private void checkTotalEntryCount(long expectedCount, SegmentMock segment) {
+        Assert.assertEquals("Unexpected total number of entries.", expectedCount, IndexReader.getTotalEntryCount(segment.getInfo()));
     }
 
-    private void checkBucketCount(long expectedCount, SegmentMock segment, IndexReader ir) {
-        Assert.assertEquals("Unexpected number of buckets.", expectedCount, ir.getBucketCount(segment.getInfo()));
+    private void checkBucketCount(long expectedCount, SegmentMock segment) {
+        Assert.assertEquals("Unexpected number of buckets.", expectedCount, IndexReader.getBucketCount(segment.getInfo()));
     }
 
     private void checkNoBackpointers(SegmentMock segment) {
@@ -518,10 +518,6 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         }
 
         return batch;
-    }
-
-    private IndexReader newReader() {
-        return new IndexReader(executorService());
     }
 
     private IndexWriter newWriter(KeyHasher hasher) {

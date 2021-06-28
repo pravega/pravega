@@ -19,8 +19,6 @@ import com.google.common.collect.Iterators;
 import io.netty.buffer.ByteBuf;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.TableEntry;
-import io.pravega.client.tables.TableKey;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.Iterator;
@@ -78,10 +76,9 @@ public interface TableSegment extends AutoCloseable {
     /**
      * Inserts a new or updates an existing Table Entry into this Table Segment.
      *
-     * @param entry The Entry to insert or update. If {@link TableEntry#getKey()}{@link TableKey#getVersion()} indicates
-     *              a conditional update this will perform a Conditional Update conditioned on the server-side version
-     *              matching the provided one.
-     *              See {@link TableSegment} doc for more details on Types of Updates.
+     * @param entry The Entry to insert or update. If {@link TableSegmentEntry#getKey()}{@link TableSegmentKey#getVersion()}
+     *              indicates a conditional update this will perform a Conditional Update conditioned on the server-side
+     *              version matching the provided one. See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will contain the {@link TableSegmentKeyVersion} associated with
      * the newly inserted or updated entry. Notable exceptions:
      * <ul>
@@ -97,9 +94,9 @@ public interface TableSegment extends AutoCloseable {
      * All changes are performed atomically (either all or none will be accepted).
      *
      * @param entries An Iterator containing the entries to insert or update. If for at least one such entry,
-     *                {@link TableEntry#getKey()}{@link TableKey#getVersion()} indicates a conditional update, this will
-     *                perform an atomic Conditional Update conditioned on the server-side version for each such entry
-     *                matching the provided one.
+     *                {@link TableSegmentEntry#getKey()}{@link TableSegmentKey#getVersion()} indicates a conditional
+     *                update, this will perform an atomic Conditional Update conditioned on the server-side version for
+     *                each such entry matching the provided one.
      *                See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will contain a List of {@link TableSegmentKeyVersion} instances
      * which represent the versions for the inserted/updated keys. The returned list will contain the same number of
@@ -114,7 +111,7 @@ public interface TableSegment extends AutoCloseable {
     /**
      * Removes the given key from this Table Segment.
      *
-     * @param key The Key to remove. If {@link TableKey#getVersion()} indicates a conditional update, this will
+     * @param key The Key to remove. If {@link TableSegmentKey#getVersion()} indicates a conditional update, this will
      *            perform an atomic removal conditioned on the server-side version matching the provided one.
      *            See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will indicate the Key has been removed. Notable exceptions:
@@ -130,7 +127,7 @@ public interface TableSegment extends AutoCloseable {
      * Removes one or more keys from this Table Segment.
      * All removals are performed atomically (either all keys or no key will be removed).
      *
-     * @param keys An Iterator containing the keys to remove. If for at least one such key, {@link TableKey#getVersion()}
+     * @param keys An Iterator containing the keys to remove. If for at least one such key, {@link TableSegmentKey#getVersion()}
      *             indicates a conditional update, this will perform an atomic removal conditioned on the server-side
      *             version matching the provided one.
      *             See {@link TableSegment} doc for more details on Types of Updates.
@@ -166,18 +163,18 @@ public interface TableSegment extends AutoCloseable {
     /**
      * Creates a new Iterator over all the Keys in the Table Segment.
      *
-     * @param args A {@link IteratorArgs} that can be used to configure the iterator.
+     * @param args A {@link SegmentIteratorArgs} that can be used to configure the iterator.
      * @return An {@link AsyncIterator} that can be used to iterate over all the Keys in this Table Segment.
      */
-    AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(IteratorArgs args);
+    AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(SegmentIteratorArgs args);
 
     /**
      * Creates a new Iterator over all the Entries in the Table Segment.
      *
-     * @param args A {@link IteratorArgs} that can be used to configure the iterator.
+     * @param args A {@link SegmentIteratorArgs} that can be used to configure the iterator.
      * @return An {@link AsyncIterator} that can be used to iterate over all the Entries in this Table Segment.
      */
-    AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(IteratorArgs args);
+    AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(SegmentIteratorArgs args);
 
     /**
      * Gets a value indicating the internal Id of the Table Segment, as assigned by the Controller.

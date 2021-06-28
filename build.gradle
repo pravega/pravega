@@ -419,6 +419,7 @@ project('test:testcommon') {
 project('segmentstore:contracts') {
     dependencies {
         compile project(':common')
+        compile project(':common_server')
         testCompile project(':test:testcommon')
     }
     javadoc {

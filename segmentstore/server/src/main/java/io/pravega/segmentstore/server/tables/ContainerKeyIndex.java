@@ -79,7 +79,6 @@ class ContainerKeyIndex implements AutoCloseable {
     private final ContainerKeyCache cache;
     private final CacheManager cacheManager;
     private final MultiKeySequentialProcessor<Map.Entry<Long, UUID>> conditionalUpdateProcessor;
-    private final ContainerSortedKeyIndex sortedKeyIndex;
     private final SegmentTracker segmentTracker;
     private final AtomicBoolean closed;
     private final KeyHasher keyHasher;
@@ -94,14 +93,13 @@ class ContainerKeyIndex implements AutoCloseable {
     /**
      * Creates a new instance of the ContainerKeyIndex class.
      *
-     * @param containerId    Id of the SegmentContainer this instance is associated with.
-     * @param config         Configuration.
-     * @param cacheManager   A {@link CacheManager} that can be used to manage Cache instances.
-     * @param sortedKeyIndex A {@link ContainerSortedKeyIndex} that can be used to manage {@link SegmentSortedKeyIndex}es.
-     * @param keyHasher      A {@link KeyHasher} that can be used to hash keys.
-     * @param executor       Executor for async operations.
+     * @param containerId  Id of the SegmentContainer this instance is associated with.
+     * @param config       Configuration.
+     * @param cacheManager A {@link CacheManager} that can be used to manage Cache instances.
+     * @param keyHasher    A {@link KeyHasher} that can be used to hash keys.
+     * @param executor     Executor for async operations.
      */
-    ContainerKeyIndex(int containerId, @NonNull TableExtensionConfig config, @NonNull CacheManager cacheManager, @NonNull ContainerSortedKeyIndex sortedKeyIndex,
+    ContainerKeyIndex(int containerId, @NonNull TableExtensionConfig config, @NonNull CacheManager cacheManager,
                       @NonNull KeyHasher keyHasher, @NonNull ScheduledExecutorService executor) {
         this.cache = new ContainerKeyCache(cacheManager.getCacheStorage());
         this.cacheManager = cacheManager;
@@ -109,7 +107,6 @@ class ContainerKeyIndex implements AutoCloseable {
         this.executor = executor;
         this.indexReader = new IndexReader(executor);
         this.conditionalUpdateProcessor = new MultiKeySequentialProcessor<>(this.executor);
-        this.sortedKeyIndex = sortedKeyIndex;
         this.segmentTracker = new SegmentTracker();
         this.keyHasher = keyHasher;
         this.closed = new AtomicBoolean();
@@ -199,7 +196,7 @@ class ContainerKeyIndex implements AutoCloseable {
         } else {
             // Get the number of indexed Table Buckets.
             SegmentProperties sp = segment.getInfo();
-            long indexedBucketCount = this.indexReader.getBucketCount(sp);
+            long indexedBucketCount = IndexReader.getBucketCount(sp);
             if (tailRemovals.isEmpty()) {
                 // No removals in the Tail index, so we can derive our response from the total number of indexed buckets.
                 return CompletableFuture.completedFuture(indexedBucketCount <= 0);
@@ -405,18 +402,15 @@ class ContainerKeyIndex implements AutoCloseable {
             update = () -> persist.get().thenApplyAsync(batchOffset -> updateCache(segment, batch, batchOffset), this.executor);
         }
 
-        // Throttle any requests, if needed. Note that Internal requests (which are made by the WriterTableProcessor)
-        // must not be throttled, otherwise we risk blocking ourselves and never release the throttle.
-        return this.segmentTracker.throttleIfNeeded(segment, update, batch.getLength(), !batch.isExternal());
+        // Throttle any requests, if needed.
+        return this.segmentTracker.throttleIfNeeded(segment, update, batch.getLength());
     }
 
     private List<Long> updateCache(DirectSegmentAccess segment, TableKeyBatch batch, long batchOffset) {
-        this.sortedKeyIndex.getSortedKeyIndex(segment.getSegmentId(), segment.getInfo()).includeTailUpdate(batch, batchOffset);
-
         // Ensure the cache knows about the Last Indexed Offset segment for this Segment. If it doesn't we need to fetch it.
         // This is necessary so we can properly record new backpointers into the cache which occur beyond the Last Indexed Offset
         // for this segment.
-        this.cache.updateSegmentIndexOffsetIfMissing(segment.getSegmentId(), () -> this.indexReader.getLastIndexedOffset(segment.getInfo()));
+        this.cache.updateSegmentIndexOffsetIfMissing(segment.getSegmentId(), () -> IndexReader.getLastIndexedOffset(segment.getInfo()));
 
         // Update the cache with the contents of the batch.
         return this.cache.includeUpdateBatch(segment.getSegmentId(), batch, batchOffset);
@@ -569,7 +563,6 @@ class ContainerKeyIndex implements AutoCloseable {
      */
     void notifyIndexOffsetChanged(long segmentId, long indexOffset, int processedBytes) {
         this.cache.updateSegmentIndexOffset(segmentId, indexOffset);
-        this.sortedKeyIndex.notifyIndexOffsetChanged(segmentId, indexOffset);
         this.segmentTracker.updateSegmentIndexOffset(segmentId, indexOffset, processedBytes);
     }
 
@@ -585,25 +578,6 @@ class ContainerKeyIndex implements AutoCloseable {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return this.segmentTracker.waitIfNeeded(segment,
                 ignored -> CompletableFuture.completedFuture(this.cache.getTailHashes(segment.getSegmentId())));
-    }
-
-    /**
-     * Gets the {@link SegmentSortedKeyIndex} associated with the given Segment, as provided by
-     * {@link ContainerSortedKeyIndex#getSortedKeyIndex}. This can be used to safely iterate through Keys of a Sorted
-     * Table Segment while including both fully indexed and tail updates.
-     *
-     * Note: this will return the same result as {@link ContainerSortedKeyIndex#getSortedKeyIndex}, however this method
-     * will wait on any Segment-specific recovery (and trigger it) to complete before executing, which should enable a
-     * safe iteration for recently recovered Table Segments.
-     *
-     * @param segment A {@link DirectSegmentAccess} representing the Segment for which to get the {@link SegmentSortedKeyIndex}.
-     * @return A CompletableFuture that, when completed, will contain the desired result. This Future will wait on any
-     * Segment-specific recovery to complete before executing.
-     */
-    CompletableFuture<SegmentSortedKeyIndex> getSortedKeyIndex(DirectSegmentAccess segment) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return this.segmentTracker.waitIfNeeded(segment,
-                ignored -> CompletableFuture.completedFuture(this.sortedKeyIndex.getSortedKeyIndex(segment.getSegmentId(), segment.getInfo())));
     }
 
     /**
@@ -637,25 +611,21 @@ class ContainerKeyIndex implements AutoCloseable {
         // Read the tail section of the segment and process its updates. All of this should already be in the cache so
         // we are not going to do any Storage reads.
         SegmentProperties segmentInfo = segment.getInfo();
-        boolean sorted = ContainerSortedKeyIndex.isSortedTableSegment(segmentInfo);
-        log.debug("{}: Tail-caching started for Table Segment {}. Sorted={}, LastIndexedOffset={}, SegmentLength={}.",
-                this.traceObjectId, segment.getSegmentId(), sorted, lastIndexedOffset, segmentLength);
+        log.debug("{}: Tail-caching started for Table Segment {}. LastIndexedOffset={}, SegmentLength={}.",
+                this.traceObjectId, segment.getSegmentId(), lastIndexedOffset, segmentLength);
         ReadResult rr = segment.read(lastIndexedOffset, (int) tailIndexLength, this.config.getRecoveryTimeout());
         AsyncReadResultProcessor
                 .processAll(rr, this.executor, this.config.getRecoveryTimeout())
                 .thenAcceptAsync(inputData -> {
                     // Parse out all Table Keys and collect their latest offsets, as well as whether they were deleted.
-                    val updates = new TailUpdates(sorted);
+                    val updates = new TailUpdates();
                     collectLatestOffsets(inputData, lastIndexedOffset, (int) tailIndexLength, updates);
 
                     // Incorporate that into the cache.
                     this.cache.includeTailCache(segment.getSegmentId(), updates.byBucket);
 
-                    // Incorporate it into the Sorted Key Index.
-                    this.sortedKeyIndex.getSortedKeyIndex(segment.getSegmentId(), segmentInfo).includeTailCache(updates.byKey);
-
                     log.debug("{}: Tail-caching complete for Table Segment {}. Key Update Count={}, Bucket Update Count={}.",
-                            this.traceObjectId, segment.getSegmentId(), updates.byKey.size(), updates.byBucket.size());
+                            this.traceObjectId, segment.getSegmentId(), updates.getKeyCount(), updates.byBucket.size());
 
                     // Notify the Segment Tracker that this segment has been recovered, so it can unblock any calls it
                     // may have collected.
@@ -676,7 +646,7 @@ class ContainerKeyIndex implements AutoCloseable {
         while (nextOffset < maxOffset) {
             val e = AsyncTableEntryReader.readEntryComponents(inputReader, nextOffset, serializer);
             val hash = this.keyHasher.hash(e.getKey());
-            result.add(e.getKey(), hash, nextOffset, e.getHeader().isDeletion());
+            result.add(hash, nextOffset, e.getHeader().isDeletion());
             nextOffset += e.getHeader().getTotalLength();
         }
     }
@@ -696,15 +666,13 @@ class ContainerKeyIndex implements AutoCloseable {
     @RequiredArgsConstructor
     private static class TailUpdates {
         final Map<UUID, CacheBucketOffset> byBucket = new HashMap<>();
-        final Map<BufferView, CacheBucketOffset> byKey = new HashMap<>();
-        private final boolean recordByKey;
+        @Getter
+        private int keyCount = 0;
 
-        void add(BufferView key, UUID keyHash, long offset, boolean isDeletion) {
+        void add(UUID keyHash, long offset, boolean isDeletion) {
             CacheBucketOffset cbo = new CacheBucketOffset(offset, isDeletion);
             this.byBucket.put(keyHash, cbo);
-            if (this.recordByKey) {
-                this.byKey.put(key, cbo);
-            }
+            this.keyCount++;
         }
     }
 
@@ -820,25 +788,23 @@ class ContainerKeyIndex implements AutoCloseable {
          * @param toExecute  A Supplier that, when invoked, will execute a task and return a CompletableFuture which will
          *                   complete when the task is done.
          * @param updateSize The number of bytes that this task requires.
-         * @param force      If true, will set the {@code force} flag on the underlying throttler, which will cause this
-         *                   task to execute right away even if there is no capacity for it (its credits will still be recorded).
          * @param <T>        Return type.
          * @return A CompletableFuture that will be completed when the task is done. If executing immediately, this is the
          * result of toExecute, otherwise it will be a different Future which will be completed when toExecute completes.
          */
-        <T> CompletableFuture<T> throttleIfNeeded(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> toExecute, int updateSize, boolean force) {
+        <T> CompletableFuture<T> throttleIfNeeded(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> toExecute, int updateSize) {
             AsyncSemaphore throttler;
             synchronized (this) {
                 throttler = this.throttlers.getOrDefault(segment.getSegmentId(), null);
                 if (throttler == null) {
                     val si = segment.getInfo();
-                    long initialDelta = Math.max(0, si.getLength() - ContainerKeyIndex.this.indexReader.getLastIndexedOffset(si));
+                    long initialDelta = Math.max(0, si.getLength() - IndexReader.getLastIndexedOffset(si));
                     throttler = new AsyncSemaphore(config.getMaxUnindexedLength(), initialDelta, String.format("%s-%s", containerId, segment.getSegmentId()));
                     this.throttlers.put(segment.getSegmentId(), throttler);
                 }
             }
 
-            return throttler.run(toExecute, updateSize, force);
+            return throttler.run(toExecute, updateSize, false); // No need to force anything at this time.
         }
 
         /**
@@ -878,7 +844,7 @@ class ContainerKeyIndex implements AutoCloseable {
                         // Nobody waiting on it either.
                         SegmentProperties sp = segment.getInfo();
                         segmentLength = sp.getLength();
-                        lastIndexedOffset = ContainerKeyIndex.this.indexReader.getLastIndexedOffset(sp);
+                        lastIndexedOffset = IndexReader.getLastIndexedOffset(sp);
                         if (lastIndexedOffset >= segmentLength) {
                             // Already caught up.
                             this.recoveredSegments.add(segment.getSegmentId());
