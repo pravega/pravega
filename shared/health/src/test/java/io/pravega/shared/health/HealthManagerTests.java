@@ -87,7 +87,6 @@ public class HealthManagerTests {
     /**
      * Tests that when specified a {@link Health} result will return any details information belonging to that
      * {@link HealthContributor} or it's dependencies.
-     *
      */
     @Test
     public void testDetailsEndpoints() throws TimeoutException {

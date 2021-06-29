@@ -598,6 +598,7 @@ public class ControllerServiceStarter extends AbstractIdleService implements Aut
         close(connectionFactory);
         close(storeClient);
         close(streamStore);
+        close(healthServiceManager);
     }
 
     private void close(AutoCloseable closeable) {

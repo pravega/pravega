@@ -42,6 +42,7 @@ import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.rest.RESTServer;
 import io.pravega.shared.rest.security.AuthHandlerManager;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
@@ -113,7 +114,7 @@ public final class ServiceStarter {
 
         if (this.serviceConfig.isRestServerEnabled()) {
             log.info("Initializing RESTServer ...");
-            restServer = new RESTServer(serviceConfig.getRestServerConfig(), Set.of(new HealthImpl(
+            restServer = new RESTServer(serviceConfig.getRestServerConfig(), Collections.singleton(new HealthImpl(
                     new AuthHandlerManager(serviceConfig.getRestServerConfig()),
                     healthServiceManager.getEndpoint())));
             restServer.startAsync();

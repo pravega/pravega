@@ -155,7 +155,6 @@ public class HealthTests {
                 healthResult.getDetails().size());
     }
 
-    // Be mindful that the results will be dependent on the StatusAggregatorRule used.
     @Test
     public void testStatus() throws Exception {
 
@@ -186,8 +185,6 @@ public class HealthTests {
         assertStatus(streamResourceURI, HealthStatus.DOWN);
     }
 
-    // Service Readiness is in essence a proxy for the Status as a HealthComponent does not provide its own
-    // `doHealthCheck` logic.
     @Test
     public void testReadiness() throws Exception {
         // Start with a HealthyContributor.
@@ -323,7 +320,6 @@ public class HealthTests {
 
         public static final String DETAILS_VAL = "static-contributor-details-value";
 
-
         public StaticHealthyContributor() {
             super(NAME);
         }
@@ -349,10 +345,6 @@ public class HealthTests {
 
         public StaticFailingContributor() {
             super("static-contributor-indicator");
-        }
-
-        public StaticFailingContributor(String name) {
-            super(name);
         }
 
         public Status doHealthCheck(Health.HealthBuilder builder) {
