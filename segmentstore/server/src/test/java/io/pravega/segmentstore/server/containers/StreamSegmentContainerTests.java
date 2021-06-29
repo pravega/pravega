@@ -124,6 +124,7 @@ import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -138,6 +139,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -2137,7 +2139,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      *
      * @throws Exception
      */
-    @Test
+    @Test(timeout = 10000000)
     public void testBasicContainerEventProcessor() throws Exception {
         @Cleanup
         TestContext context = createContext();
@@ -2156,7 +2158,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
         @Cleanup
         ContainerEventProcessor.EventProcessor processor = containerEventProcessor.forConsumer("testConsumer", handler, eventProcessorConfig)
-                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
+                .get(TIMEOUT_FUTURE.toSeconds() + 100000, TimeUnit.SECONDS);
 
         // Test adding one Event to the EventProcessor and wait for the handle to get executed and unblock this thread.
         BufferView event = new ByteArraySegment(userEvent.get().getBytes());
@@ -2191,14 +2193,26 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         container.startAsync().awaitRunning();
 
         int allEventsToProcess = 100;
-        AtomicLong processorResults1 = new AtomicLong(0);
+        List<Integer> processorResults1 = new ArrayList<>();
         Function<List<BufferView>, CompletableFuture<Void>> handler1 = l -> {
-            processorResults1.addAndGet(l.size());
+            l.forEach(b -> {
+                try {
+                    processorResults1.add(ByteBuffer.wrap(b.getReader().readNBytes(Integer.BYTES)).getInt());
+                } catch (IOException e) {
+                    throw new CompletionException(e);
+                }
+            });
             return CompletableFuture.completedFuture(null);
         };
-        AtomicLong processorResults2 = new AtomicLong(0);
+        List<Integer> processorResults2 = new ArrayList<>();
         Function<List<BufferView>, CompletableFuture<Void>> handler2 = l -> {
-            processorResults2.addAndGet(l.size());
+            l.forEach(b -> {
+                try {
+                    processorResults2.add(ByteBuffer.wrap(b.getReader().readNBytes(Integer.BYTES)).getInt());
+                } catch (IOException e) {
+                    throw new CompletionException(e);
+                }
+            });
             return CompletableFuture.completedFuture(null);
         };
         AtomicLong processorResults3 = new AtomicLong(0);
@@ -2225,15 +2239,17 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
 
         for (int i = 0; i < allEventsToProcess; i++) {
-            BufferView event = new ByteArraySegment(("event" + i).getBytes());
+            BufferView event = new ByteArraySegment(ByteBuffer.allocate(Integer.BYTES).putInt(i).array());
             processor1.add(event, TIMEOUT_FUTURE).join();
             processor2.add(event, TIMEOUT_FUTURE).join();
             processor3.add(event, TIMEOUT_FUTURE).join();
         }
 
         // Wait for all items to be processed.
-        AssertExtensions.assertEventuallyEquals(true, () -> processorResults1.get() == allEventsToProcess, 10000);
-        AssertExtensions.assertEventuallyEquals(true, () -> processorResults2.get() == allEventsToProcess, 10000);
+        AssertExtensions.assertEventuallyEquals(true, () -> processorResults1.size() == allEventsToProcess, 10000);
+        Assert.assertArrayEquals(processorResults1.toArray(), IntStream.iterate(0, v -> v + 1).limit(allEventsToProcess).boxed().toArray());
+        AssertExtensions.assertEventuallyEquals(true, () -> processorResults2.size() == allEventsToProcess, 10000);
+        Assert.assertArrayEquals(processorResults2.toArray(), IntStream.iterate(0, v -> v + 1).limit(allEventsToProcess).boxed().toArray());
         AssertExtensions.assertEventuallyEquals(true, () -> processorResults3.get() == 0, 10000);
     }
 
@@ -2297,7 +2313,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // At this point, we can only add events, but not consuming them as the EventProcessor works in durable queue mode.
         for (int i = 0; i < allEventsToProcess; i++) {
-            BufferView event = new ByteArraySegment(("event" + i).getBytes());
+            BufferView event = new ByteArraySegment(ByteBuffer.allocate(Integer.BYTES).putInt(i).array());
             processor.add(event, TIMEOUT_FUTURE).join();
         }
         Assert.assertEquals("Event processor object not matching", processor, containerEventProcessor.forDurableQueue("testDurableQueue")
@@ -2308,15 +2324,22 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Now, re-create the Event Processor with a handler to consume the events.
         ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
                 new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
-        AtomicLong processorResults = new AtomicLong(0);
+        List<Integer> processorResults = new ArrayList<>();
         Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
-            processorResults.addAndGet(l.size());
+            l.forEach(b -> {
+                try {
+                    processorResults.add(ByteBuffer.wrap(b.getReader().readNBytes(Integer.BYTES)).getInt());
+                } catch (IOException e) {
+                    throw new CompletionException(e);
+                }
+            });
             return CompletableFuture.completedFuture(null);
         };
         processor = containerEventProcessor.forConsumer("testDurableQueue", handler, eventProcessorConfig)
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
         // Wait for all items to be processed.
-        AssertExtensions.assertEventuallyEquals(true, () -> processorResults.get() == allEventsToProcess, 10000);
+        AssertExtensions.assertEventuallyEquals(true, () -> processorResults.size() == allEventsToProcess, 10000);
+        Assert.assertArrayEquals(processorResults.toArray(), IntStream.iterate(0, v -> v + 1).limit(allEventsToProcess).boxed().toArray());
     }
 
     /**

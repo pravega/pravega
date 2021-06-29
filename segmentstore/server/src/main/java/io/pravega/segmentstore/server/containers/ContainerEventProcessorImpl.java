@@ -18,39 +18,46 @@ package io.pravega.segmentstore.server.containers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.ObjectBuilder;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
+import io.pravega.segmentstore.server.ContainerEventProcessor.TooManyOutstandingBytesException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.pravega.segmentstore.server.ContainerEventProcessor.ProcessorEventData.HEADER_LENGTH;
-import static io.pravega.segmentstore.server.ContainerEventProcessor.ProcessorEventData.MAX_TOTAL_EVENT_SIZE;
 import static io.pravega.segmentstore.server.containers.MetadataStore.SegmentInfo.newSegment;
 import static io.pravega.shared.NameUtils.getEventProcessorSegmentName;
 
@@ -134,7 +141,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
      */
     private void reportMetrics() {
         for (EventProcessorImpl ep : eventProcessorMap.values()) {
-            SegmentStoreMetrics.outstandingEventProcessorBytes(ep.getName(), containerId, ep.outstandingBytes.get());
+            SegmentStoreMetrics.outstandingEventProcessorBytes(ep.getName(), containerId, ep.getOutstandingBytes());
             // Only report the last iteration processing latency if it has been successful.
             if (!ep.failedIteration.get()) {
                 ep.metrics.batchProcessingLatency(ep.lastIterationLatency.get());
@@ -181,6 +188,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                                                          @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
                                                          @NonNull EventProcessorConfig config) {
         Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkArgument(!name.isEmpty(), "EventProcessor name cannot be empty.");
 
         synchronized (eventProcessorMap) {
             // If the EventProcessor is already loaded, just return it.
@@ -194,8 +202,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                     .thenApply(segment -> {
                         Exceptions.checkNotClosed(this.closed.get(), this);
                         EventProcessorImpl eventProcessor = new EventProcessorImpl(name, segment, handler, config, onClose);
-                        eventProcessorMap.put(name, eventProcessor);
                         eventProcessor.run(); // Start the processing for this EventProcessor and return it.
+                        eventProcessorMap.put(name, eventProcessor);
                         return eventProcessor;
                     });
         }
@@ -204,6 +212,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
     @Override
     public CompletableFuture<EventProcessor> forDurableQueue(@NonNull String name) {
         Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkArgument(!name.isEmpty(), "EventProcessor name cannot be empty.");
 
         // Do not limit the amount of outstanding bytes when there is no consumer configured.
         EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(0, Long.MAX_VALUE);
@@ -226,16 +235,16 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         }
     }
 
-
-    private class EventProcessorImpl extends ContainerEventProcessor.EventProcessor implements Runnable {
+    class EventProcessorImpl extends ContainerEventProcessor.EventProcessor implements Runnable {
 
         private final DirectSegmentAccess segment;
-        private final AtomicLong outstandingBytes;
         private final AtomicLong lastIterationLatency;
         private final SegmentStoreMetrics.EventProcessor metrics;
         private final AtomicBoolean closed;
         private final AtomicBoolean failedIteration;
         private final String traceObjectId;
+
+        private final ProcessorEventData.ProcessorEventDataSerializer serializer = new ProcessorEventData.ProcessorEventDataSerializer();
 
         //region Constructor
 
@@ -245,26 +254,10 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             super(name, handler, config, onClose);
             this.traceObjectId = String.format("EventProcessor[%d-%s]", containerId, name);
             this.segment = segment;
-            this.outstandingBytes = new AtomicLong(getInitialOutstandingBytes(segment)); // Initialize with current outstanding data.
             this.lastIterationLatency = new AtomicLong(0);
             this.metrics = new SegmentStoreMetrics.EventProcessor(name, containerId);
             this.closed = new AtomicBoolean(false);
             this.failedIteration = new AtomicBoolean(false);
-        }
-
-        /**
-         * Upon recovery, set the actual number of outstanding bytes in the EventProcessor.
-         *
-         * @param segment Internal Segment for this EventProcessor.
-         * @return Number of outstanding bytes for this EventProcessor (i.e., Segment length).
-         */
-        private long getInitialOutstandingBytes(DirectSegmentAccess segment) {
-            try {
-                return segment.getInfo().getLength();
-            } catch (Exception ex) {
-                log.warn("{}: Unable to get initial outstanding bytes from internal Segment.", this.traceObjectId, ex);
-            }
-            return 0;
         }
 
         //endregion
@@ -272,15 +265,29 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         //region EventProcessor implementation
 
         @Override
-        public CompletableFuture<Long> add(@NonNull BufferView event, Duration timeout) {
+        @SneakyThrows(IOException.class)
+        public CompletableFuture<Long> add(@NonNull BufferView event, Duration timeout) throws TooManyOutstandingBytesException {
             Preconditions.checkArgument(event.getLength() > 0);
-            Preconditions.checkArgument(event.getLength() + HEADER_LENGTH < MAX_TOTAL_EVENT_SIZE);
+            Preconditions.checkArgument(event.getLength() + Integer.BYTES < ProcessorEventData.MAX_TOTAL_EVENT_SIZE);
             Exceptions.checkNotClosed(this.closed.get(), this);
-            Preconditions.checkState(outstandingBytes.get() < getConfig().getMaxProcessorOutstandingBytes(),
-                    "Too many outstanding events for {}.", this.getName());
+            // If the EventProcessor reached the limit of outstanding bytes, throw accordingly.
+            if (getOutstandingBytes() > getConfig().getMaxProcessorOutstandingBytes()) {
+                throw new TooManyOutstandingBytesException(this.traceObjectId);
+            }
 
-            return segment.append(ProcessorEventSerializer.serializeEvent(event), null, timeout)
-                          .thenApply(offset -> outstandingBytes.addAndGet(event.getLength() + HEADER_LENGTH));
+            ProcessorEventData processorEvent = ProcessorEventData.builder().length(event.getLength()).data(event).build();
+            return segment.append(serializer.serialize(processorEvent), null, timeout)
+                          .thenApply(offset -> getOutstandingBytes());
+        }
+
+        /**
+         * Gets the number of outstanding bytes in the {@link ContainerEventProcessor.EventProcessor}'s internal Segment.
+         * 
+         * @return Outstanding bytes in the {@link ContainerEventProcessor.EventProcessor}'s internal Segment.
+         */
+        @VisibleForTesting
+        long getOutstandingBytes() {
+            return segment.getInfo().getLength() - segment.getInfo().getStartOffset();
         }
 
         //endregion
@@ -332,14 +339,15 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
          * processing iteration or there is no outstanding data to process.
          */
         private CompletableFuture<Void> getDelayedFutureIfNeeded() {
-            return failedIteration.get() || outstandingBytes.get() == 0 ? Futures.delayedFuture(iterationDelay, executor) :
+            return failedIteration.get() || getOutstandingBytes() == 0 ? Futures.delayedFuture(iterationDelay, executor) :
                     Futures.delayedFuture(Duration.ZERO, executor);
         }
 
         /**
-         * Returns a {@link CompletableFuture} that results from the execution of the following tasks for each EventProcessor:
-         * i) Read available data in the Segment, ii) deserialize at most {@link EventProcessorConfig#getMaxItemsAtOnce()},
-         * iii) execute the handler function for the {@link EventProcessor}, and iv) truncate the internal Segment.
+         * Returns a {@link CompletableFuture} that results from the execution of the following tasks for each
+         * {@link ContainerEventProcessor.EventProcessor}: i) Read available data in the Segment, ii) deserialize at most
+         * {@link ContainerEventProcessor.EventProcessorConfig#getMaxItemsAtOnce()}, iii) execute the handler function
+         * for the {@link ContainerEventProcessor.EventProcessor}, and iv) truncate the internal Segment.
          */
         private CompletableFuture<Void> processEvents() {
             final Timer iterationTime = new Timer();
@@ -358,97 +366,126 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                     });
         }
 
-        private CompletableFuture<EventsReadAndTruncationPoints> readEvents() {
-            AtomicLong startOffset = new AtomicLong(0L);
-            AtomicInteger readLength = new AtomicInteger(0);
+        /**
+         * Attempts to read data from the internal Segment. The size of the read length would be the minimum between the
+         * outstanding bytes or twice the size of the ProcessorEventData.MAX_TOTAL_EVENT_SIZE.
+         *
+         * @return A {@link CompletableFuture} that, when completed, will contain a {@link EventsReadAndTruncationLength}
+         * object with events read and the next truncation length for the internal Segment.
+         */
+        private CompletableFuture<EventsReadAndTruncationLength> readEvents() {
             return CompletableFuture.supplyAsync(() -> {
-                                        // Need to get the start and end offsets to properly create async read request.
-                                        startOffset.set(segment.getInfo().getStartOffset());
-                                        readLength.set((int) Math.min(segment.getInfo().getLength() - startOffset.get(), MAX_TOTAL_EVENT_SIZE));
-                                        return segment.read(startOffset.get(), readLength.get(), containerOperationTimeout);
+                                        int readLength = (int) Math.min(getOutstandingBytes(), 2 * ProcessorEventData.MAX_TOTAL_EVENT_SIZE);
+                                        return segment.read(segment.getInfo().getStartOffset(), readLength, containerOperationTimeout);
                                     }, executor)
-                                    .thenComposeAsync(rr -> AsyncReadResultProcessor.processAll(rr, executor, containerOperationTimeout), executor)
-                                    .thenApply(inputData -> deserializeEvents(inputData, startOffset.get(), readLength.get()));
+                                    .thenCompose(rr -> AsyncReadResultProcessor.processAll(rr, executor, containerOperationTimeout))
+                                    .thenApply(this::deserializeEvents);
         }
 
-        private EventsReadAndTruncationPoints deserializeEvents(BufferView inputData, long startOffset, int maxLength) {
+        private EventsReadAndTruncationLength deserializeEvents(BufferView inputData) {
             List<ProcessorEventData> events = new ArrayList<>();
-            long nextOffset = startOffset;
-            final long maxOffset = startOffset + maxLength;
-            BufferView.Reader input = inputData.getBufferViewReader();
+            InputStream input = inputData.getReader();
+            long truncationLength = 0;
             try {
-                while (nextOffset < maxOffset && events.size() < getConfig().getMaxItemsAtOnce()) {
-                    ProcessorEventData event = ProcessorEventSerializer.deserializeEvent(input);
+                int availableBytes = input.available();
+                while (input.available() > 0 && events.size() < getConfig().getMaxItemsAtOnce()) {
+                    ProcessorEventData event = serializer.deserialize(input);
                     events.add(event);
-                    // Update the offset to the beginning of the next event.
-                    nextOffset += HEADER_LENGTH + event.getLength();
+                    // Update the truncation length, which includes user data and internal VersionedSerializer metadata.
+                    truncationLength = availableBytes - input.available();
                 }
             } catch (BufferView.Reader.OutOfBoundsException ex) {
                 // Events are of arbitrary size, so it is quite possible we stopped reading in the middle of an event.
                 // Only if we have already read some data, we do not throw.
+            } catch (IOException ex) {
+                // Some unexpected serialization error occurred here, rethrow.
+                log.error("{}: Problem while deserializing events.", this.traceObjectId);
+                throw new CompletionException(ex);
             }
 
             if (events.isEmpty()) {
                 throw new NoDataAvailableException();
             }
-            return new EventsReadAndTruncationPoints(events);
+            return new EventsReadAndTruncationLength(events, truncationLength);
         }
 
-        private CompletableFuture<EventsReadAndTruncationPoints> applyProcessorHandler(EventsReadAndTruncationPoints readResult) {
+        private CompletableFuture<EventsReadAndTruncationLength> applyProcessorHandler(EventsReadAndTruncationLength readResult) {
             return getHandler().apply(readResult.getProcessorEventsData()).thenApply(v -> readResult);
         }
 
-        private CompletableFuture<Void> truncateInternalSegment(EventsReadAndTruncationPoints readResult, Timer iterationTime) {
-            long truncationOffset = this.segment.getInfo().getStartOffset() + readResult.getReadBytes();
+        private CompletableFuture<Void> truncateInternalSegment(EventsReadAndTruncationLength readResult, Timer iterationTime) {
+            long truncationOffset = this.segment.getInfo().getStartOffset() + readResult.getTruncationLength();
             return this.segment.truncate(truncationOffset, containerOperationTimeout)
-                    .thenAccept(v -> {
-                        // Decrement outstanding bytes and publish the last latency value after successful truncation.
-                        this.outstandingBytes.addAndGet(-readResult.getReadBytes());
-                        this.lastIterationLatency.set(iterationTime.getElapsedMillis());
-                    });
-        }
-    }
-
-    @Data
-    private static class EventsReadAndTruncationPoints {
-        private final List<ProcessorEventData> eventsRead;
-
-        public long getReadBytes() {
-            return eventsRead.stream().map(d -> d.getLength() + HEADER_LENGTH).reduce(0, Integer::sum);
+                               .thenAccept(v -> this.lastIterationLatency.set(iterationTime.getElapsedMillis()));
         }
 
-        public List<BufferView> getProcessorEventsData() {
-            return eventsRead.stream().map(ProcessorEventData::getData).collect(Collectors.toUnmodifiableList());
-        }
-    }
+        /**
+         * Utility class to group all events reads and provide some convenience methods to operate on them (e.g., bytes
+         * read accounting for headers).
+         */
+        @Data
+        class EventsReadAndTruncationLength {
+            private final List<ProcessorEventData> eventsRead;
+            private final long truncationLength;
 
-    private static class NoDataAvailableException extends RuntimeException {
+            public List<BufferView> getProcessorEventsData() {
+                return eventsRead.stream().map(ProcessorEventData::getData).collect(Collectors.toUnmodifiableList());
+            }
+        }
+
+        class NoDataAvailableException extends RuntimeException {
+        }
     }
 
     /**
-     * Helper class to serialize/deserialize {@link ProcessorEventData} objects.
+     * Representation of an event written to an {@link ContainerEventProcessor.EventProcessor}.
+     * It consists of:
+     * - Length (4 bytes)
+     * - Data (BufferView of length at most 1024 * 1024 - 4 bytes)
      */
-    static class ProcessorEventSerializer {
+    @Data
+    @Builder
+    static class ProcessorEventData {
+        // Set a maximum length to individual events to be processed by EventProcessor (1MB).
+        public static final int MAX_TOTAL_EVENT_SIZE = 1024 * 1024;
+        private static final ProcessorEventDataSerializer SERIALIZER = new ProcessorEventDataSerializer();
 
-        private static final byte CURRENT_SERIALIZATION_VERSION = 0;
-        private static final int VERSION_POSITION = 0;
-        private static final int EVENT_LENGTH_POSITION = VERSION_POSITION + 1;
+        private final int length;
+        private final BufferView data;
 
-        static BufferView serializeHeader(int eventLength) {
-            ByteArraySegment data = new ByteArraySegment(new byte[HEADER_LENGTH]);
-            data.set(VERSION_POSITION, CURRENT_SERIALIZATION_VERSION);
-            data.setInt(EVENT_LENGTH_POSITION, eventLength);
-            return data;
+        static class ProcessorEventDataBuilder implements ObjectBuilder<ProcessorEventData> {
         }
 
-        static BufferView serializeEvent(BufferView eventData) {
-            return BufferView.builder().add(serializeHeader(eventData.getLength())).add(eventData).build();
-        }
+        /**
+         * Helper class to serialize/deserialize {@link ProcessorEventData} objects.
+         */
+        static class ProcessorEventDataSerializer extends VersionedSerializer.WithBuilder<ProcessorEventData,
+                ProcessorEventData.ProcessorEventDataBuilder> {
 
-        static ProcessorEventData deserializeEvent(BufferView.Reader inputData) {
-            byte version = inputData.readByte();
-            int length = inputData.readInt();
-            return new ProcessorEventData(version, length, inputData.readSlice(length));
+            @Override
+            protected ProcessorEventData.ProcessorEventDataBuilder newBuilder() {
+                return ProcessorEventData.builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void write00(ProcessorEventData d, RevisionDataOutput output) throws IOException {
+                output.writeCompactInt(d.getLength());
+                output.writeBuffer(d.getData());
+            }
+
+            private void read00(RevisionDataInput input, ProcessorEventData.ProcessorEventDataBuilder builder) throws IOException {
+                builder.length(input.readCompactInt());
+                builder.data(new ByteArraySegment(input.readArray()));
+            }
         }
     }
 

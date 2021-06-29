@@ -91,8 +91,10 @@ public interface ContainerEventProcessor extends AutoCloseable {
          * @param timeout   Maximum amount of time for this operation to be completed.
          * @return          A {@link CompletableFuture} that, when completed, will acknowledge that the event has been
          *                  durably stored and returns the amount of outstanding bytes for this {@link EventProcessor}.
+         * @throws TooManyOutstandingBytesException if the {@link EventProcessor} has reached the maximum configured
+         * outstanding bytes.
          */
-        public abstract CompletableFuture<Long> add(@NonNull BufferView event, Duration timeout);
+        public abstract CompletableFuture<Long> add(@NonNull BufferView event, Duration timeout) throws TooManyOutstandingBytesException;
 
         /**
          * When an {@link EventProcessor} is closed, it should be auto-unregistered from the existing set of active
@@ -123,22 +125,20 @@ public interface ContainerEventProcessor extends AutoCloseable {
     }
 
     /**
-     * Representation of an event written to an {@link EventProcessor}. It consists of:
-     * - Version (1 byte)
-     * - Length (4 bytes)
-     * - Data (BufferView of length at most 1024 * 1024 - 5 bytes)
+     * Exception thrown when an {@link EventProcessor} backlog reaches the maximum limit of bytes configured.
+     * Usually, this may indicate that either the handler configured is failing and cannot process events or that the
+     * amount of events being ingested is too much compared to the processing speed.
      */
-    @Data
-    class ProcessorEventData {
+    class TooManyOutstandingBytesException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
 
-        // Serialization Version (1 byte), Entry Length (4 bytes)
-        public static final int HEADER_LENGTH = Byte.BYTES + Integer.BYTES;
-
-        // Set a maximum length to individual events to be processed by EventProcessor (1MB).
-        public static final int MAX_TOTAL_EVENT_SIZE = 1024 * 1024;
-
-        private final byte version;
-        private final int length;
-        private final BufferView data;
+        /**
+         * Creates an new instance of the TooManyOutstandingBytesException class.
+         *
+         * @param eventProcessorId The Id of the {@link EventProcessor} that reached the outstanding byte limit.
+         */
+        public TooManyOutstandingBytesException(String eventProcessorId) {
+            super(String.format("%s reached its maximum outstanding bytes limit.", eventProcessorId));
+        }
     }
 }
