@@ -16,15 +16,14 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -51,10 +50,10 @@ class SegmentAttributeIterator implements AttributeIterator {
 
     private final AttributeIterator indexIterator;
     @GuardedBy("metadataAttributes")
-    private final ArrayDeque<Map.Entry<UUID, Long>> metadataAttributes;
-    private final UUID fromId;
-    private final UUID toId;
-    private final AtomicReference<UUID> lastIndexAttribute;
+    private final ArrayDeque<Map.Entry<AttributeId, Long>> metadataAttributes;
+    private final AttributeId fromId;
+    private final AttributeId toId;
+    private final AtomicReference<AttributeId> lastIndexAttribute;
 
     //endregion
 
@@ -67,7 +66,7 @@ class SegmentAttributeIterator implements AttributeIterator {
      * @param fromId   The smallest Attribute Id to include.
      * @param toId     The largest Attribute Id to include.
      */
-    SegmentAttributeIterator(@NonNull AttributeIterator indexIterator, @NonNull SegmentMetadata metadata, @NonNull UUID fromId, @NonNull UUID toId) {
+    SegmentAttributeIterator(@NonNull AttributeIterator indexIterator, @NonNull SegmentMetadata metadata, @NonNull AttributeId fromId, @NonNull AttributeId toId) {
         this.indexIterator = indexIterator;
 
         // Collect eligible attributes from the Metadata into a Dequeue (we need to be able to peek).
@@ -75,9 +74,9 @@ class SegmentAttributeIterator implements AttributeIterator {
         // the SegmentMetadata's lock, thus ensuring a correct iteration. SegmentMetadata.getAttributes() provides a simple
         // read-only view that cannot be used for safe iteration in this case.
         this.metadataAttributes = metadata
-                .getAttributes((key, value) -> fromId.compareTo(key) <= 0 && toId.compareTo(key) >= 0)
+                .getAttributes((key, value) -> !Attributes.isCoreAttribute(key) && fromId.compareTo(key) <= 0 && toId.compareTo(key) >= 0)
                 .entrySet().stream()
-                .sorted(Comparator.comparing(Map.Entry::getKey, UUID::compareTo))
+                .sorted(Map.Entry.comparingByKey(AttributeId::compareTo))
                 .collect(Collectors.toCollection(ArrayDeque::new));
         this.fromId = fromId;
         this.toId = toId;
@@ -89,7 +88,7 @@ class SegmentAttributeIterator implements AttributeIterator {
     //region AttributeIterator Implementation
 
     @Override
-    public CompletableFuture<List<Map.Entry<UUID, Long>>> getNext() {
+    public CompletableFuture<List<Map.Entry<AttributeId, Long>>> getNext() {
         return this.indexIterator
                 .getNext()
                 .thenApply(this::mix);
@@ -106,15 +105,15 @@ class SegmentAttributeIterator implements AttributeIterator {
      * - The entry will be added only if there is no corresponding updated value for its Attribute Id in the {@link SegmentMetadata},
      * If there is, then the updated value is used.
      *
-     * @param indexAttributes A List containing pairs of UUID to Long representing the base Attributes (i.e., from the
+     * @param indexAttributes A List containing pairs of AttributeId to Long representing the base Attributes (i.e., from the
      *                        SegmentAttributeIndex. This iterator must return the pairs in their natural order based on
-     *                        the {@link UUID#compareTo} comparer.
-     * @return A List of Map Entries (UUID to Long) containing all the Attributes from the index, mixed with the appropriate
+     *                        the {@link AttributeId#compareTo} comparer.
+     * @return A List of Map Entries (AttributeId to Long) containing all the Attributes from the index, mixed with the appropriate
      * Attributes from the {@link SegmentMetadata} passed to this class' constructor. This will return null if both
      * indexAttributes is null and there are no more Attributes to process from the {@link SegmentMetadata}.
      */
-    private List<Map.Entry<UUID, Long>> mix(List<Map.Entry<UUID, Long>> indexAttributes) {
-        val result = new ArrayList<Map.Entry<UUID, Long>>();
+    private List<Map.Entry<AttributeId, Long>> mix(List<Map.Entry<AttributeId, Long>> indexAttributes) {
+        val result = new ArrayList<Map.Entry<AttributeId, Long>>();
         if (indexAttributes == null) {
             // Nothing more in the base iterator. Add whatever is in the metadata attributes.
             synchronized (this.metadataAttributes) {
@@ -132,7 +131,7 @@ class SegmentAttributeIterator implements AttributeIterator {
 
                 // Find all metadata attributes that are smaller or the same as the base attribute and include them all.
                 // This also handles value overrides (metadata attributes, if present, always have the latest value).
-                UUID lastMetadataAttribute = null;
+                AttributeId lastMetadataAttribute = null;
                 synchronized (this.metadataAttributes) {
                     while (!this.metadataAttributes.isEmpty()
                             && this.metadataAttributes.peekFirst().getKey().compareTo(idxAttribute.getKey()) <= 0) {
@@ -150,7 +149,7 @@ class SegmentAttributeIterator implements AttributeIterator {
         }
     }
 
-    private UUID include(Map.Entry<UUID, Long> e, List<Map.Entry<UUID, Long>> result) {
+    private AttributeId include(Map.Entry<AttributeId, Long> e, List<Map.Entry<AttributeId, Long>> result) {
         if (e.getValue() != Attributes.NULL_ATTRIBUTE_VALUE) {
             // Only add non-deletion values.
             result.add(e);
@@ -159,8 +158,8 @@ class SegmentAttributeIterator implements AttributeIterator {
         return e.getKey();
     }
 
-    private void checkIndexAttribute(UUID attributeId) {
-        UUID prevId = this.lastIndexAttribute.get();
+    private void checkIndexAttribute(AttributeId attributeId) {
+        AttributeId prevId = this.lastIndexAttribute.get();
         if (prevId != null) {
             Preconditions.checkArgument(prevId.compareTo(attributeId) < 0,
                     "baseIterator did not return Attributes in order. Expected at greater than {%s}, found {%s}.", prevId, attributeId);

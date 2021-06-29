@@ -46,7 +46,9 @@ public final class TestUtils {
             assert cmd != null;
             cmd.setOut(ps);
             cmd.execute();
+            ps.flush();
         }
+        baos.flush();
         return new String(baos.toByteArray(), StandardCharsets.UTF_8);
     }
 

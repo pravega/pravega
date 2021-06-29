@@ -26,7 +26,9 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
@@ -57,9 +59,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -172,16 +172,17 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         // Get the last Event Number for this writer from the Store. This operation (cache=true) will automatically put
         // the value in the Store's cache so it's faster to access later.
+        AttributeId writerAttributeId = AttributeId.fromUUID(writer);
         Futures.exceptionallyComposeExpecting(
-                store.getAttributes(newSegment, Collections.singleton(writer), true, TIMEOUT),
-                e -> e instanceof StreamSegmentSealedException, () -> store.getAttributes(newSegment, Collections.singleton(writer), false, TIMEOUT))
+                store.getAttributes(newSegment, Collections.singleton(writerAttributeId), true, TIMEOUT),
+                e -> e instanceof StreamSegmentSealedException, () -> store.getAttributes(newSegment, Collections.singleton(writerAttributeId), false, TIMEOUT))
                         .whenComplete((attributes, u) -> {
                             try {
                                 if (u != null) {
                                     handleException(writer, setupAppend.getRequestId(), newSegment, "setting up append", u);
                                 } else {
                                     // Last event number stored according to Segment store.
-                                    long eventNumber = attributes.getOrDefault(writer, Attributes.NULL_ATTRIBUTE_VALUE);
+                                    long eventNumber = attributes.getOrDefault(writerAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
 
                                     // Create a new WriterState object based on the attribute value for the last event number for the writer.
                                     // It should be noted that only one connection for a given segment writer is created by the client.
@@ -252,8 +253,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     private CompletableFuture<Long> storeAppend(Append append, long lastEventNumber) {
-        List<AttributeUpdate> attributes = Arrays.asList(
-                new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfEquals, append.getEventNumber(), lastEventNumber),
+        AttributeUpdateCollection attributes = AttributeUpdateCollection.from(
+                new AttributeUpdate(AttributeId.fromUUID(append.getWriterId()), AttributeUpdateType.ReplaceIfEquals, append.getEventNumber(), lastEventNumber),
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
         ByteBufWrapper buf = new ByteBufWrapper(append.getData());
         if (append.isConditional()) {

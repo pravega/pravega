@@ -16,8 +16,8 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.AttributeId;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Defines an updateable StreamSegment Metadata.
@@ -87,7 +87,7 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      *
      * @param attributeValues The values to set/update.
      */
-    void updateAttributes(Map<UUID, Long> attributeValues);
+    void updateAttributes(Map<AttributeId, Long> attributeValues);
 
     /**
      * Sets the Last Modified date.
@@ -113,7 +113,8 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     void setLastUsed(long value);
 
     /**
-     * Refreshes the {@link #getType()} property based on the current {@link #getAttributes()} values.
+     * Refreshes those properties that are derived from the current {@link #getAttributes()} values. For example,
+     * {@link #getType()} and {@link #getAttributeIdLength()}.
      */
-    void refreshType();
+    void refreshDerivedProperties();
 }

@@ -17,6 +17,8 @@ package io.pravega.common.util;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -25,6 +27,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -251,6 +254,17 @@ public class RetryTests {
         assert i.get() == 10;
     }
 
+    @Test
+    public void testNoRetry() {
+        AtomicInteger attempts = new AtomicInteger(0);
+        AssertExtensions.assertThrows("",
+                () -> Retry.NO_RETRY.run(() -> {
+                    attempts.incrementAndGet();
+                    throw new IntentionalException();
+                }),
+                ex -> ex instanceof IntentionalException);
+        Assert.assertEquals(1, attempts.get());
+    }
 
     private int retry(long delay,
                       int multiplier,
