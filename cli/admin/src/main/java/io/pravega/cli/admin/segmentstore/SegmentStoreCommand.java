@@ -17,14 +17,24 @@ package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.AdminCommand;
 import io.pravega.cli.admin.CommandArgs;
+import io.pravega.cli.admin.utils.CLIControllerConfig;
+import io.pravega.controller.server.ControllerServiceConfig;
+import io.pravega.controller.server.security.auth.GrpcAuthHelper;
+import io.pravega.segmentstore.server.store.ServiceConfig;
 
 /**
  * Base class for all the Segment Store related commands.
  */
 public abstract class SegmentStoreCommand extends AdminCommand {
     static final String COMPONENT = "segmentstore";
+    protected final GrpcAuthHelper authHelper;
 
     public SegmentStoreCommand(CommandArgs args) {
         super(args);
+        CLIControllerConfig cliConfig = super.getCLIControllerConfig();
+        authHelper = new GrpcAuthHelper(cliConfig.isAuthEnabled(),
+                cliConfig.getTruststoreSignKey(),
+                cliConfig.getAccessTokenTtlInSeconds());
+
     }
 }

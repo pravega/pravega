@@ -16,6 +16,7 @@
 package io.pravega.cli.admin.segmentstore;
 
 import io.pravega.cli.admin.AbstractAdminCommandTest;
+import io.pravega.cli.admin.AdminCommandState;
 import io.pravega.cli.admin.utils.TestUtils;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
@@ -26,19 +27,41 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Properties;
 import java.util.UUID;
 
+@Slf4j
 public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
+
+
+    public void setupSegmentStore(boolean isSecure) {
+        if(isSecure) {
+            Properties pravegaProperties = new Properties();
+            pravegaProperties.setProperty("cli.channel.auth", Boolean.toString(true));
+            pravegaProperties.setProperty("cli.credentials.username", SecurityConfigDefaults.AUTH_ADMIN_USERNAME);
+            pravegaProperties.setProperty("cli.credentials.pwd", SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
+            pravegaProperties.setProperty("cli.channel.tls", Boolean.toString(true));
+            pravegaProperties.setProperty("cli.trustStore.location", "../../config/" + SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME);
+            pravegaProperties.setProperty("cli.trustStore.signing.key", "../../config/" + SecurityConfigDefaults.TLS_CA_CERT_KEY_FILE_NAME);
+            pravegaProperties.setProperty("cli.trustStore.access.token.ttl.seconds", Integer.toString(300));
+
+            STATE.get().getConfigBuilder().include(pravegaProperties);
+        }
+    }
 
     @Test
     public void testGetSegmentInfoCommand() throws Exception {
         TestUtils.createScopeStream(SETUP_UTILS.getController(), "segmentstore", "getinfo", StreamConfiguration.builder().build());
         String commandResult = TestUtils.executeCommand("segmentstore get-segment-info segmentstore/getinfo/0.#epoch.0 localhost", STATE.get());
+
         Assert.assertTrue(commandResult.contains("StreamSegmentInfo:"));
         commandResult = TestUtils.executeCommand("segmentstore get-segment-info _system/_abortStream/0.#epoch.0 localhost", STATE.get());
         Assert.assertTrue(commandResult.contains("StreamSegmentInfo:"));
@@ -130,4 +153,25 @@ public class SegmentStoreCommandsTest extends AbstractAdminCommandTest {
         Assert.assertNotNull(UpdateSegmentAttributeCommand.descriptor());
     }
 
+
+
+    //endregion
+
+    //region Actual Test Implementations
+
+    public static class SecureSegmentStoreCommandsTest extends SegmentStoreCommandsTest {
+        @Before
+        public void startUp() throws Exception {
+            setupSegmentStore(true);
+        }
+    }
+
+    public static class RegularSegmentStoreCommandsTest extends SecureSegmentStoreCommandsTest {
+        @Before
+        public void startUp() throws Exception {
+            setupSegmentStore(false);
+        }
+    }
+
+    //endregion
 }

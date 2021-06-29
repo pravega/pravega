@@ -54,7 +54,7 @@ public class ReadSegmentRangeCommand extends SegmentStoreCommand {
         @Cleanup
         SegmentHelper segmentHelper = instantiateSegmentHelper(zkClient);
         CompletableFuture<WireCommands.SegmentRead> reply = segmentHelper.readSegment(fullyQualifiedSegmentName,
-                offset, length, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), "");
+                offset, length, new PravegaNodeUri(segmentStoreHost, getServiceConfig().getAdminGatewayPort()), super.authHelper.retrieveMasterToken());
         WireCommands.SegmentRead segmentRead = reply.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         output("ReadSegment: %s", segmentRead.toString());
         output("SegmentRead content: %s", segmentRead.getData().toString(StandardCharsets.UTF_8));
