@@ -797,8 +797,7 @@ public abstract class RequestHandlersTest {
         ScaleOpEvent scaleEvent = new ScaleOpEvent(fairness, fairness, Collections.singletonList(0L), 
                 Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), 
                 false, System.currentTimeMillis(), 0L);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        streamRequestHandler.process(scaleEvent, () -> false).join();
         // verify that scale was started
         assertEquals(State.SCALING, streamStore.getState(fairness, fairness, true, null, executor).join());
 
@@ -819,8 +818,7 @@ public abstract class RequestHandlersTest {
         ScaleOpEvent scaleEvent2 = new ScaleOpEvent(fairness, fairness, Collections.singletonList(NameUtils.computeSegmentId(1, 1)),
                 Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0)),
                 false, System.currentTimeMillis(), 0L);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent2, () -> false),
-                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        streamRequestHandler.process(scaleEvent2, () -> false).join();
         streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
     }
     
@@ -843,7 +841,7 @@ public abstract class RequestHandlersTest {
                 System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
-        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+        doAnswer(x -> Futures.failedFuture(new NullPointerException()))
                 .when(segmentHelper).updatePolicy(anyString(), anyString(), any(), anyLong(), anyString(), anyLong());
         
         // 2. start process --> this should fail with a retryable exception while talking to segment store!
@@ -854,7 +852,7 @@ public abstract class RequestHandlersTest {
         
         UpdateStreamEvent event = new UpdateStreamEvent(fairness, fairness, 0L);
         AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+                e -> Exceptions.unwrap(e) instanceof NullPointerException);
 
         verify(segmentHelper, atLeastOnce()).updatePolicy(anyString(), anyString(), any(), anyLong(), anyString(), anyLong());
         
@@ -895,7 +893,8 @@ public abstract class RequestHandlersTest {
                 System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
-        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+        Exception exception = StoreException.create(StoreException.Type.DATA_NOT_FOUND, "Some processing exception");
+        doAnswer(x -> Futures.failedFuture(exception))
                 .when(segmentHelper).truncateSegment(anyString(), anyString(), anyLong(), anyLong(), anyString(), anyLong());
         
         // 2. start process --> this should fail with a retryable exception while talking to segment store!
@@ -905,7 +904,7 @@ public abstract class RequestHandlersTest {
         
         TruncateStreamEvent event = new TruncateStreamEvent(fairness, fairness, 0L);
         AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
         verify(segmentHelper, atLeastOnce()).truncateSegment(anyString(), anyString(), anyLong(), anyLong(), anyString(), anyLong());
         
@@ -941,7 +940,8 @@ public abstract class RequestHandlersTest {
                 null, executor).join();
         
         // 1. set segment helper mock to throw exception
-        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+        Exception exception = StoreException.create(StoreException.Type.ILLEGAL_STATE, "Some processing exception");
+        doAnswer(x -> Futures.failedFuture(exception))
                 .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
                 anyString(), anyLong());
         
@@ -954,7 +954,7 @@ public abstract class RequestHandlersTest {
         
         CommitEvent event = new CommitEvent(fairness, fairness, 0);
         AssertExtensions.assertFutureThrows("", requestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
 
         verify(segmentHelper, atLeastOnce()).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), 
                 anyString(), anyLong());
@@ -997,7 +997,8 @@ public abstract class RequestHandlersTest {
                 System.currentTimeMillis(), 0L).join();
 
         // 1. set segment helper mock to throw exception
-        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+        Exception exception = StoreException.create(StoreException.Type.DATA_CONTAINER_NOT_FOUND, "Some processing exception");
+        doAnswer(x -> Futures.failedFuture(exception))
                 .when(segmentHelper).sealSegment(anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         // 2. start process --> this should fail with a retryable exception while talking to segment store!
@@ -1057,8 +1058,7 @@ public abstract class RequestHandlersTest {
         assertEquals(State.SEALED, streamStore.getState(fairness, fairness, true, null, executor).join());
 
         DeleteStreamEvent event = new DeleteStreamEvent(fairness, fairness, 0L, createTimestamp);
-        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event, () -> false),
-                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        streamRequestHandler.process(event, () -> false).join();
 
         verify(segmentHelper, atLeastOnce())
                 .deleteSegment(anyString(), anyString(), anyLong(), anyString(), anyLong());
