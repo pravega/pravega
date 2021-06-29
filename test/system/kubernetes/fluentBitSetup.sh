@@ -198,6 +198,7 @@ cp_remote_logs() {
     fi
     remote_log_files=($remote_log_files)
 
+    cd "$output"
     # Clean any previous instances of collected logs.
     rm -rf "$TAR_NAME"{.gz,}
     # Temporary directory to hold the log files.
@@ -234,12 +235,14 @@ cp_remote_logs() {
     fi
 
     if command -v zip; then
-      zip -r "$LOGS_DIR.zip" "$LOGS_DIR" > /dev/null
+      zip -r "$logs_dir.zip" "$logs_dir" > /dev/null
     else
       tar --remove-files -zcf "$TAR_NAME.gz" "$logs_dir"
     fi
     rm -rf "$logs_dir"
 
+    # Return from '$output'.
+    cd ../
     logs_fetched=1
 }
 
