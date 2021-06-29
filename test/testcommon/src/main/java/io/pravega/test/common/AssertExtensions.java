@@ -329,7 +329,7 @@ public class AssertExtensions {
      * @param <K>      The type of the map's keys.
      * @param <V>      The type of the map's values.
      */
-    public static <K extends Comparable<? super K>, V extends Comparable<? super V>> void assertMapEquals(String message, Map<K, V> expected, Map<K, V> actual) {
+    public static <K, V> void assertMapEquals(String message, Map<K, V> expected, Map<K, V> actual) {
         Assert.assertEquals(String.format("%s Maps differ in size.", message), expected.size(), actual.size());
         for (Map.Entry<K, V> e : expected.entrySet()) {
             if (!actual.containsKey(e.getKey())) {
@@ -354,7 +354,8 @@ public class AssertExtensions {
         for (int i = 0; i < expected.size(); i++) {
             T expectedItem = expected.get(i);
             T actualItem = actual.get(i);
-            Assert.assertTrue(String.format("%s Elements at index %d differ. Expected '%s', found '%s'.", message, i, expectedItem, actualItem), tester.test(expectedItem, actualItem));
+            Assert.assertTrue(String.format("%s Elements at index %d differ. Expected '%s', found '%s'.", message, i, expectedItem, actualItem),
+                    (expectedItem == null && actualItem == null) || tester.test(expectedItem, actualItem));
         }
     }
 

@@ -16,6 +16,7 @@
 package io.pravega.common.util.btree;
 
 import io.pravega.common.util.ByteArraySegment;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ import lombok.RequiredArgsConstructor;
  * A Key-Value pair of ByteArraySegments that represent an entry in a B+Tree Page.
  */
 @Getter
+@EqualsAndHashCode
 @RequiredArgsConstructor
 public class PageEntry {
     /**
