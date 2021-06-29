@@ -28,7 +28,8 @@ CONFIG_MAP_DATA=/etc/config
 KEEP_PVC=false
 NAMESPACE=${NAMESPACE:-"default"}
 NAME=${NAME:-"pravega-fluent-bit"}
-TAR_NAME="pravega-logs-export.tar"
+LOGS_DIR="pravega-logs-export"
+TAR_NAME="${LOGS_DIR}.tar"
 SKIP_FORCE_ROTATE=${SKIP_FORCE_ROTATE:-"false"}
 ALPINE_IMAGE=${ALPINE_IMAGE:-"alpine:latest"}
 RETRIES=3
@@ -200,7 +201,7 @@ cp_remote_logs() {
     # Clean any previous instances of collected logs.
     rm -rf "$TAR_NAME"{.gz,}
     # Temporary directory to hold the log files.
-    local logs_dir=${TAR_NAME%.tar}
+    local logs_dir=$LOGS_DIR
     mkdir "$logs_dir" && cd "$logs_dir"
 
     local total=${#remote_log_files[@]}
@@ -231,7 +232,12 @@ cp_remote_logs() {
         echo ""
         echo "Successfully downloaded a total of $actual_log_count log files."
     fi
-    tar --remove-files -zcf "$TAR_NAME.gz" "$logs_dir"
+
+    if command -v zip; then
+      zip -r "$LOGS_DIR" "$LOGS_DIR.zip"
+    else
+      tar --remove-files -zcf "$TAR_NAME.gz" "$logs_dir"
+    fi
     rm -rf "$logs_dir"
 
     logs_fetched=1
