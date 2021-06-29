@@ -37,6 +37,8 @@ public class CreateTableEvent implements ControllerEvent {
     private final String scopeName;
     private final String kvtName;
     private final int partitionCount;
+    private final int primaryKeyLength;
+    private final int secondaryKeyLength;
     private final long timestamp;
     private final long requestId;
     private final UUID tableId;
@@ -78,6 +80,8 @@ public class CreateTableEvent implements ControllerEvent {
             target.writeLong(e.timestamp);
             target.writeLong(e.requestId);
             target.writeUUID(e.tableId);
+            target.writeInt(e.primaryKeyLength);
+            target.writeInt(e.secondaryKeyLength);
         }
 
         private void read00(RevisionDataInput source, CreateTableEventBuilder eb) throws IOException {
@@ -87,6 +91,8 @@ public class CreateTableEvent implements ControllerEvent {
             eb.timestamp(source.readLong());
             eb.requestId(source.readLong());
             eb.tableId(source.readUUID());
+            eb.primaryKeyLength(source.readInt());
+            eb.secondaryKeyLength(source.readInt());
         }
     }
     //endregion

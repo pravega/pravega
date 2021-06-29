@@ -42,6 +42,15 @@ public interface RevisionDataInput extends DataInput {
     InputStream getBaseStream();
 
     /**
+     * Gets the number of bytes remaining to read from the {@link RevisionDataInput}.
+     * NOTE: this may be different from {@link InputStream#available()}; this returns the number of bytes remaining for
+     * reading from those that were declared using {@link RevisionDataOutput#length(int)} at writing time.
+     *
+     * @return The number of bytes remaining.
+     */
+    int getRemaining();
+
+    /**
      * Decodes a Long that has been serialized using {@link RevisionDataOutput#writeCompactLong}. After this method is complete,
      * the underlying InputStream may have advanced by 1, 2, 4, or 8 bytes.
      *

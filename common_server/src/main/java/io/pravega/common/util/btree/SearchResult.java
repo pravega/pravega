@@ -23,7 +23,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Getter
 @RequiredArgsConstructor
-public class SearchResult {
+class SearchResult {
     /**
      * The resulting position.
      */

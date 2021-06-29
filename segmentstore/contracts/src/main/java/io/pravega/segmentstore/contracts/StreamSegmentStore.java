@@ -19,7 +19,6 @@ import io.pravega.common.util.BufferView;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -58,7 +57,7 @@ public interface StreamSegmentStore {
      *                                  check if the StreamSegment does not exist - that exception 
      *                                  will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+    CompletableFuture<Long> append(String streamSegmentName, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout);
 
     /**
      * Appends a range of bytes at the end of a StreamSegment an atomically updates the given
@@ -90,7 +89,7 @@ public interface StreamSegmentStore {
      *                                  check if the StreamSegment does not exist - that exception
      *                                  will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+    CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, AttributeUpdateCollection attributeUpdates, Duration timeout);
 
     /**
      * Performs an attribute update operation on the given Segment.
@@ -108,7 +107,7 @@ public interface StreamSegmentStore {
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+    CompletableFuture<Void> updateAttributes(String streamSegmentName, AttributeUpdateCollection attributeUpdates, Duration timeout);
 
     /**
      * Gets the values of the given Attributes (Core or Extended).
@@ -130,7 +129,7 @@ public interface StreamSegmentStore {
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Map<UUID, Long>> getAttributes(String streamSegmentName, Collection<UUID> attributeIds, boolean cache, Duration timeout);
+    CompletableFuture<Map<AttributeId, Long>> getAttributes(String streamSegmentName, Collection<AttributeId> attributeIds, boolean cache, Duration timeout);
 
     /**
      * Initiates a Read operation on a particular StreamSegment and returns a ReadResult which can be used to consume the

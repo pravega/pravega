@@ -231,19 +231,14 @@ public class ControllerServiceTest {
 
         final String kvtName1 = "kvtable1";
         final String kvtName2 = "kvtable2";
-        final String kvtZero = "kvtableZero";
         final KeyValueTableConfiguration kvtConfig1 = KeyValueTableConfiguration.builder()
-                .partitionCount(2).build();
-        final KeyValueTableConfiguration kvtConfigZeroPC = KeyValueTableConfiguration.builder()
-                .partitionCount(0).build();
+                .partitionCount(2).primaryKeyLength(4).secondaryKeyLength(4).build();
 
         createAKeyValueTable(scope1, kvtName1, controller, kvtConfig1);
         //Same name in different scope
         createAKeyValueTable(scope2, kvtName1, controller, kvtConfig1);
         //Different name in different scope
         createAKeyValueTable(scope2, kvtName2, controller, kvtConfig1);
-        //KVTable with 0 partitions should fail
-        createAKeyValueTableZeroPC(scope2, kvtZero, controller, kvtConfigZeroPC);
 
         final String scopeSeal = "scopeSeal";
         final String streamNameSeal = "streamSeal";

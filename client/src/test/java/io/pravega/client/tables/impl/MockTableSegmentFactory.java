@@ -21,22 +21,21 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.NoSuchKeyException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.test.common.AssertExtensions;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -55,6 +54,7 @@ class MockTableSegmentFactory implements TableSegmentFactory {
     @GuardedBy("segments")
     private final HashMap<Segment, TableSegment> segments = new HashMap<>();
     private final int segmentCount;
+    private final int keyLength;
     private final ScheduledExecutorService executorService;
 
     @Override
@@ -62,15 +62,9 @@ class MockTableSegmentFactory implements TableSegmentFactory {
         AssertExtensions.assertLessThan("Too many segments requested.", this.segmentCount, segment.getSegmentId());
         synchronized (this.segments) {
             Assert.assertNull("Segment requested multiple times.", this.segments.get(segment));
-            TableSegment ts = new MockTableSegment(segment, this::segmentClosed, this.executorService);
+            TableSegment ts = new MockTableSegment(segment, this.keyLength, this::segmentClosed, this.executorService);
             this.segments.put(segment, ts);
             return ts;
-        }
-    }
-
-    int getOpenSegmentCount() {
-        synchronized (this.segments) {
-            return this.segments.size();
         }
     }
 
@@ -86,11 +80,12 @@ class MockTableSegmentFactory implements TableSegmentFactory {
     @RequiredArgsConstructor
     private static class MockTableSegment implements TableSegment {
         private final Segment segment;
+        private final int keyLength;
         private final Consumer<Segment> onClose;
         private final ScheduledExecutorService executorService;
         private final AtomicLong nextVersion = new AtomicLong();
         @GuardedBy("data")
-        private final Map<ByteBuf, EntryValue> data = new HashMap<>();
+        private final TreeMap<ByteBuf, EntryValue> data = new TreeMap<>();
         @GuardedBy("data")
         private boolean closed = false;
 
@@ -151,6 +146,7 @@ class MockTableSegmentFactory implements TableSegmentFactory {
                     AtomicInteger serializationLength = new AtomicInteger();
                     keys.forEachRemaining(k -> {
                         checkVersion(k);
+                        checkLengths(k);
                         serializationLength.addAndGet(k.getKey().readableBytes());
                         toRemove.add(k.getKey());
                     });
@@ -182,54 +178,41 @@ class MockTableSegmentFactory implements TableSegmentFactory {
         }
 
         @Override
-        public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(IteratorArgs args) {
-            return getIterator(args, (key, value, ver) -> TableSegmentKey.versioned(key, ver));
+        public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(SegmentIteratorArgs args) {
+            return getIterator(args, (key, value, ver) -> TableSegmentKey.versioned(key, ver), TableSegmentKey::getKey);
         }
 
         @Override
-        public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(IteratorArgs args) {
-            return getIterator(args, TableSegmentEntry::versioned);
+        public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(SegmentIteratorArgs args) {
+            return getIterator(args, TableSegmentEntry::versioned, e -> e.getKey().getKey());
         }
 
-        private <T> AsyncIterator<IteratorItem<T>> getIterator(IteratorArgs args, IteratorConverter<T> converter) {
-            // The real Table Segment allows iterating while updating. Since we use HashMap, we don't have that luxury,
-            // but we can take a snapshot now and iterate through that. This doesn't necessarily break the Table Segment
-            // contract as it makes no guarantees about whether (or when) concurrent updates will make it into an ongoing
-            // iteration.
-            List<T> iteratorItems = getFilteredEntries(args.getKeyPrefixFilter(), converter);
-            val position = new AtomicInteger(0);
-            if (args.getState() != null) {
-                position.set(args.getState().toBytes().getInt());
-            }
+        private <T> AsyncIterator<IteratorItem<T>> getIterator(SegmentIteratorArgs initialArgs, IteratorConverter<T> converter,
+                                                               Function<T, ByteBuf> getKey) {
+            Preconditions.checkNotNull(initialArgs.getFromKey(), "initialArgs.fromKey");
+            Preconditions.checkNotNull(initialArgs.getToKey(), "initialArgs.toKey");
+            Preconditions.checkArgument(initialArgs.getFromKey().readableBytes() == this.keyLength,
+                    "args.fromKey has incorrect length.");
+            Preconditions.checkArgument(initialArgs.getToKey().readableBytes() == this.keyLength,
+                    "args.toKey has incorrect length.");
 
-            return () -> CompletableFuture.supplyAsync(() -> {
-                if (position.get() >= iteratorItems.size()) {
-                    return null;
-                }
-                int newPosition = Math.min(position.get() + args.getMaxItemsAtOnce(), iteratorItems.size());
-                val result = iteratorItems.subList(position.get(), newPosition);
-                position.set(newPosition);
-                val newState = IteratorState.fromBytes(ByteBuffer.allocate(Integer.BYTES).putInt(0, newPosition));
-                return new IteratorItem<>(newState, result);
-            }, this.executorService);
-        }
-
-        private <T> List<T> getFilteredEntries(ByteBuf prefix, IteratorConverter<T> converter) {
-            Assert.assertNotNull("Key Family iterations require a prefix.", prefix);
-            AssertExtensions.assertGreaterThan("Key Family iterations require a prefix.",
-                    KeyFamilySerializer.PREFIX_LENGTH, prefix.readableBytes());
-            synchronized (this.data) {
-                return this.data.entrySet().stream()
-                        .filter(e -> startsWith(e.getKey(), prefix))
-                        .map(e -> converter.apply(e.getKey().copy(), e.getValue().value.copy(), e.getValue().version))
-                        .collect(Collectors.toList());
-            }
-        }
-
-        private boolean startsWith(ByteBuf key, ByteBuf prefix) {
-
-            return key.readableBytes() >= prefix.readableBytes()
-                    && key.slice(0, prefix.readableBytes()).equals(prefix.duplicate());
+            return new TableSegmentIterator<T>(
+                    args -> CompletableFuture.supplyAsync(() -> {
+                        // The real Table Segment allows iterating while updating. Since we use TreeMap, we don't have
+                        // that luxury, but we can take a snapshot now and return that. This doesn't necessarily break
+                        // the Table Segment contract as it makes no guarantees about whether (or when) concurrent updates
+                        // will make it into an ongoing iteration.
+                        synchronized (this.data) {
+                            val iteratorItems = this.data.subMap(args.getFromKey(), true, args.getToKey(), true)
+                                    .entrySet().stream()
+                                    .map(e -> converter.apply(e.getKey().copy(), e.getValue().value.copy(), e.getValue().version))
+                                    .limit(args.getMaxItemsAtOnce())
+                                    .collect(Collectors.toList());
+                            return new IteratorItem<>(iteratorItems);
+                        }
+                    }, this.executorService),
+                    getKey,
+                    initialArgs);
         }
 
         @GuardedBy("data")
@@ -253,8 +236,13 @@ class MockTableSegmentFactory implements TableSegmentFactory {
         }
 
         private void checkLengths(TableSegmentEntry e) {
-            Preconditions.checkArgument(e.getKey().getKey().readableBytes() <= TableSegment.MAXIMUM_KEY_LENGTH, "Key too long.");
+            checkLengths(e.getKey());
             Preconditions.checkArgument(e.getValue().readableBytes() <= TableSegment.MAXIMUM_VALUE_LENGTH, "Value too long.");
+        }
+
+        private void checkLengths(TableSegmentKey k) {
+            Preconditions.checkArgument(k.getKey().readableBytes() == this.keyLength, "Key Length mismatch. Expected %s, found %s.",
+                    this.keyLength, k.getKey().readableBytes());
         }
 
         private void checkBatchSize(int count, int serializationLength) {

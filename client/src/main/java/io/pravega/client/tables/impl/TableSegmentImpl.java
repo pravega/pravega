@@ -27,7 +27,6 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.tables.BadKeyVersionException;
 import io.pravega.client.tables.ConditionalTableUpdateException;
 import io.pravega.client.tables.IteratorItem;
-import io.pravega.client.tables.IteratorState;
 import io.pravega.client.tables.KeyValueTableClientConfiguration;
 import io.pravega.client.tables.NoSuchKeyException;
 import io.pravega.common.Exceptions;
@@ -186,32 +185,27 @@ class TableSegmentImpl implements TableSegment {
     }
 
     @Override
-    public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(@NonNull IteratorArgs args) {
+    public AsyncIterator<IteratorItem<TableSegmentKey>> keyIterator(@NonNull SegmentIteratorArgs args) {
         return new TableSegmentIterator<>(
-                s -> fetchIteratorItems(args, s, WireCommands.ReadTableKeys::new, WireCommands.TableKeysRead.class,
-                        WireCommands.TableKeysRead::getContinuationToken, this::fromWireCommand),
-                args.getState())
+                s -> fetchIteratorItems(s, WireCommands.ReadTableKeys::new, WireCommands.TableKeysRead.class, this::fromWireCommand),
+                TableSegmentKey::getKey, args)
                 .asSequential(this.connectionPool.getInternalExecutor());
     }
 
     @Override
-    public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(@NonNull IteratorArgs args) {
+    public AsyncIterator<IteratorItem<TableSegmentEntry>> entryIterator(@NonNull SegmentIteratorArgs args) {
         return new TableSegmentIterator<>(
-                s -> fetchIteratorItems(args, s, WireCommands.ReadTableEntries::new, WireCommands.TableEntriesRead.class,
-                        WireCommands.TableEntriesRead::getContinuationToken, reply -> fromWireCommand(reply.getEntries())),
-                args.getState())
+                s -> fetchIteratorItems(s, WireCommands.ReadTableEntries::new, WireCommands.TableEntriesRead.class, reply -> fromWireCommand(reply.getEntries())),
+                e -> e.getKey().getKey(), args)
                 .asSequential(this.connectionPool.getInternalExecutor());
     }
 
     /**
      * Fetches a collection of items as part of an async iterator.
      *
-     * @param args               A {@link IteratorArgs} that contains initial arguments to the iterator.
-     * @param iteratorState      Iterator State. See {@link TableSegment#keyIterator} or {@link TableSegment#entryIterator}
-     *                           for more details.
+     * @param args               A {@link SegmentIteratorArgs} that contains initial arguments to the iterator.
      * @param newIteratorRequest Creates a {@link WireCommand} for the iterator items.
      * @param replyClass         Expected {@link WireCommand} reply type.
-     * @param getStateToken      Extracts the continuation token (as a {@link ByteBuf}) from the reply.
      * @param getResult          Extracts the result from the reply.
      * @param <ItemT>            Type of the items returned.
      * @param <RequestT>         Wire Command Request Type.
@@ -220,31 +214,27 @@ class TableSegmentImpl implements TableSegment {
      * Future will be failed with the appropriate exception.
      */
     private <ItemT, RequestT extends Request & WireCommand, ReplyT extends Reply & WireCommand> CompletableFuture<IteratorItem<ItemT>> fetchIteratorItems(
-            IteratorArgs args, IteratorState iteratorState, CreateIteratorRequest<RequestT> newIteratorRequest,
-            Class<ReplyT> replyClass, Function<ReplyT, ByteBuf> getStateToken, Function<ReplyT, List<ItemT>> getResult) {
-        val token = (iteratorState == null) ? IteratorStateImpl.EMPTY : iteratorState;
-        val prefixFilter = args.getKeyPrefixFilter() == null ? Unpooled.EMPTY_BUFFER : args.getKeyPrefixFilter();
+            SegmentIteratorArgs args, CreateIteratorRequest<RequestT> newIteratorRequest,
+            Class<ReplyT> replyClass, Function<ReplyT, List<ItemT>> getResult) {
         return this.readContext.execute((state, requestId) -> {
             val request = newIteratorRequest.apply(requestId, this.segmentName, state.getToken(), args.getMaxItemsAtOnce(),
-                    IteratorStateImpl.copyOf(token).getToken(), prefixFilter);
+                    new WireCommands.TableIteratorArgs(Unpooled.EMPTY_BUFFER, Unpooled.EMPTY_BUFFER, args.getFromKey(), args.getToKey()));
             return sendRequest(request, state, replyClass)
                     .thenApply(reply -> {
-                        val newState = IteratorStateImpl.fromBytes(getStateToken.apply(reply));
-                        if (newState.isEmpty()) {
-                            // We have reached the end. The server will encode this as an empty continuation token.
+                        val items = getResult.apply(reply);
+                        if (items == null || items.isEmpty()) {
+                            // We have reached the end.
                             log.debug(requestId, "{}: Reached the end of the {} iterator.", this.segmentName, replyClass.getSimpleName());
                             return null;
                         }
-
-                        val keys = getResult.apply(reply);
-                        return new IteratorItem<>(newState, keys);
+                        return new IteratorItem<>(items);
                     });
         });
     }
 
     @FunctionalInterface
     private interface CreateIteratorRequest<V extends Request & WireCommand> {
-        V apply(long requestId, String segmentName, String delegationToken, int maxEntriesAtOnce, ByteBuf stateToken, ByteBuf prefixFilter);
+        V apply(long requestId, String segmentName, String delegationToken, int maxEntriesAtOnce, WireCommands.TableIteratorArgs args);
     }
 
     //endregion
