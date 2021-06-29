@@ -2467,8 +2467,7 @@ public abstract class StreamMetadataTasksTest {
         List<AbortEvent> abortListBefore = abortWriter.getEventList();
         
         streamMetadataTasks.sealStream(SCOPE, streamWithTxn, 0L);
-        AssertExtensions.assertFutureThrows("seal stream did not fail processing with correct exception",
-                processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        processEvent(requestEventWriter).join();
         requestEventWriter.eventQueue.take();
 
         reset(streamStorePartialMock);
@@ -2476,7 +2475,7 @@ public abstract class StreamMetadataTasksTest {
         // verify that the txn status is set to aborting
         VersionedTransactionData txnData = streamStorePartialMock.getTransactionData(SCOPE, streamWithTxn, openTxn.getId(), null, executor).join();
         assertEquals(txnData.getStatus(), TxnStatus.ABORTING);
-        assertEquals(requestEventWriter.getEventQueue().size(), 1);
+        assertEquals(0, requestEventWriter.getEventQueue().size());
 
         // verify that events are posted for the abort txn.
         List<AbortEvent> abortListAfter = abortWriter.getEventList();
@@ -2495,9 +2494,6 @@ public abstract class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(retVal)).when(streamStorePartialMock).getActiveTxns(
                 eq(SCOPE), eq(streamWithTxn), any(), any());
 
-        AssertExtensions.assertFutureThrows("seal stream did not fail processing with correct exception",
-                processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
-
         reset(streamStorePartialMock);
 
         // Now complete all existing transactions and verify that seal completes
@@ -2507,7 +2503,6 @@ public abstract class StreamMetadataTasksTest {
         activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
         assertTrue(activeTxns.isEmpty());
 
-        assertTrue(Futures.await(processEvent(requestEventWriter)));
         // endregion
     }
 
