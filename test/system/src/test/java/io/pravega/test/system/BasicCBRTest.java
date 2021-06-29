@@ -156,6 +156,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         // Update the retention stream-cut.
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(streamCutExecutor);
+        // Wait for 5 seconds to force reader group state update.
         Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
         EventRead<String> emptyEvent = reader.readNextEvent(100);
         assertTrue("Stream-cut generation did not complete", Futures.await(futureCuts, 10_000));
@@ -184,6 +185,7 @@ public class BasicCBRTest extends AbstractReadWriteTest {
         // Update the retention stream-cut.
         log.info("{} generating stream-cuts for {}/{}", READER_GROUP, SCOPE, STREAM);
         CompletableFuture<Map<Stream, StreamCut>> futureCuts2 = readerGroup.generateStreamCuts(streamCutExecutor);
+        // Wait for 5 seconds to force reader group state update.
         Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
         EventRead<String> emptyEvent2 = reader.readNextEvent(100);
         assertTrue("Stream-cut generation did not complete", Futures.await(futureCuts2, 10_000));
