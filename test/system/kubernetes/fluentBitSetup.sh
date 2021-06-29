@@ -198,7 +198,7 @@ cp_remote_logs() {
     remote_log_files=($remote_log_files)
 
     # Clean any previous instances of collected logs.
-    rm -rf "$TAR_NAME"{.gz,}
+    rm -rf "$TAR_NAME"{.gz,} "$LOGS_DIR"{.zip,}
     # Temporary directory to hold the log files.
     local logs_dir=$LOGS_DIR
     mkdir "$logs_dir" && cd "$logs_dir"
