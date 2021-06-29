@@ -214,11 +214,11 @@ cp_remote_logs() {
     wait
     # Return from $logs_dir.
     cd ../
-
     # Validate log collection -- compare number of fetched logs to number of given logs.
     local actual_logs="$(find $logs_dir -type f)"
     local actual_log_count="$(echo "$actual_logs" | wc -l)"
     local expected_log_count="$total"
+
     if [ "$expected_log_count" != "$actual_log_count" ]; then
         echo -e "\nFound mismatch between expected # of logs ($expected_log_count) and actual ($actual_log_count)."
         for log in "${remote_log_files[@]}"; do
@@ -233,7 +233,7 @@ cp_remote_logs() {
     fi
 
     if command -v zip; then
-      zip -r "$logs_dir.zip" "$logs_dir" > /dev/null
+      zip -r "$logs_dir.zip" "$logs_dir" 2&>1 /dev/null
     else
       tar --remove-files -zcf "$TAR_NAME.gz" "$logs_dir"
     fi
@@ -308,7 +308,7 @@ fetch_stored_logs() {
     fi
 
     pushd "$output" > /dev/null 2>&1
-    cp_remote_logs "$output" $logs
+    cp_remote_logs $logs
     popd > /dev/null 2>&1
 }
 
