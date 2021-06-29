@@ -234,7 +234,7 @@ cp_remote_logs() {
     fi
 
     if command -v zip; then
-      zip -r "$LOGS_DIR" "$LOGS_DIR.zip"
+      zip -r "$LOGS_DIR.zip" "$LOGS_DIR" > /dev/null
     else
       tar --remove-files -zcf "$TAR_NAME.gz" "$logs_dir"
     fi
