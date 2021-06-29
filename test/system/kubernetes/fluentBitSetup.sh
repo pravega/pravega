@@ -191,14 +191,12 @@ cp_log() {
 #   Set of log files downloaded to $FLUENT_BIT_EXPORT_PATH.
 ######################################
 cp_remote_logs() {
-    local output=$1; shift
     local remote_log_files=$@
     if [ -z "$remote_log_files" ]; then
         echo "No remote files given to collect."
     fi
     remote_log_files=($remote_log_files)
 
-    cd "$output"
     # Clean any previous instances of collected logs.
     rm -rf "$TAR_NAME"{.gz,}
     # Temporary directory to hold the log files.
@@ -241,8 +239,6 @@ cp_remote_logs() {
     fi
     rm -rf "$logs_dir"
 
-    # Return from '$output'.
-    cd ../
     logs_fetched=1
 }
 
@@ -280,7 +276,7 @@ fetch_active_logs() {
         fi
     done <<< $pods
     pushd "$output" > /dev/null 2>&1
-    cp_remote_logs "$output" "${log_files[@]}"
+    cp_remote_logs "${log_files[@]}"
     popd > /dev/null 2>&1
 }
 
