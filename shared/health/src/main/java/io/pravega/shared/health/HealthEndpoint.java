@@ -19,6 +19,9 @@ import java.util.Map;
 
 /**
  * The {@link HealthEndpoint} interface defines all the types of requests a {@link HealthServiceManager} should expect to serve.
+ *
+ * For all calls accepting the 'String id' parameter are expected to be be fully qualified, i.e. containing the complete path
+ * (delimited by {@link HealthContributor#DELIMITER}) starting from the HealthServiceManager.RootHealthContributor.
  */
 public interface HealthEndpoint {
 

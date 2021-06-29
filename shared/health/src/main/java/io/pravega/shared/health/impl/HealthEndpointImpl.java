@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static io.pravega.shared.health.HealthContributor.DELIMITER;
+
 /**
  * Provides a simpler interface for retrieving {@link Health} information from the {@link io.pravega.shared.health.HealthServiceManager}.
  * The {@link HealthEndpoint} should be used to serve information about the {@link Health} of a component for external classes.
@@ -67,7 +69,7 @@ public class HealthEndpointImpl implements HealthEndpoint {
         if (id == null || id.equals(root.getName())) {
             health = updater.getLatestHealth();
         } else {
-            List<String> path = Arrays.asList(id.split("/"));
+            List<String> path = Arrays.asList(id.split(DELIMITER));
             health = search(path, updater.getLatestHealth());
         }
         if (health == null)  {
