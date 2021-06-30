@@ -95,4 +95,6 @@ public interface ReplyProcessor {
     void tableEntriesDeltaRead(WireCommands.TableEntriesDeltaRead tableEntriesDeltaRead);
 
     void errorMessage(WireCommands.ErrorMessage errorMessage);
+
+    void transientSegmentCreated(WireCommands.TransientSegmentCreated transientSegmentCreated);
 }

@@ -613,6 +613,16 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testTransientSegmentCreated() throws IOException {
+        testCommand(new WireCommands.TransientSegmentCreated(l, testString1));
+    }
+
+    @Test
+    public void testCreateTransientSegment() throws IOException {
+        testCommand(new WireCommands.CreateTransientSegment(l, testString1, ""));
+    }
+
+    @Test
     public void testMergeSegments() throws IOException {
         testCommand(new WireCommands.MergeSegments(l, testString1, testString2, ""));
     }

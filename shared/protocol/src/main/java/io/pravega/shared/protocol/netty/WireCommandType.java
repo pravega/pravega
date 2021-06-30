@@ -114,6 +114,9 @@ public enum WireCommandType {
 
     CONDITIONAL_BLOCK_END(89, WireCommands.ConditionalBlockEnd::readFrom),
 
+    CREATE_TRANSIENT_SEGMENT(90, WireCommands.CreateTransientSegment::readFrom),
+    TRANSIENT_SEGMENT_CREATED(91, WireCommands.TransientSegmentCreated::readFrom),
+
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
     private final int code;

@@ -115,4 +115,9 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
         getNextReplyProcessor().keepAlive(keepAlive);
     }
 
+    @Override
+    public void transientSegmentCreated(WireCommands.TransientSegmentCreated transientSegmentCreated){
+        getNextReplyProcessor().transientSegmentCreated(transientSegmentCreated);
+    }
+
 }
