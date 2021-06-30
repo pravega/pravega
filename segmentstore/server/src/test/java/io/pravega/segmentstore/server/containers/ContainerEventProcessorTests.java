@@ -43,6 +43,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -70,6 +71,53 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Check the most basic operation of the {@link ContainerEventProcessor} (add and process few events).
+     *
+     * @throws Exception
+     */
+    @Test(timeout = 10000)
+    public void testBasicContainerEventProcessor() throws Exception {
+        @Cleanup
+        ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(),
+                ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
+        testBasicContainerEventProcessor(eventProcessorService);
+    }
+
+    public static void testBasicContainerEventProcessor(ContainerEventProcessor containerEventProcessor) throws Exception {
+        int maxItemsPerBatch = 10;
+        int maxOutstandingBytes = 4 * 1024 * 1024;
+        ReusableLatch latch = new ReusableLatch();
+        final AtomicReference<String> userEvent = new AtomicReference<>("event1");
+        Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
+            l.forEach(s -> Assert.assertEquals(userEvent.get().length(), s.getLength()));
+            return CompletableFuture.runAsync(latch::release);
+        };
+        ContainerEventProcessor.EventProcessorConfig eventProcessorConfig = new ContainerEventProcessor.EventProcessorConfig(maxItemsPerBatch,
+                maxOutstandingBytes);
+        @Cleanup
+        ContainerEventProcessor.EventProcessor processor = containerEventProcessor.forConsumer("testConsumer", handler, eventProcessorConfig)
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
+
+        // Test adding one Event to the EventProcessor and wait for the handle to get executed and unblock this thread.
+        BufferView event = new ByteArraySegment(userEvent.get().getBytes());
+        processor.add(event, TIMEOUT_FUTURE).join();
+        latch.await();
+        latch.reset();
+
+        // Test the same with a larger events.
+        userEvent.set("longerEvent2");
+        event = new ByteArraySegment(userEvent.get().getBytes());
+        processor.add(event, TIMEOUT_FUTURE).join();
+        processor.add(event, TIMEOUT_FUTURE).join();
+        processor.add(event, TIMEOUT_FUTURE).join();
+        latch.await();
+
+        // Check that if the same EventProcessor name is used, the same object is retrieved.
+        Assert.assertEquals(processor, containerEventProcessor.forConsumer("testConsumer", handler, eventProcessorConfig)
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS));
+    }
+
+    /**
      * Check that the max number of elements processed per EventProcessor iteration is respected.
      *
      * @throws Exception
@@ -79,7 +127,10 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         @Cleanup
         ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(),
                 ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
+        testContainerMaxItemsPerBatchRespected(eventProcessorService);
+    }
 
+    public static void testContainerMaxItemsPerBatchRespected(ContainerEventProcessor eventProcessorService) throws Exception {
         int maxItemsPerBatch = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
         int allEventsToProcess = 1000;
@@ -112,7 +163,10 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         @Cleanup
         ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(),
                 ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
+        testFaultyHandler(eventProcessorService);
+    }
 
+    public static void testFaultyHandler(ContainerEventProcessor eventProcessorService) throws Exception {
         int maxItemsProcessed = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
         AtomicLong retries = new AtomicLong(0);
@@ -145,7 +199,10 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         @Cleanup
         ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(),
                 ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
+        testMultipleProcessors(eventProcessorService);
+    }
 
+    public static void testMultipleProcessors(ContainerEventProcessor eventProcessorService) throws Exception {
         int allEventsToProcess = 100;
         int maxItemsPerBatch = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
@@ -188,15 +245,60 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Test the situation in which an EventProcessor gets BufferView.Reader.OutOfBoundsException during deserialization
+     * of events.
+     *
+     * @throws Exception
+     */
+    @Test(timeout = 10000)
+    public void testEventProcessorWithSerializationError() throws Exception {
+        @Cleanup
+        ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(),
+            ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
+        testEventProcessorWithSerializationError(eventProcessorService);
+    }
+
+    public static void testEventProcessorWithSerializationError(ContainerEventProcessor containerEventProcessor) throws Exception {
+        int maxItemsPerBatch = 10;
+        int maxOutstandingBytes = 4 * 1024 * 1024;
+        AtomicLong readEvents = new AtomicLong(0);
+        Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
+            readEvents.addAndGet(l.size());
+            return CompletableFuture.completedFuture(null);
+        };
+
+        ContainerEventProcessor.EventProcessorConfig eventProcessorConfig = spy(new ContainerEventProcessor.EventProcessorConfig(maxItemsPerBatch,
+                        maxOutstandingBytes));
+        @Cleanup
+        ContainerEventProcessor.EventProcessor processor = containerEventProcessor.forConsumer("testConsumer", handler, eventProcessorConfig)
+                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
+
+        // Simulate an BufferView.Reader.OutOfBoundsException within the deserializeEvents() method and then behave normally.
+        when(eventProcessorConfig.getMaxItemsAtOnce()).thenThrow(new BufferView.Reader.OutOfBoundsException())
+                                                      .thenCallRealMethod();
+
+        // Write an event and wait for the event to be processed.
+        BufferView event = new ByteArraySegment("event".getBytes());
+        processor.add(event, TIMEOUT_FUTURE).join();
+
+        // Wait until the processor reads the event.
+        AssertExtensions.assertEventuallyEquals(true, () -> readEvents.get() == 1, 10000);
+    }
+
+    /**
      * Check that an EventProcessor does not accept any new event once the maximum outstanding bytes has been reached.
      *
      * @throws Exception
      */
-    @Test(timeout = 30000)
+    @Test(timeout = TIMEOUT_SUITE_MILLIS)
     public void testEventRejectionOnMaxOutstanding() throws Exception {
         @Cleanup
         ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(),
                 ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
+        testEventRejectionOnMaxOutstanding(eventProcessorService);
+    }
+
+    public static void testEventRejectionOnMaxOutstanding(ContainerEventProcessor eventProcessorService) throws Exception {
         int maxItemsProcessed = 1000;
         int maxOutstandingBytes = 1024 * 1024;
         ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
@@ -228,10 +330,9 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         latch.release();
 
         // Wait until all the events are consumed.
-        AssertExtensions.assertEventuallyEquals(true, () -> processorResults.get() == 0, 100000);
+        AssertExtensions.assertEventuallyEquals(true, () -> processorResults.get() == 0, TIMEOUT_SUITE_MILLIS);
         // Check that we cannot add empty events.
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> processor.add(BufferView.empty(), TIMEOUT_FUTURE));
-
     }
 
     /**
@@ -269,7 +370,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
      *
      * @throws Exception
      */
-    @Test(timeout = 10000000)
+    @Test(timeout = 10000)
     public void testReadWithFailingSegment() throws Exception {
         DirectSegmentAccess faultySegment = spy(new SegmentMock(this.executorService()));
         Function<String, CompletableFuture<DirectSegmentAccess>> faultySegmentSupplier = s -> CompletableFuture.completedFuture(faultySegment);
@@ -289,13 +390,15 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         ContainerEventProcessor.EventProcessor processor = eventProcessorService.forConsumer("testSegmentMax", doNothing, config)
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
 
-        // Give some time for read errors to be retried and then emulate that the Segment starts working again.
-        when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenThrow(IntentionalException.class).thenCallRealMethod();
-
-        // This should work.
+        // Write an event to make sure that the processor is running and await for it to be processed.
         BufferView event = new ByteArraySegment("Test".getBytes());
         processor.add(event, TIMEOUT_FUTURE).join();
+        latch.await();
 
+        // Induce a read failure for the next processor iteration and wait for the release in the retry of the iteration.
+        processor.add(event, TIMEOUT_FUTURE).join();
+        when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenThrow(IntentionalException.class).thenCallRealMethod();
+        latch.reset();
         latch.await();
     }
 
@@ -444,7 +547,9 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
                 }
             }
         }, executorService());
-        writer.get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
+        AssertExtensions.assertMayThrow("No exception or IntentionalException is expected here.",
+                () -> writer,
+                ex -> ex instanceof IntentionalException);
         // Make sure that the mock works after writer finishes.
         when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenCallRealMethod();
 
@@ -462,11 +567,14 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
      * @return Function that gets as input a list of {@link BufferView} (each element is a single number) and returns
      * a void {@link CompletableFuture}.
      */
-    private Function<List<BufferView>, CompletableFuture<Void>> getNumberSequenceHandler(List<Integer> processorResults,
+    private static Function<List<BufferView>, CompletableFuture<Void>> getNumberSequenceHandler(List<Integer> processorResults,
                                                                                          int maxItemsPerBatch) {
         return l -> {
-            // FIXME: Check that the max number of items per batch is always respected.
-            Assert.assertTrue(maxItemsPerBatch >= l.size());
+            // If maxItemsPerBatch is violated, induce a wrong processor result and throw an assertion error.
+            if (maxItemsPerBatch < l.size()) {
+                processorResults.add(Integer.MAX_VALUE);
+                Assert.fail("maxItemsPerBatch has not been respected in EventProcessor");
+            }
             l.forEach(b -> {
                 try {
                     processorResults.add(ByteBuffer.wrap(b.getReader().readNBytes(Integer.BYTES)).getInt());
@@ -482,7 +590,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
      * Validates that the events processed by an {@link EventProcessor} are correct (assuming a sequence of numbers) and
      * checks that the outstanding bytes is equal to 0.
      */
-    private void validateProcessorResults(ContainerEventProcessor.EventProcessor processor, List<Integer> processedItems,
+    private static void validateProcessorResults(ContainerEventProcessor.EventProcessor processor, List<Integer> processedItems,
                                           int expectedItemNumber) throws Exception {
         // Wait for all items to be processed.
         AssertExtensions.assertEventuallyEquals(true, () -> processedItems.size() == expectedItemNumber, 10000);

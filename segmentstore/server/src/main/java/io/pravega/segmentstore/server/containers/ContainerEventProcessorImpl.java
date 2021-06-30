@@ -40,6 +40,7 @@ import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -137,7 +138,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
     }
 
     /**
-     * Reports the metrics periodically for each EventProcessor.
+     * Reports the metrics periodically for each {@link ContainerEventProcessor.EventProcessor}.
      */
     private void reportMetrics() {
         for (EventProcessorImpl ep : eventProcessorMap.values()) {
@@ -275,7 +276,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 throw new TooManyOutstandingBytesException(this.traceObjectId);
             }
 
-            ProcessorEventData processorEvent = ProcessorEventData.builder().length(event.getLength()).data(event).build();
+            ProcessorEventData processorEvent = ProcessorEventData.builder().data(event).build();
             return segment.append(serializer.serialize(processorEvent), null, timeout)
                           .thenApply(offset -> getOutstandingBytes());
         }
@@ -384,9 +385,11 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
         private EventsReadAndTruncationLength deserializeEvents(BufferView inputData) {
             List<ProcessorEventData> events = new ArrayList<>();
-            InputStream input = inputData.getReader();
             long truncationLength = 0;
             try {
+                // Read all the data available at this point in the BufferView and use that as a working set. Otherwise,
+                // the contents of BufferView could dynamically change making the truncationLength calculation unsafe.
+                InputStream input = new ByteArrayInputStream(inputData.getReader().readAllBytes());
                 int availableBytes = input.available();
                 while (input.available() > 0 && events.size() < getConfig().getMaxItemsAtOnce()) {
                     ProcessorEventData event = serializer.deserialize(input);
@@ -440,8 +443,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
     /**
      * Representation of an event written to an {@link ContainerEventProcessor.EventProcessor}.
      * It consists of:
-     * - Length (4 bytes)
-     * - Data (BufferView of length at most 1024 * 1024 - 4 bytes)
+     * - Data (BufferView of length at most 1024 * 1024 bytes)
      */
     @Data
     @Builder
@@ -450,7 +452,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         public static final int MAX_TOTAL_EVENT_SIZE = 1024 * 1024;
         private static final ProcessorEventDataSerializer SERIALIZER = new ProcessorEventDataSerializer();
 
-        private final int length;
         private final BufferView data;
 
         static class ProcessorEventDataBuilder implements ObjectBuilder<ProcessorEventData> {
@@ -478,12 +479,10 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             }
 
             private void write00(ProcessorEventData d, RevisionDataOutput output) throws IOException {
-                output.writeCompactInt(d.getLength());
                 output.writeBuffer(d.getData());
             }
 
             private void read00(RevisionDataInput input, ProcessorEventData.ProcessorEventDataBuilder builder) throws IOException {
-                builder.length(input.readCompactInt());
                 builder.data(new ByteArraySegment(input.readArray()));
             }
         }

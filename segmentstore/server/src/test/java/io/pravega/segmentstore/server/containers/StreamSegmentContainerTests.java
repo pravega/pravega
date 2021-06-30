@@ -37,7 +37,6 @@ import io.pravega.common.util.*;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ConfigurationException;
-import io.pravega.common.util.ReusableLatch;
 import io.pravega.common.util.TypedProperties;
 >>>>>>> 9e935332d... Fix checkstyle
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -172,8 +171,6 @@ import org.junit.rules.Timeout;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for StreamSegmentContainer class.
@@ -2133,50 +2130,58 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         container.stopAsync().awaitTerminated();
     }
 
+
     /**
      * Test that the {@link ContainerEventProcessor} service is started as part of the {@link StreamSegmentContainer}
      * and that it can process events.
      *
      * @throws Exception
      */
-    @Test(timeout = 10000000)
+    @Test(timeout = 10000)
     public void testBasicContainerEventProcessor() throws Exception {
         @Cleanup
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
         container.startAsync().awaitRunning();
-        ReusableLatch latch = new ReusableLatch();
-        final AtomicReference<String> userEvent = new AtomicReference<>("event1");
-        Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
-            l.forEach(s -> Assert.assertEquals(userEvent.get().length(), s.getLength()));
-            return CompletableFuture.runAsync(latch::release);
-        };
         @Cleanup
-        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
+        ContainerEventProcessor containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
                 TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
-        ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
-                new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
+        ContainerEventProcessorTests.testBasicContainerEventProcessor(containerEventProcessor);
+    }
+
+    /**
+     * Check that the max number of elements processed per EventProcessor iteration is respected.
+     *
+     * @throws Exception
+     */
+    @Test(timeout = 10000)
+    public void testContainerMaxItemsPerBatchRespected() throws Exception {
         @Cleanup
-        ContainerEventProcessor.EventProcessor processor = containerEventProcessor.forConsumer("testConsumer", handler, eventProcessorConfig)
-                .get(TIMEOUT_FUTURE.toSeconds() + 100000, TimeUnit.SECONDS);
+        TestContext context = createContext();
+        val container = (StreamSegmentContainer) context.container;
+        container.startAsync().awaitRunning();
+        @Cleanup
+        ContainerEventProcessor containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
+                TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
+        ContainerEventProcessorTests.testContainerMaxItemsPerBatchRespected(containerEventProcessor);
+    }
 
-        // Test adding one Event to the EventProcessor and wait for the handle to get executed and unblock this thread.
-        BufferView event = new ByteArraySegment(userEvent.get().getBytes());
-        processor.add(event, TIMEOUT_FUTURE).join();
-        latch.await();
-        latch.reset();
-
-        // Test the same with a larger events.
-        userEvent.set("longerEvent2");
-        event = new ByteArraySegment(userEvent.get().getBytes());
-        processor.add(event, TIMEOUT_FUTURE).join();
-        processor.add(event, TIMEOUT_FUTURE).join();
-        processor.add(event, TIMEOUT_FUTURE).join();
-        latch.await();
-
-        // Check that if the same EventProcessor name is used, the same object is retrieved.
-        Assert.assertEquals(processor, containerEventProcessor.forConsumer("testConsumer", handler, eventProcessorConfig)
-                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS));
+    /**
+     * Verify that when a faulty handler is passed to an EventProcessor, the Segment is not truncated and the retries
+     * continue indefinitely.
+     *
+     * @throws Exception
+     */
+    @Test(timeout = 10000)
+    public void testFaultyHandler() throws Exception {
+        @Cleanup
+        TestContext context = createContext();
+        val container = (StreamSegmentContainer) context.container;
+        container.startAsync().awaitRunning();
+        @Cleanup
+        ContainerEventProcessor containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
+                TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
+        ContainerEventProcessorTests.testFaultyHandler(containerEventProcessor);
     }
 
     /**
@@ -2185,72 +2190,16 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      *
      * @throws Exception
      */
-    @Test
+    @Test(timeout = 10000)
     public void testMultipleEventProcessors() throws Exception {
         @Cleanup
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
         container.startAsync().awaitRunning();
-
-        int allEventsToProcess = 100;
-        List<Integer> processorResults1 = new ArrayList<>();
-        Function<List<BufferView>, CompletableFuture<Void>> handler1 = l -> {
-            l.forEach(b -> {
-                try {
-                    processorResults1.add(ByteBuffer.wrap(b.getReader().readNBytes(Integer.BYTES)).getInt());
-                } catch (IOException e) {
-                    throw new CompletionException(e);
-                }
-            });
-            return CompletableFuture.completedFuture(null);
-        };
-        List<Integer> processorResults2 = new ArrayList<>();
-        Function<List<BufferView>, CompletableFuture<Void>> handler2 = l -> {
-            l.forEach(b -> {
-                try {
-                    processorResults2.add(ByteBuffer.wrap(b.getReader().readNBytes(Integer.BYTES)).getInt());
-                } catch (IOException e) {
-                    throw new CompletionException(e);
-                }
-            });
-            return CompletableFuture.completedFuture(null);
-        };
-        AtomicLong processorResults3 = new AtomicLong(0);
-        Function<List<BufferView>, CompletableFuture<Void>> handler3 = l -> {
-            Object o = null;
-            o.toString(); // We should expect NPE here, so the results counter would not be incremented.
-            processorResults3.addAndGet(1);
-            return CompletableFuture.completedFuture(null);
-        };
-        ContainerEventProcessor.EventProcessorConfig config =
-                new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES);
         @Cleanup
-        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
+        ContainerEventProcessor containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
                 TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
-
-        @Cleanup
-        ContainerEventProcessor.EventProcessor processor1 = containerEventProcessor.forConsumer("testSegment1", handler1, config)
-                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
-        @Cleanup
-        ContainerEventProcessor.EventProcessor processor2 = containerEventProcessor.forConsumer("testSegment2", handler2, config)
-                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
-        @Cleanup
-        ContainerEventProcessor.EventProcessor processor3 = containerEventProcessor.forConsumer("testSegment3", handler3, config)
-                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
-
-        for (int i = 0; i < allEventsToProcess; i++) {
-            BufferView event = new ByteArraySegment(ByteBuffer.allocate(Integer.BYTES).putInt(i).array());
-            processor1.add(event, TIMEOUT_FUTURE).join();
-            processor2.add(event, TIMEOUT_FUTURE).join();
-            processor3.add(event, TIMEOUT_FUTURE).join();
-        }
-
-        // Wait for all items to be processed.
-        AssertExtensions.assertEventuallyEquals(true, () -> processorResults1.size() == allEventsToProcess, 10000);
-        Assert.assertArrayEquals(processorResults1.toArray(), IntStream.iterate(0, v -> v + 1).limit(allEventsToProcess).boxed().toArray());
-        AssertExtensions.assertEventuallyEquals(true, () -> processorResults2.size() == allEventsToProcess, 10000);
-        Assert.assertArrayEquals(processorResults2.toArray(), IntStream.iterate(0, v -> v + 1).limit(allEventsToProcess).boxed().toArray());
-        AssertExtensions.assertEventuallyEquals(true, () -> processorResults3.get() == 0, 10000);
+        ContainerEventProcessorTests.testMultipleProcessors(containerEventProcessor);
     }
 
     /**
@@ -2259,36 +2208,16 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      *
      * @throws Exception
      */
-    @Test
+    @Test(timeout = 10000)
     public void testEventProcessorWithSerializationError() throws Exception {
         @Cleanup
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
         container.startAsync().awaitRunning();
-
-        AtomicLong readEvents = new AtomicLong(0);
-        Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
-            readEvents.addAndGet(l.size());
-            return CompletableFuture.completedFuture(null);
-        };
         @Cleanup
-        ContainerEventProcessorImpl containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
+        ContainerEventProcessor containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
                 TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
-        ContainerEventProcessor.EventProcessorConfig eventProcessorConfig =
-                spy(new ContainerEventProcessor.EventProcessorConfig(EVENT_PROCESSOR_EVENTS_AT_ONCE, EVENT_PROCESSOR_MAX_OUTSTANDING_BYTES));
-        @Cleanup
-        ContainerEventProcessor.EventProcessor processor = containerEventProcessor.forConsumer("testConsumer", handler, eventProcessorConfig)
-                .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
-
-        // Simulate an BufferView.Reader.OutOfBoundsException within the deserializeEvents() method and then behave normally.
-        when(eventProcessorConfig.getMaxItemsAtOnce()).thenThrow(new BufferView.Reader.OutOfBoundsException()).thenCallRealMethod();
-
-        // Write an event and wait for the event to be processed.
-        BufferView event = new ByteArraySegment("event".getBytes());
-        processor.add(event, TIMEOUT_FUTURE).join();
-
-        // Wait until the processor perform 10 retries of the same event.
-        AssertExtensions.assertEventuallyEquals(true, () -> readEvents.get() == 1, 10000);
+        ContainerEventProcessorTests.testEventProcessorWithSerializationError(containerEventProcessor);
     }
 
     /**
@@ -2297,7 +2226,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      *
      * @throws Exception
      */
-    @Test
+    @Test(timeout = 10000)
     public void testDurableQueueAndSwitchToConsumer() throws Exception {
         @Cleanup
         TestContext context = createContext();
@@ -2340,6 +2269,23 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Wait for all items to be processed.
         AssertExtensions.assertEventuallyEquals(true, () -> processorResults.size() == allEventsToProcess, 10000);
         Assert.assertArrayEquals(processorResults.toArray(), IntStream.iterate(0, v -> v + 1).limit(allEventsToProcess).boxed().toArray());
+    }
+
+    /**
+     * Check that an EventProcessor does not accept any new event once the maximum outstanding bytes has been reached.
+     *
+     * @throws Exception
+     */
+    @Test(timeout = 30000)
+    public void testEventRejectionOnMaxOutstanding() throws Exception {
+        @Cleanup
+        TestContext context = createContext();
+        val container = (StreamSegmentContainer) context.container;
+        container.startAsync().awaitRunning();
+        @Cleanup
+        ContainerEventProcessor containerEventProcessor = new ContainerEventProcessorImpl(container, container.metadataStore,
+                TIMEOUT_EVENT_PROCESSOR_ITERATION, TIMEOUT_EVENT_PROCESSOR_ITERATION, this.executorService());
+        ContainerEventProcessorTests.testEventRejectionOnMaxOutstanding(containerEventProcessor);
     }
 
     /**
