@@ -69,13 +69,14 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
      * @param streamSegmentStore  The SegmentStore to delegate all requests to.
      * @param tableStore          The SegmentStore to delegate all requests to.
      * @param tokenExpiryExecutor The executor to be used for running token expiration handling tasks.
+     * @param tlsProtocolVersion the version of the TLS protocol
      */
     @VisibleForTesting
     public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore,
-                                     TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor) {
+                                     TableStore tableStore, ScheduledExecutorService tokenExpiryExecutor, String tlsProtocolVersion) {
         this(enableTls, false, "localhost", port, streamSegmentStore, tableStore,
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null,
-                null, true, tokenExpiryExecutor);
+                null, true, tokenExpiryExecutor, tlsProtocolVersion);
     }
 
     /**
@@ -94,12 +95,13 @@ public final class PravegaConnectionListener extends AbstractConnectionListener 
      * @param keyFile            Path to be key file to be used for TLS.
      * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
      * @param executor           The executor to be used for running token expiration handling tasks.
+     * @param tlsProtocolVersion the version of the TLS protocol
      */
     public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
                                      DelegationTokenVerifier tokenVerifier, String certFile, String keyFile,
-                                     boolean replyWithStackTraceOnError, ScheduledExecutorService executor) {
-        super(enableTls, enableTlsReload, host, port, certFile, keyFile);
+                                     boolean replyWithStackTraceOnError, ScheduledExecutorService executor, String tlsProtocolVersion) {
+        super(enableTls, enableTlsReload, host, port, certFile, keyFile, tlsProtocolVersion);
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.statsRecorder = Preconditions.checkNotNull(statsRecorder, "statsRecorder");

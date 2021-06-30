@@ -73,17 +73,19 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
 
     private final String pathToTlsCertFile;
     private final String pathToTlsKeyFile;
+    private final String tlsProtocolVersion;
 
     private FileModificationMonitor tlsCertFileModificationMonitor; // used only if tls reload is enabled
 
     public AbstractConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port,
-                                      String certFile, String keyFile) {
+                                      String certFile, String keyFile, String tlsProtocolVersion) {
         this.enableTls = enableTls;
         this.enableTlsReload = this.enableTls && enableTlsReload;
         this.host = Exceptions.checkNotNullOrEmpty(host, "host");
         this.port = port;
         this.pathToTlsCertFile = certFile;
         this.pathToTlsKeyFile = keyFile;
+        this.tlsProtocolVersion = tlsProtocolVersion;
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         this.connectionTracker = new ConnectionTracker();
     }
@@ -112,7 +114,7 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
      */
     public void startListening() {
         final AtomicReference<SslContext> sslCtx = this.enableTls ?
-                new AtomicReference<>(TLSHelper.newServerSslContext(pathToTlsCertFile, pathToTlsKeyFile)) : null;
+                new AtomicReference<>(TLSHelper.newServerSslContext(pathToTlsCertFile, pathToTlsKeyFile, tlsProtocolVersion)) : null;
         boolean nio = false;
         try {
             bossGroup = new EpollEventLoopGroup(1);
@@ -185,12 +187,12 @@ public abstract class AbstractConnectionListener implements AutoCloseable {
                         tlsCertificatePath, FileModificationPollingMonitor.class.getSimpleName());
 
                 result = new FileModificationPollingMonitor(Paths.get(tlsCertificatePath),
-                        new TLSConfigChangeFileConsumer(sslCtx, tlsCertificatePath, tlsKeyPath));
+                        new TLSConfigChangeFileConsumer(sslCtx, tlsCertificatePath, tlsKeyPath, tlsProtocolVersion));
             } else {
                 // For non symbolic links we'll use the event-based watcher, which is more efficient than a
                 // polling-based monitor.
                 result = new FileModificationEventWatcher(Paths.get(tlsCertificatePath),
-                        new TLSConfigChangeEventConsumer(sslCtx, tlsCertificatePath, tlsKeyPath));
+                        new TLSConfigChangeEventConsumer(sslCtx, tlsCertificatePath, tlsKeyPath, tlsProtocolVersion));
             }
             return result;
         } catch (FileNotFoundException e) {

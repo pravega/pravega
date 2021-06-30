@@ -37,15 +37,16 @@ public class TLSHelper {
      *
      * @param pathToCertificateFile the path to the PEM-encoded server certificate file
      * @param pathToServerKeyFile the path to the PEM-encoded file containing the server's encrypted private key
+     * @param tlsProtocolVersion the version of the TLS protocol
      * @return a {@link SslContext} built from the specified {@code pathToCertificateFile} and {@code pathToServerKeyFile}
      * @throws NullPointerException if either {@code pathToCertificateFile} or {@code pathToServerKeyFile} is null
      * @throws IllegalArgumentException if either {@code pathToCertificateFile} or {@code pathToServerKeyFile} is empty
      * @throws RuntimeException if there is a failure in building the {@link SslContext}
      */
-    public static SslContext newServerSslContext(String pathToCertificateFile, String pathToServerKeyFile) {
+    public static SslContext newServerSslContext(String pathToCertificateFile, String pathToServerKeyFile, String tlsProtocolVersion) {
         Exceptions.checkNotNullOrEmpty(pathToCertificateFile, "pathToCertificateFile");
         Exceptions.checkNotNullOrEmpty(pathToServerKeyFile, "pathToServerKeyFile");
-        return newServerSslContext(new File(pathToCertificateFile), new File(pathToServerKeyFile));
+        return newServerSslContext(new File(pathToCertificateFile), new File(pathToServerKeyFile), tlsProtocolVersion);
     }
 
     /**
@@ -58,13 +59,13 @@ public class TLSHelper {
      * @throws IllegalStateException if either {@code certificateFile} or {@code serverKeyFile} doesn't exist or is unreadable.
      * @throws RuntimeException if there is a failure in building the {@link SslContext}
      */
-    public static SslContext newServerSslContext(File certificateFile, File serverKeyFile) {
+    public static SslContext newServerSslContext(File certificateFile, File serverKeyFile, String tlsProtocolVersion) {
         Preconditions.checkNotNull(certificateFile);
         Preconditions.checkNotNull(serverKeyFile);
         ensureExistAndAreReadable(certificateFile, serverKeyFile);
 
         try {
-            SslContext result = SslContextBuilder.forServer(certificateFile, serverKeyFile).build();
+            SslContext result = SslContextBuilder.forServer(certificateFile, serverKeyFile).protocols(tlsProtocolVersion.split(",")).build();
             log.debug("Done creating a new SSL Context for the server.");
             return result;
         } catch (SSLException e) {

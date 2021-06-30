@@ -72,6 +72,7 @@ public class ServiceConfig {
 
     // TLS-related config for the service
     public static final Property<Boolean> ENABLE_TLS = Property.named("security.tls.enable", false, "enableTls");
+    public static final Property<String> TLS_PROTOCOL_VERSION = Property.named("security.tls.protocolVersion", "TLSv1.2,TLSv1.3");
     public static final Property<String> CERT_FILE = Property.named("security.tls.server.certificate.location", "", "certFile");
     public static final Property<String> KEY_FILE = Property.named("security.tls.server.privateKey.location", "", "keyFile");
     public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("security.tls.certificate.autoReload.enable", false, "enableTlsReload");
@@ -266,6 +267,12 @@ public class ServiceConfig {
     private final boolean enableTls;
 
     /**
+     * Tls Protocol Version
+     */
+    @Getter
+    private final String tlsProtocolVersion;
+
+    /**
      * Represents the certificate file for the TLS server.
      */
     @Getter
@@ -366,6 +373,7 @@ public class ServiceConfig {
         this.zkTrustStore = properties.get(ZK_TRUSTSTORE_LOCATION);
         this.zkTrustStorePasswordPath = properties.get(ZK_TRUST_STORE_PASSWORD_PATH);
         this.enableTls = properties.getBoolean(ENABLE_TLS);
+        this.tlsProtocolVersion = properties.get(TLS_PROTOCOL_VERSION);
         this.keyFile = properties.get(KEY_FILE);
         this.certFile = properties.get(CERT_FILE);
         this.enableTlsReload = properties.getBoolean(ENABLE_TLS_RELOAD);
@@ -421,6 +429,7 @@ public class ServiceConfig {
                 .append(String.format("storageImplementation: %s, ", storageImplementation.name()))
                 .append(String.format("readOnlySegmentStore: %b, ", readOnlySegmentStore))
                 .append(String.format("enableTls: %b, ", enableTls))
+                .append(String.format("tlsProtocolVersion: %b, ", tlsProtocolVersion))
                 .append(String.format("certFile is %s, ",
                         Strings.isNullOrEmpty(certFile) ? "unspecified" : "specified"))
                 .append(String.format("keyFile is %s, ",
