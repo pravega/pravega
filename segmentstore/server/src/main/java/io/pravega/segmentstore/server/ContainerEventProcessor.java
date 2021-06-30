@@ -27,8 +27,7 @@ import java.util.function.Function;
 /**
  * The {@link ContainerEventProcessor} is a sub-component in a Segment Container that aims at providing a durable,
  * FIFO-like queue abstraction over an internal, system-critical Segment. The {@link ContainerEventProcessor} can manage
- * one or more {@link EventProcessor}s, which are the ones that append events to the queue and handle events read. The
- * also {@link ContainerEventProcessor} reports metrics for all the registered {@link EventProcessor}s.
+ * one or more {@link EventProcessor}s, which are the ones that append events to the queue and handle events read.
  */
 public interface ContainerEventProcessor extends AutoCloseable {
 
@@ -51,8 +50,8 @@ public interface ContainerEventProcessor extends AutoCloseable {
      * Instantiates a new {@link EventProcessor} that only enables to add new data to the internal Segment. This may be
      * useful when a user needs to store events, but it is not clear how the best approach to process them will be. This
      * append-only {@link EventProcessor} can be replaced in the future by a regular one with a handler function that
-     * will consume all the events in the internal Segment. If internal Segment exists, the {@link EventProcessor} will
-     * re-use it. If not, a new internal Segment will be  created. Multiple calls to this method for the same name
+     * will consume all the events in the internal Segment. If the internal Segment exists, the {@link EventProcessor}
+     * will re-use it. If not, a new internal Segment will be  created. Multiple calls to this method for the same name
      * should result in returning the same {@link EventProcessor} object.
      *
      * @param name     Name of the {@link EventProcessor} object.
@@ -69,8 +68,7 @@ public interface ContainerEventProcessor extends AutoCloseable {
      *
      * If the handler completes normally, the items will be removed from the queue (i.e., the {@link EventProcessor}'s
      * Segment will be truncated up to that offset). If the handler completes with an exception, the items will not be
-     * removed; we will retry indefinitely. It is up to the consumer to handle any exceptions; any exceptions that
-     * bubble up to us will be considered re-triable (except {@link DataCorruptionException}, etc.).
+     * removed and processing will be internally retried until processing succeeds.
      */
     @Data
     abstract class EventProcessor implements AutoCloseable {

@@ -65,15 +65,15 @@ import static io.pravega.shared.NameUtils.getEventProcessorSegmentName;
 /**
  * Implementation for {@link ContainerEventProcessor}. This class stores a map of {@link ContainerEventProcessor.EventProcessor}
  * identified by name. Once this component is created, it will instantiate new {@link ContainerEventProcessor.EventProcessor}
- * objects and report metrics for the existing ones. The actual processing is performed in batches (every
- * iterationDelay ms) by {@link ContainerEventProcessor.EventProcessor}s. Each of such processors is in charge of
- * tailing their respective internal Segments and (safely) invoking their handler functions on a list of read events
- * (of at most maxItemsAtOnce elements). Upon a successful processing iteration, an {@link ContainerEventProcessor.EventProcessor}
- * truncates the internal Segments of the registered. If some error occurs, the internal Segment is not truncated and
- * the processing is attempted again over the same events. Therefore, this class provides at-least-once processing
- * guarantees, but events could be re-processed in the case of failures while truncating the processor's internal Segment.
- * This is important to take into account when developing handler functions of {@link ContainerEventProcessor.EventProcessor}s
- * as they should be idempotent and tolerate re-processing.
+ * objects and report metrics for the existing ones. The actual processing is performed in batches by
+ * {@link ContainerEventProcessor.EventProcessor}s. Each of such processors is in charge of tailing their respective
+ * internal Segments and (safely) invoking their handler functions on a list of read events (of at most maxItemsAtOnce
+ * elements). Upon a successful processing iteration, an {@link ContainerEventProcessor.EventProcessor} truncates the
+ * internal Segments of the registered. If an error occurs, the internal Segment is not truncated and the processing is
+ * attempted again over the same events. Therefore, this class provides at-least-once processing guarantees, but events
+ * could be re-processed in the case of failures while truncating the processor's internal Segment. This is important to
+ * take into account when developing handler functions of {@link ContainerEventProcessor.EventProcessor}s as they should
+ * be idempotent and tolerate re-processing.
  */
 @Slf4j
 class ContainerEventProcessorImpl implements ContainerEventProcessor {
@@ -311,7 +311,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         @Override
         public void run() {
             // An EventProcessor iteration is made of the following stages:
-            // 1. Async read of data available in the internal Segment (up to ProcessorEventSerializer.MAX_TOTAL_EVENT_SIZE
+            // 1. Async read of data available in the internal Segment (up to 2 * ProcessorEventSerializer.MAX_TOTAL_EVENT_SIZE
             // bytes).
             // 2. Deserialize the read data up to exhaust it or get getMaxItemsAtOnce() events.
             // 3. The collected results are passed to the handler function in EventProcessor for execution.
@@ -347,8 +347,9 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         /**
          * Returns a {@link CompletableFuture} that results from the execution of the following tasks for each
          * {@link ContainerEventProcessor.EventProcessor}: i) Read available data in the Segment, ii) deserialize at most
-         * {@link ContainerEventProcessor.EventProcessorConfig#getMaxItemsAtOnce()}, iii) execute the handler function
-         * for the {@link ContainerEventProcessor.EventProcessor}, and iv) truncate the internal Segment.
+         * {@link ContainerEventProcessor.EventProcessorConfig#getMaxItemsAtOnce()} events, iii) execute the handler
+         * function for the {@link ContainerEventProcessor.EventProcessor} on the event list, and iv) truncate the
+         * internal Segment.
          */
         private CompletableFuture<Void> processEvents() {
             final Timer iterationTime = new Timer();
@@ -369,7 +370,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
         /**
          * Attempts to read data from the internal Segment. The size of the read length would be the minimum between the
-         * outstanding bytes or twice the size of the ProcessorEventData.MAX_TOTAL_EVENT_SIZE.
+         * outstanding bytes and 2 * ProcessorEventData.MAX_TOTAL_EVENT_SIZE bytes.
          *
          * @return A {@link CompletableFuture} that, when completed, will contain a {@link EventsReadAndTruncationLength}
          * object with events read and the next truncation length for the internal Segment.
