@@ -668,6 +668,24 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<KeyValueTableConfiguration> getKeyValueTableConfiguration(String scope, String kvtName) {
+        return this.controller.getKeyValueTableConfiguration(scope, kvtName, requestIdGenerator.nextLong()).thenApply(x -> {
+            String scopedKvtName = NameUtils.getScopedKeyValueTableName(scope, kvtName);
+            switch (x.getStatus()) {
+                case FAILURE:
+                    throw new ControllerFailureException("Failed to get configuration for key-value table: " + scopedKvtName);
+                case TABLE_NOT_FOUND:
+                    throw new IllegalArgumentException("Key-value table does not exist: " + scopedKvtName);
+                case SUCCESS:
+                    return ModelHelper.encode(x.getConfig());
+                default:
+                    throw new ControllerFailureException("Unknown return status getting key-value table configuration " +
+                            scopedKvtName + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
     public CompletableFuture<Boolean> deleteKeyValueTable(String scope, String kvtName) {
         return this.controller.deleteKeyValueTable(scope, kvtName, requestIdGenerator.nextLong()).thenApply(x -> {
             switch (x.getStatus()) {

@@ -231,7 +231,7 @@ public class MockController implements Controller {
 
     @Synchronized
     List<Segment> getSegmentsForKeyValueTable(KeyValueTableInfo kvt) {
-        KeyValueTableConfiguration config = getKeyValueTableConfiguration(kvt);
+        KeyValueTableConfiguration config = getKeyValueTableConfig(kvt);
         Preconditions.checkArgument(config != null, "Key-Value Table " + kvt.getScopedName() + " must be created first");
         List<Segment> result = new ArrayList<>(config.getPartitionCount());
         for (int i = 0; i < config.getPartitionCount(); i++) {
@@ -271,7 +271,7 @@ public class MockController implements Controller {
         return null;
     }
 
-    private KeyValueTableConfiguration getKeyValueTableConfiguration(KeyValueTableInfo kvtInfo) {
+    private KeyValueTableConfiguration getKeyValueTableConfig(KeyValueTableInfo kvtInfo) {
         for (MockScope scope : createdScopes.values()) {
             KeyValueTableConfiguration c = scope.keyValueTables.get(kvtInfo);
             if (c != null) {
@@ -404,8 +404,8 @@ public class MockController implements Controller {
         }
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = createReplyProcessorCreateSegment(result);
-        // All KeyValueTable Segments are Sorted.
-        WireCommands.CreateTableSegment command = new WireCommands.CreateTableSegment(idGenerator.get(), name, true, "");
+
+        WireCommands.CreateTableSegment command = new WireCommands.CreateTableSegment(idGenerator.get(), name, false, 0, "");
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
@@ -809,6 +809,12 @@ public class MockController implements Controller {
     @Synchronized
     public AsyncIterator<KeyValueTableInfo> listKeyValueTables(String scopeName) {
         return list(scopeName, s -> s.keyValueTables.keySet(), KeyValueTableInfo::getKeyValueTableName);
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<KeyValueTableConfiguration> getKeyValueTableConfiguration(String scope, String kvtName) {
+        return CompletableFuture.completedFuture(getKeyValueTableConfig(new KeyValueTableInfo(scope, kvtName)));
     }
 
     @Override

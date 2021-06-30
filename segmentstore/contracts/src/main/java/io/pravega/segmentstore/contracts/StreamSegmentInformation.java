@@ -20,7 +20,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
 import java.util.Collections;
 import java.util.Map;
-import java.util.UUID;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -50,7 +49,7 @@ public class StreamSegmentInformation implements SegmentProperties {
     @Getter
     private final ImmutableDate lastModified;
     @Getter
-    private final Map<UUID, Long> attributes;
+    private final Map<AttributeId, Long> attributes;
 
     //endregion
 
@@ -72,7 +71,7 @@ public class StreamSegmentInformation implements SegmentProperties {
      */
     @Builder
     private StreamSegmentInformation(String name, long startOffset, long length, long storageLength, boolean sealed, boolean deleted,
-                                     boolean sealedInStorage, boolean deletedInStorage, Map<UUID, Long> attributes, ImmutableDate lastModified) {
+                                     boolean sealedInStorage, boolean deletedInStorage, Map<AttributeId, Long> attributes, ImmutableDate lastModified) {
         Preconditions.checkArgument(startOffset >= 0, "startOffset must be a non-negative number.");
         Preconditions.checkArgument(length >= startOffset, "length must be a non-negative number and greater than startOffset.");
         Preconditions.checkArgument(length >= storageLength, "storageLength must be less than or equal to length.");
@@ -119,7 +118,7 @@ public class StreamSegmentInformation implements SegmentProperties {
                 getStartOffset(), getLength(), getStorageLength(), isSealed(), isDeleted(), isSealedInStorage(), isDeletedInStorage());
     }
 
-    private static Map<UUID, Long> createAttributes(Map<UUID, Long> input) {
+    private static Map<AttributeId, Long> createAttributes(Map<AttributeId, Long> input) {
         return input == null || input.size() == 0 ? Collections.emptyMap() : Collections.unmodifiableMap(input);
     }
 }

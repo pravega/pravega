@@ -63,7 +63,7 @@ public class AbstractBufferViewTests {
     @Test
     public void testEqualsHashCodeComposite() {
         val data = generate();
-        val b = data.get(data.size() - 1);
+        val b = data.get(data.size() - 1); // Get the last one.
         val s1 = b.slice(0, b.getLength() / 2);
         val s2 = b.slice(b.getLength() / 2, b.getLength() / 2);
         val cb = BufferView.wrap(Arrays.asList(s1, s2));
@@ -72,6 +72,11 @@ public class AbstractBufferViewTests {
         Assert.assertEquals(cb, b);
 
         val b2Data = b.getCopy();
+
+        // Verify the hashcode stays the same if we make a copy of the buffer.
+        Assert.assertEquals(b.hashCode(), AbstractBufferView.hashCode(b2Data));
+
+        // Verify the hashcode changes if we alter the data.
         b2Data[1] = (byte) (b2Data[1] + 1);
         val b2 = new ByteArraySegment(b2Data);
         Assert.assertNotEquals(b2.hashCode(), cb.hashCode());

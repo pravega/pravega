@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectBuilder;
@@ -28,6 +29,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -46,7 +48,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -704,9 +705,16 @@ public abstract class MetadataStore implements AutoCloseable {
                     .builder()
                     .name(name);
             val attributes = attributeUpdates == null
-                    ? new HashMap<UUID, Long>()
+                    ? new HashMap<AttributeId, Long>()
                     : attributeUpdates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
             attributes.put(Attributes.ATTRIBUTE_SEGMENT_TYPE, segmentType.getValue());
+
+            // Validate ATTRIBUTE_ID_LENGTH. This is an unmodifiable attribute, so this is the only time we can possibly set it.
+            // If it's not set, then this is a Stream Segment - so all attributes are UUIDs.
+            val idLength = attributes.getOrDefault(Attributes.ATTRIBUTE_ID_LENGTH, 0L);
+            Preconditions.checkArgument(idLength >= 0 && idLength <= AttributeId.MAX_LENGTH,
+                    "ATTRIBUTE_ID_LENGTH must be a value in the interval [0, %s]. Given: %s.", AttributeId.MAX_LENGTH, idLength);
+
             infoBuilder.attributes(attributes);
 
             return builder()
@@ -777,7 +785,7 @@ public abstract class MetadataStore implements AutoCloseable {
                 output.writeBoolean(sp.isSealed());
 
                 // We only serialize Core Attributes. Extended Attributes can be retrieved from the AttributeIndex.
-                output.writeMap(Attributes.getCoreNonNullAttributes(sp.getAttributes()), RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+                output.writeMap(Attributes.getCoreNonNullAttributes(sp.getAttributes()), this::writeAttributeId00, RevisionDataOutput::writeLong);
             }
 
             private void read00(RevisionDataInput input, SegmentInfo.SegmentInfoBuilder builder) throws IOException {
@@ -788,8 +796,18 @@ public abstract class MetadataStore implements AutoCloseable {
                         .length(input.readLong())
                         .startOffset(input.readLong())
                         .sealed(input.readBoolean());
-                infoBuilder.attributes(input.readMap(RevisionDataInput::readUUID, RevisionDataInput::readLong));
+                infoBuilder.attributes(input.readMap(this::readAttributeId00, RevisionDataInput::readLong));
                 builder.properties(infoBuilder.build());
+            }
+
+            private void writeAttributeId00(RevisionDataOutput out, AttributeId attributeId) throws IOException {
+                assert attributeId.isUUID();
+                out.writeLong(attributeId.getBitGroup(0));
+                out.writeLong(attributeId.getBitGroup(1));
+            }
+
+            private AttributeId readAttributeId00(RevisionDataInput in) throws IOException {
+                return AttributeId.uuid(in.readLong(), in.readLong());
             }
         }
     }
