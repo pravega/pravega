@@ -23,22 +23,11 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-<<<<<<< HEAD
-<<<<<<< HEAD
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.TypedProperties;
 import io.pravega.segmentstore.contracts.AttributeId;
-=======
-import io.pravega.common.util.*;
->>>>>>> f3b38a027... First draft of Container Event Processor
-=======
-import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.ConfigurationException;
-import io.pravega.common.util.TypedProperties;
->>>>>>> 9e935332d... Fix checkstyle
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;

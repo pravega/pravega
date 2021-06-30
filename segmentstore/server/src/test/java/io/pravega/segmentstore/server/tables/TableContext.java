@@ -42,22 +42,10 @@ import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import java.time.Duration;
-<<<<<<< HEAD
-<<<<<<< HEAD
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Random;
-=======
-import java.util.*;
->>>>>>> f3b38a027... First draft of Container Event Processor
-=======
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Random;
-import java.util.UUID;
->>>>>>> 9e935332d... Fix checkstyle
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;

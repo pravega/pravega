@@ -26,14 +26,6 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.DynamicAttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
-<<<<<<< HEAD:segmentstore/server/src/test/java/io/pravega/segmentstore/server/tables/SegmentMock.java
-import io.pravega.segmentstore.server.AttributeIterator;
-import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.SegmentMetadata;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-=======
-import io.pravega.segmentstore.contracts.SegmentProperties;
->>>>>>> a67a8f5e1... Added tests and improvements to ContainerEventProcessor:segmentstore/server/src/test/java/io/pravega/segmentstore/server/SegmentMock.java
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.IOException;
@@ -41,6 +33,7 @@ import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,11 +87,7 @@ public class SegmentMock implements DirectSegmentAccess {
      *
      * @param tester Filter function applied to count Attributes.
      */
-<<<<<<< HEAD:segmentstore/server/src/test/java/io/pravega/segmentstore/server/tables/SegmentMock.java
-    synchronized int getAttributeCount(BiPredicate<AttributeId, Long> tester) {
-=======
-    public synchronized int getAttributeCount(BiPredicate<UUID, Long> tester) {
->>>>>>> a67a8f5e1... Added tests and improvements to ContainerEventProcessor:segmentstore/server/src/test/java/io/pravega/segmentstore/server/SegmentMock.java
+    public synchronized int getAttributeCount(BiPredicate<AttributeId, Long> tester) {
         return (int) this.metadata.getAttributes().entrySet().stream().filter(e -> tester.test(e.getKey(), e.getValue())).count();
     }
 
@@ -197,11 +186,7 @@ public class SegmentMock implements DirectSegmentAccess {
         }, this.executor);
     }
 
-<<<<<<< HEAD:segmentstore/server/src/test/java/io/pravega/segmentstore/server/tables/SegmentMock.java
-    synchronized void updateAttributes(Map<AttributeId, Long> attributeValues) {
-=======
-    public synchronized void updateAttributes(Map<UUID, Long> attributeValues) {
->>>>>>> a67a8f5e1... Added tests and improvements to ContainerEventProcessor:segmentstore/server/src/test/java/io/pravega/segmentstore/server/SegmentMock.java
+    public synchronized void updateAttributes(Map<AttributeId, Long> attributeValues) {
         this.metadata.updateAttributes(attributeValues);
     }
 
@@ -293,11 +278,7 @@ public class SegmentMock implements DirectSegmentAccess {
                     .getAttributes().entrySet().stream()
                     .filter(e -> !Attributes.isCoreAttribute(e.getKey()))
                     .filter(e -> fromId.compareTo(e.getKey()) <= 0 && toId.compareTo(e.getKey()) >= 0)
-<<<<<<< HEAD:segmentstore/server/src/test/java/io/pravega/segmentstore/server/tables/SegmentMock.java
                     .sorted(Comparator.comparing(Map.Entry::getKey, AttributeId::compareTo))
-=======
-                    .sorted(Map.Entry.comparingByKey(UUID::compareTo))
->>>>>>> a67a8f5e1... Added tests and improvements to ContainerEventProcessor:segmentstore/server/src/test/java/io/pravega/segmentstore/server/SegmentMock.java
                     .collect(Collectors.toCollection(ArrayDeque::new));
         }
 

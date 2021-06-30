@@ -19,10 +19,10 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ReusableLatch;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
 import io.pravega.segmentstore.server.ContainerEventProcessor.TooManyOutstandingBytesException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMock;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -344,9 +344,9 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     public void testAppendWithFailingSegment() throws Exception {
         DirectSegmentAccess faultySegment = mock(SegmentMock.class);
         when(faultySegment.append(any(), any(), any())).thenThrow(NullPointerException.class);
-        SegmentProperties mockProperties = mock(SegmentProperties.class);
-        when(mockProperties.getLength()).thenReturn(0L);
-        when(faultySegment.getInfo()).thenReturn(mockProperties);
+        SegmentMetadata mockMetadata = mock(SegmentMetadata.class);
+        when(mockMetadata.getLength()).thenReturn(0L);
+        when(faultySegment.getInfo()).thenReturn(mockMetadata);
         Function<String, CompletableFuture<DirectSegmentAccess>> faultySegmentSupplier = s -> CompletableFuture.completedFuture(faultySegment);
         @Cleanup
         ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, faultySegmentSupplier,
