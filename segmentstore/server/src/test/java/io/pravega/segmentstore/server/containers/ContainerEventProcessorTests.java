@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -386,6 +385,10 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
             latch.release();
             return CompletableFuture.completedFuture(null);
         };
+
+        // Make the internal Segment of the processor to fail upon a read.
+        when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenThrow(IntentionalException.class).thenCallRealMethod();
+
         @Cleanup
         ContainerEventProcessor.EventProcessor processor = eventProcessorService.forConsumer("testSegmentMax", doNothing, config)
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
@@ -393,12 +396,6 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         // Write an event to make sure that the processor is running and await for it to be processed.
         BufferView event = new ByteArraySegment("Test".getBytes());
         processor.add(event, TIMEOUT_FUTURE).join();
-        latch.await();
-
-        // Induce a read failure for the next processor iteration and wait for the release in the retry of the iteration.
-        processor.add(event, TIMEOUT_FUTURE).join();
-        when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenThrow(IntentionalException.class).thenCallRealMethod();
-        latch.reset();
         latch.await();
     }
 
@@ -484,13 +481,10 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     public void testEventOrderWithRandomReadFailures() throws Exception {
         int numEvents = 1000;
         List<Integer> readEvents = new ArrayList<>();
-        AtomicBoolean reprocessingFlag = new AtomicBoolean();
-        Runnable hasDuplicates = () -> Assert.assertTrue(IntStream.iterate(0, v -> v + 1)
-                .limit(numEvents).reduce(0, Integer::sum) == readEvents.stream().reduce(0, Integer::sum)
-                && !reprocessingFlag.get());
         Consumer<DirectSegmentAccess> failOnReads = faultySegment -> when(faultySegment.read(anyLong(), anyInt(),
                 any(Duration.class))).thenThrow(IntentionalException.class).thenCallRealMethod();
-        executeEventOrderingTest(numEvents, readEvents, failOnReads, hasDuplicates, reprocessingFlag);
+        executeEventOrderingTest(numEvents, readEvents, failOnReads);
+        Assert.assertEquals(readEvents.size(), numEvents);
     }
 
     /**
@@ -502,17 +496,13 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     public void testEventOrderWithTruncationFailures() throws Exception {
         int numEvents = 1000;
         List<Integer> readEvents = new ArrayList<>();
-        AtomicBoolean reprocessingFlag = new AtomicBoolean();
-        Runnable hasDuplicates = () -> Assert.assertTrue(IntStream.iterate(0, v -> v + 1)
-                .limit(numEvents).reduce(0, Integer::sum) < readEvents.stream().reduce(0, Integer::sum)
-                && reprocessingFlag.get());
         Consumer<DirectSegmentAccess> failOnTruncation = faultySegment -> when(faultySegment.truncate(anyLong(),
                 any(Duration.class))).thenThrow(IntentionalException.class).thenCallRealMethod();
-        executeEventOrderingTest(numEvents, readEvents, failOnTruncation, hasDuplicates, reprocessingFlag);
+        executeEventOrderingTest(numEvents, readEvents, failOnTruncation);
+        Assert.assertTrue(readEvents.size() > numEvents);
     }
 
-    private void executeEventOrderingTest(int numEvents, List<Integer> readEvents, Consumer<DirectSegmentAccess> segmentFailure,
-                                          Runnable eventReprocessingAssertion, AtomicBoolean reprocessingFlag) throws Exception {
+    private void executeEventOrderingTest(int numEvents, List<Integer> readEvents, Consumer<DirectSegmentAccess> segmentFailure) throws Exception {
         DirectSegmentAccess faultySegment = spy(new SegmentMock(this.executorService()));
         Function<String, CompletableFuture<DirectSegmentAccess>> faultySegmentSupplier = s -> CompletableFuture.completedFuture(faultySegment);
         @Cleanup
@@ -521,43 +511,29 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         int maxItemsProcessed = 100;
         int maxOutstandingBytes = 4 * 1024 * 1024;
         Function<List<BufferView>, CompletableFuture<Void>> handler = l -> {
-            l.forEach(d -> {
-                int event = new ByteArraySegment(d.getCopy()).getInt(0);
-                // Assert that events are read in order.
-                if (!readEvents.isEmpty() && !reprocessingFlag.get()) {
-                    reprocessingFlag.set(event <= readEvents.get(readEvents.size() - 1));
-                }
-                readEvents.add(event);
-            });
+            l.forEach(d -> readEvents.add(new ByteArraySegment(d.getCopy()).getInt(0)));
             return CompletableFuture.completedFuture(null);
         };
+
+        // Induce some desired failures.
+        segmentFailure.accept(faultySegment);
+
         ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
                 maxOutstandingBytes);
         @Cleanup
         ContainerEventProcessor.EventProcessor processor = eventProcessorService.forConsumer("testSequence", handler, config)
                 .get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
-        CompletableFuture<Void> writer = CompletableFuture.runAsync(() -> {
-            for (int i = 0; i < numEvents; i++) {
-                ByteArraySegment b = new ByteArraySegment(new byte[Integer.BYTES]);
-                b.setInt(0, i);
-                processor.add(b.slice(), TIMEOUT_FUTURE).join();
-                // Induce a read failure every 10 events written.
-                if (i % 10 == 0) {
-                    segmentFailure.accept(faultySegment);
-                }
-            }
-        }, executorService());
-        AssertExtensions.assertMayThrow("No exception or IntentionalException is expected here.",
-                () -> writer,
-                ex -> ex instanceof IntentionalException);
-        // Make sure that the mock works after writer finishes.
-        when(faultySegment.read(anyLong(), anyInt(), any(Duration.class))).thenCallRealMethod();
+
+        // Write some data.
+        for (int i = 0; i < numEvents; i++) {
+            ByteArraySegment b = new ByteArraySegment(new byte[Integer.BYTES]);
+            b.setInt(0, i);
+            processor.add(b.slice(), TIMEOUT_FUTURE).join();
+        }
 
         // Wait until the last event is read.
         AssertExtensions.assertEventuallyEquals(true, () -> !readEvents.isEmpty() &&
-                readEvents.get(readEvents.size() - 1) == numEvents - 1, 100000);
-        // Validate the existence or not of re-processed events due to Segment failures.
-        eventReprocessingAssertion.run();
+                readEvents.get(readEvents.size() - 1) == numEvents - 1, 10000);
     }
 
     /**
