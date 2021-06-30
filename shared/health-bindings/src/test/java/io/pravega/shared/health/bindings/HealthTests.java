@@ -65,7 +65,7 @@ public class HealthTests {
     @Before
     public void setup() throws Exception {
         serverConfig = getServerConfig();
-        healthServiceManager = new HealthServiceManager(Duration.ofSeconds(1));
+        healthServiceManager = new HealthServiceManager(Duration.ofMillis(100));
         restServer = new RESTServer(serverConfig,
                 Set.of(new HealthImpl(null, healthServiceManager.getEndpoint())));
 

@@ -34,7 +34,7 @@ public class HealthServiceUpdaterTests {
 
     @Before
     public void before() {
-        service = new HealthServiceManager(Duration.ofSeconds(1));
+        service = new HealthServiceManager(Duration.ofMillis(100));
         service.start();
     }
 
