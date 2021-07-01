@@ -85,7 +85,6 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
