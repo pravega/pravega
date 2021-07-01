@@ -125,6 +125,9 @@ public final class Config {
     public static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named(
             "security.tls.enable", false, "auth.tlsEnabled");
 
+    public static final Property<String> PROPERTY_TLS_PROTOCOL_VERSION = Property.named(
+            "security.tls.protocolVersion", "");
+
     public static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named(
             "security.tls.server.certificate.location", "", "auth.tlsCertFile");
 
@@ -225,6 +228,7 @@ public final class Config {
     public static final boolean AUTHORIZATION_ENABLED;
     public static final String USER_PASSWORD_FILE;
     public static final boolean TLS_ENABLED;
+    public static final String TLS_PROTOCOL_VERSION;
     public static final String TLS_KEY_FILE;
     public static final String TLS_CERT_FILE;
     public static final String TLS_TRUST_STORE;
@@ -315,6 +319,7 @@ public final class Config {
         WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS = p.getBoolean(PROPERTY_WRITES_TO_RGSTREAMS_WITH_READ_PERMISSIONS);
 
         TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
+        TLS_PROTOCOL_VERSION = p.get(PROPERTY_TLS_PROTOCOL_VERSION);
         TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
         TLS_CERT_FILE = p.get(PROPERTY_TLS_CERT_FILE);
         TLS_TRUST_STORE = p.get(PROPERTY_TLS_TRUST_STORE);
@@ -448,6 +453,7 @@ public final class Config {
                 .authorizationEnabled(Config.AUTHORIZATION_ENABLED)
                 .userPasswordFile(Config.USER_PASSWORD_FILE)
                 .tlsEnabled(Config.TLS_ENABLED)
+                //.tlsProtocolVersion(Config.TLS_PROTOCOL_VERSION)
                 .tlsCertFile(Config.TLS_CERT_FILE)
                 .tlsTrustStore(Config.TLS_TRUST_STORE)
                 .tlsKeyFile(Config.TLS_KEY_FILE)
