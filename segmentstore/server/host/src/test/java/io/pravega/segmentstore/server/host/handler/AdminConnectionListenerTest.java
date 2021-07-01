@@ -23,6 +23,7 @@ import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import io.pravega.test.common.SecurityConfigDefaults;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,11 +34,12 @@ import static org.mockito.Mockito.mock;
 
 public class AdminConnectionListenerTest {
 
+    private String tlsProtocolVersion = SecurityConfigDefaults.TLS_PROTOCOL_VERSION;
     @Test
     public void testCreateEncodingStack() {
         @Cleanup
         AdminConnectionListener listener = new AdminConnectionListener(false, false, "localhost",
-                6622, mock(StreamSegmentStore.class), mock(TableStore.class), new PassingTokenVerifier(), null, null);
+                6622, mock(StreamSegmentStore.class), mock(TableStore.class), new PassingTokenVerifier(), null, null, tlsProtocolVersion);
         List<ChannelHandler> stack = listener.createEncodingStack("connection");
         // Check that the order of encoders is the right one.
         Assert.assertTrue(stack.get(0) instanceof ExceptionLoggingHandler);
@@ -50,7 +52,7 @@ public class AdminConnectionListenerTest {
     public void testCreateRequestProcessor() {
         @Cleanup
         AdminConnectionListener listener = new AdminConnectionListener(false, false, "localhost",
-                6622, mock(StreamSegmentStore.class), mock(TableStore.class), new PassingTokenVerifier(), null, null);
+                6622, mock(StreamSegmentStore.class), mock(TableStore.class), new PassingTokenVerifier(), null, null, tlsProtocolVersion);
         Assert.assertTrue(listener.createRequestProcessor(new TrackedConnection(new ServerConnectionInboundHandler())) instanceof AdminRequestProcessorImpl);
     }
 }
