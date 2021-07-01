@@ -20,6 +20,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -78,7 +79,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     // Ensure that an Event Processor's Segment does not get throttled by making it system-critical.
-    private final static SegmentType SYSTEM_CRITICAL_SEGMENT = SegmentType.builder().system().internal().critical().build();
+    private static final SegmentType SYSTEM_CRITICAL_SEGMENT = SegmentType.builder().system().internal().critical().build();
 
     private final int containerId;
     private final Map<String, EventProcessorImpl> eventProcessorMap = new ConcurrentHashMap<>();
@@ -141,7 +142,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
      */
     private void reportMetrics() {
         for (EventProcessorImpl ep : eventProcessorMap.values()) {
-            SegmentStoreMetrics.outstandingEventProcessorBytes(ep.getName(), containerId, ep.getOutstandingBytes());
+            SegmentStoreMetrics.outstandingEventProcessorBytes(ep.name, containerId, ep.getOutstandingBytes());
             // Only report the last iteration processing latency if it has been successful.
             if (!ep.failedIteration.get()) {
                 ep.metrics.batchProcessingLatency(ep.lastIterationLatency.get());
@@ -235,8 +236,21 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         }
     }
 
-    class EventProcessorImpl extends ContainerEventProcessor.EventProcessor {
-
+    /**
+     * Each {@link EventProcessor} service has associated an internal Segment and is uniquely identified by its name
+     * within a Segment Container. An {@link EventProcessor} tails its internal Segment looking for new events. When it
+     * has at least 1 event to read on its Segment, it invokes its handler. If there are multiple events available, up
+     * to {@link EventProcessorConfig#getMaxItemsAtOnce()} should be used as input for the handler.
+     *
+     * If the handler completes normally, the items will be removed from the queue (i.e., the {@link EventProcessor}'s
+     * Segment will be truncated up to that offset). If the handler completes with an exception, the items will not be
+     * removed and processing will be internally retried until processing succeeds.
+     */
+    class EventProcessorImpl extends AbstractThreadPoolService implements EventProcessor {
+        private final String name;
+        private final Function<List<BufferView>, CompletableFuture<Void>> handler;
+        private final EventProcessorConfig config;
+        private final Runnable onClose;
         private final DirectSegmentAccess segment;
         private final AtomicLong lastIterationLatency;
         private final SegmentStoreMetrics.EventProcessor metrics;
@@ -251,7 +265,11 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                                   @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
                                   @NonNull EventProcessorConfig config, @NonNull Runnable onClose,
                                   @NonNull ScheduledExecutorService executor) {
-            super(String.format("EventProcessor[%d-%s]", containerId, name), executor, name, handler, config, onClose);
+            super(String.format("EventProcessor[%d-%s]", containerId, name), executor);
+            this.name = name;
+            this.handler = handler;
+            this.config = config;
+            this.onClose = onClose;
             this.segment = segment;
             this.lastIterationLatency = new AtomicLong(0);
             this.metrics = new SegmentStoreMetrics.EventProcessor(name, containerId);
@@ -270,7 +288,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             Preconditions.checkArgument(event.getLength() + Integer.BYTES < ProcessorEventData.MAX_EVENT_SIZE);
             Exceptions.checkNotClosed(this.closed.get(), this);
             // If the EventProcessor reached the limit of outstanding bytes, throw accordingly.
-            if (getOutstandingBytes() > getConfig().getMaxProcessorOutstandingBytes()) {
+            if (getOutstandingBytes() > this.config.getMaxProcessorOutstandingBytes()) {
                 throw new TooManyOutstandingBytesException(this.traceObjectId);
             }
 
@@ -293,11 +311,16 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
         //region AutoCloseable implementation
 
+        /**
+         * This method stop the service (superclass), auto-unregisters from the existing set of active
+         * {@link EventProcessor} instances (via onClose callback), and closes the metrics.
+         */
         @Override
         public void close() {
             if (!this.closed.getAndSet(true)) {
                 log.info("{}: Closing EventProcessor.", this.traceObjectId);
                 super.close();
+                this.onClose.run();
                 this.metrics.close();
             }
         }
@@ -397,7 +420,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 @Cleanup
                 BoundedInputStream input = new BoundedInputStream(inputData.getReader(), inputData.getLength());
                 int dataLength = inputData.getLength();
-                while (input.available() > 0 && events.size() < getConfig().getMaxItemsAtOnce()) {
+                while (input.getRemaining() > 0 && events.size() < this.config.getMaxItemsAtOnce()) {
                     ProcessorEventData event = this.serializer.deserialize(input);
                     events.add(event);
                     // Update the truncation length, which includes user data and internal VersionedSerializer metadata.
@@ -420,7 +443,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         }
 
         private CompletableFuture<EventsReadAndTruncationLength> applyProcessorHandler(EventsReadAndTruncationLength readResult) {
-            return getHandler().apply(readResult.getProcessorEventsData()).thenApply(v -> readResult);
+            return this.handler.apply(readResult.getProcessorEventsData()).thenApply(v -> readResult);
         }
 
         private CompletableFuture<Void> truncateInternalSegment(EventsReadAndTruncationLength readResult, Timer iterationTime) {
