@@ -54,6 +54,7 @@ public class TLSHelper {
      *
      * @param certificateFile the PEM-encoded server certificate file
      * @param serverKeyFile the PEM-encoded file containing the server's encrypted private key
+     * @param tlsProtocolVersion version of TLS protocol
      * @return a {@link SslContext} built from the specified {@code pathToCertificateFile} and {@code pathToServerKeyFile}
      * @throws NullPointerException if either {@code certificateFile} or {@code serverKeyFile} is null
      * @throws IllegalStateException if either {@code certificateFile} or {@code serverKeyFile} doesn't exist or is unreadable.
