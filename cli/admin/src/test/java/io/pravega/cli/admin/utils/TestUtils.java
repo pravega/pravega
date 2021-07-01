@@ -113,6 +113,7 @@ public final class TestUtils {
         if (tlsEnabled) {
             clusterWrapperBuilder
                     .tlsEnabled(true)
+                    .tlsProtocolVersion(pathToConfig() + SecurityConfigDefaults.TLS_PROTOCOL_VERSION)
                     .tlsServerCertificatePath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME)
                     .tlsServerKeyPath(pathToConfig() + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME)
                     .tlsHostVerificationEnabled(false)
