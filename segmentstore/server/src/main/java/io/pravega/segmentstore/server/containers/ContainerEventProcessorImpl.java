@@ -407,7 +407,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 // Events are of arbitrary size, so it is quite possible we stopped reading in the middle of an event.
                 // Only if we have already read some data, we do not throw.
             } catch (Exception ex) {
-                // Some unexpected serialization error occurred here, rethrow.
+                // Some unexpected serialization error occurred here; rethrow if this prevents reading further events.
                 log.error("{}: Problem while deserializing events.", this.traceObjectId);
                 deserializationException = ex;
             }
