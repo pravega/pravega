@@ -16,11 +16,11 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
-import io.pravega.segmentstore.server.ContainerEventProcessor.TooManyOutstandingBytesException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMock;
@@ -274,6 +274,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
 
         // Simulate an BufferView.Reader.OutOfBoundsException within the deserializeEvents() method and then behave normally.
         when(eventProcessorConfig.getMaxItemsAtOnce()).thenThrow(new BufferView.Reader.OutOfBoundsException())
+                                                      .thenThrow(new RuntimeException(new SerializationException("Intentional exception")))
                                                       .thenCallRealMethod();
 
         // Write an event and wait for the event to be processed.
@@ -322,7 +323,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
                 processorResults.decrementAndGet();
             } catch (Exception e) {
                 // We have reached the max outstanding bytes for this internal Segment.
-                Assert.assertTrue(e instanceof TooManyOutstandingBytesException);
+                Assert.assertTrue(e instanceof ContainerEventProcessor.TooManyOutstandingBytesException);
                 foundMaxOutstandingLimit = true;
             }
         }
@@ -563,8 +564,8 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Validates that the events processed by an {@link EventProcessor} are correct (assuming a sequence of numbers) and
-     * checks that the outstanding bytes is equal to 0.
+     * Validates that the events processed by an {@link ContainerEventProcessor.EventProcessor} are correct (assuming a
+     * sequence of numbers) and checks that the outstanding bytes is equal to 0.
      */
     private static void validateProcessorResults(ContainerEventProcessor.EventProcessor processor, List<Integer> processedItems,
                                           int expectedItemNumber) throws Exception {

@@ -15,13 +15,16 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.util.BufferView;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NonNull;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 
 /**
@@ -61,7 +64,7 @@ public interface ContainerEventProcessor extends AutoCloseable {
     CompletableFuture<EventProcessor> forDurableQueue(@NonNull String name);
 
     /**
-     * Each {@link EventProcessor} instance has associated an internal Segment and is uniquely identified by its name
+     * Each {@link EventProcessor} service has associated an internal Segment and is uniquely identified by its name
      * within a Segment Container. An {@link EventProcessor} tails its internal Segment looking for new events. When it
      * has at least 1 event to read on its Segment, it invokes its handler. If there are multiple events available, up
      * to {@link EventProcessorConfig#getMaxItemsAtOnce()} should be used as input for the handler.
@@ -70,16 +73,29 @@ public interface ContainerEventProcessor extends AutoCloseable {
      * Segment will be truncated up to that offset). If the handler completes with an exception, the items will not be
      * removed and processing will be internally retried until processing succeeds.
      */
-    @Data
-    abstract class EventProcessor implements AutoCloseable {
+    abstract class EventProcessor extends AbstractThreadPoolService {
         @NonNull
+        @Getter
         private final String name;
         @NonNull
+        @Getter
         private final Function<List<BufferView>, CompletableFuture<Void>> handler;
         @NonNull
+        @Getter
         private final EventProcessorConfig config;
         @NonNull
+        @Getter
         private final Runnable onClose;
+
+        public EventProcessor(@NonNull String traceObjectId, @NonNull ScheduledExecutorService executor,
+                              @NonNull String name, @NonNull Function<List<BufferView>, CompletableFuture<Void>> handler,
+                              @NonNull EventProcessorConfig config, @NonNull Runnable onClose) {
+            super(traceObjectId, executor);
+            this.name = name;
+            this.handler = handler;
+            this.config = config;
+            this.onClose = onClose;
+        }
 
         /**
          * Persist a new event to the {@link EventProcessor}'s durable queue. Once the return future completes, it
@@ -97,11 +113,10 @@ public interface ContainerEventProcessor extends AutoCloseable {
         /**
          * When an {@link EventProcessor} is closed, it should be auto-unregistered from the existing set of active
          * {@link EventProcessor} objects.
-         *
-         * @throws Exception
          */
         @Override
-        public void close() throws Exception {
+        public void close() {
+            super.close();
             this.onClose.run();
         }
     }
