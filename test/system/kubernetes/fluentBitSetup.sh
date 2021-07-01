@@ -93,6 +93,9 @@ for i in "$@"; do
     -f | --skip-force-rotate)
         SKIP_FORCE_ROTATE="true"
         ;;
+    -b | --skip-bundle-compression)
+        SKIP_LOG_BUNDLE_COMPRESSION="true"
+        ;;
 esac
 done
 
@@ -232,12 +235,14 @@ cp_remote_logs() {
         echo "Successfully downloaded a total of $actual_log_count log files."
     fi
 
-    if command -v zip; then
-      zip -r "$logs_dir.zip" "$logs_dir" > /dev/null
-    else
-      tar --remove-files -zcf "$TAR_NAME.gz" "$logs_dir"
+    if [ "$SKIP_LOG_BUNDLE_COMPRESSION" != "true" ]; then
+      if command -v zip; then
+        zip -r "$logs_dir.zip" "$logs_dir" > /dev/null
+      else
+        tar --remove-files -zcf "$TAR_NAME.gz" "$logs_dir"
+      fi
+      rm -rf "$logs_dir"
     fi
-    rm -rf "$logs_dir"
 
     logs_fetched=1
 }
