@@ -193,6 +193,7 @@ public class MultiReadersEndToEndTest {
     private void runTestUsingMock(final Set<String> streamNames, final int numParallelReaders, final int numSegments)
             throws Exception {
         int servicePort = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         @Cleanup
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
@@ -200,7 +201,7 @@ public class MultiReadersEndToEndTest {
         TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore,
-                serviceBuilder.getLowPriorityExecutor());
+                serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", "localhost", servicePort);

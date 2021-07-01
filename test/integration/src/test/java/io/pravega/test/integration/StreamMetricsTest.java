@@ -92,6 +92,7 @@ public class StreamMetricsTest {
         controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int servicePort = TestUtils.getAvailableListenPort();
+        final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         final int containerCount = 4;
 
         // 1. Start Metrics service
@@ -120,7 +121,7 @@ public class StreamMetricsTest {
 
         this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
-                null, null, true, this.serviceBuilder.getLowPriorityExecutor());
+                null, null, true, this.serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         this.server.startListening();
 
         // 4. Start Pravega Controller service

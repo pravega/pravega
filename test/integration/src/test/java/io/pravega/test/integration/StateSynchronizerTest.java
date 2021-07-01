@@ -87,10 +87,11 @@ public class StateSynchronizerTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String stateName = "testStateTracker";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -142,10 +143,11 @@ public class StateSynchronizerTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String stateName = "testReadsAllAvailable";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -170,10 +172,11 @@ public class StateSynchronizerTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String stateName = "testSetSynchronizer";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class),
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);

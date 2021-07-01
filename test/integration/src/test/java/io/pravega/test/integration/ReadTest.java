@@ -203,12 +203,13 @@ public class ReadTest extends LeakDetectorTestSuite {
         String scope = "scope";
         String stream = "readThroughSegmentClient";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         String testString = "Hello world\n";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -252,13 +253,14 @@ public class ReadTest extends LeakDetectorTestSuite {
         String scope = "scope";
         String stream = "readConditionalData";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         byte[] testString = "Hello world\n".getBytes();
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         SocketConnectionFactoryImpl clientCF = new SocketConnectionFactoryImpl(ClientConfig.builder().build());
@@ -300,12 +302,13 @@ public class ReadTest extends LeakDetectorTestSuite {
         String readerName = "reader";
         String readerGroup = "readThroughStreamClient-group";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         String testString = "Hello world\n";
         String scope = "Scope1";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -336,12 +339,13 @@ public class ReadTest extends LeakDetectorTestSuite {
         String readerName = "reader";
         String readerGroup = "testEventPointer-group";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         String testString = "Hello world ";
         String scope = "Scope1";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -391,10 +395,11 @@ public class ReadTest extends LeakDetectorTestSuite {
         ScheduledExecutorService readersWritersAndCheckers = ExecutorServiceHelpers.newScheduledThreadPool(4, "readers-writers-checkers");
         AtomicInteger finishedProcesses = new AtomicInteger(0);
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get());
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore, NoOpScheduledExecutor.get(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);

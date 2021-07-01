@@ -57,6 +57,7 @@ public class EndToEndAutoScaleUpTest {
             TestingServer zkTestServer = new TestingServerStarter().start();
 
             int port = Config.SERVICE_PORT;
+            String tlsProtocolVersion = Config.TLS_PROTOCOL_VERSION;
             @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port, false);
             Controller controller = controllerWrapper.getController();
@@ -78,7 +79,7 @@ public class EndToEndAutoScaleUpTest {
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
                     autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null, true,
-                    serviceBuilder.getLowPriorityExecutor());
+                    serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
             server.startListening();
 
             controllerWrapper.awaitRunning();

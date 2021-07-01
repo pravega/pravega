@@ -82,6 +82,7 @@ public class ControllerMetricsTest extends ThreadPooledTestSuite {
     private final String serviceHost = "localhost";
     private final URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
     private final int servicePort = TestUtils.getAvailableListenPort();
+    private final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     private final int containerCount = 4;
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
@@ -114,7 +115,7 @@ public class ControllerMetricsTest extends ThreadPooledTestSuite {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

@@ -76,6 +76,7 @@ public class ReaderGroupNotificationTest extends ThreadPooledTestSuite {
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
     private final int servicePort = TestUtils.getAvailableListenPort();
+    private final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     private final int containerCount = 4;
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
@@ -97,7 +98,7 @@ public class ReaderGroupNotificationTest extends ThreadPooledTestSuite {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, this.serviceBuilder.getLowPriorityExecutor());
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, this.serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

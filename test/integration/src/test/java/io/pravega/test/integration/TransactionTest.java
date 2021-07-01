@@ -70,6 +70,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String streamName = "testTransactionalWritesOrderedCorrectly";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         String txnEvent = "TXN Event\n";
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
@@ -78,7 +79,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -148,6 +149,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
         String endpoint = "localhost";
         String streamName = "testDoubleCommit";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         String event = "Event\n";
         String routingKey = "RoutingKey";
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
@@ -155,7 +157,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -183,6 +185,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
         String groupName = "testDrop-group";
         String streamName = "testDrop";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         String txnEvent = "TXN Event\n";
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
@@ -191,7 +194,7 @@ public class TransactionTest extends LeakDetectorTestSuite {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                SERVICE_BUILDER.getLowPriorityExecutor());
+                SERVICE_BUILDER.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -239,12 +242,13 @@ public class TransactionTest extends LeakDetectorTestSuite {
         String scopeName = "scope";
         String streamName = "abc";
         int port = TestUtils.getAvailableListenPort();
+        String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         StreamSegmentStore store = SERVICE_BUILDER.createStreamSegmentService();
         TableStore tableStore = SERVICE_BUILDER.createTableStoreService();
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore,
-                                                                         SERVICE_BUILDER.getLowPriorityExecutor());
+                                                                         SERVICE_BUILDER.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scopeName, endpoint, port);

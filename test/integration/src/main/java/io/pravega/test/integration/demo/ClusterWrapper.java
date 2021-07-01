@@ -122,6 +122,10 @@ public class ClusterWrapper implements AutoCloseable {
     @Builder.Default
     private boolean tlsEnabled = false;
 
+    @Getter
+    @Builder.Default
+    private String tlsProtocolVersion = "TLSv1.2,TLSv1.3";
+
     @Builder.Default
     private boolean controllerRestEnabled = false;
 
@@ -217,7 +221,7 @@ public class ClusterWrapper implements AutoCloseable {
         segmentStoreServer = new PravegaConnectionListener(this.tlsEnabled, false, "localhost", segmentStorePort, store, tableStore,
             SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
             authEnabled ? new TokenVerifierImpl(tokenSigningKeyBasis) : null,
-            this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor());
+            this.tlsServerCertificatePath, this.tlsServerKeyPath, true, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
 
         segmentStoreServer.startListening();
     }
@@ -256,6 +260,7 @@ public class ClusterWrapper implements AutoCloseable {
                 .isRGWritesWithReadPermEnabled(rgWritesWithReadPermEnabled)
                 .accessTokenTtlInSeconds(tokenTtlInSeconds)
                 .enableTls(tlsEnabled)
+                //.tlsProtocolVersion(tlsProtocolVerion)
                 .serverCertificatePath(tlsServerCertificatePath)
                 .serverKeyPath(tlsServerKeyPath)
                 .serverKeystorePath(tlsServerKeystorePath)

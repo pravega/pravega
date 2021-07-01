@@ -53,6 +53,7 @@ import java.net.URI;
 public class PravegaResource extends ExternalResource {
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final int servicePort = TestUtils.getAvailableListenPort();
+    private final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
     private final String serviceHost = "localhost";
     private final int containerCount = 4;
 
@@ -72,7 +73,7 @@ public class PravegaResource extends ExternalResource {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         server.startListening();
 
         // 2. Start controller

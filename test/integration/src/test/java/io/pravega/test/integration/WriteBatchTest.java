@@ -90,6 +90,7 @@ public class WriteBatchTest {
         final int controllerPort = TestUtils.getAvailableListenPort();
         final String serviceHost = "localhost";
         final int servicePort = TestUtils.getAvailableListenPort();
+        final String tlsProtocolVersion = TestUtils.getTlsProtocolVersion();
         final int containerCount = 4;
 
         // 1. Start ZK
@@ -101,7 +102,7 @@ public class WriteBatchTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor());
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore, serviceBuilder.getLowPriorityExecutor(), tlsProtocolVersion);
         this.server.startListening();
 
         // 3. Start Pravega Controller service
