@@ -708,30 +708,6 @@ public class PravegaRequestProcessorTest {
         Assert.assertEquals(keyLength, (long) kl);
     }
 
-    /**
-     * Verifies that the methods that are not yet implemented are not implemented by accident without unit tests.
-     * This test should be removed once every method tested in it is implemented.
-     */
-    @Test(timeout = 20000)
-    public void testUnimplementedMethods() throws Exception {
-        // Set up PravegaRequestProcessor instance to execute requests against
-        String streamSegmentName = "scope/stream/test";
-        @Cleanup
-        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
-        ServerConnection connection = mock(ServerConnection.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection);
-
-        assertThrows("seal() is implemented.",
-                     () -> processor.sealTableSegment(new WireCommands.SealTableSegment(1, streamSegmentName, "")),
-                     ex -> ex instanceof UnsupportedOperationException);
-        assertThrows("merge() is implemented.",
-                     () -> processor.mergeTableSegments(new WireCommands.MergeTableSegments(1, streamSegmentName, streamSegmentName, "")),
-                     ex -> ex instanceof UnsupportedOperationException);
-    }
-
     @Test(timeout = 20000)
     public void testUpdateEntries() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against

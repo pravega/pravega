@@ -72,7 +72,6 @@ import io.pravega.shared.protocol.netty.WireCommands.DeleteTableSegment;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
-import io.pravega.shared.protocol.netty.WireCommands.MergeTableSegments;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
@@ -621,37 +620,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                       this.tableStatsRecorder.deleteTableSegment(segment, timer.getElapsed());
                   })
                   .exceptionally(e -> handleException(deleteTableSegment.getRequestId(), segment, operation, e));
-    }
-
-    @Override
-    public void mergeTableSegments(final MergeTableSegments mergeTableSegments) {
-        final String operation = "mergeTableSegments";
-
-        if (!verifyToken(mergeTableSegments.getSource(), mergeTableSegments.getRequestId(), mergeTableSegments.getDelegationToken(), operation)) {
-            return;
-        }
-
-        log.info(mergeTableSegments.getRequestId(), "Merging table segments {}.", mergeTableSegments);
-        tableStore.merge(mergeTableSegments.getTarget(), mergeTableSegments.getSource(), TIMEOUT)
-                  .thenRun(() -> connection.send(new WireCommands.SegmentsMerged(mergeTableSegments.getRequestId(),
-                                                                                 mergeTableSegments.getTarget(),
-                                                                                 mergeTableSegments.getSource(), -1)))
-                  .exceptionally(e -> handleException(mergeTableSegments.getRequestId(), mergeTableSegments.getSource(), operation, e));
-    }
-
-    @Override
-    public void sealTableSegment(final WireCommands.SealTableSegment sealTableSegment) {
-        String segment = sealTableSegment.getSegment();
-        final String operation = "sealTableSegment";
-
-        if (!verifyToken(segment, sealTableSegment.getRequestId(), sealTableSegment.getDelegationToken(), operation)) {
-            return;
-        }
-
-        log.info(sealTableSegment.getRequestId(), "Sealing table segment {}.", sealTableSegment);
-        tableStore.seal(segment, TIMEOUT)
-                  .thenRun(() -> connection.send(new SegmentSealed(sealTableSegment.getRequestId(), segment)))
-                  .exceptionally(e -> handleException(sealTableSegment.getRequestId(), segment, operation, e));
     }
 
     @Override

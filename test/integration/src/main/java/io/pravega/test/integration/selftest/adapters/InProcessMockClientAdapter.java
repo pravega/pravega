@@ -474,15 +474,5 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout) {
             throw new UnsupportedOperationException("entryDeltaIterator");
         }
-
-        @Override
-        public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
-            throw new UnsupportedOperationException("mergeTableSegments");
-        }
-
-        @Override
-        public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
-            throw new UnsupportedOperationException("sealTableSegment");
-        }
     }
 }

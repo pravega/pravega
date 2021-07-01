@@ -70,20 +70,6 @@ public class TableService extends SegmentContainerCollection implements TableSto
     }
 
     @Override
-    public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
-        return invokeExtension(targetSegmentName,
-                e -> e.merge(targetSegmentName, sourceSegmentName, timeout),
-                "merge", targetSegmentName, sourceSegmentName);
-    }
-
-    @Override
-    public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
-        return invokeExtension(segmentName,
-                e -> e.seal(segmentName, timeout),
-                "seal", segmentName);
-    }
-
-    @Override
     public CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, Duration timeout) {
         return invokeExtension(segmentName,
                 e -> e.put(segmentName, entries, timeout),

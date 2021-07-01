@@ -618,11 +618,6 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
-    public void testMergeTableSegments() throws IOException {
-        testCommand(new WireCommands.MergeTableSegments(l, testString1, testString2, ""));
-    }
-
-    @Test
     public void testSegmentsMerged() throws IOException {
         testCommand(new WireCommands.SegmentsMerged(l, testString1, testString2, -l));
     }
@@ -630,11 +625,6 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     @Test
     public void testSealSegment() throws IOException {
         testCommand(new WireCommands.SealSegment(l, testString1, ""));
-    }
-
-    @Test
-    public void testSealTableSegment() throws IOException {
-        testCommand(new WireCommands.SealTableSegment(l, testString1, ""));
     }
 
     @Test

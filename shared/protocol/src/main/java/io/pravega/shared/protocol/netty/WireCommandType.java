@@ -87,9 +87,6 @@ public enum WireCommandType {
 
     CREATE_TABLE_SEGMENT(70, WireCommands.CreateTableSegment::readFrom),
     DELETE_TABLE_SEGMENT(71, WireCommands.DeleteTableSegment::readFrom),
-    MERGE_TABLE_SEGMENTS(72, WireCommands.MergeTableSegments::readFrom),
-    SEAL_TABLE_SEGMENT(73, WireCommands.SealTableSegment::readFrom),
-
     UPDATE_TABLE_ENTRIES(74, WireCommands.UpdateTableEntries::readFrom),
     TABLE_ENTRIES_UPDATED(75, WireCommands.TableEntriesUpdated::readFrom),
 

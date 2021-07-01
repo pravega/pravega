@@ -211,24 +211,6 @@ public abstract class TableSegmentLayoutTestBase extends ThreadPooledTestSuite {
     }
 
     /**
-     * Verifies that the methods that are not yet implemented are not implemented by accident without unit tests.
-     * This test should be removed once every method tested in it is implemented.
-     */
-    @Test
-    public void testUnimplementedMethods() {
-        @Cleanup
-        val context = new TableContext(executorService());
-        AssertExtensions.assertThrows(
-                "merge() is implemented.",
-                () -> context.ext.merge(SEGMENT_NAME, SEGMENT_NAME, TIMEOUT),
-                ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "seal() is implemented.",
-                () -> context.ext.seal(SEGMENT_NAME, TIMEOUT),
-                ex -> ex instanceof UnsupportedOperationException);
-    }
-
-    /**
      * Tests operations that currently accept an offset argument, and whether they fail expectedly.
      */
     @Test

@@ -123,16 +123,6 @@ public class TableStoreMock implements TableStore {
     }
 
     @Override
-    public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorArgs args) {
         throw new UnsupportedOperationException();
     }
