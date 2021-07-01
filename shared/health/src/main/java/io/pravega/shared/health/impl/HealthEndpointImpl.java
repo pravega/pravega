@@ -35,6 +35,9 @@ import static io.pravega.shared.health.HealthContributor.DELIMITER;
 /**
  * Provides a simpler interface for retrieving {@link Health} information from the {@link io.pravega.shared.health.HealthServiceManager}.
  * The {@link HealthEndpoint} should be used to serve information about the {@link Health} of a component for external classes.
+ *
+ * The 'String id' parameter of the following methods si expected to be a fully qualified id, i.e. containing the complete path
+ * (delimited by {@link HealthContributor#DELIMITER}) starting from the HealthServiceManager.RootHealthContributor.
  */
 @Slf4j
 @RequiredArgsConstructor

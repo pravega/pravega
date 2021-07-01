@@ -21,7 +21,6 @@ package io.pravega.shared.health;
  */
 public interface HealthContributor extends AutoCloseable {
 
-
     /**
      * The delimiter used to split a fully qualified {@link HealthContributor} name during state look-ups.
      */
