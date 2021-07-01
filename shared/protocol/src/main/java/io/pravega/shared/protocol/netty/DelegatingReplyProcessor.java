@@ -116,7 +116,7 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void transientSegmentCreated(WireCommands.TransientSegmentCreated transientSegmentCreated){
+    public void transientSegmentCreated(WireCommands.TransientSegmentCreated transientSegmentCreated) {
         getNextReplyProcessor().transientSegmentCreated(transientSegmentCreated);
     }
 
