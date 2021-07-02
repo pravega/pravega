@@ -55,8 +55,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -69,15 +67,14 @@ import static io.pravega.shared.NameUtils.getEventProcessorSegmentName;
 /**
  * Implementation for {@link ContainerEventProcessor}. This class stores a map of {@link ContainerEventProcessor.EventProcessor}
  * identified by name. Once this component is created, it will instantiate new {@link ContainerEventProcessor.EventProcessor}
- * objects and report metrics for the existing ones. The actual processing is performed in batches by
- * {@link ContainerEventProcessor.EventProcessor}s. Each of such processors is in charge of tailing their respective
- * internal Segments and (safely) invoking their handler functions on a list of read events (of at most maxItemsAtOnce
- * elements). Upon a successful processing iteration, an {@link ContainerEventProcessor.EventProcessor} truncates the
- * internal Segments of the registered. If an error occurs, the internal Segment is not truncated and the processing is
- * attempted again over the same events. Therefore, this class provides at-least-once processing guarantees, but events
- * could be re-processed in the case of failures while truncating the processor's internal Segment. This is important to
- * take into account when developing handler functions of {@link ContainerEventProcessor.EventProcessor}s as they should
- * be idempotent and tolerate re-processing.
+ * objects. The actual processing is performed in batches by {@link ContainerEventProcessor.EventProcessor}s. Each of
+ * such processors is in charge of tailing their respective internal Segments and (safely) invoking their handler
+ * functions on a list of read events (of at most maxItemsAtOnce elements). Upon a successful processing iteration, an
+ * {@link ContainerEventProcessor.EventProcessor} truncates the internal Segments of the registered. If an error occurs,
+ * the internal Segment is not truncated and the processing is attempted again over the same events. Therefore, this
+ * class provides at-least-once processing guarantees, but events could be re-processed in the case of failures while
+ * truncating the processor's internal Segment. This is important to take into account when developing handler functions
+ * of {@link ContainerEventProcessor.EventProcessor}s as they should be idempotent and tolerate re-processing.
  */
 @Slf4j
 class ContainerEventProcessorImpl implements ContainerEventProcessor {
@@ -95,7 +92,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
     private final Duration containerOperationTimeout;
     private final AtomicBoolean closed;
     private final String traceObjectId;
-    private final ScheduledFuture<?> eventProcessorMetricsReporting;
     private final ScheduledExecutorService executor;
     private final AtomicLong counter = new AtomicLong(0);
 
@@ -119,9 +115,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         this.containerOperationTimeout = containerOperationTimeout;
         this.closed = new AtomicBoolean(false);
         this.executor = executor;
-        // This class just reports the metrics for all the registered EventProcessor objects.
-        this.eventProcessorMetricsReporting = executor.scheduleAtFixedRate(this::reportMetrics, iterationDelay.toMillis(),
-                iterationDelay.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -145,19 +138,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                         .thenCompose(l -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout)));
     }
 
-    /**
-     * Reports the metrics periodically for each {@link ContainerEventProcessor.EventProcessor}.
-     */
-    private void reportMetrics() {
-        for (EventProcessorImpl ep : eventProcessorMap.values()) {
-            SegmentStoreMetrics.outstandingEventProcessorBytes(ep.name, containerId, ep.getOutstandingBytes());
-            // Only report the last iteration processing latency if it has been successful.
-            if (!ep.failedIteration.get()) {
-                ep.metrics.batchProcessingLatency(ep.lastIterationLatency.get());
-            }
-        }
-    }
-
     //endregion
 
     //region AutoCloseable Implementation
@@ -167,7 +147,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         if (!closed.getAndSet(true)) {
             log.info("{}: Closing ContainerEventProcessor service.", this.traceObjectId);
             closeProcessors();
-            eventProcessorMetricsReporting.cancel(true);
         }
     }
 
@@ -280,13 +259,13 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
      */
     static class EventProcessorImpl extends AbstractThreadPoolService implements EventProcessor {
         private final String name;
+        private final int containerId;
         private final Function<List<BufferView>, CompletableFuture<Void>> handler;
         private final EventProcessorConfig config;
         private final Duration iterationDelay;
         private final Duration containerOperationTimeout;
         private final Runnable onClose;
         private final DirectSegmentAccess segment;
-        private final AtomicLong lastIterationLatency;
         private final SegmentStoreMetrics.EventProcessor metrics;
         private final AtomicBoolean closed;
         private final AtomicBoolean failedIteration;
@@ -303,13 +282,13 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                                   @NonNull ScheduledExecutorService executor) {
             super(String.format("EventProcessor[%d-%s]", containerId, name), executor);
             this.name = name;
+            this.containerId = containerId;
             this.segment = segment;
             this.handler = handler;
             this.config = config;
             this.iterationDelay = iterationDelay;
             this.containerOperationTimeout = containerOperationTimeout;
             this.onClose = onClose;
-            this.lastIterationLatency = new AtomicLong(0);
             this.metrics = new SegmentStoreMetrics.EventProcessor(name, containerId);
             this.closed = new AtomicBoolean(false);
             this.failedIteration = new AtomicBoolean(false);
@@ -379,7 +358,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         public CompletableFuture<Void> doRun() {
             // An EventProcessor iteration is made of the following stages:
             // 1. Async read of data available in the internal Segment (up to 2 * ProcessorEventSerializer.MAX_TOTAL_EVENT_SIZE
-            // bytes).
+            // bytes). Also, report the current outstanding bytes in the internal Segment.
             // 2. Deserialize the read data up to exhaust it or get getMaxItemsAtOnce() events.
             // 3. The collected results are passed to the handler function in EventProcessor for execution.
             // 4. If the handler function has been successfully executed, truncate the internal Segment of the EventProcessor
@@ -445,7 +424,10 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
          */
         private CompletableFuture<EventsReadAndTruncationLength> readEvents() {
             return CompletableFuture.supplyAsync(() -> {
-                                        int readLength = (int) Math.min(getOutstandingBytes(), 2 * ProcessorEventData.MAX_EVENT_SIZE);
+                                        // Report current outstanding bytes and read the available data.
+                                        long outStandingBytes = getOutstandingBytes();
+                                        SegmentStoreMetrics.outstandingEventProcessorBytes(this.name, containerId, outStandingBytes);
+                                        int readLength = (int) Math.min(outStandingBytes, 2 * ProcessorEventData.MAX_EVENT_SIZE);
                                         return this.segment.read(this.segmentStartOffset.get(), readLength, this.containerOperationTimeout);
                                     }, this.executor)
                                     .thenCompose(rr -> AsyncReadResultProcessor.processAll(rr, this.executor, this.containerOperationTimeout))
@@ -494,7 +476,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                                .thenAccept(v -> {
                                    // Update the startSegmentOffset after truncation.
                                    this.segmentStartOffset.addAndGet(readResult.getTruncationLength());
-                                   this.lastIterationLatency.set(iterationTime.getElapsedMillis());
+                                   // Report latency metrics upon complete processing iteration.
+                                   this.metrics.batchProcessingLatency(iterationTime.getElapsedMillis());
                                });
         }
 
