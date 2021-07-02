@@ -65,6 +65,8 @@ public interface RequestProcessor {
 
     void updateSegmentPolicy(UpdateSegmentPolicy updateSegmentPolicy);
 
+    void getTableSegmentInfo(WireCommands.GetTableSegmentInfo getInfo);
+
     void createTableSegment(CreateTableSegment createTableSegment);
 
     void deleteTableSegment(DeleteTableSegment deleteSegment);

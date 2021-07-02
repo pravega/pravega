@@ -283,6 +283,7 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
                         .startOffset(m.getStartOffset())
                         .type(m.getType())
                         .entryCount(entryCount)
+                        .keyLength(getSegmentKeyLength(m))
                         .build());
     }
 

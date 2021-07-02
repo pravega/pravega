@@ -52,13 +52,17 @@ public final class TableSegmentInfo {
      */
     private final long entryCount;
     /**
+     * Gets the Key Length. 0 means variable key length; any non-zero (positive) indicates a Fixed Key Length Table Segment.
+     */
+    private final int keyLength;
+    /**
      * The {@link SegmentType} for the segment.
      */
     private final SegmentType type;
 
     @Override
     public String toString() {
-        return String.format("Name = %s, Entries = %s, StartOffset = %d, Length = %d, Type = %s",
-                getName(), getEntryCount(), getStartOffset(), getLength(), getType());
+        return String.format("Name = %s, Entries = %s, StartOffset = %d, Length = %d, Type = %s, KeyLength = %s",
+                getName(), getEntryCount(), getStartOffset(), getLength(), getType(), getKeyLength());
     }
 }

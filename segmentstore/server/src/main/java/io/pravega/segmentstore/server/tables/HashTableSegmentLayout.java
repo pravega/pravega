@@ -233,6 +233,7 @@ class HashTableSegmentLayout extends TableSegmentLayout {
                 .startOffset(m.getStartOffset())
                 .type(m.getType())
                 .entryCount(this.keyIndex.getUniqueEntryCount(m))
+                .keyLength(0) // Variable key length.
                 .build());
     }
 

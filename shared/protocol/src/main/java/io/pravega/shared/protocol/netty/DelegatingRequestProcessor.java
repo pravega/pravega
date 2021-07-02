@@ -15,12 +15,12 @@
  */
 package io.pravega.shared.protocol.netty;
 
-import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
+import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
@@ -99,6 +99,11 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     @Override
     public void keepAlive(KeepAlive keepAlive) {
         getNextRequestProcessor().keepAlive(keepAlive);
+    }
+
+    @Override
+    public void getTableSegmentInfo(WireCommands.GetTableSegmentInfo request) {
+        getNextRequestProcessor().getTableSegmentInfo(request);
     }
 
     @Override

@@ -578,6 +578,25 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
+    public void getTableSegmentInfo(WireCommands.GetTableSegmentInfo getInfo) {
+        final String operation = "getTableSegmentInfo";
+
+        if (!verifyToken(getInfo.getSegmentName(), getInfo.getRequestId(), getInfo.getDelegationToken(), operation)) {
+            return;
+        }
+
+        val timer = new Timer();
+        log.debug(getInfo.getRequestId(), "Get Table Segment Info {}.", getInfo.getSegmentName());
+        tableStore.getInfo(getInfo.getSegmentName(), TIMEOUT)
+                .thenAccept(info -> {
+                    connection.send(new WireCommands.TableSegmentInfo(getInfo.getRequestId(), getInfo.getSegmentName(),
+                            info.getStartOffset(), info.getLength(), info.getEntryCount(), info.getKeyLength()));
+                    this.tableStatsRecorder.getInfo(getInfo.getSegmentName(), timer.getElapsed());
+                })
+                .exceptionally(e -> handleException(getInfo.getRequestId(), getInfo.getSegmentName(), operation, e));
+    }
+
+    @Override
     public void createTableSegment(final CreateTableSegment createTableSegment) {
         final String operation = "createTableSegment";
 

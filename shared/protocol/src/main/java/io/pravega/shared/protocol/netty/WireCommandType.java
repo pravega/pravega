@@ -85,6 +85,8 @@ public enum WireCommandType {
     AUTH_TOKEN_CHECK_FAILED(60, WireCommands.AuthTokenCheckFailed::readFrom),
     ERROR_MESSAGE(61, WireCommands.ErrorMessage::readFrom),
 
+    GET_TABLE_SEGMENT_INFO(68, WireCommands.GetTableSegmentInfo::readFrom),
+    TABLE_SEGMENT_INFO(69, WireCommands.TableSegmentInfo::readFrom),
     CREATE_TABLE_SEGMENT(70, WireCommands.CreateTableSegment::readFrom),
     DELETE_TABLE_SEGMENT(71, WireCommands.DeleteTableSegment::readFrom),
     UPDATE_TABLE_ENTRIES(74, WireCommands.UpdateTableEntries::readFrom),

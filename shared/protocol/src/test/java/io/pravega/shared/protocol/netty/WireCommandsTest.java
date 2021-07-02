@@ -603,6 +603,16 @@ public class WireCommandsTest extends LeakDetectorTestSuite {
     }
 
     @Test
+    public void testGetTableSegmentInfo() throws IOException {
+        testCommand(new WireCommands.GetTableSegmentInfo(l, testString1, ""));
+    }
+
+    @Test
+    public void testTableSegmentInfo() throws IOException {
+        testCommand(new WireCommands.TableSegmentInfo(l, testString1, l + 1, l + 2, 3, 4));
+    }
+
+    @Test
     public void testCreateTableSegment() throws IOException {
         testCommand(new WireCommands.CreateTableSegment(l, testString1, true, 16, ""));
     }

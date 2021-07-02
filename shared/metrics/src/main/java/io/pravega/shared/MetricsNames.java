@@ -94,6 +94,7 @@ public final class MetricsNames {
     public static final String TABLE_SEGMENT_GET_LATENCY = PREFIX + "segmentstore.tablesegment.get_latency_ms";                               // Histogram
     public static final String TABLE_SEGMENT_ITERATE_KEYS_LATENCY = PREFIX + "segmentstore.tablesegment.iterate_keys_latency_ms";             // Histogram
     public static final String TABLE_SEGMENT_ITERATE_ENTRIES_LATENCY = PREFIX + "segmentstore.tablesegment.iterate_entries_latency_ms";       // Histogram
+    public static final String TABLE_SEGMENT_GET_INFO_LATENCY = PREFIX + "segmentstore.tablesegment.get_info_latency_ms";                     // Histogram
 
     public static final String TABLE_SEGMENT_UPDATE = PREFIX + "segmentstore.tablesegment.update";                         // Counter and Per-segment Counter
     public static final String TABLE_SEGMENT_UPDATE_CONDITIONAL = PREFIX + "segmentstore.tablesegment.update_conditional"; // Counter and Per-segment Counter
@@ -102,6 +103,7 @@ public final class MetricsNames {
     public static final String TABLE_SEGMENT_GET = PREFIX + "segmentstore.tablesegment.get";                               // Counter and Per-segment Counter
     public static final String TABLE_SEGMENT_ITERATE_KEYS = PREFIX + "segmentstore.tablesegment.iterate_keys";             // Counter and Per-segment Counter
     public static final String TABLE_SEGMENT_ITERATE_ENTRIES = PREFIX + "segmentstore.tablesegment.iterate_entries";       // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_GET_INFO = PREFIX + "segmentstore.tablesegment.get_info";                     // Counter and Per-segment Counter
 
     // Storage stats
     public static final String STORAGE_READ_LATENCY = PREFIX + "segmentstore.storage.read_latency_ms";     // Histogram
