@@ -16,6 +16,7 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.server.SegmentOperation;
 import java.util.Collection;
@@ -29,7 +30,7 @@ public interface AttributeUpdaterOperation extends SegmentOperation {
      *
      * @return A Collection of Attribute updates, or null if no updates are available.
      */
-    Collection<AttributeUpdate> getAttributeUpdates();
+    AttributeUpdateCollection getAttributeUpdates();
 
     /**
      * Gets a value indicating whether all {@link AttributeUpdate}s in {@link #getAttributeUpdates()} are Core Attributes.

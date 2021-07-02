@@ -302,6 +302,20 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void getKeyValueTableConfiguration(KeyValueTableInfo request, StreamObserver<Controller.KeyValueTableConfigResponse> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(),
+                GET_KEY_VALUE_TABLE_CONFIGURATION, request.getScope(), request.getKvtName());
+
+        log.info(requestTag.getRequestId(), "{} called for {}/{}.", GET_KEY_VALUE_TABLE_CONFIGURATION,
+                request.getScope(), request.getKvtName());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                authorizationResource.ofKeyValueTableInScope(request.getScope(), request.getKvtName()),
+                AuthHandler.Permissions.READ),
+                delegationToken -> controllerService.getKeyValueTableConfiguration(request.getScope(), request.getKvtName(), requestTag.getRequestId()),
+                responseObserver, requestTag);
+    }
+
+    @Override
     public void deleteKeyValueTable(KeyValueTableInfo request, StreamObserver<DeleteKVTableStatus> responseObserver) {
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.nextLong(), 
                 DELETE_KEY_VALUE_TABLE, request.getScope(), request.getKvtName());

@@ -27,11 +27,15 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.TypedProperties;
+import io.pravega.segmentstore.contracts.AttributeId;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateCollection;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.DynamicAttributeUpdate;
+import io.pravega.segmentstore.contracts.DynamicAttributeValue;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
@@ -71,6 +75,7 @@ import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
+import io.pravega.segmentstore.server.logs.AttributeIdLengthMismatchException;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
@@ -163,7 +168,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * Auto-generated attributes which are not set externally but maintained internally. To ease our testing, we will
      * exclude these from all our checks.
      */
-    private static final Collection<UUID> AUTO_ATTRIBUTES = Collections.unmodifiableSet(
+    private static final Collection<AttributeId> AUTO_ATTRIBUTES = Collections.unmodifiableSet(
             Sets.newHashSet(Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER, Attributes.ATTRIBUTE_SEGMENT_PERSIST_SEQ_NO, Attributes.ATTRIBUTE_SEGMENT_TYPE));
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
@@ -255,11 +260,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testSegmentRegularOperations() throws Exception {
-        final UUID attributeAccumulate = UUID.randomUUID();
-        final UUID attributeReplace = UUID.randomUUID();
-        final UUID attributeReplaceIfGreater = UUID.randomUUID();
-        final UUID attributeReplaceIfEquals = UUID.randomUUID();
-        final UUID attributeNoUpdate = UUID.randomUUID();
+        final AttributeId attributeAccumulate = AttributeId.randomUUID();
+        final AttributeId attributeReplace = AttributeId.randomUUID();
+        final AttributeId attributeReplaceIfGreater = AttributeId.randomUUID();
+        final AttributeId attributeReplaceIfEquals = AttributeId.randomUUID();
+        final AttributeId attributeNoUpdate = AttributeId.randomUUID();
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
 
         @Cleanup
@@ -280,7 +285,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (String segmentName : segmentNames) {
-                Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
+                val attributeUpdates = new AttributeUpdateCollection();
                 attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
                 attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
                 attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, i + 1));
@@ -304,11 +309,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             // Record a one-off update.
             opFutures.add(context.container.updateAttributes(
                     segmentName,
-                    Collections.singleton(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, expectedAttributeValue)),
+                    AttributeUpdateCollection.from(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, expectedAttributeValue)),
                     TIMEOUT));
 
             for (int i = 0; i < ATTRIBUTE_UPDATES_PER_SEGMENT; i++) {
-                Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
+                val attributeUpdates = new AttributeUpdateCollection();
                 attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
                 attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, APPENDS_PER_SEGMENT + i + 1));
                 attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, APPENDS_PER_SEGMENT + i + 1));
@@ -427,7 +432,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testForceFlush() throws Exception {
-        final UUID attributeReplace = UUID.randomUUID();
+        final AttributeId attributeReplace = AttributeId.randomUUID();
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
         final int entriesPerSegment = 10;
 
@@ -456,7 +461,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String segmentName = getSegmentName(i) + "_Table";
             tableSegmentNames.add(segmentName);
-            val type = SegmentType.builder(getSegmentType(segmentName)).sortedTableSegment().build();
+            val type = SegmentType.builder(getSegmentType(segmentName)).tableSegment().build();
             opFutures.add(tableStore.createSegment(segmentName, type, TIMEOUT));
         }
 
@@ -469,7 +474,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
         for (String segmentName : segmentNames) {
             for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
-                val attributeUpdates = Collections.singletonList(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
+                val attributeUpdates = AttributeUpdateCollection.from(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, i + 1));
                 val appendData = getAppendData(segmentName, i);
                 long expectedLength = lengths.getOrDefault(segmentName, 0L) + appendData.getLength();
                 val append = (i % 2 == 0) ? container.append(segmentName, appendData, attributeUpdates, TIMEOUT) :
@@ -480,8 +485,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
 
             for (int i = 0; i < ATTRIBUTE_UPDATES_PER_SEGMENT; i++) {
-                Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
-                attributeUpdates.add(new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, APPENDS_PER_SEGMENT + i + 1));
+                val attributeUpdates = AttributeUpdateCollection.from(
+                        new AttributeUpdate(attributeReplace, AttributeUpdateType.Replace, APPENDS_PER_SEGMENT + i + 1));
                 opFutures.add(container.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
             }
         }
@@ -555,12 +560,18 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testAttributes() throws Exception {
-        final List<UUID> extendedAttributes = Arrays.asList(UUID.randomUUID(), UUID.randomUUID());
-        final UUID coreAttribute = Attributes.EVENT_COUNT;
-        final List<UUID> allAttributes = Stream.concat(extendedAttributes.stream(), Stream.of(coreAttribute)).collect(Collectors.toList());
+        final AttributeId coreAttribute = Attributes.EVENT_COUNT;
+        final int variableAttributeIdLength = 4;
+        final List<AttributeId> extendedAttributesUUID = Arrays.asList(AttributeId.randomUUID(), AttributeId.randomUUID());
+        final List<AttributeId> extendedAttributesVariable = Arrays.asList(AttributeId.random(variableAttributeIdLength), AttributeId.random(variableAttributeIdLength));
+        final List<AttributeId> allAttributesWithUUID = Stream.concat(extendedAttributesUUID.stream(), Stream.of(coreAttribute)).collect(Collectors.toList());
+        final List<AttributeId> allAttributesWithVariable = Stream.concat(extendedAttributesVariable.stream(), Stream.of(coreAttribute)).collect(Collectors.toList());
+        final AttributeId segmentLengthAttributeUUID = AttributeId.randomUUID();
+        final AttributeId segmentLengthAttributeVariable = AttributeId.random(variableAttributeIdLength);
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
         final TestContainerConfig containerConfig = new TestContainerConfig();
         containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+        containerConfig.setMaxCachedExtendedAttributeCount(SEGMENT_COUNT * allAttributesWithUUID.size());
 
         @Cleanup
         TestContext context = createContext();
@@ -572,35 +583,67 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         localContainer.startAsync().awaitRunning();
 
         // 1. Create the StreamSegments.
-        ArrayList<String> segmentNames = createSegments(localContainer);
+        val segmentNames = IntStream.range(0, SEGMENT_COUNT).boxed()
+                .collect(Collectors.toMap(StreamSegmentContainerTests::getSegmentName, i -> i % 2 == 0 ? variableAttributeIdLength : 0));
+        ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+        for (val sn : segmentNames.entrySet()) {
+            opFutures.add(localContainer.createStreamSegment(sn.getKey(), SegmentType.STREAM_SEGMENT, AttributeUpdateCollection.from(new AttributeUpdate(Attributes.ATTRIBUTE_ID_LENGTH, AttributeUpdateType.None, sn.getValue())), TIMEOUT));
+        }
+        Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Predicate<Map.Entry<String, Integer>> isUUIDOnly = e -> e.getValue() == 0;
 
         // 2. Add some appends.
-        ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
-        for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
-            for (String segmentName : segmentNames) {
-                Collection<AttributeUpdate> attributeUpdates = allAttributes
+        for (val sn : segmentNames.entrySet()) {
+            boolean isUUID = isUUIDOnly.test(sn);
+            for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
+                AttributeUpdateCollection attributeUpdates = (isUUID ? allAttributesWithUUID : allAttributesWithVariable)
                         .stream()
                         .map(attributeId -> new AttributeUpdate(attributeId, AttributeUpdateType.Accumulate, 1))
-                        .collect(Collectors.toList());
-                opFutures.add(Futures.toVoid(localContainer.append(segmentName, getAppendData(segmentName, i), attributeUpdates, TIMEOUT)));
+                        .collect(Collectors.toCollection(AttributeUpdateCollection::new));
+                opFutures.add(Futures.toVoid(localContainer.append(sn.getKey(), getAppendData(sn.getKey(), i), attributeUpdates, TIMEOUT)));
             }
         }
 
         // 2.1 Update some of the attributes.
-        for (String segmentName : segmentNames) {
+        for (val sn : segmentNames.entrySet()) {
+            boolean isUUID = isUUIDOnly.test(sn);
             for (int i = 0; i < ATTRIBUTE_UPDATES_PER_SEGMENT; i++) {
-                Collection<AttributeUpdate> attributeUpdates = allAttributes
+                AttributeUpdateCollection attributeUpdates = (isUUID ? allAttributesWithUUID : allAttributesWithVariable)
                         .stream()
                         .map(attributeId -> new AttributeUpdate(attributeId, AttributeUpdateType.Accumulate, 1))
-                        .collect(Collectors.toList());
-                opFutures.add(localContainer.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
+                        .collect(Collectors.toCollection(AttributeUpdateCollection::new));
+                opFutures.add(localContainer.updateAttributes(sn.getKey(), attributeUpdates, TIMEOUT));
             }
+
+            // Verify that we are not allowed to update attributes of the wrong type.
+            val badUpdate = new AttributeUpdate(isUUID ? AttributeId.random(variableAttributeIdLength) : AttributeId.randomUUID(),
+                    AttributeUpdateType.Accumulate, 1);
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "updateAttributes allowed updating attributes with wrong type and/or length.",
+                    () -> localContainer.updateAttributes(sn.getKey(), AttributeUpdateCollection.from(badUpdate), TIMEOUT),
+                    ex -> ex instanceof AttributeIdLengthMismatchException);
         }
 
         Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
+        // 2.2 Dynamic attributes.
+        for (val sn : segmentNames.entrySet()) {
+            boolean isUUID = isUUIDOnly.test(sn);
+
+            val dynamicId = isUUID ? segmentLengthAttributeUUID : segmentLengthAttributeVariable;
+            val dynamicAttributes = AttributeUpdateCollection.from(new DynamicAttributeUpdate(dynamicId, AttributeUpdateType.Replace, DynamicAttributeValue.segmentLength(10)));
+            val appendData = getAppendData(sn.getKey(), 1000);
+            val lastOffset = localContainer.append(sn.getKey(), appendData, dynamicAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            val expectedValue = lastOffset - appendData.getLength() + 10;
+
+            Assert.assertEquals(expectedValue, (long) localContainer.getAttributes(sn.getKey(), Collections.singleton(dynamicId), false, TIMEOUT)
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).get(dynamicId));
+        }
+
         // 3. getSegmentInfo
-        for (String segmentName : segmentNames) {
+        for (val sn : segmentNames.entrySet()) {
+            val segmentName = sn.getKey();
+            val allAttributes = isUUIDOnly.test(sn) ? allAttributesWithUUID : allAttributesWithVariable;
             val allAttributeValues = localContainer.getAttributes(segmentName, allAttributes, false, TIMEOUT).join();
             Assert.assertEquals("Unexpected number of attributes retrieved via getAttributes().", allAttributes.size(), allAttributeValues.size());
 
@@ -612,12 +655,21 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 Assert.assertEquals("Unexpected value for attribute " + attributeId + " via getAttributes() for segment " + segmentName,
                         expectedAttributeValue, (long) allAttributeValues.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
             }
+
+            // Verify we can't request wrong lengths/types.
+            val badId = isUUIDOnly.test(sn) ? AttributeId.random(variableAttributeIdLength) : AttributeId.randomUUID();
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "getAttributes allowed getting attributes with wrong type and/or length.",
+                    () -> localContainer.getAttributes(segmentName, Collections.singleton(badId), true, TIMEOUT),
+                    ex -> ex instanceof IllegalArgumentException);
         }
 
         // Force these segments out of memory, so that we may verify that extended attributes are still recoverable.
-        localContainer.triggerMetadataCleanup(segmentNames).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        localContainer.triggerMetadataCleanup(segmentNames.keySet()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        for (String segmentName : segmentNames) {
+        for (val sn : segmentNames.entrySet()) {
+            val segmentName = sn.getKey();
+            val allAttributes = isUUIDOnly.test(sn) ? allAttributesWithUUID : allAttributesWithVariable;
             val allAttributeValues = localContainer.getAttributes(segmentName, allAttributes, false, TIMEOUT).join();
             Assert.assertEquals("Unexpected number of attributes retrieved via getAttributes() after recovery for segment " + segmentName,
                     allAttributes.size(), allAttributeValues.size());
@@ -640,12 +692,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             // Now instruct the Container to cache missing values (do it a few times so we make sure it's idempotent).
             // Also introduce some random new attribute to fetch. We want to make sure we can properly handle caching
             // missing attribute values.
-            val missingAttributeId = UUID.randomUUID();
-            val attributesToCache = new ArrayList<UUID>(allAttributes);
+            val missingAttributeId = isUUIDOnly.test(sn) ? AttributeId.randomUUID() : AttributeId.random(variableAttributeIdLength);
+            val attributesToCache = new ArrayList<>(allAttributes);
             attributesToCache.add(missingAttributeId);
-            val attributesToCacheValues = new HashMap<UUID, Long>(allAttributeValues);
+            val attributesToCacheValues = new HashMap<>(allAttributeValues);
             attributesToCacheValues.put(missingAttributeId, Attributes.NULL_ATTRIBUTE_VALUE);
-            Map<UUID, Long> allAttributeValuesWithCache;
+            Map<AttributeId, Long> allAttributeValuesWithCache;
             for (int i = 0; i < 2; i++) {
                 allAttributeValuesWithCache = localContainer.getAttributes(segmentName, attributesToCache, true, TIMEOUT).join();
                 AssertExtensions.assertMapEquals("Inconsistent results from getAttributes(cache=true, attempt=" + i + ").",
@@ -662,22 +714,25 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         // 4. Make an update, then immediately seal the segment, then verify the update updated the root pointer.
-        UUID attr = Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER;
+        AttributeId attr = Attributes.ATTRIBUTE_SEGMENT_ROOT_POINTER;
         val oldRootPointers = new HashMap<String, Long>();
-        for (String segmentName : segmentNames) {
+        for (val sn : segmentNames.entrySet()) {
+            val segmentName = sn.getKey();
+            val newAttributeId = isUUIDOnly.test(sn) ? AttributeId.randomUUID() : AttributeId.random(variableAttributeIdLength);
+
             // Get the old root pointer, then make a random attribute update, then immediately seal the segment.
             localContainer.getAttributes(segmentName, Collections.singleton(attr), false, TIMEOUT)
                     .thenCompose(values -> {
                         oldRootPointers.put(segmentName, values.get(attr));
                         return CompletableFuture.allOf(
-                                localContainer.updateAttributes(segmentName, Collections.singleton(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.Replace, 1L)), TIMEOUT),
+                                localContainer.updateAttributes(segmentName, AttributeUpdateCollection.from(new AttributeUpdate(newAttributeId, AttributeUpdateType.Replace, 1L)), TIMEOUT),
                                 localContainer.sealStreamSegment(segmentName, TIMEOUT));
                     }).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
 
         // We don't know the right value for Root Pointer, but we want to make sure it was increased (after the seal),
         // which indicates the StorageWriter was able to successfully record it after its final Attribute Index update.
-        for (String segmentName : segmentNames) {
+        for (String segmentName : segmentNames.keySet()) {
             Long oldValue = oldRootPointers.get(segmentName);
             TestUtils.await(() -> {
                         val newVal = localContainer.getAttributes(segmentName, Collections.singleton(attr), false, TIMEOUT).join().get(attr);
@@ -686,7 +741,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     10,
                     TIMEOUT.toMillis());
         }
-        waitForSegmentsInStorage(segmentNames, localContainer, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        waitForSegmentsInStorage(segmentNames.keySet(), localContainer, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         localContainer.stopAsync().awaitTerminated();
     }
 
@@ -695,8 +750,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testAttributeIterators() throws Exception {
-        final List<UUID> sortedAttributes = IntStream.range(0, 100).mapToObj(i -> new UUID(i, i)).sorted().collect(Collectors.toList());
-        final Map<UUID, Long> expectedValues = sortedAttributes.stream().collect(Collectors.toMap(id -> id, UUID::getMostSignificantBits));
+        final List<AttributeId> sortedAttributes = IntStream.range(0, 100).mapToObj(i -> AttributeId.uuid(i, i)).sorted().collect(Collectors.toList());
+        final Map<AttributeId, Long> expectedValues = sortedAttributes.stream().collect(Collectors.toMap(id -> id, id -> id.getBitGroup(0)));
         final TestContainerConfig containerConfig = new TestContainerConfig();
         containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
 
@@ -715,10 +770,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val segment1 = localContainer.forSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 2. Set some initial attribute values and verify in-memory iterator.
-        Collection<AttributeUpdate> attributeUpdates = sortedAttributes
+        AttributeUpdateCollection attributeUpdates = sortedAttributes
                 .stream()
                 .map(attributeId -> new AttributeUpdate(attributeId, AttributeUpdateType.Replace, expectedValues.get(attributeId)))
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(AttributeUpdateCollection::new));
         segment1.updateAttributes(attributeUpdates, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkAttributeIterators(segment1, sortedAttributes, expectedValues);
 
@@ -730,7 +785,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // 4. Update some values, and verify mixed iterator.
         attributeUpdates.clear();
         for (int i = 0; i < sortedAttributes.size(); i += 3) {
-            UUID attributeId = sortedAttributes.get(i);
+            AttributeId attributeId = sortedAttributes.get(i);
             expectedValues.put(attributeId, expectedValues.get(attributeId) + 1);
             attributeUpdates.add(new AttributeUpdate(attributeId, AttributeUpdateType.Replace, expectedValues.get(attributeId)));
         }
@@ -746,9 +801,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testExtendedAttributesConditionalUpdates() throws Exception {
-        final UUID ea1 = new UUID(0, 1);
-        final UUID ea2 = new UUID(0, 2);
-        final List<UUID> allAttributes = Stream.of(ea1, ea2).collect(Collectors.toList());
+        final AttributeId ea1 = AttributeId.uuid(0, 1);
+        final AttributeId ea2 = AttributeId.uuid(0, 2);
+        final List<AttributeId> allAttributes = Stream.of(ea1, ea2).collect(Collectors.toList());
 
         // We set a longer Segment Expiration time, since this test executes more operations than the others.
         final TestContainerConfig containerConfig = new TestContainerConfig();
@@ -771,10 +826,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // 2. Update some of the attributes.
         expectedAttributeValue.set(1);
         for (String segmentName : segmentNames) {
-            Collection<AttributeUpdate> attributeUpdates = allAttributes
+            AttributeUpdateCollection attributeUpdates = allAttributes
                     .stream()
                     .map(attributeId -> new AttributeUpdate(attributeId, AttributeUpdateType.Accumulate, 1))
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toCollection(AttributeUpdateCollection::new));
             opFutures.add(localContainer.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
         }
 
@@ -794,20 +849,20 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 AssertExtensions.assertSuppliedFutureThrows(
                         "Conditional append succeeded with incorrect compare value.",
                         () -> localContainer.append(segmentName, getAppendData(segmentName, 0),
-                                Collections.singleton(new AttributeUpdate(ea1, AttributeUpdateType.ReplaceIfEquals, set, compare - 1)), TIMEOUT),
+                                AttributeUpdateCollection.from(new AttributeUpdate(ea1, AttributeUpdateType.ReplaceIfEquals, set, compare - 1)), TIMEOUT),
                         ex -> (ex instanceof BadAttributeUpdateException) && !((BadAttributeUpdateException) ex).isPreviousValueMissing());
                 AssertExtensions.assertSuppliedFutureThrows(
                         "Conditional update-attributes succeeded with incorrect compare value.",
                         () -> localContainer.updateAttributes(segmentName,
-                                Collections.singleton(new AttributeUpdate(ea2, AttributeUpdateType.ReplaceIfEquals, set, compare - 1)), TIMEOUT),
+                                AttributeUpdateCollection.from(new AttributeUpdate(ea2, AttributeUpdateType.ReplaceIfEquals, set, compare - 1)), TIMEOUT),
                         ex -> (ex instanceof BadAttributeUpdateException) && !((BadAttributeUpdateException) ex).isPreviousValueMissing());
 
             }
 
             opFutures.add(Futures.toVoid(localContainer.append(segmentName, getAppendData(segmentName, 0),
-                    Collections.singleton(new AttributeUpdate(ea1, AttributeUpdateType.ReplaceIfEquals, set, compare)), TIMEOUT)));
+                    AttributeUpdateCollection.from(new AttributeUpdate(ea1, AttributeUpdateType.ReplaceIfEquals, set, compare)), TIMEOUT)));
             opFutures.add(localContainer.updateAttributes(segmentName,
-                    Collections.singleton(new AttributeUpdate(ea2, AttributeUpdateType.ReplaceIfEquals, set, compare)), TIMEOUT));
+                    AttributeUpdateCollection.from(new AttributeUpdate(ea2, AttributeUpdateType.ReplaceIfEquals, set, compare)), TIMEOUT));
             badUpdate = !badUpdate;
         }
 
@@ -838,7 +893,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testConcurrentSegmentActivation() throws Exception {
-        final UUID attributeAccumulate = UUID.randomUUID();
+        final AttributeId attributeAccumulate = AttributeId.randomUUID();
         final long expectedAttributeValue = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
         final int appendLength = 10;
 
@@ -859,7 +914,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             final byte fillValue = (byte) i;
             submitFutures.add(testExecutor.submit(() -> {
-                Collection<AttributeUpdate> attributeUpdates = Collections.singleton(
+                val attributeUpdates = AttributeUpdateCollection.from(
                         new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
                 byte[] appendData = new byte[appendLength];
                 Arrays.fill(appendData, (byte) (fillValue + 1));
@@ -871,8 +926,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // 2.1 Update the attribute.
         for (int i = 0; i < ATTRIBUTE_UPDATES_PER_SEGMENT; i++) {
             submitFutures.add(testExecutor.submit(() -> {
-                Collection<AttributeUpdate> attributeUpdates = new ArrayList<>();
-                attributeUpdates.add(new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
+                AttributeUpdateCollection attributeUpdates = AttributeUpdateCollection.from(
+                        new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
                 opFutures.add(context.container.updateAttributes(segmentName, attributeUpdates, TIMEOUT));
             }));
         }
@@ -1401,9 +1456,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     @Test
     public void testMetadataCleanup() throws Exception {
         final String segmentName = "segment";
-        final UUID[] attributes = new UUID[]{Attributes.CREATION_TIME, Attributes.EVENT_COUNT, UUID.randomUUID()};
+        final AttributeId[] attributes = new AttributeId[]{Attributes.CREATION_TIME, Attributes.EVENT_COUNT, AttributeId.randomUUID()};
         final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
-        Map<UUID, Long> expectedAttributes = new HashMap<>();
+        Map<AttributeId, Long> expectedAttributes = new HashMap<>();
 
         final TestContainerConfig containerConfig = new TestContainerConfig();
         containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
@@ -1617,8 +1672,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     @Test
     public void testAttributeCleanup() throws Exception {
         final String segmentName = "segment";
-        final UUID[] attributes = new UUID[]{Attributes.EVENT_COUNT, new UUID(0, 1), new UUID(0, 2), new UUID(0, 3)};
-        Map<UUID, Long> allAttributes = new HashMap<>();
+        final AttributeId[] attributes = new AttributeId[]{Attributes.EVENT_COUNT, AttributeId.uuid(0, 1), AttributeId.uuid(0, 2), AttributeId.uuid(0, 3)};
+        Map<AttributeId, Long> allAttributes = new HashMap<>();
 
         final TestContainerConfig containerConfig = new TestContainerConfig();
         containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(250));
@@ -1640,7 +1695,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val appendAttributes = createAttributeUpdates(attributes);
         applyAttributes(appendAttributes, allAttributes);
         for (val au : appendAttributes) {
-            localContainer.updateAttributes(segmentName, Collections.singletonList(au), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            localContainer.updateAttributes(segmentName, AttributeUpdateCollection.from(au), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
         SegmentProperties sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after initial updateAttributes() call.", allAttributes, sp, AUTO_ATTRIBUTES);
@@ -1903,9 +1958,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testForSegment() {
-        UUID attributeId1 = UUID.randomUUID();
-        UUID attributeId2 = UUID.randomUUID();
-        UUID attributeId3 = UUID.randomUUID();
+        AttributeId attributeId1 = AttributeId.randomUUID();
+        AttributeId attributeId2 = AttributeId.randomUUID();
+        AttributeId attributeId3 = AttributeId.randomUUID();
         @Cleanup
         val context = createContext();
         context.container.startAsync().awaitRunning();
@@ -1918,9 +1973,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             byte[] appendData = ("Append_" + segmentName).getBytes();
 
             val dsa = context.container.forSegment(segmentName, TIMEOUT).join();
-            dsa.append(new ByteArraySegment(appendData), Collections.singleton(new AttributeUpdate(attributeId1, AttributeUpdateType.None, 1L)), TIMEOUT).join();
-            dsa.updateAttributes(Collections.singleton(new AttributeUpdate(attributeId2, AttributeUpdateType.None, 2L)), TIMEOUT).join();
-            dsa.append(new ByteArraySegment(appendData), Collections.singleton(new AttributeUpdate(attributeId3, AttributeUpdateType.None, 3L)), dsa.getInfo().getLength(), TIMEOUT).join();
+            dsa.append(new ByteArraySegment(appendData), AttributeUpdateCollection.from(new AttributeUpdate(attributeId1, AttributeUpdateType.None, 1L)), TIMEOUT).join();
+            dsa.updateAttributes(AttributeUpdateCollection.from(new AttributeUpdate(attributeId2, AttributeUpdateType.None, 2L)), TIMEOUT).join();
+            dsa.append(new ByteArraySegment(appendData), AttributeUpdateCollection.from(new AttributeUpdate(attributeId3, AttributeUpdateType.None, 3L)), dsa.getInfo().getLength(), TIMEOUT).join();
             dsa.seal(TIMEOUT).join();
             dsa.truncate(1, TIMEOUT).join();
 
@@ -1934,6 +1989,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected attribute 2.", 2L, (long) info.getAttributes().get(attributeId2));
             Assert.assertEquals("Unexpected attribute 2.", 3L, (long) info.getAttributes().get(attributeId3));
             Assert.assertTrue("Unexpected isSealed.", info.isSealed());
+            Assert.assertEquals(-1L, (long) dsa.getExtendedAttributeCount(TIMEOUT).join()); // Not expecting any in this case as they are disabled for this segment.
 
             // Check written data.
             byte[] readBuffer = new byte[appendData.length - 1];
@@ -1971,7 +2027,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val s1 = container.forSegment(segmentName, OperationPriority.Critical, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val futures = new ArrayList<CompletableFuture<Void>>();
         futures.add(Futures.toVoid(s1.append(new ByteArraySegment(new byte[1]), null, TIMEOUT)));
-        futures.add(s1.updateAttributes(Collections.singletonList(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.Replace, 1)), TIMEOUT));
+        futures.add(s1.updateAttributes(AttributeUpdateCollection.from(new AttributeUpdate(AttributeId.randomUUID(), AttributeUpdateType.Replace, 1)), TIMEOUT));
         futures.add(s1.truncate(1, TIMEOUT));
         futures.add(Futures.toVoid(s1.seal(TIMEOUT)));
         Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -2206,19 +2262,19 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 expectedCount + ignoredSegments, initialActiveSegments.size());
     }
 
-    private void checkAttributeIterators(DirectSegmentAccess segment, List<UUID> sortedAttributes, Map<UUID, Long> allExpectedValues) throws Exception {
+    private void checkAttributeIterators(DirectSegmentAccess segment, List<AttributeId> sortedAttributes, Map<AttributeId, Long> allExpectedValues) throws Exception {
         int skip = sortedAttributes.size() / 10;
         for (int i = 0; i < sortedAttributes.size() / 2; i += skip) {
-            UUID fromId = sortedAttributes.get(i);
-            UUID toId = sortedAttributes.get(sortedAttributes.size() - i - 1);
+            AttributeId fromId = sortedAttributes.get(i);
+            AttributeId toId = sortedAttributes.get(sortedAttributes.size() - i - 1);
             val expectedValues = allExpectedValues
                     .entrySet().stream()
                     .filter(e -> fromId.compareTo(e.getKey()) <= 0 && toId.compareTo(e.getKey()) >= 0)
                     .sorted(Comparator.comparing(Map.Entry::getKey))
                     .collect(Collectors.toList());
 
-            val actualValues = new ArrayList<Map.Entry<UUID, Long>>();
-            val ids = new HashSet<UUID>();
+            val actualValues = new ArrayList<Map.Entry<AttributeId, Long>>();
+            val ids = new HashSet<AttributeId>();
             val iterator = segment.attributeIterator(fromId, toId, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             iterator.forEachRemaining(batch ->
                     batch.forEach(attribute -> {
@@ -2430,13 +2486,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 StreamSegmentInformation.builder().name(segmentName).deleted(true).build());
     }
 
-    private Collection<AttributeUpdate> createAttributeUpdates(UUID[] attributes) {
+    private AttributeUpdateCollection createAttributeUpdates(AttributeId[] attributes) {
         return Arrays.stream(attributes)
-                     .map(a -> new AttributeUpdate(a, AttributeUpdateType.Replace, System.nanoTime()))
-                     .collect(Collectors.toList());
+                .map(a -> new AttributeUpdate(a, AttributeUpdateType.Replace, System.nanoTime()))
+                .collect(Collectors.toCollection(AttributeUpdateCollection::new));
     }
 
-    private void applyAttributes(Collection<AttributeUpdate> updates, Map<UUID, Long> target) {
+    private void applyAttributes(Collection<AttributeUpdate> updates, Map<AttributeId, Long> target) {
         updates.forEach(au -> target.put(au.getAttributeId(), au.getValue()));
     }
 

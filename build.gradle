@@ -394,6 +394,7 @@ project('test:testcommon') {
 project('segmentstore:contracts') {
     dependencies {
         compile project(':common')
+        compile project(':common_server')
         testCompile project(':test:testcommon')
     }
     javadoc {
@@ -776,6 +777,7 @@ project('controller') {
         // since Java 10 JAXB is not more bundled with the JRE
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+        compile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
@@ -865,6 +867,7 @@ project('cli:user') {
         compile project(':shared:protocol')
         compile project(':test:testcommon')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        compile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
         testCompile project(':test:integration')
         testCompile group: 'junit', name: 'junit', version: '4.12'
     }
