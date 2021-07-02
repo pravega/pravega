@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -50,6 +51,7 @@ import java.util.stream.IntStream;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -423,6 +425,9 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         // Wait for all these calls to complete.
         CompletableFuture.allOf(ep1, ep2, ep3).get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
 
+        // When instantiating an EventProcessor, the service should be started.
+        Assert.assertTrue(((ContainerEventProcessorImpl.EventProcessorImpl) ep1.join()).isRunning());
+
         // Ensure that all EventProcessors are the same object.
         Assert.assertTrue(ep1.join() == ep2.join());
         Assert.assertTrue(ep2.join() == ep3.join());
@@ -432,12 +437,39 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
         ep2 = eventProcessorService.forDurableQueue("testConcurrentForDurableQueue");
         ep3 = eventProcessorService.forDurableQueue("testConcurrentForDurableQueue");
 
+        // When instantiating an EventProcessor as a durable queue, the service should not be started (we just do adds).
+        Assert.assertFalse(((ContainerEventProcessorImpl.EventProcessorImpl) ep1.join()).isRunning());
+
         // Wait for all these calls to complete.
         CompletableFuture.allOf(ep1, ep2, ep3).get(TIMEOUT_FUTURE.toSeconds(), TimeUnit.SECONDS);
 
         // Ensure that all EventProcessors are the same object.
         Assert.assertTrue(ep1.join() == ep2.join());
         Assert.assertTrue(ep2.join() == ep3.join());
+    }
+
+    /**
+     * Check that if the creation of the EventProcessor takes too long, the future is completed exceptionally.
+     *
+     * @throws Exception
+     */
+    @Test(timeout = 10000)
+    public void testInitializationTimeout() throws Exception {
+        @Cleanup
+        ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(),
+                ITERATION_DELAY, Duration.ZERO, this.executorService());
+        int maxItemsProcessed = 10;
+        int maxOutstandingBytes = 4 * 1024 * 1024;
+        ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
+                maxOutstandingBytes);
+
+        // Verify that if the creation of the EventProcessor takes too long, the future completes exceptionally.
+        AssertExtensions.assertFutureThrows("Expected future exceptionally complete with TimeoutException",
+                eventProcessorService.forConsumer("testTimeoutForConsumer", l -> null, config),
+                ex -> ex instanceof TimeoutException);
+        AssertExtensions.assertFutureThrows("Expected future exceptionally complete with TimeoutException",
+                eventProcessorService.forDurableQueue("testTimeoutForDurableQueue"),
+                ex -> ex instanceof TimeoutException);
     }
 
     /**
@@ -473,13 +505,32 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Checks that closing multiple EventProcessors does not lead to {@link java.util.ConcurrentModificationException}.
+     *
+     * @throws Exception
+     */
+    @Test(timeout = 10000)
+    public void testEventProcessorCloseManyProcessors() throws Exception {
+        @Cleanup
+        ContainerEventProcessorImpl eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(),
+                ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
+        for (int i = 0; i < 1000; i++) {
+            ContainerEventProcessorImpl.EventProcessorImpl processor = mock(ContainerEventProcessorImpl.EventProcessorImpl.class);
+            final String key = String.valueOf(i);
+            doAnswer(a -> eventProcessorService.getEventProcessorMap().remove(key)).when(processor).close();
+            eventProcessorService.getEventProcessorMap().put(key, processor);
+        }
+        eventProcessorService.close();
+    }
+
+    /**
      * This test validates that read order and no event reprocessing is preserved when we have failures reading from the
      * internal Segment.
      *
      * @throws Exception
      */
     @Test(timeout = 10000)
-    public void testEventOrderWithRandomReadFailures() throws Exception {
+    public void testEventProcessorEventOrderWithRandomReadFailures() throws Exception {
         int numEvents = 1000;
         List<Integer> readEvents = new ArrayList<>();
         Consumer<DirectSegmentAccess> failOnReads = faultySegment -> when(faultySegment.read(anyLong(), anyInt(),
@@ -494,7 +545,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
      * @throws Exception
      */
     @Test(timeout = 10000)
-    public void testEventOrderWithTruncationFailures() throws Exception {
+    public void testEventProcessorEventOrderWithTruncationFailures() throws Exception {
         int numEvents = 1000;
         List<Integer> readEvents = new ArrayList<>();
         Consumer<DirectSegmentAccess> failOnTruncation = faultySegment -> when(faultySegment.truncate(anyLong(),

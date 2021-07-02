@@ -2127,7 +2127,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * @throws Exception
      */
     @Test(timeout = 10000)
-    public void testBasicContainerEventProcessor() throws Exception {
+    public void testEventProcessorBasicOperation() throws Exception {
         @Cleanup
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
@@ -2144,7 +2144,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * @throws Exception
      */
     @Test(timeout = 10000)
-    public void testContainerMaxItemsPerBatchRespected() throws Exception {
+    public void testEventProcessorMaxItemsPerBatchRespected() throws Exception {
         @Cleanup
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
@@ -2162,7 +2162,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * @throws Exception
      */
     @Test(timeout = 10000)
-    public void testFaultyHandler() throws Exception {
+    public void testEventProcessorFaultyHandler() throws Exception {
         @Cleanup
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
@@ -2180,7 +2180,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * @throws Exception
      */
     @Test(timeout = 10000)
-    public void testMultipleEventProcessors() throws Exception {
+    public void testEventProcessorMultiplePConsumers() throws Exception {
         @Cleanup
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
@@ -2216,7 +2216,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * @throws Exception
      */
     @Test(timeout = 10000)
-    public void testDurableQueueAndSwitchToConsumer() throws Exception {
+    public void testEventProcessorDurableQueueAndSwitchToConsumer() throws Exception {
         @Cleanup
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
@@ -2266,7 +2266,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * @throws Exception
      */
     @Test(timeout = 30000)
-    public void testEventRejectionOnMaxOutstanding() throws Exception {
+    public void testEventProcessorEventRejectionOnMaxOutstanding() throws Exception {
         @Cleanup
         TestContext context = createContext();
         val container = (StreamSegmentContainer) context.container;
