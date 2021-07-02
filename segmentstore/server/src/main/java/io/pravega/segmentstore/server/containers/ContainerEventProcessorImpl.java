@@ -93,7 +93,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
     private final AtomicBoolean closed;
     private final String traceObjectId;
     private final ScheduledExecutorService executor;
-    private final AtomicLong counter = new AtomicLong(0);
 
     //region Constructor
 
@@ -258,6 +257,9 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
      * removed and processing will be internally retried until processing succeeds.
      */
     static class EventProcessorImpl extends AbstractThreadPoolService implements EventProcessor {
+
+        private static final ProcessorEventData.ProcessorEventDataSerializer SERIALIZER = new ProcessorEventData.ProcessorEventDataSerializer();
+
         private final String name;
         private final int containerId;
         private final Function<List<BufferView>, CompletableFuture<Void>> handler;
@@ -271,8 +273,6 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         private final AtomicBoolean failedIteration;
         private final AtomicLong segmentStartOffset;
 
-        private final ProcessorEventData.ProcessorEventDataSerializer serializer = new ProcessorEventData.ProcessorEventDataSerializer();
-
         //region Constructor
 
         public EventProcessorImpl(@NonNull String name, int containerId, @NonNull DirectSegmentAccess segment,
@@ -280,7 +280,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                                   @NonNull EventProcessorConfig config, @NonNull Duration iterationDelay,
                                   @NonNull Duration containerOperationTimeout, @NonNull Runnable onClose,
                                   @NonNull ScheduledExecutorService executor) {
-            super(String.format("EventProcessor[%d-%s]", containerId, name), executor);
+            super(String.format("EventProcessor[%d-%s]", containerId, segment.getSegmentId()), executor);
             this.name = name;
             this.containerId = containerId;
             this.segment = segment;
@@ -312,7 +312,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             }
 
             ProcessorEventData processorEvent = ProcessorEventData.builder().data(event).build();
-            return this.segment.append(this.serializer.serialize(processorEvent), null, timeout)
+            return this.segment.append(SERIALIZER.serialize(processorEvent), null, timeout)
                           .thenApply(offset -> getOutstandingBytes());
         }
 
@@ -408,11 +408,20 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                         if (ex != null && !(Exceptions.unwrap(ex) instanceof NoDataAvailableException)) {
                             log.warn("{}: Processing iteration failed, retrying.", this.traceObjectId, ex);
                             this.failedIteration.set(true);
+                            reconcileStartOffset();
                         } else {
                             this.failedIteration.set(false);
                         }
                         return null;
                     });
+        }
+
+        /**
+         * In case of a non-expected exception, we reset the segmentStartOffset value to the real one available in the
+         * Segment's metadata.
+         */
+        private void reconcileStartOffset() {
+            this.segmentStartOffset.set(segment.getInfo().getStartOffset());
         }
 
         /**
@@ -444,7 +453,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 @Cleanup
                 BoundedInputStream input = new BoundedInputStream(inputData.getReader(), inputData.getLength());
                 while (input.getRemaining() > 0 && events.size() < this.config.getMaxItemsAtOnce()) {
-                    ProcessorEventData event = this.serializer.deserialize(input);
+                    ProcessorEventData event = SERIALIZER.deserialize(input);
                     events.add(event);
                     // Update the truncation length, which includes user data and internal VersionedSerializer metadata.
                     truncationLength = dataLength - input.getRemaining();
@@ -459,7 +468,9 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 deserializationException = ex;
             }
 
-            // Only if we have already read some valid events, we do not throw.
+            // If there are some valid events read, do not interrupt the current processing iteration and process them.
+            // Note that if the error is persistent, the next iteration will hit the same exception and no events will
+            // be read, In that case we will throw and interrupt the current processing iteration.
             if (events.isEmpty() && deserializationException != null) {
                 throw deserializationException;
             }
