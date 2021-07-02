@@ -192,6 +192,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build());
 
@@ -269,6 +270,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(3)
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build());
 
@@ -347,6 +349,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build());
 
@@ -418,6 +421,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build());
         val testSegmentName = testContext.segmentNames[0];
@@ -496,6 +500,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
                 val testContext = new TestContext(CONTAINER_ID);
                 testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                         .maxJournalUpdatesPerSnapshot(2)
+                        .garbageCollectionDelay(Duration.ZERO)
                         .selfCheckEnabled(true)
                         .build());
                 val testSegmentName = testContext.segmentNames[0];
@@ -529,6 +534,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val testContext = new TestContext(CONTAINER_ID);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build());
         val testSegmentName = testContext.segmentNames[0];
@@ -558,6 +564,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
         val testContext = new TestContext(CONTAINER_ID, chunkStorage);
         testContext.setConfig(ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
                 .maxJournalUpdatesPerSnapshot(2)
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build());
         val testSegmentName = testContext.segmentNames[0];
@@ -816,6 +823,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
     @Data
     class TestContext implements AutoCloseable {
         ChunkedSegmentStorageConfig config = ChunkedSegmentStorageConfig.DEFAULT_CONFIG.toBuilder()
+                .garbageCollectionDelay(Duration.ZERO)
                 .selfCheckEnabled(true)
                 .build();
         ChunkStorage chunkStorage;
@@ -889,6 +897,7 @@ public class SystemJournalOperationsTests extends ThreadPooledTestSuite {
 
         void bootstrap() throws Exception {
             systemJournal.bootstrap(epoch, snapshotInfoStore).join();
+            garbageCollector.deleteGarbage(false, 1000).get();
         }
 
         /**
