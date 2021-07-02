@@ -21,7 +21,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.BufferViewComparator;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -30,7 +29,6 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
-import io.pravega.segmentstore.server.TableStoreMock;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.test.common.AssertExtensions;
@@ -795,8 +793,9 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected offset.", expectedOffset, actualOffset);
         }
 
-        // Check sorted index.
-        val keys = highestUpdate.batch.getItems().stream().map(i -> i.getKey().getKey()).collect(Collectors.toList());
+        val expectedUniqueEntryCount = highestUpdateHashes.size();
+        val actualUniqueEntryCount = context.index.getUniqueEntryCount(context.segment.getMetadata());
+        Assert.assertEquals("Unexpected value for getUniqueEntryCount", expectedUniqueEntryCount, actualUniqueEntryCount);
     }
 
     private void checkBackpointers(List<UpdateItem> updates, TestContext context) {
@@ -935,7 +934,6 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         final CacheStorage cacheStorage;
         final CacheManager cacheManager;
         final SegmentMock segment;
-        final TableStoreMock sortedKeyStorage;
         final ContainerKeyIndex index;
         final TimeoutTimer timer;
         final Random random;
@@ -952,8 +950,6 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
             this.segment = new SegmentMock(executorService());
             this.segment.updateAttributes(TableAttributes.DEFAULT_VALUES);
-            this.sortedKeyStorage = new TableStoreMock(executorService());
-            this.sortedKeyStorage.createSegment(this.segment.getInfo().getName(), SegmentType.TABLE_SEGMENT_HASH, TIMEOUT).join();
             this.defaultConfig = TableExtensionConfig.builder()
                     .maxTailCachePreIndexLength(TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH)
                     .maxUnindexedLength(maxUnindexedSize)

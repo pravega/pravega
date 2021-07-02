@@ -36,6 +36,7 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
+import io.pravega.segmentstore.contracts.tables.TableSegmentInfo;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -221,6 +222,18 @@ class HashTableSegmentLayout extends TableSegmentLayout {
                 .resultConverter(converter)
                 .shouldClear(shouldClear)
                 .build();
+    }
+
+    @Override
+    CompletableFuture<TableSegmentInfo> getInfo(@NonNull DirectSegmentAccess segment, Duration timeout) {
+        val m = segment.getInfo();
+        return CompletableFuture.completedFuture(TableSegmentInfo.builder()
+                .name(m.getName())
+                .length(m.getLength())
+                .startOffset(m.getStartOffset())
+                .type(m.getType())
+                .entryCount(this.keyIndex.getUniqueEntryCount(m))
+                .build());
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull DirectSegmentAccess segment, @NonNull IteratorArgs args,

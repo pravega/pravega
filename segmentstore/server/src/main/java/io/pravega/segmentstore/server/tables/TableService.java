@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
+import io.pravega.segmentstore.contracts.tables.TableSegmentInfo;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.segmentstore.server.store.SegmentContainerCollection;
@@ -123,6 +124,13 @@ public class TableService extends SegmentContainerCollection implements TableSto
         return invokeExtension(segmentName,
                 e -> e.entryDeltaIterator(segmentName, fromPosition, fetchTimeout),
                 "entryDeltaIterator", segmentName, fromPosition, fetchTimeout);
+    }
+
+    @Override
+    public CompletableFuture<TableSegmentInfo> getInfo(String segmentName, Duration timeout) {
+        return invokeExtension(segmentName,
+                e -> e.getInfo(segmentName, timeout),
+                "getInfo", segmentName, timeout);
     }
 
     //endregion

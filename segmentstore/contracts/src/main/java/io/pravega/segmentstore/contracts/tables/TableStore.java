@@ -309,4 +309,19 @@ public interface TableStore {
      * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
     CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryDeltaIterator(String segmentName, long fromPosition, Duration fetchTimeout);
+
+    /**
+     * Gets information about a Table Segment.
+     *
+     * @param segmentName The name of the Table Segment.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the result. If the operation failed, the
+     * future will be failed with the causing exception. Note that this result will only contain the Core Attributes
+     * for this Segment. Notable Exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
+     * </ul>
+     */
+    CompletableFuture<TableSegmentInfo> getInfo(String segmentName, Duration timeout);
 }

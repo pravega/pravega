@@ -276,6 +276,10 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         val expectedResult = new ArrayList<Map.Entry<BufferView, EntryData>>();
         for (val e : bySegment.entrySet()) {
             String segmentName = e.getKey();
+            val info = tableStore.getInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            Assert.assertEquals(segmentName, info.getName());
+            AssertExtensions.assertGreaterThan("Unexpected length for " + segmentName, 0, info.getLength());
+            AssertExtensions.assertGreaterThanOrEqual("Unexpected entryCount for " + segmentName, 0, info.getEntryCount());
             val keys = new ArrayList<BufferView>();
             for (val se : e.getValue()) {
                 keys.add(se.getKey());

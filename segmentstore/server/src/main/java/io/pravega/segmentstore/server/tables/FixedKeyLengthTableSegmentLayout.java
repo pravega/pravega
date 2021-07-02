@@ -49,6 +49,7 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentConfig;
+import io.pravega.segmentstore.contracts.tables.TableSegmentInfo;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -270,6 +271,19 @@ class FixedKeyLengthTableSegmentLayout extends TableSegmentLayout {
     AsyncIterator<IteratorItem<TableEntry>> entryDeltaIterator(@NonNull DirectSegmentAccess segment, long fromPosition, Duration fetchTimeout) {
         // We do not support delta iterators for this layout. If needed, we can always implement it.
         throw new UnsupportedOperationException("entryDeltaIterator");
+    }
+
+    @Override
+    CompletableFuture<TableSegmentInfo> getInfo(@NonNull DirectSegmentAccess segment, Duration timeout) {
+        val m = segment.getInfo();
+        return segment.getExtendedAttributeCount(timeout)
+                .thenApply(entryCount -> TableSegmentInfo.builder()
+                        .name(m.getName())
+                        .length(m.getLength())
+                        .startOffset(m.getStartOffset())
+                        .type(m.getType())
+                        .entryCount(entryCount)
+                        .build());
     }
 
     //endregion
