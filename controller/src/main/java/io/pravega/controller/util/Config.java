@@ -174,7 +174,7 @@ public final class Config {
             "transaction.lease.count.min", 10000, "transaction.minLeaseValue");
 
     public static final Property<Long> PROPERTY_TXN_MAX_LEASE = Property.named(
-            "transaction.lease.count.max", 120000L, "transaction.maxLeaseValue");
+            "transaction.lease.count.max", 300000L, "transaction.maxLeaseValue");
 
     public static final Property<Integer> PROPERTY_TXN_MAX_EXECUTION_TIMEBOUND_DAYS = Property.named(
             "transaction.execution.timeBound.days", 1);
