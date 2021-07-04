@@ -111,6 +111,12 @@ public interface ControllerServiceConfig {
     Duration getRetentionFrequency();
 
     /**
+     * Frequency at which the {@link io.pravega.shared.health.HealthServiceUpdater} will update the health state of
+     * the Controller service(s).
+     */
+    Duration getHealthCheckFrequency();
+
+    /**
      * How long to await a graceful shutdown.
      * @return Graceful shutdown timeout.
      */

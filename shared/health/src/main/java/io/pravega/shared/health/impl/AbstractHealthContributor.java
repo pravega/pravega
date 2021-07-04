@@ -130,6 +130,10 @@ public abstract class AbstractHealthContributor implements HealthContributor {
     synchronized final public void register(HealthContributor... children) {
         Exceptions.checkNotClosed(isClosed(), this);
         for (HealthContributor child : children) {
+            if (child.getName().contains(DELIMITER)) {
+                log.warn("The supplied HealthContributor contains the lookup delimiter ('{}') -- skipping.", DELIMITER);
+                continue;
+            }
             contributors.put(child.getName(), child);
         }
     }
