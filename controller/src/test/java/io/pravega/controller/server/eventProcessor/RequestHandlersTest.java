@@ -258,7 +258,7 @@ public abstract class RequestHandlersTest {
         verify(streamStore1Spied, times(invocationCount.get("startCommitTransactions")))
                 .startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("completeCommitTransactions")))
-                .completeCommitTransactions(anyString(), anyString(), any(), any(), any());
+                .completeCommitTransactions(anyString(), anyString(), any(), any(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("updateVersionedState")))
                 .updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
 
@@ -368,7 +368,7 @@ public abstract class RequestHandlersTest {
             verify(streamStore1Spied, times(invocationCount.get("completeRollingTxn")))
                     .completeRollingTxn(anyString(), anyString(), any(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("completeCommitTransactions")))
-                    .completeCommitTransactions(anyString(), anyString(), any(), any(), any());
+                    .completeCommitTransactions(anyString(), anyString(), any(), any(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("updateVersionedState")))
                     .updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
         } else {

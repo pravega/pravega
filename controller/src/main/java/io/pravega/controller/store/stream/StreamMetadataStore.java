@@ -1378,6 +1378,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param record versioned record
      * @param context operation context
      * @param executor executor
+     * @param writerTimes operation context
+     * @param writerIdToTxnOffsets Mapping of WriterId to Transaction Offset.
      * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
      */
     CompletableFuture<Void> completeCommitTransactions(final String scope, final String stream,
