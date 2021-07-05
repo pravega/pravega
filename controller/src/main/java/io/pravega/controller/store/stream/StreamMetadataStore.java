@@ -1350,7 +1350,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return A completableFuture which, when completed, mean that the record has been created successfully.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(final String scope,
+    CompletableFuture<Map.Entry<VersionedMetadata<CommittingTransactionsRecord>, List<VersionedTransactionData>>> startCommitTransactions(final String scope,
                                                                                                final String stream,
                                                                                                final int limit,
                                                                                                final OperationContext context,

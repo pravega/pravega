@@ -41,6 +41,8 @@ import static io.pravega.shared.NameUtils.computeSegmentId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -51,7 +53,7 @@ import java.util.stream.Collectors;
  * Request handler for processing commit events in commit-stream.
  */
 public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> implements StreamTask<CommitEvent> {
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AutoScaleTask.class));
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(CommitRequestHandler.class));
 
     private static final int MAX_TRANSACTION_COMMIT_BATCH_SIZE = 100;
 
@@ -159,6 +161,10 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                           final String stream,
                                                           final OperationContext context) {
         Timer timer = new Timer();
+        Map<String, Long> writerTimes = new HashMap<>();
+        Map<String, UUID> writerTimesTxId = new HashMap<>();
+        Map<UUID, String> txnIdToWriterId = new HashMap<>();
+        Map<String, Map<Long, Long>> writerPositions = new HashMap<>();
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenComposeAsync(state -> {
                     final AtomicReference<VersionedMetadata<State>> stateRecord = new AtomicReference<>(state);
@@ -166,17 +172,17 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> commitFuture =
                             streamMetadataStore.startCommitTransactions(scope, stream, MAX_TRANSACTION_COMMIT_BATCH_SIZE, 
                                     context, executor)
-                            .thenComposeAsync(versionedMetadata -> {
-                                if (versionedMetadata.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
+                            .thenComposeAsync(committingTxnsRecord -> {
+                                if (committingTxnsRecord.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
                                     // there are no transactions found to commit.
                                     // reset state conditionally in case we were left with stale committing state from
                                     // a previous execution
                                     // that died just before updating the state back to ACTIVE but after having 
                                     // completed all the work.
-                                    return CompletableFuture.completedFuture(versionedMetadata);
+                                    return CompletableFuture.completedFuture(committingTxnsRecord);
                                 } else {
-                                    int txnEpoch = versionedMetadata.getObject().getEpoch();
-                                    List<UUID> txnList = versionedMetadata.getObject().getTransactionsToCommit();
+                                    int txnEpoch = committingTxnsRecord.getObject().getEpoch();
+                                    List<UUID> txnList = committingTxnsRecord.getObject().getTransactionsToCommit();
 
                                     log.info(context.getRequestId(), 
                                             "Committing {} transactions on epoch {} on stream {}/{}", 
@@ -212,10 +218,10 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                     return commitTransactions(scope, stream, 
                                                             new ArrayList<>(activeEpochRecord.getSegmentIds()), txnList, 
                                                             context, timer)
-                                                            .thenApply(x -> versionedMetadata);
+                                                            .thenApply(x -> committingTxnsRecord);
                                                 } else {
                                                     return rollTransactions(scope, stream, txnEpochRecord, activeEpochRecord,
-                                                            versionedMetadata, context, timer);
+                                                            committingTxnsRecord, context, timer);
                                                 }
                                             }));
                                 }

@@ -586,7 +586,7 @@ interface Stream {
      * @param limit maximum number of transactions to include in a commit batch 
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions(int limit, 
+    CompletableFuture<Map.Entry<VersionedMetadata<CommittingTransactionsRecord>, List<VersionedTransactionData>>> startCommittingTransactions(int limit,
                                                                                                    OperationContext context);
 
     /**
