@@ -232,8 +232,10 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                 })
                 .whenComplete((r, ex) -> {
                     if (ex == null) {
+                        log.info("{}: EventProcessor {} created successfully.", this.traceObjectId, name);
                         result.complete(r);
                     } else {
+                        log.error("{}: Problem instantiating EventProcessor {}.", this.traceObjectId, name, ex);
                         result.completeExceptionally(ex);
                     }
                 });
@@ -405,6 +407,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
                         } else {
                             this.failedIteration.set(false);
                         }
+                        log.debug("{}: Finished iteration for EventProcessor (Name = {}, Start offset = {}, Failed iteration = {}).",
+                                this.traceObjectId, this.name, this.segmentStartOffset.get(), this.failedIteration.get());
                         return null;
                     });
         }
@@ -414,7 +418,9 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
          * Segment's metadata.
          */
         private void reconcileStartOffset() {
-            this.segmentStartOffset.set(segment.getInfo().getStartOffset());
+            long newStartOffset = segment.getInfo().getStartOffset();
+            log.info("{}: Reconciling start offset from {} to {}.", this.traceObjectId, this.segmentStartOffset.get(), newStartOffset);
+            this.segmentStartOffset.set(newStartOffset);
         }
 
         /**
