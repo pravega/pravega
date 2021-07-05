@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -449,27 +448,29 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Check that if the creation of the EventProcessor takes too long, the future is completed exceptionally.
+     * Check that if the creation of the EventProcessor fails, the future is completed exceptionally.
      *
      * @throws Exception
      */
     @Test(timeout = 10000)
-    public void testInitializationTimeout() throws Exception {
+    public void testInitializationException() throws Exception {
+        Function<String, CompletableFuture<DirectSegmentAccess>> failingSegmentSupplier = s ->
+                CompletableFuture.failedFuture(new IntentionalException());
         @Cleanup
-        ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, mockSegmentSupplier(),
-                ITERATION_DELAY, Duration.ZERO, this.executorService());
+        ContainerEventProcessor eventProcessorService = new ContainerEventProcessorImpl(0, failingSegmentSupplier,
+                ITERATION_DELAY, CONTAINER_OPERATION_TIMEOUT, this.executorService());
         int maxItemsProcessed = 10;
         int maxOutstandingBytes = 4 * 1024 * 1024;
         ContainerEventProcessor.EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(maxItemsProcessed,
                 maxOutstandingBytes);
 
         // Verify that if the creation of the EventProcessor takes too long, the future completes exceptionally.
-        AssertExtensions.assertFutureThrows("Expected future exceptionally complete with TimeoutException",
-                eventProcessorService.forConsumer("testTimeoutForConsumer", l -> null, config),
-                ex -> ex instanceof TimeoutException);
-        AssertExtensions.assertFutureThrows("Expected future exceptionally complete with TimeoutException",
-                eventProcessorService.forDurableQueue("testTimeoutForDurableQueue"),
-                ex -> ex instanceof TimeoutException);
+        AssertExtensions.assertFutureThrows("Expected future exceptionally complete with IntentionalException",
+                eventProcessorService.forConsumer("testExceptionForConsumer", l -> null, config),
+                ex -> ex instanceof IntentionalException);
+        AssertExtensions.assertFutureThrows("Expected future exceptionally complete with IntentionalException",
+                eventProcessorService.forDurableQueue("testExceptionForDurableQueue"),
+                ex -> ex instanceof IntentionalException);
     }
 
     /**
@@ -518,7 +519,7 @@ public class ContainerEventProcessorTests extends ThreadPooledTestSuite {
             ContainerEventProcessorImpl.EventProcessorImpl processor = mock(ContainerEventProcessorImpl.EventProcessorImpl.class);
             final String key = String.valueOf(i);
             doAnswer(a -> eventProcessorService.getEventProcessorMap().remove(key)).when(processor).close();
-            eventProcessorService.getEventProcessorMap().put(key, processor);
+            eventProcessorService.getEventProcessorMap().put(key, CompletableFuture.completedFuture(processor));
         }
         eventProcessorService.close();
     }

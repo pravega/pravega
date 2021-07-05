@@ -28,7 +28,6 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.SegmentType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.ContainerEventProcessor;
@@ -49,19 +48,16 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.pravega.segmentstore.server.containers.MetadataStore.SegmentInfo.newSegment;
 import static io.pravega.shared.NameUtils.getEventProcessorSegmentName;
 
 /**
@@ -86,7 +82,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
     private final int containerId;
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
-    private final Map<String, EventProcessorImpl> eventProcessorMap = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<EventProcessor>> eventProcessorMap = new ConcurrentHashMap<>();
     private final Function<String, CompletableFuture<DirectSegmentAccess>> segmentSupplier;
     private final Duration iterationDelay;
     private final Duration containerOperationTimeout;
@@ -132,8 +128,8 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
         return s -> Futures.exceptionallyComposeExpecting(
                 container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout),
                 e -> e instanceof StreamSegmentNotExistsException,
-                () -> metadataStore.submitAssignment(newSegment(getEventProcessorSegmentName(container.getId(), s),
-                        SYSTEM_CRITICAL_SEGMENT, Collections.emptyList()), true, timeout) // Segment should be pinned.
+                () -> metadataStore.registerPinnedSegment(getEventProcessorSegmentName(container.getId(), s),
+                        SYSTEM_CRITICAL_SEGMENT, null, timeout) // Segment should be pinned.
                         .thenCompose(l -> container.forSegment(getEventProcessorSegmentName(container.getId(), s), timeout)));
     }
 
@@ -156,7 +152,7 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
             }
             eventProcessorMap.forEach((k, v) -> {
                 try {
-                    v.close();
+                    v.join().close();
                 } catch (Exception e) {
                     log.warn("{}: Problem closing EventProcessor {}.", this.traceObjectId, k, e);
                 }
@@ -178,16 +174,17 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
         synchronized (eventProcessorMap) {
             // If the EventProcessor is already loaded, just return it.
-            EventProcessor existingProcessor = eventProcessorMap.get(name);
-            if (existingProcessor != null) {
-                return CompletableFuture.completedFuture(existingProcessor);
+            CompletableFuture<EventProcessor> processorFuture = eventProcessorMap.get(name);
+            if (processorFuture == null) {
+                // Instantiate the EventProcessor and put it into the map. If the EventProcessor is closed, auto-unregister.
+                Runnable onClose = () -> eventProcessorMap.remove(name);
+                // Put the future for this EventProcessor that will be completed upon initialization. All other callers
+                // will get the same result as they will be waiting for the same future object.
+                processorFuture = new CompletableFuture<>();
+                eventProcessorMap.put(name, processorFuture);
+                createEventProcessor(name, config, onClose, handler, true, processorFuture);
             }
-            ReusableLatch latch = new ReusableLatch();
-            // Instantiate the EventProcessor and put it into the map. If the EventProcessor is closed, auto-unregister.
-            Runnable onClose = () -> eventProcessorMap.remove(name);
-            CompletableFuture<EventProcessor> result = createEventProcessor(name, config, onClose, handler, true, latch);
-            tryAwaitForEventProcessorInitialization(latch, name, result);
-            return result;
+            return processorFuture;
         }
     }
 
@@ -197,20 +194,21 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
         synchronized (eventProcessorMap) {
             // If the EventProcessor is already loaded, just return it.
-            EventProcessor existingProcessor = eventProcessorMap.get(name);
-            if (existingProcessor != null) {
-                return CompletableFuture.completedFuture(existingProcessor);
+            CompletableFuture<EventProcessor> processorFuture = eventProcessorMap.get(name);
+            if (processorFuture == null) {
+                // Instantiate the EventProcessor and put it into the map. If the EventProcessor is closed, auto-unregister.
+                Runnable onClose = () -> eventProcessorMap.remove(name);
+                // No handler needed when we use the EventProcessor as a durable queue.
+                Function<List<BufferView>, CompletableFuture<Void>> noHandler = l -> CompletableFuture.completedFuture(null);
+                // Do not limit the amount of outstanding bytes when there is no consumer configured.
+                EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(0, Long.MAX_VALUE);
+                // Put the future for this EventProcessor that will be completed upon initialization. All other callers
+                // will get the same result as they will be waiting for the same future object.
+                processorFuture = new CompletableFuture<>();
+                eventProcessorMap.put(name, processorFuture);
+                createEventProcessor(name, config, onClose, noHandler, false, processorFuture);
             }
-            ReusableLatch latch = new ReusableLatch();
-            // Instantiate the EventProcessor and put it into the map. If the EventProcessor is closed, auto-unregister.
-            Runnable onClose = () -> eventProcessorMap.remove(name);
-            // No handler needed when we use the EventProcessor as a durable queue.
-            Function<List<BufferView>, CompletableFuture<Void>> noHandler = l -> CompletableFuture.completedFuture(null);
-            // Do not limit the amount of outstanding bytes when there is no consumer configured.
-            EventProcessorConfig config = new ContainerEventProcessor.EventProcessorConfig(0, Long.MAX_VALUE);
-            CompletableFuture<EventProcessor> result = createEventProcessor(name, config, onClose, noHandler, false, latch);
-            tryAwaitForEventProcessorInitialization(latch, name, result);
-            return result;
+            return processorFuture;
         }
     }
 
@@ -221,29 +219,24 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
     private CompletableFuture<EventProcessor> createEventProcessor(String name, EventProcessorConfig config, Runnable onClose,
                                                                    Function<List<BufferView>, CompletableFuture<Void>> handler,
-                                                                   boolean startService, ReusableLatch latch) {
+                                                                   boolean startService, CompletableFuture<EventProcessor> result) {
         return segmentSupplier.apply(name)
-                .thenApplyAsync(segment -> {
+                .thenApply(segment -> {
                     Exceptions.checkNotClosed(this.closed.get(), this);
-                    EventProcessorImpl processor = new EventProcessorImpl(name, containerId, segment, handler,
+                    EventProcessor processor = new EventProcessorImpl(name, containerId, segment, handler,
                             config, iterationDelay, containerOperationTimeout, onClose, executor);
                     if (startService) {
-                        processor.startAsync().awaitRunning();
+                        ((EventProcessorImpl) processor).startAsync().awaitRunning();
                     }
-                    eventProcessorMap.put(name, processor);
-                    latch.release();
                     return processor;
-                }, executor);
-    }
-
-    private void tryAwaitForEventProcessorInitialization(ReusableLatch latch, String eventProcessorName,
-                                                         CompletableFuture<EventProcessor> result) {
-        try {
-            latch.await(containerOperationTimeout.toMillis());
-        } catch (TimeoutException | InterruptedException ex) {
-            log.error("Initialization of EventProcessor {} took too long.", eventProcessorName);
-            result.completeExceptionally(ex);
-        }
+                })
+                .whenComplete((r, ex) -> {
+                    if (ex == null) {
+                        result.complete(r);
+                    } else {
+                        result.completeExceptionally(ex);
+                    }
+                });
     }
 
     /**
@@ -470,9 +463,9 @@ class ContainerEventProcessorImpl implements ContainerEventProcessor {
 
             // If there are some valid events read, do not interrupt the current processing iteration and process them.
             // Note that if the error is persistent, the next iteration will hit the same exception and no events will
-            // be read, In that case we will throw and interrupt the current processing iteration.
-            if (events.isEmpty() && deserializationException != null) {
-                throw deserializationException;
+            // be read. In that case, we will throw and interrupt the current processing iteration.
+            if (events.isEmpty()) {
+                throw deserializationException != null ? deserializationException : new NoDataAvailableException();
             }
             return new EventsReadAndTruncationLength(events, truncationLength);
         }
