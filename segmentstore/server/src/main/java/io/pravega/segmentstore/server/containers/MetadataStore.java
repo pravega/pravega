@@ -484,11 +484,8 @@ public abstract class MetadataStore implements AutoCloseable {
      * @param segmentType Type of Segment.
      * @param attributes  The initial attributes for the StreamSegment, if any.
      * @param timeout     Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate the Segment has been created and pinned.
-     * If the operation failed, this will contain the exception that caused the failure. Notable exceptions:
-     * <ul>
-     * <li>{@link StreamSegmentExistsException} If the Segment already exists.
-     * </ul>
+     * @return A CompletableFuture that, when completed normally, will indicate the Segment has been registered and pinned.
+     * If the operation failed, this will contain the exception that caused the failure.
      */
     CompletableFuture<Long> registerPinnedSegment(String segmentName, SegmentType segmentType,
                                                   Collection<AttributeUpdate> attributes, Duration timeout) {
