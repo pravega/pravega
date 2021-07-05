@@ -260,7 +260,7 @@ public class ClusterWrapper implements AutoCloseable {
                 .isRGWritesWithReadPermEnabled(rgWritesWithReadPermEnabled)
                 .accessTokenTtlInSeconds(tokenTtlInSeconds)
                 .enableTls(tlsEnabled)
-                //.tlsProtocolVersion(tlsProtocolVerion)
+                .tlsProtocolVersion(tlsProtocolVersion)
                 .serverCertificatePath(tlsServerCertificatePath)
                 .serverKeyPath(tlsServerKeyPath)
                 .serverKeystorePath(tlsServerKeystorePath)
