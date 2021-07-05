@@ -608,7 +608,8 @@ interface Stream {
      * @param record existing versioned record.
      */
     CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
-                                                           OperationContext context);
+                                                           OperationContext context, Map<String, Long> writerTimes,
+                                                           Map<String, Map<Long, Long>> writerIdToTxnOffsets);
 
     /**
      * Method to record commit offset for a transaction. This method stores the commit offset in ActiveTransaction record. 

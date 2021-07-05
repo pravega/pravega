@@ -1382,7 +1382,9 @@ public interface StreamMetadataStore extends AutoCloseable {
      */
     CompletableFuture<Void> completeCommitTransactions(final String scope, final String stream,
                                                        final VersionedMetadata<CommittingTransactionsRecord> record,
-                                                       final OperationContext context, final ScheduledExecutorService executor);
+                                                       final OperationContext context, final ScheduledExecutorService executor,
+                                                       Map<String, Long> writerTimes,
+                                                       Map<String, Map<Long, Long>> writerIdToTxnOffsets);
 
 
     /**

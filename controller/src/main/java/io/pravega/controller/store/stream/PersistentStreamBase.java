@@ -1739,43 +1739,22 @@ public abstract class PersistentStreamBase implements Stream {
      * transaction record for which a writer with time and position information is available. 
      */
     CompletableFuture<Void> generateMarksForTransactions(CommittingTransactionsRecord committingTransactionsRecord,
-                                                         OperationContext context) {
+                                                         OperationContext context, Map<String, Long> writerTimes,
+                                                         Map<String, Map<Long, Long>> writerIdToTxnOffsets) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
-        val getTransactionsFuture = Futures.allOfWithResults(
-                committingTransactionsRecord.getTransactionsToCommit().stream().map(txId -> {
-            int epoch = RecordHelper.getTransactionEpoch(txId);
-            // Ignore data not found exceptions. DataNotFound Exceptions can be thrown because transaction record no longer 
-            // exists and this is an idempotent case. DataNotFound can also be thrown because writer's mark was deleted 
-            // as we attempted to update an existing record. Note: Delete can be triggered by writer explicitly calling
-            // removeWriter api. 
-            return Futures.exceptionallyExpecting(getActiveTx(epoch, txId, context), DATA_NOT_FOUND_PREDICATE, null);
-        }).collect(Collectors.toList()));
+        Preconditions.checkArgument(writerTimes != null && writerIdToTxnOffsets != null && writerTimes.size() == writerIdToTxnOffsets.size());
         
-        return getTransactionsFuture
-                .thenCompose(txnRecords -> {
-                    // Filter transactions for which either writer id is not present of time/position is not reported
-                    // Then group transactions by writer ids
-                    val groupedByWriters = txnRecords.stream().filter(x ->
-                            x != null && !Strings.isNullOrEmpty(x.getObject().getWriterId()) &&
-                                    x.getObject().getCommitTime() >= 0L && !x.getObject().getCommitOffsets().isEmpty())
-                                                     .collect(Collectors.groupingBy(x -> x.getObject().getWriterId()));
-
-                    // For each writerId we will take the transaction with the time and position pair (which is to take
-                    // max of all transactions for the said writer). 
-                    // Note: if multiple transactions from same writer have same time, we will take any one arbitrarily and
-                    // use its position for watermarks. Other positions and times would be ignored. 
-                    val noteTimeFutures = groupedByWriters
-                            .entrySet().stream().map(groupEntry -> {
-                        ActiveTxnRecord latest = groupEntry.getValue().stream()
-                                                           .max(Comparator.comparingLong(x -> x.getObject().getCommitTime()))
-                                                           .get().getObject();
-                        return Futures.exceptionallyExpecting(
-                                noteWriterMark(latest.getWriterId(), latest.getCommitTime(), latest.getCommitOffsets(),
-                                        context),
-                                DATA_NOT_FOUND_PREDICATE, null);
-                    }).collect(Collectors.toList());
-                    return Futures.allOf(noteTimeFutures);
-                });
+        // For each writerId we will take the transaction with the time and position pair (which is to take
+        // max of all transactions for the said writer).
+        // Note: if multiple transactions from same writer have same time, we will take any one arbitrarily and
+        // use its position for watermarks. Other positions and times would be ignored.
+        val noteTimeFutures = writerTimes
+                .entrySet()
+                .stream().map(x -> Futures.exceptionallyExpecting(
+                        noteWriterMark(x.getKey(), x.getValue(), writerIdToTxnOffsets.get(x.getKey()),
+                                context),
+                        DATA_NOT_FOUND_PREDICATE, null)).collect(Collectors.toList());
+        return Futures.allOf(noteTimeFutures);
     }
 
     @VisibleForTesting
@@ -1968,12 +1947,13 @@ public abstract class PersistentStreamBase implements Stream {
                                         List<VersionedTransactionData> emptyTransactionData = new LinkedList<>();
                                         return CompletableFuture.completedFuture(new SimpleEntry<>(versioned, emptyTransactionData));
                                     } else {
-                                        Map.Entry<UUID, ActiveTxnRecord> firstEntry = list.get(0);
                                         ImmutableList.Builder<UUID> txIdList = ImmutableList.builder();
-                                        list.forEach(x -> txIdList.add(x.getKey()));
-                                        List<Long> positions = list.stream().map(x -> x.getValue().getCommitOrder())
+                                        list.forEach(x -> {
+                                            txIdList.add(x.getId());
+                                        });
+                                        List<Long> positions = list.stream().map(VersionedTransactionData::getCommitOrder)
                                                                    .collect(Collectors.toList());
-                                        int epoch = RecordHelper.getTransactionEpoch(firstEntry.getKey());
+                                        int epoch = RecordHelper.getTransactionEpoch(list.get(0).getId());
                                         CommittingTransactionsRecord record =
                                                 new CommittingTransactionsRecord(epoch, txIdList.build());
                                         return updateCommittingTxnRecord(new VersionedMetadata<>(record, versioned.getVersion()),
@@ -2004,12 +1984,13 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record,
-                                                                  OperationContext context) {
+                                                                  OperationContext context, Map<String, Long> writerTimes,
+                                                                  Map<String, Map<Long, Long>> writerIdToTxnOffsets) {
         Preconditions.checkNotNull(context, "operation context cannot be null");
 
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // if honoured and is based on the order in the list.
-        CompletableFuture<Void> future = generateMarksForTransactions(record.getObject(), context);
+        CompletableFuture<Void> future = generateMarksForTransactions(record.getObject(), context, writerTimes, writerIdToTxnOffsets);
         for (UUID txnId : record.getObject().getTransactionsToCommit()) {
             log.debug(context.getRequestId(), "Committing transaction {} on stream {}/{}", txnId, scope, name);
             // commit transaction in segment store
@@ -2698,7 +2679,7 @@ public abstract class PersistentStreamBase implements Stream {
      * @param limit number of txns to fetch.
      * @return CompletableFuture which when completed will return ordered list of transaction ids and records.
      */
-    abstract CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch(
+    abstract CompletableFuture<List<VersionedTransactionData>> getOrderedCommittingTxnInLowestEpoch(
             int limit, OperationContext context);
     
     @VisibleForTesting
