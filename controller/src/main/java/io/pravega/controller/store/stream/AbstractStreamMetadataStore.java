@@ -980,7 +980,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return Futures.completeOn(streamObj.completeCommittingTransactions(record, context), executor)
                 .thenAcceptAsync(result -> {
                     streamObj.getNumberOfOngoingTransactions(context).thenAccept(count ->
-                            TransactionMetrics.reportOpenTransactions(scope, stream, count));
+                            TransactionMetrics.reportOpenTransactions(scope, stream, count.intValue()));
                 }, executor);
     }
 
