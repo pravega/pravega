@@ -120,6 +120,15 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     }
 
     @Override
+    public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment,
+                                                                          Collection<AttributeUpdate> attributes, Duration timeout) {
+        return invoke(
+                sourceStreamSegment,
+                container -> container.mergeStreamSegment(targetStreamSegment, sourceStreamSegment, attributes, timeout),
+                "mergeTransaction", targetStreamSegment, sourceStreamSegment);
+    }
+
+    @Override
     public CompletableFuture<Long> sealStreamSegment(String streamSegmentName, Duration timeout) {
         return invoke(
                 streamSegmentName,

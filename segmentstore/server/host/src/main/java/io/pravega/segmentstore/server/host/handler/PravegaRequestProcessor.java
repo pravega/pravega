@@ -101,8 +101,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -470,7 +472,20 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         log.info(mergeSegments.getRequestId(), "Merging Segments {} ", mergeSegments);
-        segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), TIMEOUT)
+
+        // Populate the AttributeUpdates for this mergeSegments operation, if any.
+        Collection<AttributeUpdate> attributeUpdates = null;
+        if (mergeSegments.getAttributeUpdates() != null) {
+            attributeUpdates = new HashSet<>();
+            for (Map.Entry<UUID, Map.Entry<Long, Long>> update : mergeSegments.getAttributeUpdates().entrySet()) {
+                long newValue =  update.getValue().getKey();
+                long oldValue = update.getValue().getValue();
+                attributeUpdates.add(new AttributeUpdate(AttributeId.fromUUID(update.getKey()),
+                        AttributeUpdateType.ReplaceIfEquals, newValue, oldValue));
+            }
+        }
+
+        segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), attributeUpdates, TIMEOUT)
                     .thenAccept(mergeResult -> {
                         recordStatForTransaction(mergeResult, mergeSegments.getTarget());
                         connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),

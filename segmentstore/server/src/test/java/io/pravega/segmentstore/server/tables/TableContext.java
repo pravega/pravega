@@ -299,6 +299,12 @@ public class TableContext implements AutoCloseable {
         }
 
         @Override
+        public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetSegmentName, String sourceSegmentName,
+                                                                              Collection<AttributeUpdate> attributes, Duration timeout) {
+            throw new UnsupportedOperationException("Not Expected");
+        }
+
+        @Override
         public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetSegmentName, String sourceSegmentName, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }

@@ -397,7 +397,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException        If the operation is for a different Segment.
      */
     void preProcessAsTargetSegment(MergeSegmentOperation operation, SegmentMetadataUpdateTransaction sourceMetadata)
-            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException {
+            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException, BadAttributeUpdateException {
         ensureSegmentId(operation);
 
         if (this.sealed) {
@@ -413,10 +413,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         long transLength = operation.getLength();
         if (transLength < 0) {
             throw new MetadataUpdateException(this.containerId,
-                    "MergeSegmentOperation does not have its Source Segment Length set: " + operation.toString());
+                    "MergeSegmentOperation does not have its Source Segment Length set: " + operation);
         }
 
         if (!this.recoveryMode) {
+            // Update attributes first on the target Segment, if any.
+            preProcessAttributes(AttributeUpdateCollection.from(operation.getAttributeUpdates()));
             // Assign entry Segment offset and update Segment offset afterwards.
             operation.setStreamSegmentOffset(this.length);
         }
@@ -654,7 +656,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             throw new MetadataUpdateException(containerId,
                     "MergeSegmentOperation does not seem to have been pre-processed: " + operation.toString());
         }
-
+        acceptAttributes(operation.getAttributeUpdates());
         this.length += transLength;
         this.isChanged = true;
     }

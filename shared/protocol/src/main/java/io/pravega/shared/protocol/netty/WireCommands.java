@@ -36,7 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import javax.annotation.concurrent.NotThreadSafe;
+
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -1238,6 +1240,7 @@ public final class WireCommands {
     }
 
     @Data
+    @AllArgsConstructor
     public static final class MergeSegments implements Request, WireCommand {
         final WireCommandType type = WireCommandType.MERGE_SEGMENTS;
         final long requestId;
@@ -1245,6 +1248,16 @@ public final class WireCommands {
         final String source;
         @ToString.Exclude
         final String delegationToken;
+        final Map<UUID, Map.Entry<Long, Long>> attributeUpdates;
+
+        // Constructor to keep compatibility with all the calls not requiring attributes to merge Segments.
+        public MergeSegments(long requestId, String target, String source, String delegationToken) {
+            this.requestId = requestId;
+            this.target = target;
+            this.source = source;
+            this.delegationToken = delegationToken;
+            this.attributeUpdates = Collections.emptyMap();
+        }
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1257,6 +1270,13 @@ public final class WireCommands {
             out.writeUTF(target);
             out.writeUTF(source);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
+            for (Map.Entry<UUID, Map.Entry<Long, Long>> entry : attributeUpdates.entrySet()) {
+                out.writeLong(entry.getKey().getMostSignificantBits());
+                out.writeLong(entry.getKey().getLeastSignificantBits());
+                // For each AttributeUpdate, we need both the new value and old value to check.
+                out.writeLong(entry.getValue().getKey());   // New value first
+                out.writeLong(entry.getValue().getValue()); // Old value for comparison
+            }
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1264,7 +1284,17 @@ public final class WireCommands {
             String target = in.readUTF();
             String source = in.readUTF();
             String delegationToken = in.readUTF();
-            return new MergeSegments(requestId, target, source, delegationToken);
+            Map<UUID, Map.Entry<Long, Long>> attributes = new HashMap<>();
+            // Account for the bytes already read so we know the remaining ones to be read as attributes.
+            int readBytes = Long.BYTES + target.getBytes().length + source.getBytes().length + delegationToken.getBytes().length;
+            while (readBytes < length) {
+                UUID attributeId = new UUID(in.readLong(), in.readLong());
+                long newValue = in.readLong(); // New value first
+                long oldValue = in.readLong(); // Old value for comparison
+                attributes.put(attributeId, new AbstractMap.SimpleEntry<>(newValue, oldValue));
+                readBytes += 4 * Long.BYTES;
+            }
+            return new MergeSegments(requestId, target, source, delegationToken, Collections.unmodifiableMap(attributes));
         }
     }
 
