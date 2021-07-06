@@ -175,13 +175,13 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                     context, executor)
                             .thenComposeAsync(txnsTuple -> {
                                 VersionedMetadata<CommittingTransactionsRecord> committingTxnsRecord = txnsTuple.getKey();
-                                txnsTuple.getValue().forEach(x -> {
-                                    if (!Strings.isNullOrEmpty(x.getWriterId()) && (!writerTimes.containsKey(x.getWriterId()) ||
-                                            writerTimes.get(x.getWriterId()) < x.getCommitTime())) {
-                                        writerTimes.put(x.getWriterId(), x.getCommitTime());
-                                        writerTimesTxId.put(x.getWriterId(), x.getId());
+                                txnsTuple.getValue().forEach(txnData -> {
+                                    if (!Strings.isNullOrEmpty(txnData.getWriterId()) && (!writerTimes.containsKey(txnData.getWriterId()) ||
+                                        writerTimes.get(txnData.getWriterId()) < txnData.getCommitTime())) {
+                                        writerTimes.put(txnData.getWriterId(), txnData.getCommitTime());
+                                        writerTimesTxId.put(txnData.getWriterId(), txnData.getId());
                                     }
-                                    txnIdToWriterId.put(x.getId(), x.getWriterId());
+                                    txnIdToWriterId.put(txnData.getId(), txnData.getWriterId());
                                 });
                                 if (committingTxnsRecord.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
                                     // there are no transactions found to commit.
@@ -229,8 +229,8 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                     return commitTransactions(scope, stream, 
                                                             new ArrayList<>(activeEpochRecord.getSegmentIds()), txnList, 
                                                             context, noteTime)
-                                                            .thenApply(x -> {
-                                                                x.forEach((tid, pos) -> {
+                                                            .thenApply(txnOffsets -> {
+                                                                txnOffsets.forEach((tid, pos) -> {
                                                                     String writerId = txnIdToWriterId.get(tid);
                                                                     if (!Strings.isNullOrEmpty(writerId) && writerTimesTxId.get(writerId).equals(tid)) {
                                                                         writerPositions.put(writerId, pos);
