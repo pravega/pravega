@@ -31,7 +31,6 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.Version;
 import io.pravega.controller.store.VersionedMetadata;
-import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
@@ -1116,11 +1115,10 @@ public abstract class StreamMetadataStoreTest {
         // after committing, we should have committed tx00 while having purged references for tx01 and tx02
         // getting ordered list should return txn on epoch 1 in the order in which we issued commits
         orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100, context).join();
-        ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
-        assertEquals(3, ordered.size());
-        assertEquals(tx10, ordered.get(0));
-        assertEquals(tx11, ordered.get(1));
-        assertEquals(tx12, ordered.get(2));
+        assertEquals(3, orderedRecords.size());
+        assertEquals(tx10, orderedRecords.get(0).getId());
+        assertEquals(tx11, orderedRecords.get(1).getId());
+        assertEquals(tx12, orderedRecords.get(2).getId());
 
         // verify that transactions are still present in position
         positions = streamObj.getAllOrderedCommittingTxns(context).join();
@@ -1132,26 +1130,25 @@ public abstract class StreamMetadataStoreTest {
 
         // we will issue next round of commit, which will commit txns on epoch 1. 
         activeEpoch = store.getActiveEpoch(scope, stream, null, true, executor).join();
-        record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
+        record = store.startCommitTransactions(scope, stream, 100, null, executor).join().getKey();
         // verify that the order in record is same
-        assertEquals(record.getObject().getTransactionsToCommit(), ordered);
+        assertEquals(record.getObject().getTransactionsToCommit(), orderedRecords.stream().map(x -> x.getId()).collect(Collectors.toList()));
         
         // verify that transactions included for commit are removed from positions.
         positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(1, positions.size());
         assertEquals(positions.get(3L), tx02);
 
-        assertEquals(record.getObject().getTransactionsToCommit(), ordered);
+        assertEquals(record.getObject().getTransactionsToCommit(), orderedRecords);
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
         // verify that it is committing transactions on epoch 1         
 
-        store.completeCommitTransactions(scope, stream, record, null, executor).join();
+        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.emptyMap(), Collections.emptyMap()).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
 
         // references for tx00 should be removed from orderer
         orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(100, context).join();
-        ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
-        assertEquals(0, ordered.size());
+        assertEquals(0, orderedRecords.size());
 
         // verify that only reference to the open transaction is retained in position
         positions = streamObj.getAllOrderedCommittingTxns(context).join();
@@ -1199,27 +1196,24 @@ public abstract class StreamMetadataStoreTest {
         PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
         StreamOperationContext context = new StreamOperationContext(((AbstractStreamMetadataStore) store).getScope(scope, null), streamObj, 0L);
         // verify that when we retrieve transactions from lowest epoch we get tx00, tx01
-        List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(2, context).join();
-        List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
-        assertEquals(2, ordered.size());
-        assertEquals(tx00, ordered.get(0));
-        assertEquals(tx01, ordered.get(1));
+        List<VersionedTransactionData> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(2, context).join();
+        assertEquals(2, orderedRecords.size());
+        assertEquals(tx00, orderedRecords.get(0).getId());
+        assertEquals(tx01, orderedRecords.get(1).getId());
 
         orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(1000, context).join();
-        ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
-        assertEquals(3, ordered.size());
-        assertEquals(tx00, ordered.get(0));
-        assertEquals(tx01, ordered.get(1));
-        assertEquals(tx02, ordered.get(2));
+        assertEquals(3, orderedRecords.size());
+        assertEquals(tx00, orderedRecords.get(0).getId());
+        assertEquals(tx01, orderedRecords.get(1).getId());
+        assertEquals(tx02, orderedRecords.get(2).getId());
         
         // commit tx00 and tx01
         ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, tx00, null, executor).join();
         ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, tx01, null, executor).join();
 
         orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(1000, context).join();
-        ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
-        assertEquals(1, ordered.size());
-        assertEquals(tx02, ordered.get(0));
+        assertEquals(1, orderedRecords.size());
+        assertEquals(tx02, orderedRecords.get(0).getId());
         
         // scale and create transaction on new epoch too. 
     }
@@ -1263,11 +1257,10 @@ public abstract class StreamMetadataStoreTest {
                 "", Long.MIN_VALUE, null, executor).get();
 
         // verify that when we retrieve transactions from lowest epoch we get tx00, tx01
-        List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(2, context).join();
-        List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+        List<VersionedTransactionData> ordered = streamObj.getOrderedCommittingTxnInLowestEpoch(2, context).join();
         assertEquals(2, ordered.size());
-        assertEquals(tx00, ordered.get(0));
-        assertEquals(tx01, ordered.get(1));
+        assertEquals(tx00, ordered.get(0).getId());
+        assertEquals(tx01, ordered.get(1).getId());
     }
     
     @Test
@@ -1299,12 +1292,11 @@ public abstract class StreamMetadataStoreTest {
         OperationContext context = new StreamOperationContext(((AbstractStreamMetadataStore) store).getScope(scope, null), streamObj, 0L);
         while (!txns.isEmpty()) {
             int limit = 5;
-            List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch(limit, context).join();
-            List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+            List<VersionedTransactionData> ordered = streamObj.getOrderedCommittingTxnInLowestEpoch(limit, context).join();
             assertEquals(limit, ordered.size());
             for (int i = 0; i < limit; i++) {
                 assertEquals(txns.remove(0), ordered.get(i));
-                ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, ordered.get(i), null, executor).join();
+                ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, ordered.get(i).getId(), null, executor).join();
             }
         }
     }
@@ -1953,9 +1945,9 @@ public abstract class StreamMetadataStoreTest {
         String writer1 = "writer1";
         long time = 1L;
         store.sealTransaction(scope, stream, txnId, true, Optional.of(tx01.getVersion()), writer1, time, null, executor).join();
-        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join();
-        store.recordCommitOffsets(scope, stream, txnId, Collections.singletonMap(0L, 1L), null, executor).join();
-        store.completeCommitTransactions(scope, stream, record, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, 100, null, executor).join().getKey();
+        store.completeCommitTransactions(scope, stream, record, null, executor, Collections.singletonMap(writer1, time),
+                Collections.singletonMap(writer1, Collections.singletonMap(0L, 1L))).join();
 
         // verify that writer mark is created in the store
         WriterMark mark = store.getWriterMark(scope, stream, writer1, null, executor).join();

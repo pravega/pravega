@@ -1615,7 +1615,7 @@ public abstract class StreamTestBase {
         long time = 1L;
         streamObj.sealTransaction(txnId, true, Optional.of(tx01.getVersion()), writer1, time, context).join();
         streamObj.startCommittingTransactions(100, context).join();
-        streamObj.generateMarksForTransactions(context, Collections.singletonMap(writer1,time),
+        streamObj.generateMarksForTransactions(context, Collections.singletonMap(writer1, time),
                 Collections.singletonMap(writer1, Collections.singletonMap(0L, 1L))).join();
 
         // verify that writer mark is created in the store
