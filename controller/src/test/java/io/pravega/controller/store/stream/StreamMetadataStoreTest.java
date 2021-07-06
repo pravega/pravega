@@ -1131,15 +1131,16 @@ public abstract class StreamMetadataStoreTest {
         // we will issue next round of commit, which will commit txns on epoch 1. 
         activeEpoch = store.getActiveEpoch(scope, stream, null, true, executor).join();
         record = store.startCommitTransactions(scope, stream, 100, null, executor).join().getKey();
+        List<UUID> txnIdList = orderedRecords.stream().map(x -> x.getId()).collect(Collectors.toList());
         // verify that the order in record is same
-        assertEquals(record.getObject().getTransactionsToCommit(), orderedRecords.stream().map(x -> x.getId()).collect(Collectors.toList()));
+        assertEquals(record.getObject().getTransactionsToCommit(), txnIdList);
         
         // verify that transactions included for commit are removed from positions.
         positions = streamObj.getAllOrderedCommittingTxns(context).join();
         assertEquals(1, positions.size());
         assertEquals(positions.get(3L), tx02);
 
-        assertEquals(record.getObject().getTransactionsToCommit(), orderedRecords);
+        assertEquals(record.getObject().getTransactionsToCommit(), txnIdList);
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).join();
         // verify that it is committing transactions on epoch 1         
 
@@ -1295,7 +1296,7 @@ public abstract class StreamMetadataStoreTest {
             List<VersionedTransactionData> ordered = streamObj.getOrderedCommittingTxnInLowestEpoch(limit, context).join();
             assertEquals(limit, ordered.size());
             for (int i = 0; i < limit; i++) {
-                assertEquals(txns.remove(0), ordered.get(i));
+                assertEquals(txns.remove(0), ordered.get(i).getId());
                 ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, ordered.get(i).getId(), null, executor).join();
             }
         }
