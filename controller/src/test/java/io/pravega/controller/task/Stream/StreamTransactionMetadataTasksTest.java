@@ -75,14 +75,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 
 import java.time.Duration;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -634,7 +627,7 @@ public class StreamTransactionMetadataTasksTest {
         streamStoreMock.startCommitTransactions(SCOPE, STREAM, 100, null, executor).join();
         val record = streamStoreMock.getVersionedCommittingTransactionsRecord(
                 SCOPE, STREAM, null, executor).join();
-        streamStoreMock.completeCommitTransactions(SCOPE, STREAM, record, null, executor).join();
+        streamStoreMock.completeCommitTransactions(SCOPE, STREAM, record, null, executor, Collections.emptyMap(), Collections.emptyMap()).join();
 
         // verify that transaction is removed from active txn
         AssertExtensions.assertFutureThrows("Fetching Active Txn record should throw DNF",

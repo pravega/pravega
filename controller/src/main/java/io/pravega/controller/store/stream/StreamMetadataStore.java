@@ -1388,22 +1388,6 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                        Map<String, Long> writerTimes,
                                                        Map<String, Map<Long, Long>> writerIdToTxnOffsets);
 
-
-    /**
-     * Method to record commit offset for a transaction. This method stores the commit offset in ActiveTransaction record. 
-     * Its behaviour is idempotent and if a transaction already has commitOffsets set earlier, they are not overwritten. 
-     * @param scope scope name
-     * @param stream stream name
-     * @param txnId transaction id
-     * @param commitOffsets segment to offset position where transaction was committed
-     * @param context operation context
-     * @param executor executor
-     * @return A completableFuture which, when completed, will have transaction commit offset recorded successfully.
-     */
-    CompletableFuture<Void> recordCommitOffsets(final String scope, final String stream, final UUID txnId,
-                                                final Map<Long, Long> commitOffsets,
-                                                final OperationContext context, final ScheduledExecutorService executor);
-    
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.
      * If a node already exists, this attempt is ignored.

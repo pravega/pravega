@@ -236,7 +236,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         if (record.getObject().getTransactionsToCommit().size() == 0) {
             future = CompletableFuture.completedFuture(null);
         } else {
-            future = generateMarksForTransactions(record.getObject(), context, writerTimes, writerIdToTxnOffsets)
+            future = generateMarksForTransactions(context, writerTimes, writerIdToTxnOffsets)
                 .thenCompose(v -> createCompletedTxEntries(completedRecords, context))
                     .thenCompose(x -> getTransactionsInEpochTable(record.getObject().getEpoch(), context)
                             .thenCompose(table -> {

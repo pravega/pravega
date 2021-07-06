@@ -17,10 +17,17 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.impl.ReaderGroupState;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.common.Exceptions;
+import io.pravega.common.ObjectBuilder;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.stream.BucketStore;
@@ -34,16 +41,17 @@ import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.CommitEvent;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.val;
 import org.apache.curator.shaded.com.google.common.base.Strings;
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.shared.NameUtils.computeSegmentId;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-import java.util.Map;
-import java.util.HashMap;
+import java.io.IOException;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -175,14 +183,6 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                     context, executor)
                             .thenComposeAsync(txnsTuple -> {
                                 VersionedMetadata<CommittingTransactionsRecord> committingTxnsRecord = txnsTuple.getKey();
-                                txnsTuple.getValue().forEach(txnData -> {
-                                    if (!Strings.isNullOrEmpty(txnData.getWriterId()) && (!writerTimes.containsKey(txnData.getWriterId()) ||
-                                        writerTimes.get(txnData.getWriterId()) < txnData.getCommitTime())) {
-                                        writerTimes.put(txnData.getWriterId(), txnData.getCommitTime());
-                                        writerTimesTxId.put(txnData.getWriterId(), txnData.getId());
-                                    }
-                                    txnIdToWriterId.put(txnData.getId(), txnData.getWriterId());
-                                });
                                 if (committingTxnsRecord.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
                                     // there are no transactions found to commit.
                                     // reset state conditionally in case we were left with stale committing state from
@@ -191,6 +191,14 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                     // completed all the work.
                                     return CompletableFuture.completedFuture(committingTxnsRecord);
                                 } else {
+                                    txnsTuple.getValue().forEach(txn -> {
+                                        if (!Strings.isNullOrEmpty(txn.getWriterId()) && (!writerTimes.containsKey(txn.getWriterId()) ||
+                                            writerTimes.get(txn.getWriterId()) < txn.getCommitTime())) {
+                                            writerTimes.put(txn.getWriterId(), txn.getCommitTime());
+                                            writerTimesTxId.put(txn.getWriterId(), txn.getId());
+                                        }
+                                        txnIdToWriterId.put(txn.getId(), txn.getWriterId());
+                                    });
                                     int txnEpoch = committingTxnsRecord.getObject().getEpoch();
                                     List<UUID> txnList = committingTxnsRecord.getObject().getTransactionsToCommit();
 

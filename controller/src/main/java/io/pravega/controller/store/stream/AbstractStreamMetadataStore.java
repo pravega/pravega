@@ -964,14 +964,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> recordCommitOffsets(String scope, String stream, UUID txnId, Map<Long, Long> commitOffsets, 
-                                                       OperationContext ctx, ScheduledExecutorService executor) {
-        OperationContext context = getOperationContext(ctx);
-        return Futures.completeOn(getStream(scope, stream, context).recordCommitOffsets(txnId, commitOffsets, context), 
-                executor);
-    }
-
-    @Override
     public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, 
                                                               VersionedMetadata<CommittingTransactionsRecord> record,
                                                               OperationContext ctx, ScheduledExecutorService executor,

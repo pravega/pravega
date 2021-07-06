@@ -398,8 +398,8 @@ public abstract class RequestHandlersTest {
                     signal.complete(null);
                     waitOn.join();
                     return store.completeCommitTransactions(x.getArgument(0), x.getArgument(1),
-                            x.getArgument(2), x.getArgument(3), x.getArgument(4));
-                }).when(spied).completeCommitTransactions(anyString(), anyString(), any(), any(), any());
+                            x.getArgument(2), x.getArgument(3), x.getArgument(4), Collections.emptyMap(), Collections.emptyMap());
+                }).when(spied).completeCommitTransactions(anyString(), anyString(), any(), any(), any(), any(), any());
                 break;
             case "startRollingTxn":
                 doAnswer(x -> {

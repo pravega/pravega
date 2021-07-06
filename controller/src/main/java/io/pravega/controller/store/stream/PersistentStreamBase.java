@@ -1731,13 +1731,11 @@ public abstract class PersistentStreamBase implements Stream {
      * This method will ignore any INVALID_TIME or INVALID_POSITION related failures in noting marks for writers.
      * This is because those will typically arise from idempotent commit case where this and a transaction with higher 
      * position and time may already have been committed and the overall mark for the writer may already have progressed.
-     * 
-     * @param committingTransactionsRecord Committing transaction record
+     *
      * @return A completableFuture, which when completed will have marks reported for all transactions in the committing 
      * transaction record for which a writer with time and position information is available. 
      */
-    CompletableFuture<Void> generateMarksForTransactions(CommittingTransactionsRecord committingTransactionsRecord,
-                                                         OperationContext context, Map<String, Long> writerTimes,
+    CompletableFuture<Void> generateMarksForTransactions(OperationContext context, Map<String, Long> writerTimes,
                                                          Map<String, Map<Long, Long>> writerIdToTxnOffsets) {
         Preconditions.checkNotNull(context, "Operation context cannot be null");
         Preconditions.checkArgument(writerTimes != null && writerIdToTxnOffsets != null && writerTimes.size() == writerIdToTxnOffsets.size());
@@ -1988,7 +1986,7 @@ public abstract class PersistentStreamBase implements Stream {
 
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // if honoured and is based on the order in the list.
-        CompletableFuture<Void> future = generateMarksForTransactions(record.getObject(), context, writerTimes, writerIdToTxnOffsets);
+        CompletableFuture<Void> future = generateMarksForTransactions(context, writerTimes, writerIdToTxnOffsets);
         for (UUID txnId : record.getObject().getTransactionsToCommit()) {
             log.debug(context.getRequestId(), "Committing transaction {} on stream {}/{}", txnId, scope, name);
             // commit transaction in segment store
