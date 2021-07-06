@@ -142,6 +142,9 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException(format("Data at the supplied revision {%s} has been truncated. The current segment info is {%s}", start, segmentInfo));
             }
+            if (startOffset == endOffset) {
+                log.info("No new updates to be read from revision {}", start);
+            }
             log.debug("Creating iterator from {} until {} for segment {} ", startOffset, endOffset, segment);
             return new StreamIterator(startOffset, endOffset);
         }
