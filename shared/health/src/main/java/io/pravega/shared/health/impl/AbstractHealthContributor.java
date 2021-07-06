@@ -100,7 +100,7 @@ public abstract class AbstractHealthContributor implements HealthContributor {
         Collection<Status> statuses = new ArrayList<>();
         Map<String, Health> children = new HashMap<>();
 
-        for (val  entry : contributors.entrySet()) {
+        for (val entry : contributors.entrySet()) {
             HealthContributor contributor = entry.getValue();
             synchronized (contributor) {
                 if (!contributor.isClosed()) {
