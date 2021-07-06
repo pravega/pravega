@@ -45,6 +45,7 @@ public abstract class AbstractAdminCommandTest {
         pravegaProperties.setProperty("pravegaservice.container.count", "4");
         pravegaProperties.setProperty("pravegaservice.admin.gateway.port", String.valueOf(SETUP_UTILS.getAdminPort()));
         STATE.get().getConfigBuilder().include(pravegaProperties);
+
     }
 
     @AfterClass
